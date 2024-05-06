@@ -158,6 +158,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         public DialogueChannel build() {
             Config cf = builder.build();
 
+            // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
+            // In a future change we should attempt to retain this state for channels that are retained between
+            // updates.
             Refreshable<ImmutableList<LimitedChannel>> channels =
                     cf.uris().map(targetUris -> createHostChannels(cf, targetUris));
 

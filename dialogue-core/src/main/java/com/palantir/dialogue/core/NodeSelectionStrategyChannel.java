@@ -26,6 +26,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.List;
@@ -74,7 +75,25 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     static LimitedChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
         if (channels.isEmpty()) {
-            return new StickyChannelHandler(new ZeroUriNodeSelectionChannel(cf.channelName()));
+            if (cf.rawConfig().uris().isEmpty()) {
+                // In this case the configuration lists no URIs. The exception should not be retryable
+                // because the problem is local misconfiguration.
+                return new StickyChannelHandler(
+                        new ZeroUriNodeSelectionChannel(endpoint -> new SafeIllegalStateException(
+                                "There are no URIs configured to handle requests",
+                                SafeArg.of("channel", cf.channelName()),
+                                SafeArg.of("service", endpoint.serviceName()),
+                                SafeArg.of("endpoint", endpoint.endpointName()))));
+            } else {
+                // Channels is empty, however the raw config lists URIs. In this case DNS resolution
+                // yielded no hostnames.
+                return new StickyChannelHandler(
+                        new ZeroUriNodeSelectionChannel(endpoint -> new SafeUnknownHostException(
+                                "There were no DNS results for this host",
+                                SafeArg.of("channel", cf.channelName()),
+                                SafeArg.of("service", endpoint.serviceName()),
+                                SafeArg.of("endpoint", endpoint.endpointName()))));
+            }
         }
 
         if (channels.size() == 1) {

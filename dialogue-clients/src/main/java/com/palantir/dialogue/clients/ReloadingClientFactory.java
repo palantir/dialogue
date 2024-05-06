@@ -161,7 +161,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public Channel getChannel(String serviceName) {
-        // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
         return new LiveReloadingChannel(
                 getInternalDialogueChannel(serviceName), params.runtime().clients());
     }
