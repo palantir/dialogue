@@ -328,7 +328,7 @@ public final class DialogueChannelTest {
     }
 
     @Test
-    void constructing_a_client_with_unresolvable_uris_causes_immediate_failures() {
+    void constructing_a_client_with_unresolvable_uris_causes_retries() {
         String channelName = "my-channel";
         int maxRetries = 2;
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
@@ -348,6 +348,7 @@ public final class DialogueChannelTest {
                         .backoffSlotSize(Duration.ZERO)
                         .build())
                 .factory(_args -> mockChannel)
+                // No resolved targets, despite uris in the ClientConfiguration, simulating no DNS results.
                 .uris(Refreshable.only(ImmutableList.of()))
                 .build();
         ListenableFuture<Response> future = channel.execute(endpoint, request);
