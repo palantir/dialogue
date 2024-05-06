@@ -75,7 +75,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     static LimitedChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
         if (channels.isEmpty()) {
-            if (cf.rawConfig().uris().isEmpty()) {
+            if (cf.clientConf().uris().isEmpty()) {
                 // In this case the configuration lists no URIs. The exception should not be retryable
                 // because the problem is local misconfiguration.
                 return new StickyChannelHandler(
