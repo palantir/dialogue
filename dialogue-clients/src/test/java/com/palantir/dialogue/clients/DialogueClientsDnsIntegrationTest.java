@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MultimapBuilder.SetMultimapBuilder;
 import com.google.common.collect.SetMultimap;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ProxyConfiguration;
@@ -38,6 +39,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.util.MapBasedDnsResolver;
 import com.palantir.refreshable.Refreshable;
@@ -56,6 +58,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
@@ -108,6 +111,7 @@ public class DialogueClientsDnsIntegrationTest {
 
     @Test
     void dns_refresh_works() throws UnknownHostException {
+        String service = "foo";
         Duration dnsRefreshInterval = Duration.ofMillis(50);
         String hostOne = "hostone";
         String hostTwo = "hosttwo";
@@ -119,7 +123,9 @@ public class DialogueClientsDnsIntegrationTest {
         dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 1}));
 
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
+        Counter activeTasks = ClientDnsMetrics.of(metrics)
+                .tasks(DnsPollingSpec.serviceConfig(ChannelNames.reloading(service))
+                        .kind());
 
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         Undertow undertow = Undertow.builder()
@@ -134,7 +140,7 @@ public class DialogueClientsDnsIntegrationTest {
                             Refreshable.only(ServicesConfigBlock.builder()
                                     .defaultSecurity(TestConfigurations.SSL_CONFIG)
                                     .putServices(
-                                            "foo",
+                                            service,
                                             PartialServiceConfiguration.builder()
                                                     .addUris(getUri(undertow, hostOne) + "/one")
                                                     .addUris(getUri(undertow, hostTwo) + "/two")
@@ -146,7 +152,7 @@ public class DialogueClientsDnsIntegrationTest {
                     .withUserAgent(TestConfigurations.AGENT)
                     .withTaggedMetrics(metrics);
 
-            SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
+            SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, service);
             client.voidToVoid();
 
             assertThat(activeTasks.getCount()).isEqualTo(1);
@@ -174,6 +180,162 @@ public class DialogueClientsDnsIntegrationTest {
         }
     }
 
+    @Test
+    void dns_refresh_updates_in_flight_requests_reloading_channel() throws UnknownHostException {
+        Duration dnsRefreshInterval = Duration.ofMillis(50);
+        String hostOne = "hostone";
+
+        SetMultimap<String, InetAddress> dnsEntries =
+                SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
+        DialogueDnsResolver dnsResolver = new MapBasedDnsResolver(dnsEntries);
+
+        // bad address
+        dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 2}));
+
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(ChannelNames.reloading("foo"));
+
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        Undertow undertow = Undertow.builder()
+                .addHttpListener(0, "localhost", new BlockingHandler(exchange -> {
+                    requestPaths.add(exchange.getRequestPath());
+                    exchange.setStatusCode(200);
+                }))
+                .build();
+        undertow.start();
+        try {
+            DialogueClients.ReloadingFactory factory = DialogueClients.create(
+                            Refreshable.only(ServicesConfigBlock.builder()
+                                    .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                                    .putServices(
+                                            "foo",
+                                            PartialServiceConfiguration.builder()
+                                                    .addUris(getUri(undertow, hostOne) + "/one")
+                                                    .build())
+                                    .build()))
+                    .withDnsNodeDiscovery(true)
+                    .withDnsResolver(dnsResolver)
+                    .withDnsRefreshInterval(dnsRefreshInterval)
+                    .withUserAgent(TestConfigurations.AGENT)
+                    .withTaggedMetrics(metrics);
+
+            SampleServiceAsync asyncClient = factory.get(SampleServiceAsync.class, "foo");
+            ListenableFuture<Void> requestFuture = asyncClient.voidToVoid();
+
+            assertThat(requestFuture.isDone()).isFalse();
+
+            assertThat(activeTasks.getCount()).isEqualTo(1);
+
+            // Ensure the dns update thread sticks around after a GC
+            System.gc();
+
+            // good address
+            dnsEntries.removeAll(hostOne);
+            dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 1}));
+
+            // Ensure the subsequent code has a chance to push updates after waiting for
+            // a dns refresh task to begin.
+            Uninterruptibles.sleepUninterruptibly(dnsRefreshInterval.plus(Duration.ofMillis(100)));
+
+            // don't make another request, we want the first one to eventually succeed
+            try {
+                requestFuture.get();
+            } catch (ExecutionException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            assertThat(requestFuture.isDone()).isTrue();
+            assertThat(requestPaths).containsExactly("/one/voidToVoid");
+
+            // Ensure the dns update task sticks around after a GC
+            System.gc();
+            assertThat(activeTasks.getCount())
+                    .as("Background refresh task should still be polling")
+                    .isEqualTo(1);
+        } finally {
+            undertow.stop();
+        }
+    }
+
+    // getNonReloading overload with ClientConfiguration is deprecated
+    @SuppressWarnings("deprecation")
+    @Test
+    void dns_refresh_updates_in_flight_requests_nonreloading_channel() throws UnknownHostException {
+        Duration dnsRefreshInterval = Duration.ofMillis(50);
+        String hostOne = "hostone";
+
+        SetMultimap<String, InetAddress> dnsEntries =
+                SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
+        DialogueDnsResolver dnsResolver = new MapBasedDnsResolver(dnsEntries);
+
+        // bad address
+        dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 2}));
+
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Counter activeTasks = ClientDnsMetrics.of(metrics)
+                .tasks(DnsPollingSpec.clientConfig("dialogue-nonreloading-" + SampleServiceAsync.class.getSimpleName())
+                        .kind());
+
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        Undertow undertow = Undertow.builder()
+                .addHttpListener(0, "localhost", new BlockingHandler(exchange -> {
+                    requestPaths.add(exchange.getRequestPath());
+                    exchange.setStatusCode(200);
+                }))
+                .build();
+        undertow.start();
+        try {
+            DialogueClients.ReloadingFactory factory = DialogueClients.create(
+                            Refreshable.only(ServicesConfigBlock.empty()))
+                    .withDnsNodeDiscovery(true)
+                    .withDnsResolver(dnsResolver)
+                    .withDnsRefreshInterval(dnsRefreshInterval)
+                    .withUserAgent(TestConfigurations.AGENT)
+                    .withTaggedMetrics(metrics);
+
+            SampleServiceAsync asyncClient = factory.getNonReloading(
+                    SampleServiceAsync.class,
+                    ClientConfigurations.of(
+                            ImmutableList.of(getUri(undertow, hostOne) + "/one"),
+                            SslSocketFactories.createSslSocketFactory(TestConfigurations.SSL_CONFIG),
+                            SslSocketFactories.createX509TrustManager(TestConfigurations.SSL_CONFIG)));
+            ListenableFuture<Void> requestFuture = asyncClient.voidToVoid();
+
+            assertThat(requestFuture.isDone()).isFalse();
+
+            assertThat(activeTasks.getCount()).isEqualTo(1);
+
+            // Ensure the dns update thread sticks around after a GC
+            System.gc();
+
+            // good address
+            dnsEntries.removeAll(hostOne);
+            dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 1}));
+
+            // Ensure the subsequent code has a chance to push updates after waiting for
+            // a dns refresh task to begin.
+            Uninterruptibles.sleepUninterruptibly(dnsRefreshInterval.plus(Duration.ofMillis(100)));
+
+            // don't make another request, we want the first one to eventually succeed
+            try {
+                requestFuture.get();
+            } catch (ExecutionException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            assertThat(requestFuture.isDone()).isTrue();
+            assertThat(requestPaths).containsExactly("/one/voidToVoid");
+
+            // Ensure the dns update task sticks around after a GC
+            System.gc();
+            assertThat(activeTasks.getCount())
+                    .as("Background refresh task should still be polling")
+                    .isEqualTo(1);
+        } finally {
+            undertow.stop();
+        }
+    }
+
     @SuppressWarnings("ReassignedVariable")
     @Test
     void dns_refresh_works_without_factory_ref() throws UnknownHostException {
@@ -188,7 +350,7 @@ public class DialogueClientsDnsIntegrationTest {
         dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 1}));
 
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(ChannelNames.reloading("foo"));
 
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         Undertow undertow = Undertow.builder()
@@ -224,9 +386,13 @@ public class DialogueClientsDnsIntegrationTest {
             SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
             factory = null;
 
-            // The factory should not be released at this point
-            System.gc();
-            assertThat(factoryRef.get()).isNotNull();
+            Awaitility.waitAtMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+                // Give the GC a nudge.
+                System.gc();
+                assertThat(factoryRef.get())
+                        .as("Expected the factory reference to be freed")
+                        .isNull();
+            });
 
             client.voidToVoid();
 
@@ -242,20 +408,8 @@ public class DialogueClientsDnsIntegrationTest {
             client.voidToVoid();
             assertThat(requestPaths).containsExactly("/one/voidToVoid", "/two/voidToVoid");
 
-            assertThat(factoryRef.get())
-                    .as("The factory should not be possible to collect while clients are referenced")
-                    .isNotNull();
-
-            // Dropping the client reference should allow the factory to be freed
+            // Dropping the client reference should allow the refresh task to be stopped
             client = null;
-
-            Awaitility.waitAtMost(Duration.ofSeconds(3)).untilAsserted(() -> {
-                // Give the GC a nudge so the cleaner is likely to fire.
-                System.gc();
-                assertThat(factoryRef.get())
-                        .as("Expected the factory reference to be freed")
-                        .isNull();
-            });
 
             Awaitility.waitAtMost(Duration.ofSeconds(3)).untilAsserted(() -> {
                 // Force a gc to help the cleaner along
@@ -368,7 +522,7 @@ public class DialogueClientsDnsIntegrationTest {
                         InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
                 .build());
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(ChannelNames.reloading(service));
         Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
@@ -395,6 +549,7 @@ public class DialogueClientsDnsIntegrationTest {
     void dnsNodeDiscoveryOffWithInvalidUri() throws UnknownHostException {
         String host = "somehost";
         String service = "service";
+        String channelName = ChannelNames.reloading(service);
         DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
                 .putAll(
                         host,
@@ -402,8 +557,8 @@ public class DialogueClientsDnsIntegrationTest {
                         InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
                 .build());
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
-        Meter invalidUris = ClientUriMetrics.of(metrics).invalid("service");
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(channelName);
+        Meter invalidUris = ClientUriMetrics.of(metrics).invalid(channelName);
         Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
@@ -439,7 +594,7 @@ public class DialogueClientsDnsIntegrationTest {
                         InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
                 .build());
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(ChannelNames.reloading(service));
         Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)

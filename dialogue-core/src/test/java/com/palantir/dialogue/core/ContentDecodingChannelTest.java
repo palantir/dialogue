@@ -33,6 +33,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.refreshable.Refreshable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,7 +59,8 @@ public final class ContentDecodingChannelTest {
                 ImmutableList.of("https://localhost:8123"),
                 SSLContext.getDefault().getSocketFactory(),
                 tm);
-        List<TargetUri> targets = ImmutableList.of(TargetUri.of("https://localhost:8123"));
+        Refreshable<List<TargetUri>> targets =
+                Refreshable.only(ImmutableList.of(TargetUri.of("https://localhost:8123")));
         standard = Mockito.mock(Config.class);
         Mockito.when(standard.mesh()).thenReturn(MeshMode.DEFAULT_NO_MESH);
         Mockito.when(standard.clientConf()).thenReturn(clientConfig);

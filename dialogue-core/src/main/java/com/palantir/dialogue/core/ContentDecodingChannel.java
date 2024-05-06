@@ -33,6 +33,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.zip.GZIPInputStream;
 import javax.annotation.Nullable;
 
@@ -57,34 +58,38 @@ final class ContentDecodingChannel implements EndpointChannel {
     private static final String PREFER_COMPRESSED_RESPONSE_TAG = "prefer-compressed-response";
 
     private final EndpointChannel delegate;
-    private final boolean sendAcceptGzip;
+    private final BooleanSupplier sendAcceptGzip;
 
-    private ContentDecodingChannel(EndpointChannel delegate, boolean sendAcceptGzip) {
+    private ContentDecodingChannel(EndpointChannel delegate, BooleanSupplier sendAcceptGzip) {
         this.delegate = Preconditions.checkNotNull(delegate, "Channel is required");
         this.sendAcceptGzip = sendAcceptGzip;
     }
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
-        boolean sendAcceptGzip = shouldSendAcceptGzip(cf, endpoint);
+        BooleanSupplier sendAcceptGzip = shouldSendAcceptGzip(cf, endpoint);
         return new ContentDecodingChannel(delegate, sendAcceptGzip);
     }
 
-    private static boolean shouldSendAcceptGzip(Config cf, Endpoint endpoint) {
+    private static BooleanSupplier shouldSendAcceptGzip(Config cf, Endpoint endpoint) {
         // If the override tag has been configured, always request gzipped responses.
         if (endpoint.tags().contains(PREFER_COMPRESSED_RESPONSE_TAG)) {
-            return true;
+            return () -> true;
         }
         // In mesh mode or environments which appear to be within an environment,
         // prefer not to request compressed responses. This heuristic assumes response
         // compression should not be used in a service mesh, nor when load balancing
         // is handled by the client. Note that this will also opt out of response
         // compression when the target host resolves to multiple IP addresses.
-        return cf.mesh() == MeshMode.DEFAULT_NO_MESH && cf.uris().size() == 1;
+        if (cf.mesh() == MeshMode.DEFAULT_NO_MESH) {
+            return cf.uris().map(targets -> targets.size() == 1)::get;
+        }
+
+        return () -> false;
     }
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        Request augmentedRequest = acceptEncoding(request, sendAcceptGzip);
+        Request augmentedRequest = acceptEncoding(request, sendAcceptGzip.getAsBoolean());
         // In cases where gzip is not expected, we continue to handle gzipped responses to avoid abrupt failures
         // against servers which hard-code 'Content-Encoding: gzip' responses without checking request headers.
         return DialogueFutures.transform(delegate.execute(augmentedRequest), ContentDecodingChannel::decompress);

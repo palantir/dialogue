@@ -24,6 +24,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
+import com.palantir.refreshable.Refreshable;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Random;
@@ -40,25 +41,16 @@ interface Config {
 
     DialogueChannelFactory channelFactory();
 
-    ClientConfiguration rawConfig();
+    ClientConfiguration clientConf();
 
     @Value.Default
-    default List<TargetUri> uris() {
-        return rawConfig().uris().stream().map(TargetUri::of).collect(Collectors.toList());
-    }
-
-    @Value.Derived
-    default ClientConfiguration clientConf() {
-        return ClientConfiguration.builder()
-                .from(rawConfig())
-                .uris(uris().stream().map(TargetUri::uri).collect(Collectors.toList()))
-                .taggedMetricRegistry(rawConfig().taggedMetricRegistry())
-                .build();
+    default Refreshable<List<TargetUri>> uris() {
+        return Refreshable.only(clientConf().uris().stream().map(TargetUri::of).collect(Collectors.toList()));
     }
 
     @Value.Derived
     default MeshMode mesh() {
-        return MeshMode.fromUris(rawConfig().uris(), SafeArg.of("channelName", channelName()));
+        return MeshMode.fromUris(clientConf().uris(), SafeArg.of("channelName", channelName()));
     }
 
     @Value.Derived
@@ -91,15 +83,15 @@ interface Config {
     @Value.Check
     default void check() {
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");
-        Preconditions.checkArgument(rawConfig().userAgent().isPresent(), "userAgent must be specified");
+        Preconditions.checkArgument(clientConf().userAgent().isPresent(), "userAgent must be specified");
         Preconditions.checkArgument(
-                rawConfig().retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
+                clientConf().retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
                 "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
 
-        if (uris().size() > 1 && overrideSingleHostIndex().isPresent()) {
+        if (uris().get().size() > 1 && overrideSingleHostIndex().isPresent()) {
             throw new SafeIllegalArgumentException(
                     "overrideHostIndex is only permitted when there is a single uri",
-                    SafeArg.of("numUris", rawConfig().uris().size()));
+                    SafeArg.of("numUris", clientConf().uris().size()));
         }
     }
 }

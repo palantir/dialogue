@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.clients;
+package com.palantir.dialogue.core;
 
 import com.google.errorprone.annotations.CompileTimeConstant;
 import com.palantir.logsafe.Arg;

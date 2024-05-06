@@ -25,6 +25,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
@@ -49,7 +50,10 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.refreshable.Refreshable;
 import com.palantir.tracing.TestTracing;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.SocketException;
@@ -321,6 +325,35 @@ public final class DialogueChannelTest {
                 .build();
         ListenableFuture<Response> future = channel.execute(endpoint, request);
         assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeIllegalStateException.class);
+    }
+
+    @Test
+    void constructing_a_client_with_unresolvable_uris_causes_retries() {
+        String channelName = "my-channel";
+        int maxRetries = 2;
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(metrics);
+        Meter retries = dialogueClientMetrics
+                .requestRetry()
+                .channelName(channelName)
+                .reason("SafeUnknownHostException")
+                .build();
+        channel = DialogueChannel.builder()
+                .channelName(channelName)
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .uris(ImmutableList.of("http://localhost:8163"))
+                        .taggedMetricRegistry(metrics)
+                        .maxNumRetries(maxRetries)
+                        .backoffSlotSize(Duration.ZERO)
+                        .build())
+                .factory(_args -> mockChannel)
+                // No resolved targets, despite uris in the ClientConfiguration, simulating no DNS results.
+                .uris(Refreshable.only(ImmutableList.of()))
+                .build();
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
+        assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeUnknownHostException.class);
+        assertThat(retries.getCount()).isEqualTo(maxRetries);
     }
 
     @Test

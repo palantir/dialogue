@@ -22,25 +22,20 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.Optional;
+import java.util.function.Function;
 
 /** When we have zero URIs, no request can get out the door. */
 final class ZeroUriNodeSelectionChannel implements LimitedChannel {
-    private final String channelName;
+    private final Function<Endpoint, Throwable> throwableFactory;
 
-    ZeroUriNodeSelectionChannel(String channelName) {
-        this.channelName = Preconditions.checkNotNull(channelName, "Channel name is required");
+    ZeroUriNodeSelectionChannel(Function<Endpoint, Throwable> throwableFactory) {
+        this.throwableFactory = Preconditions.checkNotNull(throwableFactory, "Throwable supplier is required");
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request _request, LimitEnforcement _limitEnforcement) {
-        return Optional.of(Futures.immediateFailedFuture(new SafeIllegalStateException(
-                "There are no URIs configured to handle requests",
-                SafeArg.of("channel", channelName),
-                SafeArg.of("service", endpoint.serviceName()),
-                SafeArg.of("endpoint", endpoint.endpointName()))));
+        return Optional.of(Futures.immediateFailedFuture(throwableFactory.apply(endpoint)));
     }
 }

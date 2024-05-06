@@ -19,6 +19,7 @@ dependencies {
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.palantir.conjure.java.api:service-config'
     implementation 'com.palantir.tracing:tracing-api'
+    implementation 'com.palantir.refreshable:refreshable'
 
     testImplementation 'com.palantir.tracing:tracing-test-utils'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'

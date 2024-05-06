@@ -30,6 +30,11 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Safe;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.refreshable.Refreshable;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Random;
@@ -37,6 +42,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
+    private static final SafeLogger log = SafeLoggerFactory.get(DialogueChannel.class);
     private final EndpointChannelFactory delegate;
     private final Config cf;
     private final Supplier<Channel> stickyChannelSupplier;
@@ -87,11 +93,20 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         public Builder clientConfiguration(ClientConfiguration value) {
-            builder.rawConfig(value);
+            builder.clientConf(value);
             return this;
         }
 
+        /**
+         * Exists for backcompat, prefer {@link #uris( Refreshable)}.
+         * @deprecated prefer {@link #uris( Refreshable)}.
+         */
+        @Deprecated
         public Builder uris(List<TargetUri> value) {
+            return uris(Refreshable.only(value));
+        }
+
+        public Builder uris(Refreshable<List<TargetUri>> value) {
             builder.uris(value);
             return this;
         }
@@ -148,11 +163,57 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         public DialogueChannel build() {
             Config cf = builder.build();
 
+            // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
+            // In a future change we should attempt to retain this state for channels that are retained between
+            // updates.
+            Refreshable<ImmutableList<LimitedChannel>> channels =
+                    cf.uris().map(targetUris -> createHostChannels(cf, targetUris));
+
+            DialogueClientMetrics clientMetrics =
+                    DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry());
+
+            Meter reloadMeter = clientMetrics
+                    .reload()
+                    .clientName(cf.channelName())
+                    .clientType("dialogue-channel-non-reloading")
+                    .build();
+
+            LimitedChannel nodeSelectionChannel = new SupplierChannel(channels.map(current -> {
+                reloadMeter.mark();
+                log.info(
+                        "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets: {})",
+                        SafeArg.of("channel", cf.channelName()),
+                        UnsafeArg.of("uris", cf.clientConf().uris()),
+                        SafeArg.of("numUris", cf.clientConf().uris().size()),
+                        UnsafeArg.of("targets", current),
+                        SafeArg.of("numTargets", current.size()));
+                return NodeSelectionStrategyChannel.create(cf, current);
+            }));
+
+            LimitedChannel stickyValidationChannel = new StickyValidationChannel(nodeSelectionChannel);
+
+            Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
+            EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
+
+            Supplier<Channel> stickyChannelSupplier =
+                    StickyEndpointChannels2.create(cf, stickyValidationChannel, channelFactory);
+
+            Meter createMeter = clientMetrics
+                    .create()
+                    .clientName(cf.channelName())
+                    .clientType("dialogue-channel-non-reloading")
+                    .build();
+            createMeter.mark();
+
+            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
+        }
+
+        private static ImmutableList<LimitedChannel> createHostChannels(Config cf, List<TargetUri> targetUris) {
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
-            for (int uriIndex = 0; uriIndex < cf.uris().size(); uriIndex++) {
+            for (int uriIndex = 0; uriIndex < targetUris.size(); uriIndex++) {
                 final int uriIndexForInstrumentation =
                         cf.overrideSingleHostIndex().orElse(uriIndex);
-                TargetUri targetUri = cf.uris().get(uriIndex);
+                TargetUri targetUri = targetUris.get(uriIndex);
                 Channel channel = cf.channelFactory()
                         .create(DialogueChannelFactory.ChannelArgs.builder()
                                 .uri(targetUri.uri())
@@ -178,25 +239,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         : new ChannelToLimitedChannelAdapter(channel);
                 perUriChannels.add(limitedChannel);
             }
-            ImmutableList<LimitedChannel> channels = perUriChannels.build();
-
-            LimitedChannel nodeSelectionChannel =
-                    new StickyValidationChannel(NodeSelectionStrategyChannel.create(cf, channels));
-
-            Channel multiHostQueuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
-            EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
-
-            Supplier<Channel> stickyChannelSupplier =
-                    StickyEndpointChannels2.create(cf, nodeSelectionChannel, channelFactory);
-
-            Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
-                    .create()
-                    .clientName(cf.channelName())
-                    .clientType("dialogue-channel-non-reloading")
-                    .build();
-            createMeter.mark();
-
-            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
+            return perUriChannels.build();
         }
 
         private static EndpointChannelFactory createEndpointChannelFactory(Channel multiHostQueuedChannel, Config cf) {
