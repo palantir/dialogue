@@ -110,6 +110,7 @@ Dialogue-specific metrics that are not necessarily applicable to other client im
   - `service-name`
   - `endpoint`
 - `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
+- `dialogue.client.reload` tagged `client-name`, `client-type` (meter): Marked every time a clients targets are reloaded, including initial creation.
 
 ### dialogue.concurrencylimiter
 Instrumentation for the ConcurrencyLimitedChannel
