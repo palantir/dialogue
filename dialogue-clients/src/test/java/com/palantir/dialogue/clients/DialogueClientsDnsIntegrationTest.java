@@ -433,6 +433,10 @@ public class DialogueClientsDnsIntegrationTest {
         DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
                 .putAll(host, addresses)
                 .build());
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(ChannelNames.reloading(service));
+        // unassigned to allow garbage collection later in the test
+        @SuppressWarnings("unused")
         Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
@@ -443,6 +447,7 @@ public class DialogueClientsDnsIntegrationTest {
                                                 .build())
                                 .build()))
                 .withDnsNodeDiscovery(true)
+                .withTaggedMetrics(metrics)
                 .withDnsResolver(resolver)
                 .withUserAgent(TestConfigurations.AGENT)
                 .perHost(service)
@@ -450,6 +455,18 @@ public class DialogueClientsDnsIntegrationTest {
         assertThat(perHostChannels.get())
                 .as("Expect one node per resolved address")
                 .hasSameSizeAs(addresses);
+        System.gc();
+        assertThat(activeTasks.getCount())
+                .as("Background dns refreshing should be active")
+                .isOne();
+
+        perHostChannels = null;
+        Awaitility.waitAtMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+            System.gc();
+            assertThat(activeTasks.getCount())
+                    .as("Background refresh task should stop when the client is garbage collected")
+                    .isZero();
+        });
     }
 
     @Test
