@@ -93,7 +93,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         public Builder clientConfiguration(ClientConfiguration value) {
-            builder.clientConf(value);
+            builder.rawConfig(value);
             return this;
         }
 

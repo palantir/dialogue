@@ -132,7 +132,7 @@ class HostMetricsChannelTest {
         return ImmutableConfig.builder()
                 .channelName("channelName")
                 .channelFactory(factory)
-                .clientConf(rawConfig)
+                .rawConfig(rawConfig)
                 .ticker(ticker)
                 .build();
     }
