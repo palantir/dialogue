@@ -346,7 +346,6 @@ public class DialogueClientsIntegrationTest {
         undertowHandler = exchange -> exchange.setStatusCode(204);
         SampleServiceBlocking client = DialogueClients.create(Refreshable.only(null))
                 .withUserAgent(TestConfigurations.AGENT)
-                .withMaxNumRetries(0)
                 .getNonReloading(
                         SampleServiceBlocking.class,
                         ServiceConfiguration.builder()
