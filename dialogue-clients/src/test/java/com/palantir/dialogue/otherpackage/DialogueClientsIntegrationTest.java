@@ -342,6 +342,20 @@ public class DialogueClientsIntegrationTest {
     }
 
     @Test
+    void test_mesh_uri() {
+        undertowHandler = exchange -> exchange.setStatusCode(204);
+        SampleServiceBlocking client = DialogueClients.create(Refreshable.only(null))
+                .withUserAgent(TestConfigurations.AGENT)
+                .getNonReloading(
+                        SampleServiceBlocking.class,
+                        ServiceConfiguration.builder()
+                                .addUris("mesh-" + getUri(undertow))
+                                .security(TestConfigurations.SSL_CONFIG)
+                                .build());
+        assertThatCode(client::voidToVoid).as("request should succeed").doesNotThrowAnyException();
+    }
+
+    @Test
     public void test_sticky_is_sticky() {
         testSticky(ReloadingFactory::getStickyChannels, StickyChannelFactory::getCurrentBest);
     }

@@ -112,10 +112,14 @@ final class RetryOtherValidatingChannel implements Channel {
         throw new SafeIllegalArgumentException("Failed to parse URI", UnsafeArg.of("uri", uri));
     }
 
+    @VisibleForTesting
     @CheckForNull
-    private static String maybeParseHost(String uri) {
+    static String maybeParseHost(String uri) {
+        // n.b. URL cannot handle mesh-http uris. Ideally we'd use the URI type here,
+        // however there are edge cases where it may fail that URL may succeed.
+        String normalized = MeshMode.stripMeshPrefix(uri);
         try {
-            URL parsed = new URL(uri);
+            URL parsed = new URL(normalized);
             return parsed.getHost();
         } catch (MalformedURLException e) {
             return null;

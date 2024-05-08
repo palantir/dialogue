@@ -100,4 +100,22 @@ public final class RetryOtherValidatingChannelTest {
                 .succeedsWithin(Duration.ZERO)
                 .isEqualTo(response);
     }
+
+    @Test
+    void parsesMeshUris() {
+        assertThat(RetryOtherValidatingChannel.maybeParseHost("mesh-http://localhost:1234/api"))
+                .isEqualTo("localhost");
+    }
+
+    @Test
+    void parsesStandardUris() {
+        assertThat(RetryOtherValidatingChannel.maybeParseHost("https://host.palantir.com:1234/api"))
+                .isEqualTo("host.palantir.com");
+    }
+
+    @Test
+    void parsesStandardUrisWithoutPort() {
+        assertThat(RetryOtherValidatingChannel.maybeParseHost("https://host.palantir.com/api"))
+                .isEqualTo("host.palantir.com");
+    }
 }

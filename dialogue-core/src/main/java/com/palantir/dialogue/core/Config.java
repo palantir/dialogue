@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
 import com.palantir.logsafe.DoNotLog;
@@ -41,21 +42,32 @@ interface Config {
 
     DialogueChannelFactory channelFactory();
 
-    ClientConfiguration clientConf();
+    ClientConfiguration rawConfig();
+
+    @Value.Derived
+    default ClientConfiguration clientConf() {
+        return ClientConfiguration.builder()
+                .from(rawConfig())
+                .uris(rawConfig().uris().stream()
+                        .map(MeshMode::stripMeshPrefix)
+                        .collect(ImmutableList.toImmutableList()))
+                .build();
+    }
 
     @Value.Default
     default Refreshable<List<TargetUri>> uris() {
-        return Refreshable.only(clientConf().uris().stream().map(TargetUri::of).collect(Collectors.toList()));
+        return Refreshable.only(
+                rawConfig().uris().stream().map(TargetUri::of).collect(Collectors.toUnmodifiableList()));
     }
 
     @Value.Derived
     default MeshMode mesh() {
-        return MeshMode.fromUris(clientConf().uris(), SafeArg.of("channelName", channelName()));
+        return MeshMode.fromUris(rawConfig().uris(), SafeArg.of("channelName", channelName()));
     }
 
     @Value.Derived
     default boolean isConcurrencyLimitingEnabled() {
-        return clientConf().clientQoS() == ClientQoS.ENABLED && mesh() != MeshMode.USE_EXTERNAL_MESH;
+        return rawConfig().clientQoS() == ClientQoS.ENABLED && mesh() != MeshMode.USE_EXTERNAL_MESH;
     }
 
     @Value.Default
@@ -83,15 +95,15 @@ interface Config {
     @Value.Check
     default void check() {
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");
-        Preconditions.checkArgument(clientConf().userAgent().isPresent(), "userAgent must be specified");
+        Preconditions.checkArgument(rawConfig().userAgent().isPresent(), "userAgent must be specified");
         Preconditions.checkArgument(
-                clientConf().retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
+                rawConfig().retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
                 "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
 
         if (uris().get().size() > 1 && overrideSingleHostIndex().isPresent()) {
             throw new SafeIllegalArgumentException(
                     "overrideHostIndex is only permitted when there is a single uri",
-                    SafeArg.of("numUris", clientConf().uris().size()));
+                    SafeArg.of("numUris", rawConfig().uris().size()));
         }
     }
 }
