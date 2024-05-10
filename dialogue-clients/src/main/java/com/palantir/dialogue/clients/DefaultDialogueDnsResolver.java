@@ -51,19 +51,8 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
             return ImmutableSet.copyOf(results);
         } catch (UnknownHostException e) {
             GaiError gaiError = extractGaiError(e, hostname);
-            if (gaiError == GaiError.CACHED) {
-                // Cached results can be fairly noisy, avoid heavy logging.
-                if (log.isDebugEnabled()) {
-                    log.debug(
-                            "Unknown host '{}'. {}: {}",
-                            SafeArg.of("gaiErrorType", gaiError.name()),
-                            SafeArg.of("gaiErrorMessage", gaiError.errorMessage()),
-                            UnsafeArg.of("hostname", hostname),
-                            e);
-                }
-            } else {
-                // Sometimes UnknownHostException is reasonable/expected, so we log at info rather than warn.
-                log.info(
+            if (log.isDebugEnabled()) {
+                log.debug(
                         "Unknown host '{}'. {}: {}",
                         SafeArg.of("gaiErrorType", gaiError.name()),
                         SafeArg.of("gaiErrorMessage", gaiError.errorMessage()),
