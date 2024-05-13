@@ -24,6 +24,7 @@ import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.HttpsProxy;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
@@ -48,6 +49,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Parameterized tests are incompatible with BeforeEach, so the tests must be duplicated to test the two proxy types.
+ */
 public abstract class AbstractProxyConfigTlsTest {
 
     private static final String REQUEST_BODY = "Hello, World";
@@ -79,6 +83,7 @@ public abstract class AbstractProxyConfigTlsTest {
     private volatile HttpHandler proxyHandler;
 
     private int proxyPort;
+    private int httpsProxyPort;
     private Undertow proxyServer;
 
     protected abstract Channel create(ClientConfiguration config);
@@ -95,9 +100,21 @@ public abstract class AbstractProxyConfigTlsTest {
         proxyServer = Undertow.builder()
                 .setHandler(exchange -> proxyHandler.handleRequest(exchange))
                 .addHttpListener(0, null)
+                .addHttpsListener(0, null, sslContext)
                 .build();
         proxyServer.start();
-        proxyPort = getPort(proxyServer);
+        proxyPort = getProxyPort("http", "No HTTP listener");
+        httpsProxyPort = getProxyPort("https", "No HTTPS listener");
+    }
+
+    private Integer getProxyPort(String scheme, String errorMessage) {
+        return proxyServer.getListenerInfo().stream()
+                .filter(info -> info.getProtcol().equals(scheme))
+                .map(Undertow.ListenerInfo::getAddress)
+                .map(InetSocketAddress.class::cast)
+                .map(InetSocketAddress::getPort)
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException(errorMessage));
     }
 
     private static int getPort(Undertow undertow) {
@@ -116,7 +133,16 @@ public abstract class AbstractProxyConfigTlsTest {
     }
 
     @Test
-    public void testDirectVersusProxyReadTimeout() throws Exception {
+    public void testDirectVersusProxyReadTimeout_httpProxy() throws Exception {
+        testDirectVersusProxyReadTimeout(createProxySelector("localhost", proxyPort, false));
+    }
+
+    @Test
+    public void testDirectProxyReadTimeout_httpsProxy() throws Exception {
+        testDirectVersusProxyReadTimeout(createProxySelector("localhost", httpsProxyPort, true));
+    }
+
+    private void testDirectVersusProxyReadTimeout(ProxySelector proxySelector) throws Exception {
         serverHandler = new BlockingHandler(exchange -> {
             Uninterruptibles.sleepUninterruptibly(Duration.ofSeconds(2));
             exchange.getResponseSender().send("server");
@@ -132,7 +158,7 @@ public abstract class AbstractProxyConfigTlsTest {
         Channel directChannel = create(directConfig);
         ClientConfiguration proxiedConfig = ClientConfiguration.builder()
                 .from(directConfig)
-                .proxy(createProxySelector("localhost", proxyPort))
+                .proxy(proxySelector)
                 .build();
         Channel proxiedChannel = create(proxiedConfig);
 
@@ -149,7 +175,16 @@ public abstract class AbstractProxyConfigTlsTest {
     }
 
     @Test
-    public void testAuthenticatedProxy() throws Exception {
+    public void testAuthenticatedProxy_httpProxy() throws Exception {
+        testAuthenticatedProxy(createProxySelector("localhost", proxyPort, false));
+    }
+
+    @Test
+    public void testAuthenticatedProxy_httpsProxy() throws Exception {
+        testAuthenticatedProxy(createProxySelector("localhost", httpsProxyPort, true));
+    }
+
+    private void testAuthenticatedProxy(ProxySelector proxySelector) throws Exception {
         AtomicInteger requestIndex = new AtomicInteger();
         proxyHandler = exchange -> {
             HeaderMap requestHeaders = exchange.getRequestHeaders();
@@ -180,7 +215,7 @@ public abstract class AbstractProxyConfigTlsTest {
         ClientConfiguration proxiedConfig = ClientConfiguration.builder()
                 .from(TestConfigurations.create("https://localhost:" + serverPort))
                 .maxNumRetries(0)
-                .proxy(createProxySelector("localhost", proxyPort))
+                .proxy(proxySelector)
                 .proxyCredentials(BasicCredentials.of("fakeUser@fake.com", "fake:Password"))
                 .build();
         Channel proxiedChannel = create(proxiedConfig);
@@ -192,11 +227,14 @@ public abstract class AbstractProxyConfigTlsTest {
         }
     }
 
-    private static ProxySelector createProxySelector(String host, int port) {
+    private static ProxySelector createProxySelector(String host, int port, boolean httpsProxy) {
         return new ProxySelector() {
             @Override
             public List<Proxy> select(URI _uri) {
                 InetSocketAddress addr = InetSocketAddress.createUnresolved(host, port);
+                if (httpsProxy) {
+                    return ImmutableList.of(new HttpsProxy(addr));
+                }
                 return ImmutableList.of(new Proxy(Proxy.Type.HTTP, addr));
             }
 
