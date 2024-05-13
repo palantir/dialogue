@@ -114,7 +114,7 @@ public abstract class AbstractProxyConfigTlsTest {
                 .map(InetSocketAddress.class::cast)
                 .map(InetSocketAddress::getPort)
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException(errorMessage));
+                .orElseThrow(() -> new IllegalArgumentException(errorMessage));
     }
 
     private static int getPort(Undertow undertow) {
