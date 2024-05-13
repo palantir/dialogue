@@ -32,6 +32,7 @@ import org.apache.hc.core5.http.protocol.HttpContext;
 
 /**
  * Identical to {@link SystemDefaultRoutePlanner} but adds support for connecting to an HTTPS proxy.
+ * Original version is licensed under Apache License, Version 2.0.
  */
 final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
     private final ProxySelector proxySelector;
