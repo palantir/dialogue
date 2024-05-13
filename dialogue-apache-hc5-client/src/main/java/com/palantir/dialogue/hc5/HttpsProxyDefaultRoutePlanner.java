@@ -33,10 +33,10 @@ import org.apache.hc.core5.http.protocol.HttpContext;
 /**
  * Identical to {@link SystemDefaultRoutePlanner} but adds support for connecting to an HTTPS proxy.
  */
-public final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
+final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
     private final ProxySelector proxySelector;
 
-    public HttpsProxyDefaultRoutePlanner(ProxySelector proxySelector) {
+    HttpsProxyDefaultRoutePlanner(ProxySelector proxySelector) {
         super(null);
         this.proxySelector = proxySelector;
     }
