@@ -232,7 +232,7 @@ public abstract class AbstractProxyConfigTlsTest {
             @Override
             public List<Proxy> select(URI _uri) {
                 InetSocketAddress addr = InetSocketAddress.createUnresolved(host, port);
-                return ImmutableList.of(HttpsProxies.create(addr, httpsProxy));
+                return ImmutableList.of(httpsProxy ? HttpsProxies.create(addr) : new Proxy(Proxy.Type.HTTP, addr));
             }
 
             @Override
