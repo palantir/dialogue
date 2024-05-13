@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue.hc5;
 
-import com.palantir.conjure.java.client.config.HttpsProxy;
+import com.palantir.conjure.java.client.config.HttpsProxies;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
@@ -67,7 +67,7 @@ public final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
                 throw new HttpException("Unable to handle non-Inet proxy address: " + p.address());
             }
             final InetSocketAddress isa = (InetSocketAddress) p.address();
-            String scheme = p instanceof HttpsProxy ? "https" : "http";
+            String scheme = HttpsProxies.isHttps(p) ? "https" : "http";
             result = new HttpHost(scheme, isa.getAddress(), isa.getHostString(), isa.getPort());
         }
 

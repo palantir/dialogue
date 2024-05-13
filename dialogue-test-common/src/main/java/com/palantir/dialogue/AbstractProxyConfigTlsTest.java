@@ -24,7 +24,7 @@ import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.HttpsProxy;
+import com.palantir.conjure.java.client.config.HttpsProxies;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
@@ -232,10 +232,7 @@ public abstract class AbstractProxyConfigTlsTest {
             @Override
             public List<Proxy> select(URI _uri) {
                 InetSocketAddress addr = InetSocketAddress.createUnresolved(host, port);
-                if (httpsProxy) {
-                    return ImmutableList.of(new HttpsProxy(addr));
-                }
-                return ImmutableList.of(new Proxy(Proxy.Type.HTTP, addr));
+                return ImmutableList.of(HttpsProxies.create(addr, httpsProxy));
             }
 
             @Override
