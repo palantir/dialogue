@@ -20,7 +20,6 @@ import java.net.InetAddress;
 import java.net.ProxySelector;
 import javax.annotation.Nullable;
 import org.apache.hc.client5.http.HttpRoute;
-import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
 import org.apache.hc.client5.http.routing.HttpRoutePlanner;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
@@ -37,7 +36,7 @@ final class DialogueRoutePlanner implements HttpRoutePlanner {
     private final HttpRoutePlanner delegate;
 
     DialogueRoutePlanner(ProxySelector proxySelector) {
-        delegate = new SystemDefaultRoutePlanner(proxySelector);
+        delegate = new HttpsProxyDefaultRoutePlanner(proxySelector);
     }
 
     @Override
