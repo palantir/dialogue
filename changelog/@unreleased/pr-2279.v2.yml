@@ -1,7 +1,6 @@
 type: feature
 feature:
-  description: |-
-    Add support for routing through HTTPS proxies in the apache client when configured
-    <!-- User-facing outcomes this PR delivers -->
+  description: Add support for routing through HTTPS proxies in the apache client
+    when configured
   links:
   - https://github.com/palantir/dialogue/pull/2279
