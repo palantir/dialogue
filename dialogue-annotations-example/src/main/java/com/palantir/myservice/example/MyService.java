@@ -90,6 +90,7 @@ public interface MyService {
             @Request.Header("h3") Optional<String> header3,
             @Request.Header("h4") MyAliasType header4,
             @Request.Header("h5") List<MyAliasType> header5,
+            @Request.HeaderMap Multimap<String, String> headerMap,
             // Can supply a map to fill in arbitrary query values
             @Request.QueryMap(encoder = MapToMultimapParamEncoder.class) Map<String, String> queryParams,
             // Custom encoding classes may be provided for the request and response.

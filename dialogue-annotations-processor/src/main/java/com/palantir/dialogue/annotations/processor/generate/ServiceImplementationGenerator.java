@@ -76,6 +76,7 @@ public final class ServiceImplementationGenerator {
                             .body((serializer, serializerFieldName) ->
                                     Optional.of(serializer(arg, serializer, serializerFieldName)))
                             .header((_headerName, maybeEncoder) -> maybeEncoder.map(this::encoder))
+                            .headerMap(encoder -> Optional.of(encoder(encoder)))
                             .path(maybeEncoder -> maybeEncoder.map(this::encoder))
                             .query((_paramName, maybeEncoder) -> maybeEncoder.map(this::encoder))
                             .queryMap(encoder -> Optional.of(encoder(encoder)))
@@ -214,6 +215,11 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
+            public CodeBlock headerMap(ParameterEncoderType parameterEncoderType) {
+                return generateHeaderMapParam(param, parameterEncoderType);
+            }
+
+            @Override
             public CodeBlock path(Optional<ParameterEncoderType> paramEncoderType) {
                 return generatePathParam(param, paramEncoderType);
             }
@@ -239,6 +245,16 @@ public final class ServiceImplementationGenerator {
                 CodeBlock.of(param.argName().get()),
                 param.argType(),
                 headerParamEncoder);
+    }
+
+    private CodeBlock generateHeaderMapParam(ArgumentDefinition param, ParameterEncoderType paramEncoder) {
+        return generatePlainSerializer(
+                "nope",
+                "putAllHeaderParams",
+                param.argName().get(),
+                CodeBlock.of("$L", param.argName().get()),
+                param.argType(),
+                Optional.of(paramEncoder));
     }
 
     private CodeBlock generatePathParam(ArgumentDefinition param, Optional<ParameterEncoderType> paramEncoder) {

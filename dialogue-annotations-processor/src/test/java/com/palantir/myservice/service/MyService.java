@@ -16,6 +16,7 @@
 
 package com.palantir.myservice.service;
 
+import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.MustBeClosed;
 import com.palantir.dialogue.HttpMethod;
@@ -100,5 +101,6 @@ public interface MyService {
             @Request.Header(value = "h10", encoder = MyCustomStringParamEncoder.class) String header10,
             @Request.Header(value = "h11", encoder = MyCustomStringParamEncoder.class) Optional<String> header11,
             @Request.Header("h12") List<MyAliasType> header12,
+            @Request.HeaderMap Multimap<String, String> headerMap,
             @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
 }

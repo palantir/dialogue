@@ -84,6 +84,12 @@ public @interface Request {
 
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)
+    @interface HeaderMap {
+        Class<? extends MultimapParamEncoder<?>> encoder() default DefaultMultimapParamEncoder.class;
+    }
+
+    @Retention(RetentionPolicy.SOURCE)
+    @Target(ElementType.PARAMETER)
     @interface PathParam {
         Class<? extends ParamEncoder<?>> encoder() default DefaultParamEncoder.class;
 

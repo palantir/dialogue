@@ -296,6 +296,10 @@ public final class MyServiceIntegrationTest {
             exchange.assertSingleValueHeader(HttpString.tryFromString("h4")).isEqualTo("header4");
             exchange.assertMultiValueHeader("h5")
                     .hasValueSatisfying(values -> assertThat(values).containsExactly("header5-1", "header5-2"));
+            exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-API-Key-0"))
+                    .isEqualTo("fake key 0");
+            exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-API-Key-1"))
+                    .isEqualTo("fake key 1");
             exchange.assertBodyUtf8().isEqualTo("{\n  \"value\" : \"my-serializable-type-value\"\n}");
 
             exchange.exchange.setStatusCode(200);
@@ -320,6 +324,7 @@ public final class MyServiceIntegrationTest {
                 Optional.of("header3"),
                 ImmutableMyAliasType.of("header4"),
                 List.of(ImmutableMyAliasType.of("header5-1"), ImmutableMyAliasType.of("header5-2")),
+                ImmutableMultimap.of("Custom-API-Key-0", "fake key 0", "Custom-API-Key-1", "fake key 1"),
                 ImmutableMap.of("varq1", "varvar1"),
                 ImmutableMySerializableType.of("my-serializable-type-value"));
     }

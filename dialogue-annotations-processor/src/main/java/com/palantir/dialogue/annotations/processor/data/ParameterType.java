@@ -30,6 +30,8 @@ public interface ParameterType {
 
         R header(String headerName, Optional<ParameterEncoderType> paramEncoderType);
 
+        R headerMap(ParameterEncoderType parameterEncoderType);
+
         R path(Optional<ParameterEncoderType> paramEncoderType);
 
         R query(String paramName, Optional<ParameterEncoderType> paramEncoderType);
