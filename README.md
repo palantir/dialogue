@@ -133,12 +133,12 @@ public interface MyService {
             @Request.PathParam UUID myPathParam,
             @Request.PathParam(encoder = MyCustomParamTypeEncoder.class) MyCustomParamType myPathParam2,
             // converts a custom type into a Multimap<String, String>
-            @Request.QueryMap(encoder = MyCustomTypeEncoder.class) MyCustomQueryParamType myCustomQueryParam,
+            @Request.QueryMap(encoder = MyCustomQueryTypeEncoder.class) MyCustomQueryParamType myCustomQueryParam,
             @Request.Header("Custom-Header") int requestHeaderValue,
             // Headers can be optional
             @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,
             // converts a custom type into a Multimap<String, String>
-            @Request.HeaderMap(encoder = MyCustomTypeEncoder.class) MyCustomQueryParamType myCustomHeaderParam,
+            @Request.HeaderMap(encoder = MyCustomHeaderTypeEncoder.class) MyCustomHeaderParamType myCustomHeaderParam,
             // Custom encoding classes may be provided for the request and response.
             @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
 }
