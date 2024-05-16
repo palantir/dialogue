@@ -19,7 +19,7 @@ _Dialogue is a client-side library for HTTP-based RPC, designed to work well wit
 ## Observability
 
 - **Zipkin-style tracing**: internal operations are instrumented using Zipkin-style [tracing-java spans](https://github.com/palantir/tracing-java), and `X-B3-TraceId` headers are propagated
-- **Metrics**: Timers, meters and gauges are defined using [metric-schema](https://github.com/palantir/dialogue/blob/develop/dialogue-core/src/main/metrics/dialogue-core-metrics.yml) and stored in a [Tritium TaggedMetricRegistry](https://github.com/palantir/tritium).
+- **Metrics**: Timers, meters, and gauges are defined using [metric-schema](https://github.com/palantir/dialogue/blob/develop/dialogue-core/src/main/metrics/dialogue-core-metrics.yml) and stored in a [Tritium TaggedMetricRegistry](https://github.com/palantir/tritium).
 - **Structured logging**: SLF4J logs are designed to be rendered as JSON, with every parameter declaratively named.
 
 ## Usage
@@ -31,9 +31,9 @@ details.
 
 ### Production usage
 
-Your server framework should provide an abstraction to create clients that handle uri live-reloading and reuse connection pools. For example in Witchcraft, you can create a `FooServiceBlocking` like so:
+Your server framework should provide an abstraction to create clients that handle uri live-reloading and reuse connection pools. For example, in Witchcraft, you can create a `FooServiceBlocking` like so:
 
-```groovy
+```java
 FooServiceBlocking fooService = witchcraft.conjureClients().client(FooServiceBlocking.class, "foo-service").get();
 
 // network call:
@@ -42,7 +42,7 @@ List<Item> items = fooService.getItems();
 
 The non-blocking instance can be constructed similarly:
 
-```groovy
+```java
 FooServiceAsync fooService = witchcraft.conjureClients().client(FooServiceAsync.class, "foo-service").get();
 
 ListenableFuture<List<Item>> items = fooService.getItems();
@@ -92,7 +92,7 @@ public ListenableFuture<Thing> getThing(
 
 ## Blocking or async
 
-Of the two generated interfaces `FooServiceBlocking` and `FooServiceAync`, the blocking version is usually appropriate for 98% of use-cases, and results in much simpler control flow and error-handling. The async version returns Guava [`ListenableFutures`](https://github.com/google/guava/wiki/ListenableFutureExplained) so is a lot more fiddly to use. `Futures.addCallback` and `FluentFuture` are your friend here.
+Of the two generated interfaces `FooServiceBlocking` and `FooServiceAync`, the blocking version is usually appropriate for 98% of use-cases, and results in much simpler control flow and error-handling. The async version returns Guava [`ListenableFutures`](https://github.com/google/guava/wiki/ListenableFutureExplained), making it a lot more fiddly to use. `Futures.addCallback` and `FluentFuture` are your friends here.
 
 [dialogue-annotations-processor generated client bindings]: #dialogue-annotations-processor-generated-client-bindings
 
@@ -101,7 +101,7 @@ Of the two generated interfaces `FooServiceBlocking` and `FooServiceAync`, the b
 ``dialogue-annotations-processor`` is a retrofit replacement for use-cases where a service needs to talk to a
 non-conjure server.
 
-To setup the annotation simply add (make sure you are
+To set up the annotation, simply add (make sure you are
 using [gradle-processors](https://github.com/palantir/gradle-processors)):
 
 ```gradle
@@ -111,7 +111,7 @@ dependencies {
 }
 ```
 
-Next create an annotated interface that describes the service you need to talk to, appropriately annotated
+Next, create an annotated interface that describes the service you need to talk to, appropriately annotated
 with ``@DialogueService``:
 
 ```java
@@ -150,8 +150,8 @@ Features:
 * Custom parameter types: ```@Request.(Header|PathParam|QueryParam)(encoder=MyCustomParamTypeEncoder.class)```.
 * Custom serialization/deserialization: add ```@Request.Body(MySerializableTypeBodySerializer.class)```
   or ```@Request(accept=MyCustomResponseDeserializer.class)```.
-* Custom serialization from ```Map```, ```Multimap``` and custom types into query parameters and header parameters. This functions
-  similarly to the Feign ```QueryMap``` feature, but with added control of customizing the serialization to query parameters and also with support for header parameters as well.
+* Custom serialization from ```Map```, ```Multimap```, and custom types into query parameters and header parameters. This functions
+  similarly to the Feign ```QueryMap``` and ```HeaderMap``` features, but with added control of customizing the serialization.
 * Authentication: builtin ```Authorization``` header handling if an annotated method has an ```AuthHeader``` parameter.
 
 See more examples [on how to define clients](dialogue-annotations-example/src/main/java/com/palantir/myservice/example/MyService.java) and [use the generated code](dialogue-annotations-example/src/test/java/com/palantir/myservice/example/MyServiceIntegrationTest.java).
@@ -166,7 +166,7 @@ public interface Channel {
 }
 ```
 
-For example, the [TraceEnrichingChannel](dialogue-core/src/main/java/com/palantir/dialogue/core/TraceEnrichingChannel.java) just augments the request with a zipkin-style tracing headers and then calls a delegate.
+For example, the [TraceEnrichingChannel](dialogue-core/src/main/java/com/palantir/dialogue/core/TraceEnrichingChannel.java) just augments the request with zipkin-style tracing headers and then calls a delegate.
 
 _This API is influenced by gRPC's [Java library](https://github.com/grpc/grpc-java), which has a similar [Channel](https://github.com/grpc/grpc-java/blob/master/api/src/main/java/io/grpc/Channel.java) concept._
 
@@ -176,8 +176,8 @@ _This API is influenced by gRPC's [Java library](https://github.com/grpc/grpc-ja
 
 Every request passes through a pair of [AIMD](https://en.wikipedia.org/wiki/Additive_increase/multiplicative_decrease)
 concurrency limiters.
-There are two types of concurrency limiter: per-host, and per-endpoint. The former based on failures that
-indicate the target host is in a degraded state, and the latter based on failures that are coupled to
+There are two types of concurrency limiter: per-host, and per-endpoint. The former is based on failures that
+indicate the target host is in a degraded state, and the latter is based on failures that are coupled to
 an individual endpoint.
 Each concurrency limiter operates in conjunction with a queue to stage pending requests until a
 permit becomes available.
@@ -206,7 +206,7 @@ permit becomes available.
 #### Host limits
 
 Each host has a concurrency limiter which protects servers by stopping requests getting out the door on the client-side.
-Permits are decreased after receiving 308 or 501-599 response, or encounting a network error (`IOException`).
+Permits are decreased after receiving 308 or 501-599 response, or encountering a network error (`IOException`).
 Otherwise, they are increased.
 
 #### Endpoint limits
@@ -237,17 +237,17 @@ default PIN_UNTIL_ERROR. The actual algorithm has evolved from naive Round Robin
 makes smarter decisions based on stats about each host (see
 [BalancedNodeSelectionStrategyChannel.java](dialogue-core/src/main/java/com/palantir/dialogue/core/BalancedNodeSelectionStrategyChannel.java)). This fixes a dramatic failure
 mode when a single server is very slow (this can be seen empirically in the simulations). Note that unlike concurrency limiters, this node selection strategy never *prevents* a request getting out the door,
-it just *ranks* hosts to try to deliver the best possive client-perceived response time (and success rate).
+it just *ranks* hosts to try to deliver the best possible client-perceived response time (and success rate).
 
 Specifically, it keeps track of the number of in flight requests for each host, and also records every failure it sees for each host. A
-request is then routed to the the host with the lowest `inflight + 10*recent_failures`.
+request is then routed to the host with the lowest `inflight + 10*recent_failures`.
 
 The ROUND_ROBIN strategy is _not_ appropriate for transactional use cases where successive requests must land on the
 same node, and it's also not optimal for use-cases where there are many nodes and cache affinity is very important.
 
 ### Sticky requests
 
-Dialogue channels can be configured to stick to a single host: after first request is successfully executed on a host,
+Dialogue channels can be configured to stick to a single host: after the first request is successfully executed on a host,
 all subsequent requests will be routed to the same host. This strategy is useful for transactional workflows,
 where all requests tied to a particular transaction may need to be executed on the same host.
 
@@ -268,7 +268,7 @@ This means there is a potential for many low-bandwidth sticky channels to compet
 
 ## Alternative HTTP clients
 
-Dialogue is not coupled to a single HTTP client library - this repo contains implementations based on [OkHttp](https://square.github.io/okhttp/), Java's [HttpURLConnection](https://docs.oracle.com/javase/8/docs/api/java/net/HttpURLConnection.html), the new Java11 HttpClient as well as the aforementioned [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/).  We endorse the Apache client because as it performed best in our benchmarks and affords granular control over connection pools.
+Dialogue is not coupled to a single HTTP client library - this repo contains implementations based on [OkHttp](https://square.github.io/okhttp/), Java's [HttpURLConnection](https://docs.oracle.com/javase/8/docs/api/java/net/HttpURLConnection.html), the new Java11 HttpClient as well as the aforementioned [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/).  We endorse the Apache client because it performed the best in our benchmarks and affords granular control over connection pools.
 
 ## History
 
