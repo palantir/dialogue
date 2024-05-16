@@ -137,7 +137,7 @@ public interface MyService {
             @Request.Header("Custom-Header") int requestHeaderValue,
             // Headers can be optional
             @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,
-            // converts a custom type in a Multimap<String, String>
+            // converts a custom type into a Multimap<String, String>
             @Request.HeaderMap(encoder = MyCustomTypeEncoder.class) MyCustomQueryParamType myCustomHeaderParam,
             // Custom encoding classes may be provided for the request and response.
             @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
