@@ -1,6 +1,7 @@
 package com.palantir.myservice.service;
 
 import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Deserializer;
@@ -16,6 +17,7 @@ import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.annotations.ConjureErrorDecoder;
+import com.palantir.dialogue.annotations.DefaultMultimapParamEncoder;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
@@ -104,6 +106,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             private final MyCustomStringParamEncoder paramsHeader11Encoder = new MyCustomStringParamEncoder();
 
+            private final DefaultMultimapParamEncoder paramsHeaderMapEncoder = new DefaultMultimapParamEncoder();
+
             private final Serializer<MySerializableType> paramsSerializer =
                     new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});
 
@@ -181,6 +185,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     String header10,
                     Optional<String> header11,
                     List<MyAliasType> header12,
+                    Multimap<String, String> headerMap,
                     MySerializableType body) {
                 Request.Builder _request = Request.builder();
                 _request.putQueryParams("q1", _parameterSerializer.serializeString(query1));
@@ -251,6 +256,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                                 .map(MyAliasType::get)
                                 .map(_parameterSerializer::serializeString)
                                 .collect(Collectors.toList()));
+                _request.putAllHeaderParams(paramsHeaderMapEncoder.toParamValues(headerMap));
                 _request.body(paramsSerializer.serialize(body));
                 runtime.clients().callBlocking(paramsChannel, _request.build(), paramsDeserializer);
             }

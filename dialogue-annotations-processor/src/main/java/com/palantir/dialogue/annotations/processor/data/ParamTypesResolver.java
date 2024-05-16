@@ -49,7 +49,8 @@ public final class ParamTypesResolver {
             Request.PathParam.class,
             Request.QueryParam.class,
             Request.QueryMap.class,
-            Request.Header.class);
+            Request.Header.class,
+            Request.HeaderMap.class);
     private static final ImmutableSet<String> PARAM_ANNOTATIONS =
             PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
     private static final String paramEncoderMethod;
@@ -157,6 +158,11 @@ public final class ParamTypesResolver {
                             endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.MULTIMAP)
                     .orElseGet(() -> multimapDefaultEncoder(endpointName, variableElement));
             return Optional.of(ParameterTypes.queryMap(customEncoderType));
+        } else if (annotationReflector.isAnnotation(Request.HeaderMap.class)) {
+            ParameterEncoderType customEncoderType = getParameterEncoder(
+                            endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.MULTIMAP)
+                    .orElseGet(() -> multimapDefaultEncoder(endpointName, variableElement));
+            return Optional.of(ParameterTypes.headerMap(customEncoderType));
         }
 
         throw new SafeIllegalStateException("Not possible");
