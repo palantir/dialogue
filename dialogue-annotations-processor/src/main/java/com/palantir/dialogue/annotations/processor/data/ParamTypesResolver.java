@@ -28,7 +28,6 @@ import com.palantir.dialogue.annotations.ListParamEncoder;
 import com.palantir.dialogue.annotations.MultimapParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.Request;
-import com.palantir.dialogue.annotations.Request.HeaderMap;
 import com.palantir.dialogue.annotations.processor.data.ParameterEncoderType.EncoderType;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
@@ -51,7 +50,7 @@ public final class ParamTypesResolver {
             Request.QueryParam.class,
             Request.QueryMap.class,
             Request.Header.class,
-            HeaderMap.class);
+            Request.HeaderMap.class);
     private static final ImmutableSet<String> PARAM_ANNOTATIONS =
             PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
     private static final String paramEncoderMethod;
