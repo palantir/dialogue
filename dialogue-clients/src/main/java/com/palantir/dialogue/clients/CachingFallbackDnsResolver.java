@@ -58,9 +58,11 @@ final class CachingFallbackDnsResolver implements DialogueDnsResolver {
             ImmutableSet<InetAddress> maybeFallback = fallbackCache.getIfPresent(hostname);
             if (maybeFallback != null) {
                 lookupFallback.mark();
-                log.info(
-                        "DNS resolution failed for host '{}', however fallback addresses are present in the cache",
-                        UnsafeArg.of("hostname", hostname));
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "DNS resolution failed for host '{}', however fallback addresses are present in the cache",
+                            UnsafeArg.of("hostname", hostname));
+                }
                 return maybeFallback;
             } else {
                 lookupFailure.mark();
