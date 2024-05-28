@@ -28,9 +28,19 @@ import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
+import com.palantir.conjure.java.dialogue.serde.ConjureBodySerDe;
+import com.palantir.conjure.java.dialogue.serde.ConjurePlainSerDe;
+import com.palantir.conjure.java.dialogue.serde.DefaultClients;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.conjure.java.dialogue.serde.Encodings;
 import com.palantir.conjure.java.dialogue.serde.Encodings.LimitedSizeEncoding;
+import com.palantir.conjure.java.dialogue.serde.ErrorDecoder;
+import com.palantir.conjure.java.dialogue.serde.WeightedEncoding;
+import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Clients;
+import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
@@ -134,9 +144,26 @@ public final class NoResponseTest {
                         return ImmutableSet.of();
                     });
 
-            ReloadingFactory reloadingFactory = factory.withRuntime(DefaultConjureRuntime.builder()
-                    .encodings(new LimitedSizeEncoding(/* maxBytes= */ 1024))
-                    .build());
+            ReloadingFactory reloadingFactory = factory.withRuntime(new ConjureRuntime() {
+                @Override
+                public BodySerDe bodySerDe() {
+                    return new ConjureBodySerDe(
+                            ImmutableList.of(WeightedEncoding.of(new LimitedSizeEncoding(/* maxBytes= */ 1024))),
+                            ErrorDecoder.INSTANCE,
+                            Encodings.emptyContainerDeserializer(),
+                            DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
+                }
+
+                @Override
+                public PlainSerDe plainSerDe() {
+                    return ConjurePlainSerDe.INSTANCE;
+                }
+
+                @Override
+                public Clients clients() {
+                    return DefaultClients.INSTANCE;
+                }
+            });
 
             Channel channel = reloadingFactory.getChannel("foo");
 

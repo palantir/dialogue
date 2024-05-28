@@ -25,7 +25,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /** Package private internal API. */
-enum ConjurePlainSerDe implements PlainSerDe {
+public enum ConjurePlainSerDe implements PlainSerDe {
     INSTANCE;
 
     @DoNotLog

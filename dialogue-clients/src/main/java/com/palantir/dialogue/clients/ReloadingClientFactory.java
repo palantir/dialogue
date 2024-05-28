@@ -79,6 +79,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
+    @SuppressWarnings("NullAway")
     public Channel getNonReloadingChannel(String channelName, ClientConfiguration input) {
         ClientConfiguration clientConf = hydrate(input);
         ApacheHttpClientChannels.ClientBuilder clientBuilder = ApacheHttpClientChannels.clientBuilder()
