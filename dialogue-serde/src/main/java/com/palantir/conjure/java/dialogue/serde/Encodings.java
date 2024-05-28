@@ -89,7 +89,7 @@ public final class Encodings {
         private final Encoding jsonEncoding;
         private final int maxBytes;
 
-        LimitedSizeEncoding(int maxBytes) {
+        public LimitedSizeEncoding(int maxBytes) {
             this.jsonEncoding = Encodings.json();
             this.maxBytes = maxBytes;
         }
@@ -173,7 +173,7 @@ public final class Encodings {
         };
     }
 
-    static EmptyContainerDeserializer emptyContainerDeserializer() {
+    public static EmptyContainerDeserializer emptyContainerDeserializer() {
         return new JacksonEmptyContainerLoader(JSON_MAPPER.get());
     }
 

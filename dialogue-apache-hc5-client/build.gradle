@@ -20,6 +20,7 @@ dependencies {
     implementation 'io.dropwizard.metrics:metrics-core'
     implementation 'org.apache.httpcomponents.core5:httpcore5'
 
+    testImplementation project(':dialogue-clients')
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-serde')
     testImplementation 'org.awaitility:awaitility'
