@@ -242,7 +242,7 @@ public final class BaseUrl {
         private static final CharMatcher UNRESERVED = DIGIT.or(ALPHA).or(CharMatcher.anyOf("-._~"));
         private static final CharMatcher SUB_DELIMS = CharMatcher.anyOf("!$&'()*+,;=");
         private static final CharMatcher IS_HOST = UNRESERVED.or(SUB_DELIMS);
-        private static final CharMatcher IS_P_CHAR = UNRESERVED;
+        private static final CharMatcher IS_P_CHAR = UNRESERVED.or(CharMatcher.anyOf(":@"));
         private static final CharMatcher IS_PATH = UNRESERVED.or(SUB_DELIMS).or(CharMatcher.anyOf("/"));
         // The RFC permits percent-encoding any character. We also percent encode sub-delimiters to avoid
         // incompatibilities with http specification beyond the general URI definition per

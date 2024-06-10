@@ -68,19 +68,20 @@ public final class UrlBuilderTest {
                 .isEqualTo("http://host:80/foo/bar");
         assertThat(minimalUrl().pathSegments(List.of("foo", "bar")).build().toString())
                 .isEqualTo("http://host:80/foo/bar");
-        assertThat(minimalUrl().pathSegment("foo/bar").build().toString()).isEqualTo("http://host:80/foo%2Fbar");
+        assertThat(minimalUrl().pathSegment("foo/bar:baz@qux").build().toString())
+                .isEqualTo("http://host:80/foo%2Fbar:baz@qux");
         assertThat(minimalUrl()
-                        .pathSegment("!@#$%^&*()_+{}[]|\\|\"':;/?.>,<~`")
+                        .pathSegment("!#$%^&*()_+{}[]|\\|\"';/?.>,<~`")
                         .build()
                         .toString())
-                .isEqualTo("http://host:80/%21%40%23%24%25%5E%26%2A%28%29_%2B%7B%7D"
-                        + "%5B%5D%7C%5C%7C%22%27%3A%3B%2F%3F.%3E%2C%3C~%60");
+                .isEqualTo("http://host:80/%21%23%24%25%5E%26%2A%28%29_%2B%7B%7D"
+                        + "%5B%5D%7C%5C%7C%22%27%3B%2F%3F.%3E%2C%3C~%60");
         assertThat(minimalUrl()
-                        .pathSegments(List.of("!@#$%^&*()_+{}", "[]|\\|\"':;/?.>,<~`"))
+                        .pathSegments(List.of("!#$%^&*()_+{}", "[]|\\|\"';/?.>,<~`"))
                         .build()
                         .toString())
-                .isEqualTo("http://host:80/%21%40%23%24%25%5E%26%2A%28%29_%2B%7B%7D"
-                        + "/%5B%5D%7C%5C%7C%22%27%3A%3B%2F%3F.%3E%2C%3C~%60");
+                .isEqualTo("http://host:80/%21%23%24%25%5E%26%2A%28%29_%2B%7B%7D"
+                        + "/%5B%5D%7C%5C%7C%22%27%3B%2F%3F.%3E%2C%3C~%60");
     }
 
     @Test
@@ -181,10 +182,9 @@ public final class UrlBuilderTest {
 
     @Test
     public void urlEncoder_encodeQuery_onlyEncodesNonReservedChars() {
-        String nonReserved = "aAzZ09/?";
+        String nonReserved = "aAzZ09/?@:";
         assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue(nonReserved)).isEqualTo(nonReserved);
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("@[]{}ßçö"))
-                .isEqualTo("%40%5B%5D%7B%7D%C3%9F%C3%A7%C3%B6");
+        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("[]{}ßçö")).isEqualTo("%5B%5D%7B%7D%C3%9F%C3%A7%C3%B6");
         assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("=&+")).isEqualTo("%3D%26%2B");
     }
 
