@@ -152,6 +152,13 @@ Executor metrics.
   - `executor`
   - `thread-type` values (`platform`,`virtual`)
 
+### instrumentation
+Instrumentation metrics.
+- `instrumentation.invocation` (timer): A timer of the time it took to execute an invocation.
+  - `service-name`
+  - `endpoint`
+  - `result` values (`success`,`failure`)
+
 ### jvm.gc
 Java virtual machine garbage collection metrics.
 - `jvm.gc.count` tagged `collector` (gauge): The total number of collections that have occurred since the JVM started.
