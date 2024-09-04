@@ -27,6 +27,7 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Locale;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -73,7 +74,7 @@ class DefaultDialogueDnsResolverTest {
 
     @Test
     void unknown_host() {
-        assumeThat(System.getProperty("os.name").toLowerCase().startsWith("linux"))
+        assumeThat(System.getProperty("os.name").toLowerCase(Locale.ROOT).startsWith("linux"))
                 .describedAs("GAI Error Strings are only defined for Linux environments")
                 .isTrue();
 
