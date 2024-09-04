@@ -99,12 +99,13 @@ public final class ApacheHandshakeTimeoutTest {
         executor = new DelayingNextTaskExecutorService(Executors.newCachedThreadPool());
         worker = xnio.createWorkerBuilder()
                 .setWorkerIoThreads(1)
-                .setExternalExecutorService(executor)
+                .setMaxWorkerPoolSize(8)
                 .build();
         server = Undertow.builder()
                 .setWorker(worker)
                 .setHandler(ResponseCodeHandler.HANDLE_200)
                 .addHttpsListener(0, null, sslContext)
+                .setSslEngineDelegatedTaskExecutor(executor)
                 .build();
         server.start();
     }
