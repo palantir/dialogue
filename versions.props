@@ -4,7 +4,7 @@ com.google.guava:guava = 33.3.0-jre
 com.google.testing.compile:compile-testing = 0.21.0
 com.palantir.common:streams = 2.4.0
 com.palantir.conjure:conjure = 4.48.0
-com.palantir.conjure.java:* = 8.26.0
+com.palantir.conjure.java:* = 8.27.0
 com.palantir.conjure.java.api:* = 2.53.0
 com.palantir.conjure.java.runtime:* = 8.13.0
 com.palantir.refreshable:* = 2.5.0
@@ -26,7 +26,7 @@ com.github.ben-manes.caffeine:caffeine = 3.1.8
 
 # test deps
 org.junit.jupiter:* = 5.11.0
-org.apache.logging.log4j:* = 2.23.1
+org.apache.logging.log4j:* = 2.24.0
 org.assertj:assertj-core = 3.26.3
 org.assertj:assertj-guava = 3.3.0
 org.hamcrest:hamcrest-core = 3.0
