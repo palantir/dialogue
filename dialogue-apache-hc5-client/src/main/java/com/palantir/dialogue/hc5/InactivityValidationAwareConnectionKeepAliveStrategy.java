@@ -86,7 +86,8 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
                 }
             }
         }
-        HttpClientContext clientContext = HttpClientContext.adapt(context);
+        HttpClientContext clientContext = HttpClientContext.castOrCreate(context);
+        // FIXME(ckozak): requestConfig ends up null.
         RequestConfig requestConfig = clientContext.getRequestConfig();
         updateInactivityValidationInterval(response.getCode(), defaultValidateAfterInactivity);
         return requestConfig.getConnectionKeepAlive();
@@ -109,6 +110,8 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
             }
             // Simple volatile write, no need to protect this in the getAndSet check. The getAndSet may race this call
             // so it's best to completely decouple the two.
+            // FIXME(ckozak): setValidateAfterInactivity completely replaces the underlying resolver -- not what we
+            // want.
             connectionManager.setValidateAfterInactivity(newInterval);
         }
     }

@@ -37,6 +37,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.exceptions.SafeUnsupportedOperationException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.MetricRegistries;
@@ -46,9 +47,10 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.Proxy;
-import java.net.Socket;
 import java.net.URI;
 import java.net.URL;
+import java.security.SecureRandom;
+import java.security.Security;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,10 +60,17 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.function.Supplier;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 import javax.annotation.Nullable;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLContextSpi;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
 import org.apache.hc.client5.http.AuthenticationStrategy;
 import org.apache.hc.client5.http.SystemDefaultDnsResolver;
 import org.apache.hc.client5.http.auth.AuthChallenge;
@@ -73,16 +82,23 @@ import org.apache.hc.client5.http.auth.Credentials;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.apache.hc.client5.http.auth.StandardAuthScheme;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
 import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.DefaultHttpClientConnectionOperator;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.client5.http.io.DetachedSocketFactory;
+import org.apache.hc.client5.http.io.HttpClientConnectionOperator;
+import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
+import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
+import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -90,6 +106,7 @@ import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
 import org.apache.hc.core5.pool.PoolReusePolicy;
 import org.apache.hc.core5.pool.PoolStats;
+import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 
@@ -485,40 +502,59 @@ public final class ApacheHttpClientChannels {
 
             InetSocketAddress socksProxyAddress = getSocksProxyAddress(conf);
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
-            Supplier<Socket> simpleSocketCreator = socksProxyAddress == null
-                    ? () -> new Socket(Proxy.NO_PROXY)
-                    : () -> new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
+            SSLSocketFactory instrumentedSocketFactory =
+                    MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name);
+            DetachedSocketFactory plainSocketFactory = new SocksSupportingDetachedSocketFactory(socksProxyAddress);
+
+            SSLContext context = stubContext(instrumentedSocketFactory);
+            DefaultClientTlsStrategy tlsStrategy = new DefaultClientTlsStrategy(
+                    context,
+                    TlsProtocols.get(),
+                    supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory, name),
+                    SSLBufferMode.STATIC,
+                    HostnameVerificationPolicy.CLIENT,
+                    new InstrumentedHostnameVerifier(new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry()));
 
             ConnectInstrumentation connectInstrumentation =
                     new ConnectInstrumentation(conf.taggedMetricRegistry(), name);
 
+            InstrumentedDnsResolver instrumentedDnsResolver = new InstrumentedDnsResolver(
+                    SystemDefaultDnsResolver.INSTANCE, dnsResolver, name, conf.taggedMetricRegistry());
+
+            HttpClientConnectionOperator operator =
+                    new DefaultHttpClientConnectionOperator(
+                            plainSocketFactory,
+                            null,
+                            instrumentedDnsResolver,
+                            RegistryBuilder.<TlsSocketStrategy>create()
+                                    .register(URIScheme.HTTPS.id, tlsStrategy)
+                                    .build()) {
+                        private static final String CONNECT_BEGAN_ATTRIBUTE = "onBeforeSocketConnectNanoTime";
+
+                        @Override
+                        protected void onBeforeSocketConnect(HttpContext httpContext, HttpHost endpointHost) {
+                            super.onBeforeSocketConnect(httpContext, endpointHost);
+                            httpContext.setAttribute(CONNECT_BEGAN_ATTRIBUTE, System.nanoTime());
+                        }
+
+                        @Override
+                        protected void onAfterSocketConnect(HttpContext httpContext, HttpHost endpointHost) {
+                            super.onAfterSocketConnect(httpContext, endpointHost);
+                            Object value = httpContext.getAttribute(CONNECT_BEGAN_ATTRIBUTE);
+                            if (value instanceof Long) {
+                                long duration = System.nanoTime() - (long) value;
+                                connectInstrumentation.timer(true, httpContext).update(duration, TimeUnit.NANOSECONDS);
+                            }
+                        }
+                    };
+
             PoolingHttpClientConnectionManager internalConnectionManager = new PoolingHttpClientConnectionManager(
-                    RegistryBuilder.<ConnectionSocketFactory>create()
-                            .register(
-                                    URIScheme.HTTP.id,
-                                    new InstrumentedPlainConnectionSocketFactory(
-                                            simpleSocketCreator, connectInstrumentation))
-                            .register(
-                                    URIScheme.HTTPS.id,
-                                    new InstrumentedSslConnectionSocketFactory(
-                                            connectInstrumentation,
-                                            MetricRegistries.instrument(
-                                                    conf.taggedMetricRegistry(), rawSocketFactory, name),
-                                            TlsProtocols.get(),
-                                            supportedCipherSuites(
-                                                    CipherSuites.allCipherSuites(), rawSocketFactory, name),
-                                            new InstrumentedHostnameVerifier(
-                                                    new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry()),
-                                            simpleSocketCreator))
-                            .build(),
+                    operator,
                     PoolConcurrencyPolicy.LAX,
                     // Allow unnecessary connections to time out reducing system load.
                     PoolReusePolicy.LIFO,
                     // No maximum time to live
                     TimeValue.NEG_ONE_MILLISECOND,
-                    null,
-                    new InstrumentedDnsResolver(
-                            SystemDefaultDnsResolver.INSTANCE, dnsResolver, name, conf.taggedMetricRegistry()),
                     new InstrumentedManagedHttpConnectionFactory(
                             ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name));
             internalConnectionManager.setDefaultSocketConfig(SocketConfig.custom()
@@ -530,7 +566,11 @@ public final class ApacheHttpClientChannels {
                     // Doesn't appear to do anything in this release
                     .setSocksProxyAddress(socksProxyAddress)
                     .build());
-            internalConnectionManager.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK);
+            internalConnectionManager.setDefaultConnectionConfig(ConnectionConfig.custom()
+                    .setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK)
+                    .setConnectTimeout(connectTimeout)
+                    .setSocketTimeout(socketTimeout)
+                    .build());
             internalConnectionManager.setMaxTotal(Integer.MAX_VALUE);
             internalConnectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
 
@@ -542,7 +582,6 @@ public final class ApacheHttpClientChannels {
 
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
-                            .setConnectTimeout(connectTimeout)
                             // Don't allow clients to block forever waiting on a connection to become available
                             .setConnectionRequestTimeout(connectTimeout)
                             // The response timeout is used as the socket timeout for the duration of
@@ -588,6 +627,49 @@ public final class ApacheHttpClientChannels {
                     ScheduledIdleConnectionEvictor.schedule(connectionManager, Duration.ofSeconds(5));
             return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor);
         }
+    }
+
+    // TODO(ckozak): This should be replaced by actually plumbing through an SSLContext.
+    private static SSLContext stubContext(SSLSocketFactory socketFactory) {
+        return new SSLContext(
+                new SSLContextSpi() {
+                    @Override
+                    protected void engineInit(KeyManager[] _km, TrustManager[] _tm, SecureRandom _sr) {
+                        throw new SafeUnsupportedOperationException("not supported");
+                    }
+
+                    @Override
+                    protected SSLSocketFactory engineGetSocketFactory() {
+                        return socketFactory;
+                    }
+
+                    @Override
+                    protected SSLServerSocketFactory engineGetServerSocketFactory() {
+                        throw new SafeUnsupportedOperationException("not supported");
+                    }
+
+                    @Override
+                    protected SSLEngine engineCreateSSLEngine() {
+                        throw new SafeUnsupportedOperationException("not supported");
+                    }
+
+                    @Override
+                    protected SSLEngine engineCreateSSLEngine(String _host, int _port) {
+                        throw new SafeUnsupportedOperationException("not supported");
+                    }
+
+                    @Override
+                    protected SSLSessionContext engineGetServerSessionContext() {
+                        throw new SafeUnsupportedOperationException("not supported");
+                    }
+
+                    @Override
+                    protected SSLSessionContext engineGetClientSessionContext() {
+                        throw new SafeUnsupportedOperationException("not supported");
+                    }
+                },
+                Security.getProviders()[0],
+                "TLS") {};
     }
 
     @Nullable
