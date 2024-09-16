@@ -64,6 +64,9 @@ allprojects {
 
     repositories {
         mavenCentral() { metadataSources { mavenPom(); ignoreGradleMetadataRedirection() } }
+        maven {
+            url 'https://repository.apache.org/content/repositories/orgapachehttpcomponents-1179'
+        }
     }
     configurations.all {
         resolutionStrategy.preferProjectModules()
