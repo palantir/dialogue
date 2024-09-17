@@ -88,7 +88,6 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
         }
         HttpClientContext clientContext = HttpClientContext.castOrCreate(context);
         updateInactivityValidationInterval(response.getCode(), defaultValidateAfterInactivity);
-        // FIXME(ckozak): requestConfig ends up null.
         RequestConfig requestConfig = clientContext.getRequestConfig();
         if (requestConfig == null) {
             return ApacheHttpClientChannels.IDLE_CONNECTION_TIMEOUT;
