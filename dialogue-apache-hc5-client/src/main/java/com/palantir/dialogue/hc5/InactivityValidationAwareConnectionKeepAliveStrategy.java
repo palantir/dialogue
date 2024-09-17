@@ -46,7 +46,7 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
             SafeLoggerFactory.get(InactivityValidationAwareConnectionKeepAliveStrategy.class);
     private static final String TIMEOUT_ELEMENT = "timeout";
 
-    private final PoolingHttpClientConnectionManager connectionManager;
+    private final DialogueConnectionConfigResolver configResolver;
     private final String clientName;
     private final TimeValue defaultValidateAfterInactivity;
     private final RateLimiter loggingRateLimiter = RateLimiter.create(2);
@@ -57,12 +57,12 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
     private final AtomicReference<TimeValue> currentValidationInterval;
 
     InactivityValidationAwareConnectionKeepAliveStrategy(
-            PoolingHttpClientConnectionManager connectionManager, String clientName) {
-        this.connectionManager = connectionManager;
+            DialogueConnectionConfigResolver configResolver, String clientName) {
+        this.configResolver = configResolver;
         this.clientName = clientName;
         // Store the initial inactivity interval to restore if responses re received without
         // keep-alive headers.
-        this.defaultValidateAfterInactivity = connectionManager.getValidateAfterInactivity();
+        this.defaultValidateAfterInactivity = configResolver.getValidateAfterInactivity();
         this.currentValidationInterval = new AtomicReference<>(defaultValidateAfterInactivity);
     }
 
@@ -87,9 +87,12 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
             }
         }
         HttpClientContext clientContext = HttpClientContext.castOrCreate(context);
+        updateInactivityValidationInterval(response.getCode(), defaultValidateAfterInactivity);
         // FIXME(ckozak): requestConfig ends up null.
         RequestConfig requestConfig = clientContext.getRequestConfig();
-        updateInactivityValidationInterval(response.getCode(), defaultValidateAfterInactivity);
+        if (requestConfig == null) {
+            return ApacheHttpClientChannels.IDLE_CONNECTION_TIMEOUT;
+        }
         return requestConfig.getConnectionKeepAlive();
     }
 
@@ -110,9 +113,7 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
             }
             // Simple volatile write, no need to protect this in the getAndSet check. The getAndSet may race this call
             // so it's best to completely decouple the two.
-            // FIXME(ckozak): setValidateAfterInactivity completely replaces the underlying resolver -- not what we
-            // want.
-            connectionManager.setValidateAfterInactivity(newInterval);
+            configResolver.setValidateAfterInactivity(newInterval);
         }
     }
 }
