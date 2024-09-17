@@ -37,7 +37,6 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import com.palantir.logsafe.exceptions.SafeUnsupportedOperationException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.MetricRegistries;
@@ -49,8 +48,6 @@ import java.net.MalformedURLException;
 import java.net.Proxy;
 import java.net.URI;
 import java.net.URL;
-import java.security.SecureRandom;
-import java.security.Security;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,14 +60,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 import javax.annotation.Nullable;
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLContextSpi;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLServerSocketFactory;
-import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
 import org.apache.hc.client5.http.AuthenticationStrategy;
 import org.apache.hc.client5.http.SystemDefaultDnsResolver;
 import org.apache.hc.client5.http.auth.AuthChallenge;
@@ -93,9 +83,7 @@ import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.DetachedSocketFactory;
 import org.apache.hc.client5.http.io.HttpClientConnectionOperator;
-import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
-import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
 import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.URIScheme;
@@ -105,7 +93,6 @@ import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
 import org.apache.hc.core5.pool.PoolReusePolicy;
 import org.apache.hc.core5.pool.PoolStats;
-import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 
@@ -487,13 +474,10 @@ public final class ApacheHttpClientChannels {
                     MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name);
             DetachedSocketFactory plainSocketFactory = new SocksSupportingDetachedSocketFactory(socksProxyAddress);
 
-            SSLContext context = stubContext(instrumentedSocketFactory);
-            DefaultClientTlsStrategy tlsStrategy = new DefaultClientTlsStrategy(
-                    context,
+            TlsSocketStrategy tlsStrategy = new DialogueTlsSocketStrategy(
+                    instrumentedSocketFactory,
                     TlsProtocols.get(),
                     supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory, name),
-                    SSLBufferMode.STATIC,
-                    HostnameVerificationPolicy.CLIENT,
                     new InstrumentedHostnameVerifier(new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry()));
 
             ConnectInstrumentation connectInstrumentation =
@@ -606,49 +590,6 @@ public final class ApacheHttpClientChannels {
                     ScheduledIdleConnectionEvictor.schedule(connectionManager, Duration.ofSeconds(5));
             return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor);
         }
-    }
-
-    // TODO(ckozak): This should be replaced by actually plumbing through an SSLContext.
-    private static SSLContext stubContext(SSLSocketFactory socketFactory) {
-        return new SSLContext(
-                new SSLContextSpi() {
-                    @Override
-                    protected void engineInit(KeyManager[] _km, TrustManager[] _tm, SecureRandom _sr) {
-                        throw new SafeUnsupportedOperationException("not supported");
-                    }
-
-                    @Override
-                    protected SSLSocketFactory engineGetSocketFactory() {
-                        return socketFactory;
-                    }
-
-                    @Override
-                    protected SSLServerSocketFactory engineGetServerSocketFactory() {
-                        throw new SafeUnsupportedOperationException("not supported");
-                    }
-
-                    @Override
-                    protected SSLEngine engineCreateSSLEngine() {
-                        throw new SafeUnsupportedOperationException("not supported");
-                    }
-
-                    @Override
-                    protected SSLEngine engineCreateSSLEngine(String _host, int _port) {
-                        throw new SafeUnsupportedOperationException("not supported");
-                    }
-
-                    @Override
-                    protected SSLSessionContext engineGetServerSessionContext() {
-                        throw new SafeUnsupportedOperationException("not supported");
-                    }
-
-                    @Override
-                    protected SSLSessionContext engineGetClientSessionContext() {
-                        throw new SafeUnsupportedOperationException("not supported");
-                    }
-                },
-                Security.getProviders()[0],
-                "TLS") {};
     }
 
     @Nullable
