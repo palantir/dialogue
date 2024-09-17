@@ -51,7 +51,7 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
                 new InactivityValidationAwareConnectionKeepAliveStrategy(resolver, "name");
         BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
         TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
-        assertThat(value).isEqualTo(ApacheHttpClientChannels.IDLE_CONNECTION_TIMEOUT);
+        assertThat(value).isEqualTo(InactivityValidationAwareConnectionKeepAliveStrategy.IDLE_CONNECTION_TIMEOUT);
 
         assertThat(getResolverInactivityInterval()).isEqualTo(INITIAL_TIMEOUT);
     }
@@ -98,7 +98,7 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
         BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
         response.addHeader("Keep-Alive", "max=60");
         TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
-        assertThat(value).isEqualTo(ApacheHttpClientChannels.IDLE_CONNECTION_TIMEOUT);
+        assertThat(value).isEqualTo(InactivityValidationAwareConnectionKeepAliveStrategy.IDLE_CONNECTION_TIMEOUT);
         assertThat(getResolverInactivityInterval()).isEqualTo(INITIAL_TIMEOUT);
     }
 
@@ -109,7 +109,7 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
         BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
         response.addHeader("Keep-Alive", "timeout=0");
         TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
-        assertThat(value).isEqualTo(ApacheHttpClientChannels.IDLE_CONNECTION_TIMEOUT);
+        assertThat(value).isEqualTo(InactivityValidationAwareConnectionKeepAliveStrategy.IDLE_CONNECTION_TIMEOUT);
         assertThat(getResolverInactivityInterval()).isEqualTo(INITIAL_TIMEOUT);
     }
 
@@ -120,7 +120,7 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
         BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
         response.addHeader("Keep-Alive", "timeout=-1");
         TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
-        assertThat(value).isEqualTo(ApacheHttpClientChannels.IDLE_CONNECTION_TIMEOUT);
+        assertThat(value).isEqualTo(InactivityValidationAwareConnectionKeepAliveStrategy.IDLE_CONNECTION_TIMEOUT);
         assertThat(getResolverInactivityInterval()).isEqualTo(INITIAL_TIMEOUT);
     }
 }

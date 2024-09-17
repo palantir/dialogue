@@ -104,13 +104,6 @@ public final class ApacheHttpClientChannels {
     @VisibleForTesting
     static final Timeout DEFAULT_HANDSHAKE_TIMEOUT = Timeout.ofSeconds(10);
 
-    // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
-    // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
-    // as clients attempt to use them.
-    // Note that pooled idle connections use an infinite socket timeout so there is no reason to scale
-    // this value with configured timeouts.
-    static final Timeout IDLE_CONNECTION_TIMEOUT = Timeout.ofSeconds(50);
-
     private ApacheHttpClientChannels() {}
 
     /**
@@ -554,7 +547,8 @@ public final class ApacheHttpClientChannels {
                             .setRedirectsEnabled(false)
                             .setAuthenticationEnabled(conf.proxyCredentials().isPresent())
                             .setExpectContinueEnabled(false)
-                            .setConnectionKeepAlive(IDLE_CONNECTION_TIMEOUT)
+                            .setConnectionKeepAlive(
+                                    InactivityValidationAwareConnectionKeepAliveStrategy.IDLE_CONNECTION_TIMEOUT)
                             .build())
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.

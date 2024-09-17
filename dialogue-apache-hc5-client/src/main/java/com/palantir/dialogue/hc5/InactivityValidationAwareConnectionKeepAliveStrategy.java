@@ -33,6 +33,7 @@ import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.message.MessageSupport;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
 
 /**
  * An {@link ConnectionKeepAliveStrategy} implementation based on the
@@ -45,6 +46,13 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
     private static final SafeLogger log =
             SafeLoggerFactory.get(InactivityValidationAwareConnectionKeepAliveStrategy.class);
     private static final String TIMEOUT_ELEMENT = "timeout";
+
+    // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
+    // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
+    // as clients attempt to use them.
+    // Note that pooled idle connections use an infinite socket timeout so there is no reason to scale
+    // this value with configured timeouts.
+    static final Timeout IDLE_CONNECTION_TIMEOUT = Timeout.ofSeconds(50);
 
     private final DialogueConnectionConfigResolver configResolver;
     private final String clientName;
@@ -90,7 +98,7 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
         updateInactivityValidationInterval(response.getCode(), defaultValidateAfterInactivity);
         RequestConfig requestConfig = clientContext.getRequestConfig();
         if (requestConfig == null) {
-            return ApacheHttpClientChannels.IDLE_CONNECTION_TIMEOUT;
+            return IDLE_CONNECTION_TIMEOUT;
         }
         return requestConfig.getConnectionKeepAlive();
     }
