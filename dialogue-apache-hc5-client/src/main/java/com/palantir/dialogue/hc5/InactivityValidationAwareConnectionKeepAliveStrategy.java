@@ -25,7 +25,6 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hc.client5.http.ConnectionKeepAliveStrategy;
 import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.HeaderElement;
 import org.apache.hc.core5.http.HeaderElements;
@@ -38,9 +37,9 @@ import org.apache.hc.core5.util.Timeout;
 /**
  * An {@link ConnectionKeepAliveStrategy} implementation based on the
  * {@link org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy} which
- * updates {@link PoolingHttpClientConnectionManager#setValidateAfterInactivity(TimeValue)}
- * based on server {@code Keep-Alive} response headers to avoid unnecessary checks when
- * the server advertises a persistent connection timeout.
+ * updates {@code org.apache.hc.client5.http.config.ConnectionConfig#getValidateAfterInactivity()}
+ * based on server {@code Keep-Alive} response headers to avoid unnecessary checks when the server
+ * advertises a persistent connection timeout.
  */
 final class InactivityValidationAwareConnectionKeepAliveStrategy implements ConnectionKeepAliveStrategy {
     private static final SafeLogger log =
