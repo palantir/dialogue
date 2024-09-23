@@ -57,3 +57,6 @@ __init__.pyc
 .vscode/
 
 **/jmh-result.*
+
+# Gradle JDKs setup
+!gradle/*

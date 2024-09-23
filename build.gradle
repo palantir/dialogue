@@ -45,6 +45,7 @@ apply plugin: 'com.palantir.external-publish'
 apply plugin: 'com.palantir.failure-reports'
 apply plugin: 'com.palantir.baseline'
 apply plugin: 'com.palantir.git-version'
+apply plugin: 'com.palantir.jdks'
 apply plugin: 'com.palantir.baseline-java-versions'
 apply plugin: 'com.palantir.jdks.latest'
 
@@ -102,4 +103,8 @@ subprojects {
 
     tasks.check.dependsOn checkImplicitDependencies
     tasks.checkImplicitDependenciesTest.enabled = false // doesn't impact users
+}
+
+jdks {
+    daemonTarget = 17
 }
