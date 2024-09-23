@@ -74,13 +74,13 @@ public final class UrlBuilderTest {
                         .build()
                         .toString())
                 .isEqualTo("http://host:80/%21%40%23%24%25%5E%26%2A%28%29_%2B%7B%7D"
-                        + "%5B%5D%7C%5C%7C%22%27%3A%3B%2F%3F.%3E%2C%3C~%60");
+                        + "%5B%5D%7C%5C%7C%22%27:%3B%2F%3F.%3E%2C%3C~%60");
         assertThat(minimalUrl()
                         .pathSegments(List.of("!@#$%^&*()_+{}", "[]|\\|\"':;/?.>,<~`"))
                         .build()
                         .toString())
                 .isEqualTo("http://host:80/%21%40%23%24%25%5E%26%2A%28%29_%2B%7B%7D"
-                        + "/%5B%5D%7C%5C%7C%22%27%3A%3B%2F%3F.%3E%2C%3C~%60");
+                        + "/%5B%5D%7C%5C%7C%22%27:%3B%2F%3F.%3E%2C%3C~%60");
     }
 
     @Test
@@ -190,7 +190,24 @@ public final class UrlBuilderTest {
 
     @Test
     public void urlEncoder_encodeQuery_encodesPlusSign() {
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("+")).isEqualTo("%2B");
+        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("+"))
+                .as("'+' must be encoded, otherwise many servers will interpret it as a url encoded space")
+                .isEqualTo("%2B");
+    }
+
+    @Test
+    public void urlEncoder_encodePath_encodesSemicolon() {
+        assertThat(BaseUrl.UrlEncoder.encodePathSegment(";"))
+                .as("';' must be encoded, otherwise many servers will "
+                        + "interpret as a delimiter for matrix parameters")
+                .isEqualTo("%3B");
+    }
+
+    @Test
+    public void urlEncoder_encodePath_allowsColon() {
+        assertThat(BaseUrl.UrlEncoder.encodePathSegment(":"))
+                .as("Several GCP APIs use ':' within paths, and do not handle encoded colons")
+                .isEqualTo(":");
     }
 
     @Test
