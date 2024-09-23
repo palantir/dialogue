@@ -166,6 +166,15 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
+    public void allowsColonPathParameter() throws InterruptedException {
+        endpoint.renderPath = (_params, url) -> url.pathSegment("foo:bar");
+        channel.execute(endpoint, request);
+        assertThat(server.takeRequest().getRequestUrl())
+                .as("Several GCP APIs require colons in url paths")
+                .isEqualTo(server.url("/foo:bar"));
+    }
+
+    @Test
     public void fillsHeaders() throws Exception {
         request = Request.builder()
                 .from(request)

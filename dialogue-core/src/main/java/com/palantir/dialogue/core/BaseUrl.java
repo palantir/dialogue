@@ -239,16 +239,37 @@ public final class BaseUrl {
     static class UrlEncoder {
         private static final CharMatcher DIGIT = CharMatcher.inRange('0', '9');
         private static final CharMatcher ALPHA = CharMatcher.inRange('a', 'z').or(CharMatcher.inRange('A', 'Z'));
+
+        // unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
         private static final CharMatcher UNRESERVED = DIGIT.or(ALPHA).or(CharMatcher.anyOf("-._~"));
+
+        // sub-delims = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
         private static final CharMatcher SUB_DELIMS = CharMatcher.anyOf("!$&'()*+,;=");
         private static final CharMatcher IS_HOST = UNRESERVED.or(SUB_DELIMS);
-        private static final CharMatcher IS_P_CHAR = UNRESERVED;
-        private static final CharMatcher IS_PATH = UNRESERVED.or(SUB_DELIMS).or(CharMatcher.anyOf("/"));
+
         // The RFC permits percent-encoding any character. We also percent encode sub-delimiters to avoid
         // incompatibilities with http specification beyond the general URI definition per
         // https://tools.ietf.org/html/rfc3986#section-3.3
         // > URI producing applications often use the reserved characters allowed in a segment to
         // > delimit scheme-specific or dereference-handler-specific subcomponents.
+
+        // If memory serves, we've encountered issues with '+' being interpreted by some servers as an
+        // encoded space, and ';' in paths being interpreted as the beginning of http matrix parameters.
+
+        // pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
+        // A strict implementation of the rfc allow 'UNRESERVED.or(CharMatcher.anyOf(":@"))',
+        // however we have updated it from 'UNRESERVED' to allow colons, and would like to
+        // make changes as slowly as possible.
+        private static final CharMatcher IS_P_CHAR = UNRESERVED.or(CharMatcher.is(':'));
+
+        // For historical reasons, we allow sub-delims in the base uri if provided directly,
+        // but escape them in paths we create/encode. Base-uri paths tend to be simple, so I wouldn't
+        // expect the sub-delims to be relevant here in the vast majority of cases. With sufficient
+        // research and testing, we should incorporate relevant sub-delims into IS_P_CHAR and update this
+        // to: 'IS_P_CHAR.or(CharMatcher.is('/'))'.
+        private static final CharMatcher IS_PATH = IS_P_CHAR.or(SUB_DELIMS).or(CharMatcher.is('/'));
+
+        // query = *( pchar / "/" / "?" )
         private static final CharMatcher IS_QUERY_CHAR = IS_P_CHAR.or(CharMatcher.anyOf("/?"));
 
         static boolean isHost(String maybeHost) {

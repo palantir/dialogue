@@ -1,0 +1,13 @@
+type: break
+break:
+  description: |-
+    Dialogue more closely follows the URI specification as defined in [rfc3986 section 3.3](https://datatracker.ietf.org/doc/html/rfc3986#section-3.3), and allows colons in http paths and query parameters.
+
+    Note that this is not an API break, however we're using a breaking changelog entry for visibility in case of unknown non-compliant servers.
+
+    Previously the `:` character would be encoded as `%3A`, which is also allowed by rfc3986, however not required. Some server implementations, GCP APIs in particular, require colons in path strings not to be encoded.
+    This encoding is an implementation detail within dialogue, where either way is valid for servers which are compliant with the rfc.
+
+    It is possible, though unlikely, that some custom servers or proxies do not handle unencoded colons correctly. Please reach out to us if you find cases where servers do not behave as expected!
+  links:
+  - https://github.com/palantir/dialogue/pull/2360
