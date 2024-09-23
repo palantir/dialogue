@@ -1,5 +1,5 @@
-type: improvement
-improvement:
+type: break
+break:
   description: |-
     Dialogue more closely follows the URI specification as defined in [rfc3986 section 3.3](https://datatracker.ietf.org/doc/html/rfc3986#section-3.3), and allows colons in http paths and query parameters.
 
