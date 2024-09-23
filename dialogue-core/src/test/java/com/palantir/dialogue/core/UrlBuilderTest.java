@@ -135,6 +135,7 @@ public final class UrlBuilderTest {
         assertThat(minimalUrl().queryParam("foo", "bar").build().toString()).isEqualTo("http://host:80?foo=bar");
         assertThat(minimalUrl().queryParam("question?&", "answer!&").build().toString())
                 .isEqualTo("http://host:80?question?%26=answer%21%26");
+        assertThat(minimalUrl().queryParam("q", ":").build().toString()).isEqualTo("http://host:80?q=:");
     }
 
     @Test
