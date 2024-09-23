@@ -171,7 +171,7 @@ public abstract class AbstractChannelTest {
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl())
                 .as("Several GCP APIs require colons in url paths")
-                .isEqualTo(server.url("foo:bar"));
+                .isEqualTo(server.url("/foo:bar"));
     }
 
     @Test
