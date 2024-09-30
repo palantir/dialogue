@@ -219,21 +219,24 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                                 .build());
                 channel = RetryOtherValidatingChannel.create(cf, channel);
                 channel = HostMetricsChannel.create(cf, channel, targetUri.uri());
-                Channel tracingChannel =
+                channel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
-                channel = cf.isConcurrencyLimitingEnabled()
-                        ? new ChannelToEndpointChannel(endpoint -> {
-                            if (endpoint.tags().contains("dialogue-disable-endpoint-concurrency-limiting")) {
-                                return tracingChannel;
-                            }
-                            LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
-                                    tracingChannel, cf.channelName(), uriIndexForInstrumentation, endpoint);
-                            return QueuedChannel.create(cf, endpoint, limited);
-                        })
-                        : tracingChannel;
-                LimitedChannel limitedChannel = cf.isConcurrencyLimitingEnabled()
-                        ? ConcurrencyLimitedChannel.createForHost(cf, channel, uriIndexForInstrumentation)
-                        : new ChannelToLimitedChannelAdapter(channel);
+
+                LimitedChannel limitedChannel;
+                if (cf.isConcurrencyLimitingEnabled()) {
+                    channel = new ChannelToEndpointChannel(channel, (unlimited, endpoint) -> {
+                        if (endpoint.tags().contains("dialogue-disable-endpoint-concurrency-limiting")) {
+                            return unlimited;
+                        }
+                        LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
+                                unlimited, cf.channelName(), uriIndexForInstrumentation, endpoint);
+                        return QueuedChannel.create(cf, endpoint, limited);
+                    });
+                    limitedChannel = ConcurrencyLimitedChannel.createForHost(cf, channel, uriIndexForInstrumentation);
+                } else {
+                    limitedChannel = new ChannelToLimitedChannelAdapter(channel);
+                }
+
                 perUriChannels.add(limitedChannel);
             }
             return perUriChannels.build();
@@ -253,11 +256,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = new RangeAcceptsIdentityEncodingChannel(channel);
                 channel = ContentEncodingChannel.of(channel, endpoint);
                 channel = TracedChannel.create(cf, channel, endpoint);
-                if (ChannelToEndpointChannel.isConstant(endpoint)) {
-                    // Avoid producing metrics for non-constant endpoints which may produce
-                    // high cardinality.
-                    channel = TimingEndpointChannel.create(cf, channel, endpoint);
-                }
+                channel = TimingEndpointChannel.create(cf, channel, endpoint);
                 channel = new RequestBodyValidationChannel(channel);
                 channel = new InterruptionChannel(channel);
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
