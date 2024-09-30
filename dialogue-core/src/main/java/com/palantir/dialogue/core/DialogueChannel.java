@@ -253,7 +253,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = new RangeAcceptsIdentityEncodingChannel(channel);
                 channel = ContentEncodingChannel.of(channel, endpoint);
                 channel = TracedChannel.create(cf, channel, endpoint);
-                if (ChannelToEndpointChannel.isConstant(endpoint)) {
+                if (ChannelToEndpointChannel.isConstant(endpoint)
+                        || endpoint.tags().contains("dialogue-enable-endpoint-timing")) {
                     // Avoid producing metrics for non-constant endpoints which may produce
                     // high cardinality.
                     channel = TimingEndpointChannel.create(cf, channel, endpoint);
