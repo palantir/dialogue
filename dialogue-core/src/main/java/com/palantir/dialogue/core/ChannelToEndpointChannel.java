@@ -23,14 +23,14 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 final class ChannelToEndpointChannel implements Channel {
 
     private final LoadingCache<Endpoint, Channel> cache;
 
-    ChannelToEndpointChannel(Channel channel, BiFunction<Channel, Endpoint, Channel> loader) {
-        this.cache = Caffeine.newBuilder().weakKeys().build(endpoint -> loader.apply(channel, endpoint));
+    ChannelToEndpointChannel(Function<Endpoint, Channel> loader) {
+        this.cache = Caffeine.newBuilder().weakKeys().maximumSize(10_000).build(loader::apply);
     }
 
     @Override

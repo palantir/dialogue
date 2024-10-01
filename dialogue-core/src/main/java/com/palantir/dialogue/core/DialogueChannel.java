@@ -224,7 +224,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
                 LimitedChannel limitedChannel;
                 if (cf.isConcurrencyLimitingEnabled()) {
-                    channel = new ChannelToEndpointChannel(channel, (unlimited, endpoint) -> {
+                    Channel unlimited = channel;
+                    channel = new ChannelToEndpointChannel(endpoint -> {
                         if (endpoint.tags().contains("dialogue-disable-endpoint-concurrency-limiting")) {
                             return unlimited;
                         }
