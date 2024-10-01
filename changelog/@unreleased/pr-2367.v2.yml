@@ -1,0 +1,5 @@
+type: feature
+feature:
+  description: Dialogue produces timer metrics for all endpoints.
+  links:
+  - https://github.com/palantir/dialogue/pull/2367
