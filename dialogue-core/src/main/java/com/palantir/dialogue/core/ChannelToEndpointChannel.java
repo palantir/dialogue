@@ -16,54 +16,25 @@
 
 package com.palantir.dialogue.core;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 final class ChannelToEndpointChannel implements Channel {
 
-    private final Function<Endpoint, Channel> adapter;
-    private final Map<Object, Channel> cache;
+    private final LoadingCache<Endpoint, Channel> cache;
 
-    ChannelToEndpointChannel(Function<Endpoint, Channel> adapter) {
-        this.adapter = adapter;
-        this.cache = new ConcurrentHashMap<>();
+    ChannelToEndpointChannel(Function<Endpoint, Channel> loader) {
+        this.cache = Caffeine.newBuilder().weakKeys().maximumSize(10_000).build(loader::apply);
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return channelFor(endpoint).execute(endpoint, request);
-    }
-
-    private Channel channelFor(Endpoint endpoint) {
-        return cache.computeIfAbsent(key(endpoint), _key -> adapter.apply(endpoint));
-    }
-
-    /**
-     * Constant {@link Endpoint endpoints} may be safely used as cache keys, as opposed to dynamically created
-     * {@link Endpoint} objects which would result in a memory leak.
-     */
-    static boolean isConstant(Endpoint endpoint) {
-        // The conjure generator creates endpoints as enum values, which can safely be cached because they aren't
-        // dynamically created.
-        return endpoint instanceof Enum;
-    }
-
-    /**
-     * Creates a cache key for the given endpoint. Some consumers (CJR feign shim) may not use endpoint enums, so we
-     * cannot safely hold references to potentially short-lived objects. In such cases we use a string value based on
-     * the service-name endpoint-name tuple.
-     */
-    private static Object key(Endpoint endpoint) {
-        return isConstant(endpoint) ? endpoint : stringKey(endpoint);
-    }
-
-    private static String stringKey(Endpoint endpoint) {
-        return endpoint.serviceName() + '.' + endpoint.endpointName();
+        return cache.get(endpoint).execute(endpoint, request);
     }
 }
