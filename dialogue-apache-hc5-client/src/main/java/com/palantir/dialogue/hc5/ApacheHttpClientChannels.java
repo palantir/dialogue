@@ -46,7 +46,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.Proxy;
-import java.net.Socket;
 import java.net.URI;
 import java.net.URL;
 import java.time.Duration;
@@ -58,7 +57,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.function.Supplier;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLSocketFactory;
@@ -79,10 +78,14 @@ import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.DefaultHttpClientConnectionOperator;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.client5.http.io.DetachedSocketFactory;
+import org.apache.hc.client5.http.io.HttpClientConnectionOperator;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
+import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -394,31 +397,6 @@ public final class ApacheHttpClientChannels {
 
     public static final class ClientBuilder {
 
-        // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
-        // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
-        // as clients attempt to use them.
-        // Note that pooled idle connections use an infinite socket timeout so there is no reason to scale
-        // this value with configured timeouts.
-        private static final Timeout IDLE_CONNECTION_TIMEOUT = Timeout.ofSeconds(50);
-
-        // Increased from two seconds to four seconds because we have strong support for retries
-        // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
-        // are possible when the target closes connections prior to this timeout, and can be safely retried.
-        // Ideally this value would be larger for RPC, however some servers use relatively low defaults:
-        // apache httpd versions 1.3 and 2.0: 15 seconds:
-        // https://httpd.apache.org/docs/2.0/mod/core.html#keepalivetimeout
-        // apache httpd version 2.2 and above: 5 seconds
-        // https://httpd.apache.org/docs/2.2/mod/core.html#keepalivetimeout
-        // nodejs http server: 5 seconds
-        // https://nodejs.org/api/http.html#http_server_keepalivetimeout
-        // nginx: 75 seconds (good)
-        // https://nginx.org/en/docs/http/ngx_http_core_module.html#keepalive_timeout
-        // dropwizard: 30 seconds (see idleTimeout in the linked docs)
-        // https://www.dropwizard.io/en/latest/manual/configuration.html#Connectors
-        // wc: 60 seconds (internal)
-        private static final TimeValue CONNECTION_INACTIVITY_CHECK = TimeValue.ofMilliseconds(
-                Integer.getInteger("dialogue.experimental.inactivity.check.threshold.millis", 4_000));
-
         @Nullable
         private ClientConfiguration clientConfiguration;
 
@@ -485,40 +463,56 @@ public final class ApacheHttpClientChannels {
 
             InetSocketAddress socksProxyAddress = getSocksProxyAddress(conf);
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
-            Supplier<Socket> simpleSocketCreator = socksProxyAddress == null
-                    ? () -> new Socket(Proxy.NO_PROXY)
-                    : () -> new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
+            SSLSocketFactory instrumentedSocketFactory =
+                    MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name);
+            DetachedSocketFactory plainSocketFactory = new SocksSupportingDetachedSocketFactory(socksProxyAddress);
+
+            TlsSocketStrategy tlsStrategy = new DialogueTlsSocketStrategy(
+                    instrumentedSocketFactory,
+                    TlsProtocols.get(),
+                    supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory, name),
+                    new InstrumentedHostnameVerifier(new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry()));
 
             ConnectInstrumentation connectInstrumentation =
                     new ConnectInstrumentation(conf.taggedMetricRegistry(), name);
 
+            InstrumentedDnsResolver instrumentedDnsResolver = new InstrumentedDnsResolver(
+                    SystemDefaultDnsResolver.INSTANCE, dnsResolver, name, conf.taggedMetricRegistry());
+
+            HttpClientConnectionOperator operator =
+                    new DefaultHttpClientConnectionOperator(
+                            plainSocketFactory,
+                            null,
+                            instrumentedDnsResolver,
+                            RegistryBuilder.<TlsSocketStrategy>create()
+                                    .register(URIScheme.HTTPS.id, tlsStrategy)
+                                    .build()) {
+                        private static final String CONNECT_BEGAN_ATTRIBUTE = "onBeforeSocketConnectNanoTime";
+
+                        @Override
+                        protected void onBeforeSocketConnect(HttpContext httpContext, HttpHost endpointHost) {
+                            super.onBeforeSocketConnect(httpContext, endpointHost);
+                            httpContext.setAttribute(CONNECT_BEGAN_ATTRIBUTE, System.nanoTime());
+                        }
+
+                        @Override
+                        protected void onAfterSocketConnect(HttpContext httpContext, HttpHost endpointHost) {
+                            super.onAfterSocketConnect(httpContext, endpointHost);
+                            Object value = httpContext.getAttribute(CONNECT_BEGAN_ATTRIBUTE);
+                            if (value instanceof Long) {
+                                long duration = System.nanoTime() - (long) value;
+                                connectInstrumentation.timer(true, httpContext).update(duration, TimeUnit.NANOSECONDS);
+                            }
+                        }
+                    };
+
             PoolingHttpClientConnectionManager internalConnectionManager = new PoolingHttpClientConnectionManager(
-                    RegistryBuilder.<ConnectionSocketFactory>create()
-                            .register(
-                                    URIScheme.HTTP.id,
-                                    new InstrumentedPlainConnectionSocketFactory(
-                                            simpleSocketCreator, connectInstrumentation))
-                            .register(
-                                    URIScheme.HTTPS.id,
-                                    new InstrumentedSslConnectionSocketFactory(
-                                            connectInstrumentation,
-                                            MetricRegistries.instrument(
-                                                    conf.taggedMetricRegistry(), rawSocketFactory, name),
-                                            TlsProtocols.get(),
-                                            supportedCipherSuites(
-                                                    CipherSuites.allCipherSuites(), rawSocketFactory, name),
-                                            new InstrumentedHostnameVerifier(
-                                                    new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry()),
-                                            simpleSocketCreator))
-                            .build(),
+                    operator,
                     PoolConcurrencyPolicy.LAX,
                     // Allow unnecessary connections to time out reducing system load.
                     PoolReusePolicy.LIFO,
                     // No maximum time to live
                     TimeValue.NEG_ONE_MILLISECOND,
-                    null,
-                    new InstrumentedDnsResolver(
-                            SystemDefaultDnsResolver.INSTANCE, dnsResolver, name, conf.taggedMetricRegistry()),
                     new InstrumentedManagedHttpConnectionFactory(
                             ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name));
             internalConnectionManager.setDefaultSocketConfig(SocketConfig.custom()
@@ -530,7 +524,9 @@ public final class ApacheHttpClientChannels {
                     // Doesn't appear to do anything in this release
                     .setSocksProxyAddress(socksProxyAddress)
                     .build());
-            internalConnectionManager.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK);
+            DialogueConnectionConfigResolver connectionConfigResolver =
+                    new DialogueConnectionConfigResolver(connectTimeout, socketTimeout);
+            internalConnectionManager.setConnectionConfigResolver(connectionConfigResolver);
             internalConnectionManager.setMaxTotal(Integer.MAX_VALUE);
             internalConnectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
 
@@ -542,7 +538,6 @@ public final class ApacheHttpClientChannels {
 
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
-                            .setConnectTimeout(connectTimeout)
                             // Don't allow clients to block forever waiting on a connection to become available
                             .setConnectionRequestTimeout(connectTimeout)
                             // The response timeout is used as the socket timeout for the duration of
@@ -552,13 +547,14 @@ public final class ApacheHttpClientChannels {
                             .setRedirectsEnabled(false)
                             .setAuthenticationEnabled(conf.proxyCredentials().isPresent())
                             .setExpectContinueEnabled(false)
-                            .setConnectionKeepAlive(IDLE_CONNECTION_TIMEOUT)
+                            .setConnectionKeepAlive(
+                                    InactivityValidationAwareConnectionKeepAliveStrategy.IDLE_CONNECTION_TIMEOUT)
                             .build())
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
                     .setConnectionManagerShared(true)
                     .setKeepAliveStrategy(
-                            new InactivityValidationAwareConnectionKeepAliveStrategy(internalConnectionManager, name))
+                            new InactivityValidationAwareConnectionKeepAliveStrategy(connectionConfigResolver, name))
                     .setConnectionManager(connectionManager)
                     .setRoutePlanner(new DialogueRoutePlanner(conf.proxy()))
                     .disableAutomaticRetries()
