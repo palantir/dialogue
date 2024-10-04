@@ -19,6 +19,8 @@ package com.palantir.dialogue.core;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
+import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosReason.DueTo;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.SafeArg;
@@ -99,10 +101,17 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         HOST_LEVEL() {
             @Override
             void onSuccess(Response result, PermitControl control) {
-                if (Responses.isInternalServerError(result) || Responses.isTooManyRequests(result)) {
+                if (Responses.isInternalServerError(result)) {
                     control.ignore();
-                } else if ((Responses.isQosStatus(result) && !Responses.isTooManyRequests(result))
-                        || Responses.isServerErrorRange(result)) {
+                } else if (Responses.isTooManyRequests(result)) {
+                    control.ignore();
+                } else if ((Responses.isQosStatus(result))) {
+                    if (isQosDueToCustom(result)) {
+                        control.ignore();
+                    } else {
+                        control.dropped();
+                    }
+                } else if (Responses.isServerErrorRange(result)) {
                     control.dropped();
                 } else {
                     control.success();
@@ -121,7 +130,13 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         ENDPOINT_LEVEL() {
             @Override
             void onSuccess(Response result, PermitControl control) {
-                if (Responses.isTooManyRequests(result) || Responses.isInternalServerError(result)) {
+                if (Responses.isTooManyRequests(result)) {
+                    if (isQosDueToCustom(result)) {
+                        control.ignore();
+                    } else {
+                        control.dropped();
+                    }
+                } else if (Responses.isInternalServerError(result)) {
                     control.dropped();
                 } else if (Responses.isServerErrorRange(result)) {
                     control.ignore();
@@ -150,6 +165,11 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         abstract void onSuccess(Response result, PermitControl control);
 
         abstract void onFailure(Throwable throwable, PermitControl control);
+    }
+
+    private static boolean isQosDueToCustom(Response result) {
+        QosReason reason = DialogueQosReasonDecoder.parse(result);
+        return DueTo.CUSTOM.equals(reason.dueTo().orElse(null));
     }
 
     interface PermitControl {
