@@ -25,7 +25,7 @@ org.slf4j:* = 1.7.36
 com.github.ben-manes.caffeine:caffeine = 3.1.8
 
 # test deps
-org.junit.jupiter:* = 5.11.1
+org.junit.jupiter:* = 5.11.2
 org.apache.logging.log4j:* = 2.24.0
 org.assertj:assertj-core = 3.26.3
 org.assertj:assertj-guava = 3.3.0
