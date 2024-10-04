@@ -25,6 +25,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.QosException;
+import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosReason.DueTo;
+import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
@@ -43,6 +46,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public final class ErrorDecoderTest {
 
     private static final ObjectMapper SERVER_MAPPER = ObjectMappers.newServerObjectMapper();
+    private static final QosReason QOS_REASON = QosReason.of("client-qos-response");
 
     private static final ServiceException SERVICE_EXCEPTION =
             new ServiceException(ErrorType.FAILED_PRECONDITION, SafeArg.of("key", "value"));
@@ -97,7 +101,26 @@ public final class ErrorDecoderTest {
 
         RuntimeException result = decoder.decode(response);
         assertThat(result).isInstanceOfSatisfying(QosException.Unavailable.class, exception -> {
-            assertThat(exception.getReason()).isEqualTo(ErrorDecoder.QOS_REASON);
+            assertThat(exception.getReason()).isEqualTo(QOS_REASON);
+        });
+    }
+
+    @Test
+    public void testQos503WithMetadata() {
+        Response response = TestResponse.withBody(SERIALIZED_EXCEPTION)
+                .code(503)
+                .withHeader("Qos-Retry-Hint", "PROPAGATE")
+                .withHeader("Qos-Due-To", "CUSTOM");
+        assertThat(decoder.isError(response)).isTrue();
+
+        RuntimeException result = decoder.decode(response);
+        assertThat(result).isInstanceOfSatisfying(QosException.Unavailable.class, exception -> {
+            assertThat(exception.getReason())
+                    .isEqualTo(QosReason.builder()
+                            .from(QOS_REASON)
+                            .dueTo(DueTo.CUSTOM)
+                            .retryHint(RetryHint.PROPAGATE)
+                            .build());
         });
     }
 
@@ -108,7 +131,7 @@ public final class ErrorDecoderTest {
 
         RuntimeException result = decoder.decode(response);
         assertThat(result).isInstanceOfSatisfying(QosException.Throttle.class, exception -> {
-            assertThat(exception.getReason()).isEqualTo(ErrorDecoder.QOS_REASON);
+            assertThat(exception.getReason()).isEqualTo(QOS_REASON);
             assertThat(exception.getRetryAfter()).isEmpty();
         });
     }
@@ -121,7 +144,7 @@ public final class ErrorDecoderTest {
 
         RuntimeException result = decoder.decode(response);
         assertThat(result).isInstanceOfSatisfying(QosException.Throttle.class, exception -> {
-            assertThat(exception.getReason()).isEqualTo(ErrorDecoder.QOS_REASON);
+            assertThat(exception.getReason()).isEqualTo(QOS_REASON);
             assertThat(exception.getRetryAfter()).hasValue(Duration.ofSeconds(3));
         });
     }
@@ -134,7 +157,7 @@ public final class ErrorDecoderTest {
 
         RuntimeException result = decoder.decode(response);
         assertThat(result).isInstanceOfSatisfying(QosException.Throttle.class, exception -> {
-            assertThat(exception.getReason()).isEqualTo(ErrorDecoder.QOS_REASON);
+            assertThat(exception.getReason()).isEqualTo(QOS_REASON);
             assertThat(exception.getRetryAfter()).isEmpty();
         });
     }
@@ -175,7 +198,7 @@ public final class ErrorDecoderTest {
                 .isInstanceOf(UnknownRemoteException.class)
                 .getRootCause()
                 .isInstanceOfSatisfying(QosException.RetryOther.class, exception -> {
-                    assertThat(exception.getReason()).isEqualTo(ErrorDecoder.QOS_REASON);
+                    assertThat(exception.getReason()).isEqualTo(QOS_REASON);
                     assertThat(exception.getRedirectTo()).asString().isEqualTo(expectedLocation);
                 });
     }

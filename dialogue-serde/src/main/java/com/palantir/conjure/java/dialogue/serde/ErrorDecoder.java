@@ -17,13 +17,14 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.CharStreams;
 import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosReasons;
+import com.palantir.conjure.java.api.errors.QosReasons.QosResponseDecodingAdapter;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
@@ -59,9 +60,6 @@ public enum ErrorDecoder {
     private static final SafeLogger log = SafeLoggerFactory.get(ErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
 
-    @VisibleForTesting
-    static final QosReason QOS_REASON = QosReason.of("client-qos-response");
-
     public boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
     }
@@ -87,7 +85,8 @@ public enum ErrorDecoder {
                     String locationHeader = location.get();
                     try {
                         UnknownRemoteException remoteException = new UnknownRemoteException(code, "");
-                        remoteException.initCause(QosException.retryOther(QOS_REASON, new URL(locationHeader)));
+                        remoteException.initCause(
+                                QosException.retryOther(qosReason(response), new URL(locationHeader)));
                         return remoteException;
                     } catch (MalformedURLException e) {
                         log.error(
@@ -104,10 +103,10 @@ public enum ErrorDecoder {
                 return response.getFirstHeader(HttpHeaders.RETRY_AFTER)
                         .map(Longs::tryParse)
                         .map(Duration::ofSeconds)
-                        .map(duration -> QosException.throttle(QOS_REASON, duration))
-                        .orElseGet(() -> QosException.throttle(QOS_REASON));
+                        .map(duration -> QosException.throttle(qosReason(response), duration))
+                        .orElseGet(() -> QosException.throttle(qosReason(response)));
             case 503:
-                return QosException.unavailable(QOS_REASON);
+                return QosException.unavailable(qosReason(response));
         }
 
         String body;
@@ -187,6 +186,19 @@ public enum ErrorDecoder {
             // no-op: stack trace generation is expensive, this type exists
             // to simply associate diagnostic information with a failure.
             return this;
+        }
+    }
+
+    private static QosReason qosReason(Response response) {
+        return QosReasons.parseFromResponse(response, DialogueQosResponseDecodingAdapter.INSTANCE);
+    }
+
+    private enum DialogueQosResponseDecodingAdapter implements QosResponseDecodingAdapter<Response> {
+        INSTANCE;
+
+        @Override
+        public Optional<String> getFirstHeader(Response response, String headerName) {
+            return response.getFirstHeader(headerName);
         }
     }
 }

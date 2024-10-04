@@ -26,6 +26,7 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -381,7 +382,11 @@ final class RetryingChannel implements EndpointChannel {
         private boolean isRetryableQosStatus(Response response) {
             switch (serverQoS) {
                 case AUTOMATIC_RETRY:
-                    return Responses.isQosStatus(response);
+                    return Responses.isQosStatus(response)
+                            && RetryHint.PROPAGATE
+                                    != DialogueQosReasonDecoder.parse(response)
+                                            .retryHint()
+                                            .orElse(null);
                 case PROPAGATE_429_and_503_TO_CALLER:
                     return Responses.isQosStatus(response)
                             && !Responses.isTooManyRequests(response)

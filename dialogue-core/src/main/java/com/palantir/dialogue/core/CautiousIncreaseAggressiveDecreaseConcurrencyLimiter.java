@@ -19,6 +19,8 @@ package com.palantir.dialogue.core;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
+import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosReason.DueTo;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.SafeArg;
@@ -99,8 +101,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         HOST_LEVEL() {
             @Override
             void onSuccess(Response result, PermitControl control) {
-                if (Responses.isTooManyRequests(result) || Responses.isInternalServerError(result)) {
-                    // 429 or 500
+                if (Responses.isTooManyRequests(result)
+                        || Responses.isInternalServerError(result)
+                        || isQosDueToCustom(result)) {
+                    // 429, 500, or QoS due to a custom reason
                     control.ignore();
                 } else if ((Responses.isQosStatus(result) && !Responses.isTooManyRequests(result))
                         || Responses.isServerErrorRange(result)) {
@@ -123,8 +127,9 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         ENDPOINT_LEVEL() {
             @Override
             void onSuccess(Response result, PermitControl control) {
-                if (Responses.isTooManyRequests(result) || Responses.isInternalServerError(result)) {
-                    // 429 or 500
+                if ((Responses.isTooManyRequests(result) && !isQosDueToCustom(result))
+                        || Responses.isInternalServerError(result)) {
+                    // non-custom 429 or 500
                     control.dropped();
                 } else if (Responses.isServerErrorRange(result)) {
                     // 501-599
@@ -154,6 +159,11 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         abstract void onSuccess(Response result, PermitControl control);
 
         abstract void onFailure(Throwable throwable, PermitControl control);
+    }
+
+    private static boolean isQosDueToCustom(Response result) {
+        QosReason reason = DialogueQosReasonDecoder.parse(result);
+        return DueTo.CUSTOM.equals(reason.dueTo().orElse(null));
     }
 
     interface PermitControl {
