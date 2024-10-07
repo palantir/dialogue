@@ -155,6 +155,11 @@ final class BalancedScoreTracker {
         public void onSuccess(Response response) {
             inflight.decrementAndGet();
 
+            if (Responses.isQosDueToCustom(response)) {
+                // The server has marked this QoS exception as something that the balanced score
+                // tracker cannot understand.
+                return;
+            }
             if (isGlobalQosStatus(response) || Responses.isServerErrorRange(response)) {
                 recentFailuresReservoir.update(FAILURE_WEIGHT);
                 observability.debugLogStatusFailure(response);

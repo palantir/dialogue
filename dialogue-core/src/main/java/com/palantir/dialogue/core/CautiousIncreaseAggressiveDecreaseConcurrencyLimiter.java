@@ -19,8 +19,6 @@ package com.palantir.dialogue.core;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
-import com.palantir.conjure.java.api.errors.QosReason;
-import com.palantir.conjure.java.api.errors.QosReason.DueTo;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.SafeArg;
@@ -105,8 +103,8 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
                     control.ignore();
                 } else if (Responses.isTooManyRequests(result)) {
                     control.ignore();
-                } else if ((Responses.isQosStatus(result))) {
-                    if (isQosDueToCustom(result)) {
+                } else if (Responses.isQosStatus(result)) {
+                    if (Responses.isQosDueToCustom(result)) {
                         control.ignore();
                     } else {
                         control.dropped();
@@ -131,7 +129,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             @Override
             void onSuccess(Response result, PermitControl control) {
                 if (Responses.isTooManyRequests(result)) {
-                    if (isQosDueToCustom(result)) {
+                    if (Responses.isQosDueToCustom(result)) {
                         control.ignore();
                     } else {
                         control.dropped();
@@ -165,11 +163,6 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         abstract void onSuccess(Response result, PermitControl control);
 
         abstract void onFailure(Throwable throwable, PermitControl control);
-    }
-
-    private static boolean isQosDueToCustom(Response result) {
-        QosReason reason = DialogueQosReasonDecoder.parse(result);
-        return DueTo.CUSTOM.equals(reason.dueTo().orElse(null));
     }
 
     interface PermitControl {
