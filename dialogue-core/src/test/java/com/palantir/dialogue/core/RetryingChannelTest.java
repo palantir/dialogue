@@ -28,6 +28,10 @@ import static org.mockito.Mockito.when;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosReason.DueTo;
+import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
+import com.palantir.conjure.java.api.errors.QosReasons;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -35,6 +39,7 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.TestResponseQosEncoder;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayOutputStream;
@@ -135,9 +140,8 @@ public class RetryingChannelTest {
 
     @Test
     public void retries_429s() throws Exception {
-        Response mockResponse = mock(Response.class);
-        when(mockResponse.code()).thenReturn(429);
-        when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
+        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>)
+                _invocation -> Futures.immediateFuture(new TestResponse().code(429)));
 
         EndpointChannel retryer = new RetryingChannel(
                 channel,
@@ -149,17 +153,50 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response).isDone();
-        assertThat(response.get())
+        assertThat(response.get().code())
                 .as("After retries are exhausted the 429 response should be returned")
-                .isSameAs(mockResponse);
+                .isEqualTo(429);
         verify(channel, times(4)).execute(REQUEST);
     }
 
     @Test
-    public void retries_503s() throws Exception {
-        Response mockResponse = mock(Response.class);
-        when(mockResponse.code()).thenReturn(503);
-        when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
+    public void retries_429s_dueTo_custom() throws Exception {
+        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>) _invocation -> {
+            TestResponse stubResponse = new TestResponse().code(429);
+            QosReasons.encodeToResponse(
+                    QosReason.builder().reason("reason").dueTo(DueTo.CUSTOM).build(),
+                    stubResponse,
+                    TestResponseQosEncoder.INSTANCE);
+            return Futures.immediateFuture(stubResponse);
+        });
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get().code())
+                .as("After retries are exhausted the 429 response should be returned")
+                .isEqualTo(429);
+        verify(channel, times(4)).execute(REQUEST);
+    }
+
+    @Test
+    public void does_not_retry_429_when_hinted() throws Exception {
+        TestResponse stubResponse = new TestResponse().code(429);
+        QosReasons.encodeToResponse(
+                QosReason.builder()
+                        .reason("reason")
+                        .retryHint(RetryHint.DO_NOT_RETRY)
+                        .build(),
+                stubResponse,
+                TestResponseQosEncoder.INSTANCE);
+        when(channel.execute(any())).thenReturn(Futures.immediateFuture(stubResponse));
 
         EndpointChannel retryer = new RetryingChannel(
                 channel,
@@ -172,9 +209,85 @@ public class RetryingChannelTest {
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response).isDone();
         assertThat(response.get())
+                .as("The 429 response should be returned without retrying due to RetryHint.DO_NOT_RETRY")
+                .isSameAs(stubResponse);
+        verify(channel, times(1)).execute(REQUEST);
+    }
+
+    @Test
+    public void retries_503s() throws Exception {
+        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>)
+                _invocation -> Futures.immediateFuture(new TestResponse().code(503)));
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get().code())
                 .as("After retries are exhausted the 503 response should be returned")
-                .isSameAs(mockResponse);
+                .isEqualTo(503);
         verify(channel, times(4)).execute(REQUEST);
+    }
+
+    @Test
+    public void retries_503s_dueTo_custom() throws Exception {
+        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>) _invocation -> {
+            TestResponse stubResponse = new TestResponse().code(503);
+            QosReasons.encodeToResponse(
+                    QosReason.builder().reason("reason").dueTo(DueTo.CUSTOM).build(),
+                    stubResponse,
+                    TestResponseQosEncoder.INSTANCE);
+            return Futures.immediateFuture(stubResponse);
+        });
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get().code())
+                .as("After retries are exhausted the 503 response should be returned")
+                .isEqualTo(503);
+        verify(channel, times(4)).execute(REQUEST);
+    }
+
+    @Test
+    public void does_not_retry_503_when_hinted() throws Exception {
+        TestResponse stubResponse = new TestResponse().code(503);
+        QosReasons.encodeToResponse(
+                QosReason.builder()
+                        .reason("reason")
+                        .retryHint(RetryHint.DO_NOT_RETRY)
+                        .build(),
+                stubResponse,
+                TestResponseQosEncoder.INSTANCE);
+        when(channel.execute(any())).thenReturn(Futures.immediateFuture(stubResponse));
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get())
+                .as("The 503 response should be returned without retrying due to RetryHint.DO_NOT_RETRY")
+                .isSameAs(stubResponse);
+        verify(channel, times(1)).execute(REQUEST);
     }
 
     @Test
