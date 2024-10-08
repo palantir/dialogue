@@ -57,7 +57,7 @@ final class Responses {
             return false;
         }
         QosReason reason = DialogueQosReasonDecoder.parse(result);
-        return !RetryHint.PROPAGATE.equals(reason.retryHint().orElse(null));
+        return !RetryHint.DO_NOT_RETRY.equals(reason.retryHint().orElse(null));
     }
 
     static boolean isServerErrorRange(Response response) {

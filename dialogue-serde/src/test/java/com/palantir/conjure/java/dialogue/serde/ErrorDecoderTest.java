@@ -109,8 +109,8 @@ public final class ErrorDecoderTest {
     public void testQos503WithMetadata() {
         Response response = TestResponse.withBody(SERIALIZED_EXCEPTION)
                 .code(503)
-                .withHeader("Qos-Retry-Hint", "PROPAGATE")
-                .withHeader("Qos-Due-To", "CUSTOM");
+                .withHeader("Qos-Retry-Hint", "do-not-retry")
+                .withHeader("Qos-Due-To", "custom");
         assertThat(decoder.isError(response)).isTrue();
 
         RuntimeException result = decoder.decode(response);
@@ -119,7 +119,7 @@ public final class ErrorDecoderTest {
                     .isEqualTo(QosReason.builder()
                             .from(QOS_REASON)
                             .dueTo(DueTo.CUSTOM)
-                            .retryHint(RetryHint.PROPAGATE)
+                            .retryHint(RetryHint.DO_NOT_RETRY)
                             .build());
         });
     }
