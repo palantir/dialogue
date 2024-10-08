@@ -17,16 +17,19 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.Uninterruptibles;
+import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosReason.DueTo;
+import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
+import com.palantir.conjure.java.api.errors.QosReasons;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.TestResponseQosEncoder;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
@@ -177,8 +180,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     @EnumSource(Behavior.class)
     public void onSuccess_releasesSuccessfully(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
-        Response response = mock(Response.class);
-        when(response.code()).thenReturn(200);
+        Response response = new TestResponse().code(200);
 
         double max = limiter.getLimit();
         limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
@@ -188,9 +190,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     @Test
     public void onSuccess_dropsIfResponseIndicatesQosOrError_host_308() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
-        Response response = mock(Response.class);
-        when(response.getFirstHeader(eq("Location"))).thenReturn(Optional.of("https://localhost"));
-        when(response.code()).thenReturn(308);
+        Response response = new TestResponse().code(308).withHeader("Location", "https://localhost");
 
         double max = limiter.getLimit();
         limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
@@ -202,8 +202,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         // This represents google chunked-upload APIs which respond '308 Resume Incomplete' to indicate
         // a successful chunk upload request.
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
-        Response response = mock(Response.class);
-        when(response.code()).thenReturn(308);
+        Response response = new TestResponse().code(308);
 
         double max = limiter.getLimit();
         limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
@@ -213,8 +212,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     @Test
     public void onSuccess_dropsIfResponseIndicatesQosOrError_host_503() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
-        Response response = mock(Response.class);
-        when(response.code()).thenReturn(503);
+        Response response = new TestResponse().code(503);
 
         double max = limiter.getLimit();
         limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
@@ -222,11 +220,40 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     }
 
     @Test
+    public void onSuccess_ignoresIfResponseIndicatesQos_host_custom503() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
+        TestResponse response = new TestResponse().code(503);
+        QosReason reason =
+                QosReason.builder().reason("reason").dueTo(DueTo.CUSTOM).build();
+        QosReasons.encodeToResponse(reason, response, TestResponseQosEncoder.INSTANCE);
+
+        double max = limiter.getLimit();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
+        assertThat(limiter.getLimit()).as("For DueTo.CUSTOM status %d", 503).isEqualTo(max);
+    }
+
+    @Test
+    public void onSuccess_ignoresIfResponseIndicatesQos_host_nonRetryable503() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
+        TestResponse response = new TestResponse().code(503);
+        QosReason reason = QosReason.builder()
+                .reason("reason")
+                .retryHint(RetryHint.DO_NOT_RETRY)
+                .build();
+        QosReasons.encodeToResponse(reason, response, TestResponseQosEncoder.INSTANCE);
+
+        double max = limiter.getLimit();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
+        assertThat(limiter.getLimit())
+                .as("For status %d not impacted by RetryHint.DO_NOT_RETRY", 503)
+                .isCloseTo(max * 0.9, Percentage.withPercentage(5));
+    }
+
+    @Test
     public void onSuccess_dropsIfResponseIndicatesQosOrError_endpoint() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.ENDPOINT_LEVEL);
         int code = 429;
-        Response response = mock(Response.class);
-        when(response.code()).thenReturn(code);
+        Response response = new TestResponse().code(code);
 
         double max = limiter.getLimit();
         limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
@@ -234,11 +261,40 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     }
 
     @Test
+    public void onSuccess_ignoresIfResponseIndicatesQos_endpoint_custom429() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.ENDPOINT_LEVEL);
+        TestResponse response = new TestResponse().code(429);
+        QosReason reason =
+                QosReason.builder().reason("reason").dueTo(DueTo.CUSTOM).build();
+        QosReasons.encodeToResponse(reason, response, TestResponseQosEncoder.INSTANCE);
+
+        double max = limiter.getLimit();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
+        assertThat(limiter.getLimit()).as("For DueTo.CUSTOM status %d", 429).isEqualTo(max);
+    }
+
+    @Test
+    public void onSuccess_ignoresIfResponseIndicatesQos_endpoint_nonRetryable429() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.ENDPOINT_LEVEL);
+        TestResponse response = new TestResponse().code(429);
+        QosReason reason = QosReason.builder()
+                .reason("reason")
+                .retryHint(RetryHint.DO_NOT_RETRY)
+                .build();
+        QosReasons.encodeToResponse(reason, response, TestResponseQosEncoder.INSTANCE);
+
+        double max = limiter.getLimit();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
+        assertThat(limiter.getLimit())
+                .as("For status %d not impacted by RetryHint.DO_NOT_RETRY", 429)
+                .isCloseTo(max * 0.9, Percentage.withPercentage(5));
+    }
+
+    @Test
     public void onSuccess_releasesSuccessfullyIfResponseIndicatesQosOrError_sticky() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.STICKY);
         int code = 429;
-        Response response = mock(Response.class);
-        when(response.code()).thenReturn(code);
+        Response response = new TestResponse().code(code);
 
         double max = limiter.getLimit();
         limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
@@ -249,8 +305,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     public void onSuccess_ignoresIfResponseIndicatesUnknownServerError_endpoint() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.ENDPOINT_LEVEL);
         int code = 599;
-        Response response = mock(Response.class);
-        when(response.code()).thenReturn(code);
+        Response response = new TestResponse().code(code);
 
         double max = limiter.getLimit();
         limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
@@ -261,8 +316,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     public void onSuccess_ignoresIfResponseIndicatesUnknownServerError_sticky() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.STICKY);
         int code = 599;
-        Response response = mock(Response.class);
-        when(response.code()).thenReturn(code);
+        Response response = new TestResponse().code(code);
 
         double max = limiter.getLimit();
         limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
@@ -273,8 +327,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     public void onSuccess_dropsIfResponseIndicatesUnknownServerError_host() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
         int code = 599;
-        Response response = mock(Response.class);
-        when(response.code()).thenReturn(code);
+        Response response = new TestResponse().code(code);
 
         double max = limiter.getLimit();
         limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
