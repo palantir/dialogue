@@ -27,9 +27,14 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosReason.DueTo;
+import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
+import com.palantir.conjure.java.api.errors.QosReasons;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.TestResponseQosEncoder;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
@@ -118,6 +123,51 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                         + "transactional workflows like the internal atlas-replacement, which rely on all requests "
                         + "hitting the same node. See PDS-117063 for an example.")
                 .contains(429, 429, 429, 429, 429, 429);
+    }
+
+    @Test
+    void http_503_responses_dueTo_custom_do_not_cause_node_switch() {
+        setResponse(channel1, 100);
+        setResponse(channel2, 204);
+
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilErrorWithoutReshuffle)))
+                .describedAs("Should be locked on to channel2 initially")
+                .contains(204, 204, 204, 204, 204, 204);
+
+        TestResponse response = new TestResponse().code(503);
+        QosReasons.encodeToResponse(
+                QosReason.builder().reason("reason").dueTo(DueTo.CUSTOM).build(),
+                response,
+                TestResponseQosEncoder.INSTANCE);
+        setResponse(channel2, response);
+
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilErrorWithoutReshuffle)))
+                .describedAs("Even after receiving a 503 with DueTo.CUSTOM, we must stay pinned.")
+                .contains(503, 503, 503, 503, 503, 503);
+    }
+
+    @Test
+    void http_503_responses_retryHint_noRetry_causes_node_switch() {
+        setResponse(channel1, 100);
+        setResponse(channel2, 204);
+
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilErrorWithoutReshuffle)))
+                .describedAs("Should be locked on to channel2 initially")
+                .contains(204, 204, 204, 204, 204, 204);
+
+        TestResponse response = new TestResponse().code(503);
+        QosReasons.encodeToResponse(
+                QosReason.builder()
+                        .reason("reason")
+                        .retryHint(RetryHint.DO_NOT_RETRY)
+                        .build(),
+                response,
+                TestResponseQosEncoder.INSTANCE);
+        setResponse(channel2, response);
+
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilErrorWithoutReshuffle)))
+                .describedAs("RetryHint.DO_NOT_RETRY has no impact on PinUntilError behavior.")
+                .contains(503, 100, 100, 100, 100, 100);
     }
 
     private void testStatusCausesNodeSwitch(int errorStatus) {
@@ -263,12 +313,16 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
     }
 
     private static void setResponse(LimitedChannel mockChannel, int status) {
+        Response resp = response(status);
+        setResponse(mockChannel, resp);
+    }
+
+    private static void setResponse(LimitedChannel mockChannel, Response response) {
         Mockito.clearInvocations(mockChannel);
         Mockito.reset(mockChannel);
-        Response resp = response(status);
         lenient()
                 .when(mockChannel.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
-                .thenReturn(Optional.of(Futures.immediateFuture(resp)));
+                .thenReturn(Optional.of(Futures.immediateFuture(response)));
     }
 
     private static Response response(int status) {
