@@ -20,9 +20,11 @@ dependencies {
     implementation 'io.dropwizard.metrics:metrics-core'
     implementation 'org.apache.httpcomponents.core5:httpcore5'
 
+    testImplementation project(':dialogue-clients')
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-serde')
     testImplementation 'org.awaitility:awaitility'
+    testImplementation 'com.github.ben-manes.caffeine:caffeine'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
     testRuntimeOnly 'org.apache.logging.log4j:log4j-core'

@@ -46,7 +46,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 /** Package private internal API. */
-enum DefaultClients implements Clients {
+public enum DefaultClients implements Clients {
     INSTANCE;
 
     private static final SafeLogger log = SafeLoggerFactory.get(DefaultClients.class);

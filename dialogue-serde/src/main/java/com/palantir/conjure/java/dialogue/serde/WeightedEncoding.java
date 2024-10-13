@@ -24,7 +24,7 @@ import java.util.Objects;
  * Note that the weight may not be applied to the Accept header, rather
  * used to order values.
  */
-final class WeightedEncoding {
+public final class WeightedEncoding {
 
     private final Encoding encoding;
     private final double weight;
@@ -39,7 +39,7 @@ final class WeightedEncoding {
         return new WeightedEncoding(encoding, weight);
     }
 
-    static WeightedEncoding of(Encoding encoding) {
+    public static WeightedEncoding of(Encoding encoding) {
         return new WeightedEncoding(encoding, 1);
     }
 

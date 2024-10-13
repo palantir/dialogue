@@ -49,7 +49,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /** Package private internal API. */
-final class ConjureBodySerDe implements BodySerDe {
+public final class ConjureBodySerDe implements BodySerDe {
 
     private static final SafeLogger log = SafeLoggerFactory.get(ConjureBodySerDe.class);
     private final List<Encoding> encodingsSortedByWeight;
@@ -65,7 +65,7 @@ final class ConjureBodySerDe implements BodySerDe {
      * {@link Encoding#supportsContentType supports} the serialization format {@link HttpHeaders#ACCEPT accepted}
      * by a given request, or the first serializer if no such serializer can be found.
      */
-    ConjureBodySerDe(
+    public ConjureBodySerDe(
             List<WeightedEncoding> rawEncodings,
             ErrorDecoder errorDecoder,
             EmptyContainerDeserializer emptyContainerDeserializer,

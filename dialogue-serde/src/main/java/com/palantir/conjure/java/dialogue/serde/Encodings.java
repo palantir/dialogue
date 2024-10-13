@@ -24,6 +24,7 @@ import com.google.common.base.Suppliers;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.exceptions.SafeIoException;
 import java.io.InputStream;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -84,6 +85,60 @@ public final class Encodings {
         };
     }
 
+    public static final class LimitedSizeEncoding implements Encoding {
+        private final Encoding jsonEncoding;
+        private final int maxBytes;
+
+        public LimitedSizeEncoding(int maxBytes) {
+            this.jsonEncoding = Encodings.json();
+            this.maxBytes = maxBytes;
+        }
+
+        @Override
+        public <T> Serializer<T> serializer(TypeMarker<T> type) {
+            return jsonEncoding.serializer(type);
+        }
+
+        @Override
+        public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
+            Deserializer<T> delegate = jsonEncoding.deserializer(type);
+            return input -> {
+                int chunkSize = 1024; // set this to a suitable size
+                byte[] buffer = new byte[chunkSize];
+
+                int bytesRead;
+                int totalBytes = 0;
+                while ((bytesRead = input.readNBytes(buffer, 0, chunkSize)) > 0) {
+                    totalBytes += bytesRead;
+                    if (totalBytes > maxBytes) {
+                        throw new SafeIoException("Deserialization exceeded the maximum allowed size");
+                    }
+                }
+
+                // Reset the input stream to the beginning
+                if (input.markSupported()) {
+                    input.reset();
+                } else {
+                    throw new SafeIoException("Cannot reset the input stream");
+                }
+
+                // Now delegate to JSON deserializer
+                T value = delegate.deserialize(input);
+                return Preconditions.checkNotNull(value, "cannot deserialize a JSON null value");
+            };
+        }
+
+        @Override
+        public String getContentType() {
+            return jsonEncoding.getContentType();
+        }
+
+        @Override
+        public boolean supportsContentType(String contentType) {
+            return jsonEncoding.supportsContentType(contentType);
+        }
+    }
+
     /** Returns a serializer for the Conjure CBOR wire format. */
     public static Encoding cbor() {
         return new AbstractJacksonEncoding(configure(ObjectMappers.newCborClientObjectMapper())) {
@@ -118,7 +173,7 @@ public final class Encodings {
         };
     }
 
-    static EmptyContainerDeserializer emptyContainerDeserializer() {
+    public static EmptyContainerDeserializer emptyContainerDeserializer() {
         return new JacksonEmptyContainerLoader(JSON_MAPPER.get());
     }
 
