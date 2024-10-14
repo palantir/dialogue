@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Set a small socket timeout before closing partially consumed responses
+  links:
+  - https://github.com/palantir/dialogue/pull/1853
