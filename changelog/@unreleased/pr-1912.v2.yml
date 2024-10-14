@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue attempts not to retain context classloaders
+  links:
+  - https://github.com/palantir/dialogue/pull/1912

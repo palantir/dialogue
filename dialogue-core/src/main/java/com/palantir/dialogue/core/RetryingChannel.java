@@ -25,7 +25,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -79,10 +78,7 @@ final class RetryingChannel implements EndpointChannel {
     static final Supplier<ScheduledExecutorService> sharedScheduler =
             Suppliers.memoize(() -> DialogueExecutors.newSharedSingleThreadScheduler(MetricRegistries.instrument(
                     SharedTaggedMetricRegistries.getSingleton(),
-                    new ThreadFactoryBuilder()
-                            .setNameFormat(SCHEDULER_NAME + "-%d")
-                            .setDaemon(true)
-                            .build(),
+                    DialogueExecutors.newDaemonThreadFactory(SCHEDULER_NAME),
                     SCHEDULER_NAME)));
 
     @SuppressWarnings("UnnecessaryLambda") // no allocations

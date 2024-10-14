@@ -17,7 +17,6 @@
 package com.palantir.dialogue.hc5;
 
 import com.google.common.base.Suppliers;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.core.DialogueExecutors;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -46,10 +45,7 @@ final class ScheduledIdleConnectionEvictor {
                     SharedTaggedMetricRegistries.getSingleton(),
                     DialogueExecutors.newSharedSingleThreadScheduler(MetricRegistries.instrument(
                             SharedTaggedMetricRegistries.getSingleton(),
-                            new ThreadFactoryBuilder()
-                                    .setNameFormat(EXECUTOR_NAME + "-%d")
-                                    .setDaemon(true)
-                                    .build(),
+                            DialogueExecutors.newDaemonThreadFactory(EXECUTOR_NAME),
                             EXECUTOR_NAME)),
                     EXECUTOR_NAME));
 

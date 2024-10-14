@@ -5,6 +5,7 @@ dependencies {
     api project(':dialogue-target')
     api 'com.google.guava:guava'
     implementation project(':dialogue-futures')
+    implementation project(':dialogue-core')
     implementation 'com.palantir.tracing:tracing'
     implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'com.palantir.safe-logging:logger'
