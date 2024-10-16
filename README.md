@@ -175,12 +175,8 @@ _This API is influenced by gRPC's [Java library](https://github.com/grpc/grpc-ja
 ### Concurrency limits
 
 Every request passes through a pair of [AIMD](https://en.wikipedia.org/wiki/Additive_increase/multiplicative_decrease)
-concurrency limiters.
-There are two types of concurrency limiter: per-host, and per-endpoint. The former is based on failures that
-indicate the target host is in a degraded state, and the latter is based on failures that are coupled to
-an individual endpoint.
-Each concurrency limiter operates in conjunction with a queue to stage pending requests until a
-permit becomes available.
+concurrency limiters. There are two types of concurrency limiter: per-host, and per-endpoint. Each concurrency limiter
+operates in conjunction with a queue to stage pending requests until a permit becomes available.
 
 #### Limiter Diagram
 
@@ -207,13 +203,17 @@ permit becomes available.
 
 Each host has a concurrency limiter which protects servers by stopping requests getting out the door on the client-side.
 Permits are decreased after receiving 308 or 501-599 response, or encountering a network error (`IOException`).
-Otherwise, they are increased.
+429 or 500 responses have no change. Otherwise, permits are increased.
+
+Host limits are based on failures that indicate the target host overall is in a degraded state.
 
 #### Endpoint limits
 
-Each endpoint has a concurrency limiter which is distinct for each host. This allows servers to provide backpressure with
-additional specificity in the form of 429 status QoS responses. Permits are decreased after
-receiving a 429 or 500 response code. Otherwise, they are increased.
+Each endpoint has a concurrency limiter which is distinct for each host. This allows servers to provide per-endpoint
+backpressure in the form of 429 status QoS responses. Permits are decreased after receiving a 429 or 500 response code.
+501-599 responses have no change. Otherwise, permits are increased.
+
+Endpoint limits are based on failures that are coupled to an individual endpoint.
 
 ### Node selection strategies
 When configured with multiple uris, Dialogue has several strategies for choosing which upstream to route requests to.

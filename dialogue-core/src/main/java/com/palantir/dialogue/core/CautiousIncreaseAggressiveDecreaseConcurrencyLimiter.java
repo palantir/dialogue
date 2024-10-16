@@ -99,10 +99,12 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         HOST_LEVEL() {
             @Override
             void onSuccess(Response result, PermitControl control) {
-                if (Responses.isInternalServerError(result) || Responses.isTooManyRequests(result)) {
+                if (Responses.isTooManyRequests(result) || Responses.isInternalServerError(result)) {
+                    // 429 or 500
                     control.ignore();
                 } else if ((Responses.isQosStatus(result) && !Responses.isTooManyRequests(result))
                         || Responses.isServerErrorRange(result)) {
+                    // 308 with Location header, or 501-599
                     control.dropped();
                 } else {
                     control.success();
@@ -122,8 +124,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             @Override
             void onSuccess(Response result, PermitControl control) {
                 if (Responses.isTooManyRequests(result) || Responses.isInternalServerError(result)) {
+                    // 429 or 500
                     control.dropped();
                 } else if (Responses.isServerErrorRange(result)) {
+                    // 501-599
                     control.ignore();
                 } else {
                     control.success();
@@ -154,10 +158,22 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
     interface PermitControl {
 
+        /**
+         * Indicates that the effect of the request corresponding to this permit on concurrency limits should be
+         * ignored.
+         */
         void ignore();
 
+        /**
+         * Indicates that the request corresponding to this permit was dropped and that the concurrency limit should be
+         * multiplicatively decreased.
+         */
         void dropped();
 
+        /**
+         * Indicates that the request corresponding to this permit was successful and that the concurrency limit should
+         * be additively increased.
+         */
         void success();
     }
 
@@ -187,19 +203,11 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             behavior.onFailure(throwable, this);
         }
 
-        /**
-         * Indicates that the effect of the request corresponding to this permit on concurrency limits should be
-         * ignored.
-         */
         @Override
         public void ignore() {
             inFlight.decrementAndGet();
         }
 
-        /**
-         * Indicates that the request corresponding to this permit was dropped and that the concurrency limit should be
-         * multiplicatively decreased.
-         */
         @Override
         public void dropped() {
             inFlight.decrementAndGet();
@@ -209,10 +217,6 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             }
         }
 
-        /**
-         * Indicates that the request corresponding to this permit was successful and that the concurrency limit should
-         * be additively increased.
-         */
         @Override
         public void success() {
             inFlight.decrementAndGet();
