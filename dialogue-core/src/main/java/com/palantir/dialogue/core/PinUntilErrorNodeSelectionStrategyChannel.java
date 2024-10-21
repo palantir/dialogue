@@ -147,7 +147,9 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                 // workflows where it is important for a large number of requests to all land on the same node,
                 // even if a couple of them get rate limited in the middle.
                 if (Responses.isServerErrorRange(response)
-                        || (Responses.isQosStatus(response) && !Responses.isTooManyRequests(response))) {
+                        || (Responses.isQosStatus(response)
+                                && !Responses.isQosDueToCustom(response)
+                                && !Responses.isTooManyRequests(response))) {
                     OptionalInt next = incrementHostIfNecessary(pin);
                     instrumentation.receivedErrorStatus(pin, channel, response, next);
                 } else {

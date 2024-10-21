@@ -17,6 +17,7 @@ dependencies {
     implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'com.google.code.findbugs:jsr305'
     implementation 'com.google.errorprone:error_prone_annotations'
+    implementation 'com.palantir.conjure.java.api:errors'
     implementation 'com.palantir.conjure.java.api:service-config'
     implementation 'com.palantir.tracing:tracing-api'
     implementation 'com.palantir.refreshable:refreshable'

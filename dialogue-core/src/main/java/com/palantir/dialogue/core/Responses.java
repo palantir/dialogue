@@ -16,6 +16,9 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.net.HttpHeaders;
+import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosReason.DueTo;
+import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
 import com.palantir.dialogue.Response;
 
 /** Utility functionality for {@link Response} handling. */
@@ -39,6 +42,23 @@ final class Responses {
 
     static boolean isQosStatus(Response response) {
         return isRetryOther(response) || isTooManyRequests(response) || isUnavailable(response);
+    }
+
+    static boolean isQosDueToCustom(Response result) {
+        if (!isQosStatus(result)) {
+            return false;
+        }
+        QosReason reason = DialogueQosReasonDecoder.parse(result);
+        return reason.dueTo().isPresent() && DueTo.CUSTOM.equals(reason.dueTo().get());
+    }
+
+    static boolean isRetryableQos(Response result) {
+        if (!isQosStatus(result)) {
+            return false;
+        }
+        QosReason reason = DialogueQosReasonDecoder.parse(result);
+        return reason.retryHint().isEmpty()
+                || !RetryHint.DO_NOT_RETRY.equals(reason.retryHint().get());
     }
 
     static boolean isServerErrorRange(Response response) {

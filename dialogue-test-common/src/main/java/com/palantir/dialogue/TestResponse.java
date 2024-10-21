@@ -19,7 +19,6 @@ package com.palantir.dialogue;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.net.HttpHeaders;
-import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
@@ -58,7 +57,6 @@ public final class TestResponse implements Response {
         return code;
     }
 
-    @CheckReturnValue
     public TestResponse code(int value) {
         this.code = value;
         return this;
@@ -93,12 +91,10 @@ public final class TestResponse implements Response {
         Preconditions.checkState(!isClosed(), "Please don't close twice");
     }
 
-    @CheckReturnValue
     public TestResponse contentType(String contentType) {
         return withHeader(HttpHeaders.CONTENT_TYPE, contentType);
     }
 
-    @CheckReturnValue
     public TestResponse withHeader(String headerName, String headerValue) {
         this.headers = ImmutableListMultimap.<String, String>builder()
                 .putAll(headers)
