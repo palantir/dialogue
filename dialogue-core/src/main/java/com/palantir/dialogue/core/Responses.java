@@ -49,7 +49,7 @@ final class Responses {
             return false;
         }
         QosReason reason = DialogueQosReasonDecoder.parse(result);
-        return DueTo.CUSTOM.equals(reason.dueTo().orElse(null));
+        return reason.dueTo().isPresent() && DueTo.CUSTOM.equals(reason.dueTo().get());
     }
 
     static boolean isRetryableQos(Response result) {
@@ -57,7 +57,8 @@ final class Responses {
             return false;
         }
         QosReason reason = DialogueQosReasonDecoder.parse(result);
-        return !RetryHint.DO_NOT_RETRY.equals(reason.retryHint().orElse(null));
+        return reason.retryHint().isEmpty()
+                || !RetryHint.DO_NOT_RETRY.equals(reason.retryHint().get());
     }
 
     static boolean isServerErrorRange(Response response) {
