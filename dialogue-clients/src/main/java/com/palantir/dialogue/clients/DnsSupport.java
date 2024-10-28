@@ -18,7 +18,10 @@ package com.palantir.dialogue.clients;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Suppliers;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
@@ -28,16 +31,19 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.DialogueExecutors;
 import com.palantir.dialogue.core.TargetUri;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Disposable;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.MetricRegistries;
+import com.palantir.tritium.metrics.caffeine.CacheStats;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.Cleaner;
@@ -83,6 +89,19 @@ final class DnsSupport {
                             .setDaemon(true)
                             .build(),
                     SCHEDULER_NAME)));
+
+    /**
+     * Shared cache of string to parsed URI. This avoids excessive allocation overhead when parsing repeated targets.
+     */
+    private static final LoadingCache<String, Parsed> uriCache = CacheStats.of(
+                    SharedTaggedMetricRegistries.getSingleton(), "dialogue-uri")
+            .register(stats -> Caffeine.newBuilder()
+                    .maximumWeight(100_000)
+                    .<String, Parsed>weigher((key, _value) -> key.length())
+                    .expireAfterAccess(Duration.ofMinutes(1))
+                    .softValues()
+                    .recordStats(stats)
+                    .build(DnsSupport::tryParseUri));
 
     /** Identical to the overload, but using the {@link #sharedScheduler}. */
     static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
@@ -130,13 +149,11 @@ final class DnsSupport {
     @Unsafe
     @Nullable
     static String tryGetHost(@Unsafe String uriString) {
-        try {
-            URI uri = new URI(uriString);
-            return uri.getHost();
-        } catch (URISyntaxException | RuntimeException e) {
-            log.debug("Failed to parse URI", e);
-            return null;
+        Parsed parsed = uriCache.get(uriString);
+        if (parsed.uri() != null) {
+            return parsed.uri().getHost();
         }
+        return null;
     }
 
     /**
@@ -156,7 +173,7 @@ final class DnsSupport {
             ProxySelector proxySelector,
             Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts,
             TaggedMetricRegistry metrics) {
-        List<TargetUri> targetUris = new ArrayList<>();
+        List<TargetUri> targetUris = new ArrayList<>(uris.size());
         boolean failedToParse = false;
         for (String uri : uris) {
             URI parsed = tryParseUri(metrics, serviceNameForLogging, uri);
@@ -179,10 +196,10 @@ final class DnsSupport {
                             "Resolved no addresses for host '{}' of service '{}'",
                             UnsafeArg.of("host", host),
                             SafeArg.of("service", serviceNameForLogging));
-                }
-                for (InetAddress addr : resolvedAddresses) {
-                    targetUris.add(
-                            TargetUri.builder().uri(uri).resolvedAddress(addr).build());
+                } else {
+                    TargetUri.Builder builder = TargetUri.builder().uri(uri);
+                    targetUris.addAll(Collections2.transform(resolvedAddresses, addr -> builder.resolvedAddress(addr)
+                            .build()));
                 }
             }
         }
@@ -191,9 +208,7 @@ final class DnsSupport {
             log.warn(
                     "Failed to parse all URIs, falling back to legacy DNS approach for service '{}'",
                     SafeArg.of("service", serviceNameForLogging));
-            for (String uri : uris) {
-                targetUris.add(TargetUri.of(uri));
-            }
+            targetUris.addAll(Collections2.transform(uris, TargetUri::of));
         }
         return ImmutableSet.copyOf(targetUris).asList();
     }
@@ -212,10 +227,22 @@ final class DnsSupport {
         }
     }
 
+    @Unsafe
+    private static Parsed tryParseUri(@Unsafe String uriString) {
+        try {
+            return Parsed.success(new URI(uriString));
+        } catch (URISyntaxException | RuntimeException e) {
+            log.debug("Failed to parse URI", e);
+            return Parsed.failure(
+                    new SafeIllegalArgumentException("Failed to parse URI", e, UnsafeArg.of("uri", uriString)));
+        }
+    }
+
+    @Unsafe
     @Nullable
     private static URI tryParseUri(TaggedMetricRegistry metrics, @Safe String serviceName, @Unsafe String uri) {
         try {
-            URI result = new URI(uri);
+            URI result = uriCache.get(uri).uriOrThrow();
             if (result.getHost() == null) {
                 log.error(
                         "Failed to correctly parse URI {} for service {} due to null host component. "
@@ -226,7 +253,7 @@ final class DnsSupport {
                 ClientUriMetrics.of(metrics).invalid(serviceName).mark();
             }
             return result;
-        } catch (URISyntaxException | RuntimeException e) {
+        } catch (RuntimeException e) {
             log.error(
                     "Failed to parse URI {} for service {}",
                     UnsafeArg.of("uri", uri),
@@ -264,6 +291,25 @@ final class DnsSupport {
                 scheduledFuture.cancel(false);
                 activeTasks.dec();
             }
+        }
+    }
+
+    @Unsafe
+    private record Parsed(@Nullable URI uri, @Nullable SafeIllegalArgumentException exception) {
+        static @Unsafe DnsSupport.Parsed success(URI uri) {
+            return new Parsed(uri, null);
+        }
+
+        static @Unsafe DnsSupport.Parsed failure(SafeIllegalArgumentException exception) {
+            return new Parsed(null, exception);
+        }
+
+        @Unsafe
+        URI uriOrThrow() {
+            if (exception() != null) {
+                throw exception();
+            }
+            return Preconditions.checkNotNull(uri(), "uri");
         }
     }
 }

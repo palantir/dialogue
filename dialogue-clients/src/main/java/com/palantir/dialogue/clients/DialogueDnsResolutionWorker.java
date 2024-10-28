@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.MultimapBuilder.SetMultimapBuilder;
 import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.Safe;
@@ -37,6 +38,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
@@ -105,11 +107,8 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
                     .filter(Objects::nonNull)
                     .collect(ImmutableSet.toImmutableSet());
             ImmutableSetMultimap<String, InetAddress> resolvedHosts = resolver.resolve(allHosts);
-            ImmutableSet<@Unsafe String> unresolvedHosts = allHosts.stream()
-                    .filter(host -> !resolvedHosts.containsKey(host))
-                    .collect(ImmutableSet.toImmutableSet());
-            ImmutableMap<@Safe String, @Safe Integer> unresolvedByChannel =
-                    countHostsByChannelName(inputState, unresolvedHosts);
+            ImmutableMap<@Safe String, @Safe Integer> unresolvedByChannel = countHostsByChannelName(
+                    inputState, Sets.filter(allHosts, host -> !resolvedHosts.containsKey(host)));
             // Only emit logging upon a state change
             if (!Objects.equals(unresolvedByChannel, previousUnresolvedByChannel)) {
                 previousUnresolvedByChannel = unresolvedByChannel;
@@ -142,7 +141,7 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
     }
 
     @GuardedBy("this")
-    private ImmutableMap<@Safe String, @Safe Integer> countHostsByChannelName(INPUT input, ImmutableSet<String> hosts) {
+    private ImmutableMap<@Safe String, @Safe Integer> countHostsByChannelName(INPUT input, Set<String> hosts) {
         if (hosts.isEmpty()) {
             // Short circuit the trivial case
             return ImmutableMap.of();
