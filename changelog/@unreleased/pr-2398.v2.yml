@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Optimize target selection and URI parsing
+  links:
+  - https://github.com/palantir/dialogue/pull/2398
