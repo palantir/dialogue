@@ -20,6 +20,7 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
@@ -51,7 +52,6 @@ import java.net.InetAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -93,15 +93,20 @@ final class DnsSupport {
     /**
      * Shared cache of string to parsed URI. This avoids excessive allocation overhead when parsing repeated targets.
      */
-    private static final LoadingCache<String, Parsed> uriCache = CacheStats.of(
+    private static final LoadingCache<String, MaybeUri> uriCache = CacheStats.of(
                     SharedTaggedMetricRegistries.getSingleton(), "dialogue-uri")
             .register(stats -> Caffeine.newBuilder()
                     .maximumWeight(100_000)
-                    .<String, Parsed>weigher((key, _value) -> key.length())
+                    .<String, MaybeUri>weigher((key, _value) -> key.length())
                     .expireAfterAccess(Duration.ofMinutes(1))
                     .softValues()
                     .recordStats(stats)
                     .build(DnsSupport::tryParseUri));
+
+    @VisibleForTesting
+    static void invalidateCaches() {
+        uriCache.invalidateAll();
+    }
 
     /** Identical to the overload, but using the {@link #sharedScheduler}. */
     static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
@@ -146,16 +151,6 @@ final class DnsSupport {
         return dnsResolutionResult;
     }
 
-    @Unsafe
-    @Nullable
-    static String tryGetHost(@Unsafe String uriString) {
-        Parsed parsed = uriCache.get(uriString);
-        if (parsed.uri() != null) {
-            return parsed.uri().getHost();
-        }
-        return null;
-    }
-
     /**
      * This prefix may reconfigure several aspects of the client to work better in a world where requests are routed
      * through a service mesh like istio/envoy.
@@ -197,9 +192,7 @@ final class DnsSupport {
                             UnsafeArg.of("host", host),
                             SafeArg.of("service", serviceNameForLogging));
                 } else {
-                    TargetUri.Builder builder = TargetUri.builder().uri(uri);
-                    targetUris.addAll(Collections2.transform(resolvedAddresses, addr -> builder.resolvedAddress(addr)
-                            .build()));
+                    targetUris.addAll(Collections2.transform(resolvedAddresses, addr -> TargetUri.of(uri, addr)));
                 }
             }
         }
@@ -228,12 +221,12 @@ final class DnsSupport {
     }
 
     @Unsafe
-    private static Parsed tryParseUri(@Unsafe String uriString) {
+    static MaybeUri tryParseUri(@Unsafe String uriString) {
         try {
-            return Parsed.success(new URI(uriString));
-        } catch (URISyntaxException | RuntimeException e) {
+            return MaybeUri.success(new URI(uriString));
+        } catch (Exception e) {
             log.debug("Failed to parse URI", e);
-            return Parsed.failure(
+            return MaybeUri.failure(
                     new SafeIllegalArgumentException("Failed to parse URI", e, UnsafeArg.of("uri", uriString)));
         }
     }
@@ -242,7 +235,8 @@ final class DnsSupport {
     @Nullable
     private static URI tryParseUri(TaggedMetricRegistry metrics, @Safe String serviceName, @Unsafe String uri) {
         try {
-            URI result = uriCache.get(uri).uriOrThrow();
+            MaybeUri maybeUri = uriCache.get(uri);
+            URI result = maybeUri.uriOrThrow();
             if (result.getHost() == null) {
                 log.error(
                         "Failed to correctly parse URI {} for service {} due to null host component. "
@@ -254,14 +248,19 @@ final class DnsSupport {
             }
             return result;
         } catch (RuntimeException e) {
-            log.error(
-                    "Failed to parse URI {} for service {}",
-                    UnsafeArg.of("uri", uri),
-                    SafeArg.of("service", serviceName),
-                    e);
-            ClientUriMetrics.of(metrics).invalid(serviceName).mark();
+            markFailedToParse(metrics, serviceName, uri, e);
             return null;
         }
+    }
+
+    private static void markFailedToParse(
+            TaggedMetricRegistry metrics, String serviceName, String uri, RuntimeException e) {
+        log.error(
+                "Failed to parse URI {} for service {}",
+                UnsafeArg.of("uri", uri),
+                SafeArg.of("service", serviceName),
+                e);
+        ClientUriMetrics.of(metrics).invalid(serviceName).mark();
     }
 
     private DnsSupport() {}
@@ -295,13 +294,21 @@ final class DnsSupport {
     }
 
     @Unsafe
-    private record Parsed(@Nullable URI uri, @Nullable SafeIllegalArgumentException exception) {
-        static @Unsafe DnsSupport.Parsed success(URI uri) {
-            return new Parsed(uri, null);
+    record MaybeUri(@Nullable URI uri, @Nullable SafeIllegalArgumentException exception) {
+        static @Unsafe DnsSupport.MaybeUri success(URI uri) {
+            return new MaybeUri(uri, null);
         }
 
-        static @Unsafe DnsSupport.Parsed failure(SafeIllegalArgumentException exception) {
-            return new Parsed(null, exception);
+        static @Unsafe DnsSupport.MaybeUri failure(SafeIllegalArgumentException exception) {
+            return new MaybeUri(null, exception);
+        }
+
+        boolean isSuccessful() {
+            return uri() != null;
+        }
+
+        boolean isMeshMode() {
+            return uri() != null && DnsSupport.isMeshMode(uri().getScheme());
         }
 
         @Unsafe

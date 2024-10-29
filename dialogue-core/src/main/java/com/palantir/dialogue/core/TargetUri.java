@@ -29,8 +29,8 @@ public final class TargetUri implements Comparable<TargetUri> {
     private final Optional<InetAddress> resolvedAddress;
 
     private TargetUri(String uri, Optional<InetAddress> resolvedAddress) {
-        this.uri = uri;
-        this.resolvedAddress = resolvedAddress;
+        this.uri = MeshMode.stripMeshPrefix(Preconditions.checkNotNull(uri, "uri"));
+        this.resolvedAddress = Preconditions.checkNotNull(resolvedAddress, "resolvedAddress");
     }
 
     /** Original service URI. */
@@ -84,8 +84,14 @@ public final class TargetUri implements Comparable<TargetUri> {
         return result;
     }
 
+    /** Note that this does not retain service-mesh prefixes. */
     public static TargetUri of(String uri) {
-        return builder().uri(uri).build();
+        return new TargetUri(uri, Optional.empty());
+    }
+
+    /** Note that this does not retain service-mesh prefixes. */
+    public static TargetUri of(String uri, @Nullable InetAddress resolvedAddress) {
+        return new TargetUri(uri, Optional.ofNullable(resolvedAddress));
     }
 
     public static Builder builder() {
@@ -121,7 +127,7 @@ public final class TargetUri implements Comparable<TargetUri> {
 
         @CheckReturnValue
         public TargetUri build() {
-            return new TargetUri(Preconditions.checkNotNull(uri, "uri"), Optional.ofNullable(resolvedAddress));
+            return TargetUri.of(Preconditions.checkNotNull(uri, "uri"), resolvedAddress);
         }
     }
 }
