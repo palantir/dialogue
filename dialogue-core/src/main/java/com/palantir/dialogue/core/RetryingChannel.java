@@ -383,10 +383,7 @@ final class RetryingChannel implements EndpointChannel {
                 case AUTOMATIC_RETRY:
                     return Responses.isRetryableQos(response);
                 case PROPAGATE_429_and_503_TO_CALLER:
-                    return Responses.isQosStatus(response)
-                            && !Responses.isTooManyRequests(response)
-                            && !Responses.isUnavailable(response)
-                            && Responses.isRetryableQos(response);
+                    return Responses.isRetryOther(response) && Responses.isRetryableQos(response);
             }
             throw new SafeIllegalStateException(
                     "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
