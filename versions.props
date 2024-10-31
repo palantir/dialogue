@@ -1,4 +1,4 @@
-com.fasterxml.jackson.core:jackson-databind = 2.18.1
+com.fasterxml.jackson.*:* = 2.18.1
 com.google.code.findbugs:jsr305 = 3.0.2
 com.google.guava:guava = 33.3.1-jre
 com.google.testing.compile:compile-testing = 0.21.0
@@ -48,7 +48,3 @@ com.palantir.goethe:* = 0.12.0
 
 # Match conjure-java-runtime okhttp version
 com.squareup.okhttp3:* = 3.13.1
-
-# Avoid forcing consumers to upgrade jackson
-com.fasterxml.jackson.*:jackson-* = 2.11.1
-# dependency-upgrader:ON
