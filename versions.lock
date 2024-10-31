@@ -1,6 +1,6 @@
 # Run ./gradlew writeVersionsLocks to regenerate this file
-com.fasterxml.jackson.core:jackson-annotations:2.18.1 (8 constraints: 038544a7)
-com.fasterxml.jackson.core:jackson-core:2.18.1 (11 constraints: 77e583e1)
+com.fasterxml.jackson.core:jackson-annotations:2.18.1 (8 constraints: 0a8554b1)
+com.fasterxml.jackson.core:jackson-core:2.18.1 (11 constraints: 7ee5c4f2)
 com.fasterxml.jackson.core:jackson-databind:2.18.1 (15 constraints: 7a3121a1)
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.18.1 (1 constraints: 811ca8a4)
 com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.18.1 (1 constraints: 811ca8a4)
@@ -64,7 +64,7 @@ org.slf4j:slf4j-api:1.7.36 (8 constraints: bb801622)
 org.wildfly.common:wildfly-common:1.5.4.Final (2 constraints: 741cfbf1)
 
 [Test dependencies]
-com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.1 (1 constraints: 3705333b)
+com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.1 (1 constraints: 3e05483b)
 com.google.auto.value:auto-value:1.10 (1 constraints: e711f8e8)
 com.google.auto.value:auto-value-annotations:1.8.1 (1 constraints: 620a29b9)
 com.google.code.findbugs:annotations:3.0.1u2 (1 constraints: 450b07da)
