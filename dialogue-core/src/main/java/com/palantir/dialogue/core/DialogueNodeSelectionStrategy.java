@@ -17,11 +17,8 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.base.Splitter;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.List;
@@ -41,8 +38,9 @@ enum DialogueNodeSelectionStrategy {
     private static final Splitter SPLITTER = Splitter.on(",").trimResults().omitEmptyStrings();
 
     static List<DialogueNodeSelectionStrategy> fromHeader(String header) {
-        return ImmutableList.copyOf(
-                Lists.transform(SPLITTER.splitToList(header), DialogueNodeSelectionStrategy::safeValueOf));
+        return SPLITTER.splitToStream(header)
+                .map(DialogueNodeSelectionStrategy::safeValueOf)
+                .toList();
     }
 
     /**
@@ -64,14 +62,10 @@ enum DialogueNodeSelectionStrategy {
     }
 
     static DialogueNodeSelectionStrategy of(NodeSelectionStrategy strategy) {
-        switch (strategy) {
-            case PIN_UNTIL_ERROR:
-                return PIN_UNTIL_ERROR;
-            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
-            case ROUND_ROBIN:
-                return BALANCED;
-        }
-        throw new SafeIllegalStateException("Unknown node selection strategy", SafeArg.of("strategy", strategy));
+        return switch (strategy) {
+            case PIN_UNTIL_ERROR -> PIN_UNTIL_ERROR;
+            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE -> PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
+            case ROUND_ROBIN -> BALANCED;
+        };
     }
 }
