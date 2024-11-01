@@ -248,19 +248,14 @@ final class DnsSupport {
             }
             return result;
         } catch (RuntimeException e) {
-            markFailedToParse(metrics, serviceName, uri, e);
+            log.error(
+                    "Failed to parse URI {} for service {}",
+                    UnsafeArg.of("uri", uri),
+                    SafeArg.of("service", serviceName),
+                    e);
+            ClientUriMetrics.of(metrics).invalid(serviceName).mark();
             return null;
         }
-    }
-
-    private static void markFailedToParse(
-            TaggedMetricRegistry metrics, String serviceName, String uri, RuntimeException e) {
-        log.error(
-                "Failed to parse URI {} for service {}",
-                UnsafeArg.of("uri", uri),
-                SafeArg.of("service", serviceName),
-                e);
-        ClientUriMetrics.of(metrics).invalid(serviceName).mark();
     }
 
     private DnsSupport() {}
