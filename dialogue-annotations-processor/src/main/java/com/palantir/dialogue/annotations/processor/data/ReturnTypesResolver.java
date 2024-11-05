@@ -24,7 +24,7 @@ import com.palantir.dialogue.annotations.ConjureErrorDecoder;
 import com.palantir.dialogue.annotations.InputStreamDeserializer;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ResponseDeserializer;
-import com.squareup.javapoet.TypeName;
+import com.palantir.javapoet.TypeName;
 import java.io.InputStream;
 import java.util.Optional;
 import javax.lang.model.element.Element;

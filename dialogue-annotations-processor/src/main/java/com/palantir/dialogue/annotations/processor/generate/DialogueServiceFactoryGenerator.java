@@ -20,12 +20,12 @@ import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.DialogueServiceFactory;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
-import com.squareup.javapoet.AnnotationSpec;
-import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.CodeBlock;
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.ParameterizedTypeName;
-import com.squareup.javapoet.TypeSpec;
+import com.palantir.javapoet.AnnotationSpec;
+import com.palantir.javapoet.ClassName;
+import com.palantir.javapoet.CodeBlock;
+import com.palantir.javapoet.MethodSpec;
+import com.palantir.javapoet.ParameterizedTypeName;
+import com.palantir.javapoet.TypeSpec;
 import javax.annotation.processing.Generated;
 import javax.lang.model.element.Modifier;
 

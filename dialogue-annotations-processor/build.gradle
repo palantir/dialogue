@@ -5,16 +5,16 @@ dependencies {
     // All those must be compile because of some IntelliJ classpath issue
     api project(':dialogue-annotations')
     api project(':dialogue-target')
+    api 'com.google.auto:auto-common'
     api 'com.google.code.findbugs:jsr305'
-    api 'com.palantir.conjure.java:conjure-lib'
+    api 'com.google.guava:guava'
     api 'com.palantir.common:streams'
+    api 'com.palantir.conjure.java:conjure-lib'
     api 'com.palantir.goethe:goethe'
+    api 'com.palantir.javapoet:javapoet'
     api 'com.palantir.ri:resource-identifier'
     api 'com.palantir.safe-logging:preconditions'
     api 'com.palantir.tokens:auth-tokens'
-    api 'com.google.auto:auto-common'
-    api 'com.google.guava:guava'
-    api 'com.squareup:javapoet'
 
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.palantir.safe-logging:safe-logging'

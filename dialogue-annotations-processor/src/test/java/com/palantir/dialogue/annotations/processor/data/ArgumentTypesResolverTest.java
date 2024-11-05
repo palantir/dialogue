@@ -21,10 +21,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Primitives;
 import com.palantir.dialogue.annotations.ParameterSerializer;
+import com.palantir.javapoet.ClassName;
+import com.palantir.javapoet.TypeName;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.TypeName;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 
