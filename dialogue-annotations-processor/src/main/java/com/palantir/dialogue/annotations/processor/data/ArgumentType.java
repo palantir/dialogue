@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
-import com.squareup.javapoet.TypeName;
+import com.palantir.javapoet.TypeName;
 import org.derive4j.Data;
 import org.immutables.value.Value;
 

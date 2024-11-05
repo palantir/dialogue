@@ -33,13 +33,13 @@ import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
 import com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator;
 import com.palantir.goethe.Goethe;
 import com.palantir.goethe.GoetheException;
+import com.palantir.javapoet.ClassName;
+import com.palantir.javapoet.JavaFile;
+import com.palantir.javapoet.TypeSpec;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeExceptions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.JavaFile;
-import com.squareup.javapoet.TypeSpec;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -178,11 +178,11 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
                                 // type may be used instead. This avoids a class of problems involving
                                 // dependencies between processor rounds.
                                 String typeName = type.toString();
-                                String expectedGenerated = serviceInterface.packageName() + '.' + generatedClass.name;
+                                String expectedGenerated = serviceInterface.packageName() + '.' + generatedClass.name();
                                 if (typeName.equals(expectedGenerated)) {
                                     return null;
                                 }
-                                if (typeName.equals(generatedClass.name)) {
+                                if (typeName.equals(generatedClass.name())) {
                                     // Eclipse will give back the wrong type name in the initial round.
                                     return null;
                                 }
