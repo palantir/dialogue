@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
 import org.immutables.value.Value;
 
 /** Private class to centralize validation of params necessary to construct a dialogue channel. */
@@ -56,8 +55,7 @@ interface Config {
 
     @Value.Default
     default Refreshable<List<TargetUri>> uris() {
-        return Refreshable.only(
-                rawConfig().uris().stream().map(TargetUri::of).collect(Collectors.toUnmodifiableList()));
+        return Refreshable.only(rawConfig().uris().stream().map(TargetUri::of).toList());
     }
 
     @Value.Derived
