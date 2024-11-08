@@ -290,7 +290,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                             return unlimited;
                         }
                         LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
-                                unlimited, cf.channelName(), uriIndexForInstrumentation, endpoint, stateHolder);
+                                unlimited, cf.channelName(), uriIndexForInstrumentation, endpoint);
                         return QueuedChannel.create(cf, endpoint, limited);
                     });
                     limitedChannel = ConcurrencyLimitedChannel.createForHost(

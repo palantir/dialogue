@@ -61,12 +61,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      * Creates a concurrency limited channel for per-endpoint limiting.
      * Metrics are not reported by this component per-endpoint, only by the per-endpoint queue.
      */
-    static LimitedChannel createForEndpoint(
-            Channel channel, String channelName, int uriIndex, Endpoint endpoint, StateHolder stateHolder) {
-        ConcurrencyLimitedChannelState state = stateHolder.getState(STATE_HOLDER_KEY);
+    static LimitedChannel createForEndpoint(Channel channel, String channelName, int uriIndex, Endpoint endpoint) {
         return new ConcurrencyLimitedChannel(
                 channel,
-                state.endpointLimiter(),
+                new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL),
                 new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint));
     }
 
@@ -82,7 +80,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     static ConcurrencyLimitedChannelState createState() {
         return ImmutableConcurrencyLimitedChannelState.builder()
                 .hostLimiter(new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL))
-                .endpointLimiter(new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL))
                 .build();
     }
 
@@ -193,7 +190,5 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     @Value.Immutable
     interface ConcurrencyLimitedChannelState {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter hostLimiter();
-
-        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter endpointLimiter();
     }
 }
