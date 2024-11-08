@@ -22,6 +22,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
+import com.palantir.dialogue.core.DialogueChannel.StateHolder;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -29,7 +30,10 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.LongStream;
+import org.immutables.value.Value;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -39,26 +43,47 @@ import java.util.stream.LongStream;
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(ConcurrencyLimitedChannel.class);
 
+    @Value.Immutable
+    interface ConcurrencyLimitedChannelState extends StateHolder {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter hostLimiter();
+
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter endpointLimiter();
+    }
+
     private final NeverThrowChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
     private final String channelNameForLogging;
 
-    static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex) {
+    static LimitedChannel createForHost(
+            Config cf,
+            Channel channel,
+            int uriIndex,
+            TargetUri targetUri,
+            BiFunction<TargetUri, Supplier<StateHolder>, StateHolder> stateHolderFactory) {
         TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = createLimiter(Behavior.HOST_LEVEL);
-        ConcurrencyLimitedChannelInstrumentation instrumentation =
-                new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
-        return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
+        ConcurrencyLimitedChannelState state = (ConcurrencyLimitedChannelState)
+                stateHolderFactory.apply(targetUri, ConcurrencyLimitedChannel::createState);
+        ConcurrencyLimitedChannelInstrumentation instrumentation = new HostConcurrencyLimitedChannelInstrumentation(
+                cf.channelName(), uriIndex, state.hostLimiter(), metrics);
+        return new ConcurrencyLimitedChannel(channel, state.hostLimiter(), instrumentation);
     }
 
     /**
      * Creates a concurrency limited channel for per-endpoint limiting.
      * Metrics are not reported by this component per-endpoint, only by the per-endpoint queue.
      */
-    static LimitedChannel createForEndpoint(Channel channel, String channelName, int uriIndex, Endpoint endpoint) {
+    static LimitedChannel createForEndpoint(
+            Channel channel,
+            String channelName,
+            int uriIndex,
+            TargetUri targetUri,
+            Endpoint endpoint,
+            BiFunction<TargetUri, Supplier<StateHolder>, StateHolder> stateHolderFactory) {
+        ConcurrencyLimitedChannelState state = (ConcurrencyLimitedChannelState)
+                stateHolderFactory.apply(targetUri, ConcurrencyLimitedChannel::createState);
         return new ConcurrencyLimitedChannel(
                 channel,
-                createLimiter(Behavior.ENDPOINT_LEVEL),
+                state.endpointLimiter(),
                 new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint));
     }
 
@@ -69,6 +94,13 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         this.delegate = new NeverThrowChannel(delegate);
         this.limiter = limiter;
         this.channelNameForLogging = instrumentation.channelNameForLogging();
+    }
+
+    static ConcurrencyLimitedChannelState createState() {
+        return ImmutableConcurrencyLimitedChannelState.builder()
+                .hostLimiter(new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL))
+                .endpointLimiter(new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL))
+                .build();
     }
 
     static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createLimiter(Behavior behavior) {
