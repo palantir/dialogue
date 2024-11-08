@@ -191,7 +191,7 @@ public class ConcurrencyLimitedChannelTest {
     public void testWithDefaultLimiter() {
         channel = new ConcurrencyLimitedChannel(
                 delegate,
-                ConcurrencyLimitedChannel.createLimiter(Behavior.HOST_LEVEL),
+                new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL),
                 NopConcurrencyLimitedChannelInstrumentation.INSTANCE);
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))

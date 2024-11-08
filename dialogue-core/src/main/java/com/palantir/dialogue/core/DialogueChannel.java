@@ -29,12 +29,14 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,10 +84,38 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 + cf.channelName() + ", delegate=" + delegate + '}';
     }
 
-    interface StateHolder {}
+    static final class StateHolderKey<T> {
+        private final Class<T> valueClass;
+        private final Supplier<T> factory;
 
-    interface TargetUriStateSupplier extends Function<List<TargetUri>, LimitedChannel> {
-        StateHolder getState(TargetUri targetUri, Supplier<StateHolder> stateHolderFactory);
+        T cast(final Object value) {
+            return valueClass.cast(value);
+        }
+
+        Supplier<T> getFactory() {
+            return factory;
+        }
+
+        StateHolderKey(final Class<T> valueClass, Supplier<T> factory) {
+            this.valueClass = valueClass;
+            this.factory = factory;
+        }
+    }
+
+    static final class StateHolder {
+        @SuppressWarnings("DangerousIdentityKey")
+        private final Map<StateHolderKey<?>, Object> state = new HashMap<>();
+
+        <T> T getState(StateHolderKey<T> key) {
+            if (state.containsKey(key)) {
+                return key.cast(state.get(key));
+            } else {
+                T value = key.getFactory().get();
+                Preconditions.checkNotNull(value, "state factory cannot produce a null value");
+                state.put(key, value);
+                return value;
+            }
+        }
     }
 
     public static final class Builder {
@@ -185,34 +215,33 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
             // In a future change we should attempt to retain this state for channels that are retained between
             // updates.
-            LimitedChannel nodeSelectionChannel = new SupplierChannel(cf.uris().map(new TargetUriStateSupplier() {
-                private final Map<TargetUri, StateHolder> state = new HashMap<>();
+            LimitedChannel nodeSelectionChannel =
+                    new SupplierChannel(cf.uris().map(new Function<List<TargetUri>, LimitedChannel>() {
+                        private final Map<TargetUri, StateHolder> state = new HashMap<>();
 
-                @Override
-                public StateHolder getState(TargetUri targetUri, Supplier<StateHolder> stateHolderFactory) {
-                    return state.getOrDefault(targetUri, stateHolderFactory.get());
-                }
+                        @Override
+                        public LimitedChannel apply(List<TargetUri> targetUris) {
+                            // remove state for uris we no longer care about, and create new StateHolders
+                            // for uris we don't know about yet
+                            Set<TargetUri> toRemove = state.keySet().stream()
+                                    .filter(uri -> !targetUris.contains(uri))
+                                    .collect(Collectors.toSet());
+                            toRemove.forEach(state::remove);
+                            targetUris.forEach(uri -> state.putIfAbsent(uri, new StateHolder()));
 
-                @Override
-                public LimitedChannel apply(List<TargetUri> targetUris) {
-                    // remove state for uris we no longer care about
-                    Set<TargetUri> toRemove = state.keySet().stream()
-                            .filter(uri -> !targetUris.contains(uri))
-                            .collect(Collectors.toSet());
-                    toRemove.forEach(state::remove);
-
-                    reloadMeter.mark();
-                    log.info(
-                            "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets: {})",
-                            SafeArg.of("channel", cf.channelName()),
-                            UnsafeArg.of("uris", cf.clientConf().uris()),
-                            SafeArg.of("numUris", cf.clientConf().uris().size()),
-                            UnsafeArg.of("targets", targetUris),
-                            SafeArg.of("numTargets", targetUris.size()));
-                    ImmutableList<LimitedChannel> targetChannels = createHostChannels(cf, targetUris, this);
-                    return NodeSelectionStrategyChannel.create(cf, targetChannels);
-                }
-            }));
+                            reloadMeter.mark();
+                            log.info(
+                                    "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets: {})",
+                                    SafeArg.of("channel", cf.channelName()),
+                                    UnsafeArg.of("uris", cf.clientConf().uris()),
+                                    SafeArg.of("numUris", cf.clientConf().uris().size()),
+                                    UnsafeArg.of("targets", targetUris),
+                                    SafeArg.of("numTargets", targetUris.size()));
+                            ImmutableList<LimitedChannel> targetChannels =
+                                    createHostChannels(cf, targetUris, Collections.unmodifiableMap(state));
+                            return NodeSelectionStrategyChannel.create(cf, targetChannels);
+                        }
+                    }));
 
             LimitedChannel stickyValidationChannel = new StickyValidationChannel(nodeSelectionChannel);
 
@@ -233,7 +262,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         private static ImmutableList<LimitedChannel> createHostChannels(
-                Config cf, List<TargetUri> targetUris, TargetUriStateSupplier stateSupplier) {
+                Config cf, List<TargetUri> targetUris, Map<TargetUri, StateHolder> state) {
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < targetUris.size(); uriIndex++) {
                 final int uriIndexForInstrumentation =
@@ -250,6 +279,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
 
+                StateHolder stateHolder = state.get(targetUri);
+                Preconditions.checkNotNull(stateHolder, "no StateHolder exists for this TargetUri");
+
                 LimitedChannel limitedChannel;
                 if (cf.isConcurrencyLimitingEnabled()) {
                     Channel unlimited = channel;
@@ -258,16 +290,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                             return unlimited;
                         }
                         LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
-                                unlimited,
-                                cf.channelName(),
-                                uriIndexForInstrumentation,
-                                targetUri,
-                                endpoint,
-                                stateSupplier::getState);
+                                unlimited, cf.channelName(), uriIndexForInstrumentation, endpoint, stateHolder);
                         return QueuedChannel.create(cf, endpoint, limited);
                     });
                     limitedChannel = ConcurrencyLimitedChannel.createForHost(
-                            cf, channel, uriIndexForInstrumentation, targetUri, stateSupplier::getState);
+                            cf, channel, uriIndexForInstrumentation, stateHolder);
                 } else {
                     limitedChannel = new ChannelToLimitedChannelAdapter(channel);
                 }
