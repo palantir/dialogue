@@ -197,7 +197,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
                             reloadMeter.mark();
                             log.info(
-                                    "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets: {})",
+                                    "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets:"
+                                            + " {})",
                                     SafeArg.of("channel", cf.channelName()),
                                     UnsafeArg.of("uris", cf.clientConf().uris()),
                                     SafeArg.of("numUris", cf.clientConf().uris().size()),
