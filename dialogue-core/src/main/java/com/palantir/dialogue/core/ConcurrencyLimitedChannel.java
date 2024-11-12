@@ -22,8 +22,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
-import com.palantir.dialogue.core.DialogueChannel.StateHolder;
-import com.palantir.dialogue.core.DialogueChannel.StateHolderKey;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -42,16 +40,16 @@ import org.immutables.value.Value;
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(ConcurrencyLimitedChannel.class);
 
-    private static final StateHolderKey<ConcurrencyLimitedChannelState> STATE_HOLDER_KEY =
-            new StateHolderKey<>(ConcurrencyLimitedChannelState.class, ConcurrencyLimitedChannel::createState);
+    private static final ChannelState.Key<ConcurrencyLimitedChannelState> STATE_HOLDER_KEY =
+            new ChannelState.Key<>(ConcurrencyLimitedChannelState.class, ConcurrencyLimitedChannel::createState);
 
     private final NeverThrowChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
     private final String channelNameForLogging;
 
-    static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex, StateHolder stateHolder) {
+    static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex, ChannelState hostSpecificState) {
         TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-        ConcurrencyLimitedChannelState state = stateHolder.getState(STATE_HOLDER_KEY);
+        ConcurrencyLimitedChannelState state = hostSpecificState.getState(STATE_HOLDER_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation = new HostConcurrencyLimitedChannelInstrumentation(
                 cf.channelName(), uriIndex, state.hostLimiter(), metrics);
         return new ConcurrencyLimitedChannel(channel, state.hostLimiter(), instrumentation);

@@ -84,40 +84,6 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 + cf.channelName() + ", delegate=" + delegate + '}';
     }
 
-    static final class StateHolderKey<T> {
-        private final Class<T> valueClass;
-        private final Supplier<T> factory;
-
-        T cast(final Object value) {
-            return valueClass.cast(value);
-        }
-
-        Supplier<T> getFactory() {
-            return factory;
-        }
-
-        StateHolderKey(final Class<T> valueClass, Supplier<T> factory) {
-            this.valueClass = valueClass;
-            this.factory = factory;
-        }
-    }
-
-    static final class StateHolder {
-        @SuppressWarnings("DangerousIdentityKey")
-        private final Map<StateHolderKey<?>, Object> state = new HashMap<>();
-
-        <T> T getState(StateHolderKey<T> key) {
-            if (state.containsKey(key)) {
-                return key.cast(state.get(key));
-            } else {
-                T value = key.getFactory().get();
-                Preconditions.checkNotNull(value, "state factory cannot produce a null value");
-                state.put(key, value);
-                return value;
-            }
-        }
-    }
-
     public static final class Builder {
         private final ImmutableConfig.Builder builder = ImmutableConfig.builder();
 
@@ -217,17 +183,17 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             // updates.
             LimitedChannel nodeSelectionChannel =
                     new SupplierChannel(cf.uris().map(new Function<List<TargetUri>, LimitedChannel>() {
-                        private final Map<TargetUri, StateHolder> state = new HashMap<>();
+                        private final Map<TargetUri, ChannelState> state = new HashMap<>();
 
                         @Override
                         public LimitedChannel apply(List<TargetUri> targetUris) {
-                            // remove state for uris we no longer care about, and create new StateHolders
+                            // remove state for uris we no longer care about, and create new ChannelStates
                             // for uris we don't know about yet
                             Set<TargetUri> toRemove = state.keySet().stream()
                                     .filter(uri -> !targetUris.contains(uri))
                                     .collect(Collectors.toSet());
                             toRemove.forEach(state::remove);
-                            targetUris.forEach(uri -> state.putIfAbsent(uri, new StateHolder()));
+                            targetUris.forEach(uri -> state.putIfAbsent(uri, new ChannelState()));
 
                             reloadMeter.mark();
                             log.info(
@@ -262,7 +228,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         private static ImmutableList<LimitedChannel> createHostChannels(
-                Config cf, List<TargetUri> targetUris, Map<TargetUri, StateHolder> state) {
+                Config cf, List<TargetUri> targetUris, Map<TargetUri, ChannelState> state) {
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < targetUris.size(); uriIndex++) {
                 final int uriIndexForInstrumentation =
@@ -279,8 +245,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
 
-                StateHolder stateHolder = state.get(targetUri);
-                Preconditions.checkNotNull(stateHolder, "no StateHolder exists for this TargetUri");
+                ChannelState channelState = state.get(targetUri);
+                Preconditions.checkNotNull(channelState, "no StateHolder exists for this TargetUri");
 
                 LimitedChannel limitedChannel;
                 if (cf.isConcurrencyLimitingEnabled()) {
@@ -294,7 +260,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         return QueuedChannel.create(cf, endpoint, limited);
                     });
                     limitedChannel = ConcurrencyLimitedChannel.createForHost(
-                            cf, channel, uriIndexForInstrumentation, stateHolder);
+                            cf, channel, uriIndexForInstrumentation, channelState);
                 } else {
                     limitedChannel = new ChannelToLimitedChannelAdapter(channel);
                 }
