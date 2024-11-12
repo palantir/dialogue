@@ -30,7 +30,6 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import java.util.stream.LongStream;
-import org.immutables.value.Value;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -40,8 +39,10 @@ import org.immutables.value.Value;
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(ConcurrencyLimitedChannel.class);
 
-    private static final ChannelState.Key<ConcurrencyLimitedChannelState> STATE_HOLDER_KEY =
-            new ChannelState.Key<>(ConcurrencyLimitedChannelState.class, ConcurrencyLimitedChannel::createState);
+    private static final ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter>
+            HOST_SPECIFIC_STATE_KEY = new ChannelState.Key<>(
+                    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
+                    ConcurrencyLimitedChannel::createHostSpecificState);
 
     private final NeverThrowChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
@@ -49,10 +50,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex, ChannelState hostSpecificState) {
         TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-        ConcurrencyLimitedChannelState state = hostSpecificState.getState(STATE_HOLDER_KEY);
-        ConcurrencyLimitedChannelInstrumentation instrumentation = new HostConcurrencyLimitedChannelInstrumentation(
-                cf.channelName(), uriIndex, state.hostLimiter(), metrics);
-        return new ConcurrencyLimitedChannel(channel, state.hostLimiter(), instrumentation);
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
+                hostSpecificState.getState(HOST_SPECIFIC_STATE_KEY);
+        ConcurrencyLimitedChannelInstrumentation instrumentation =
+                new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
+        return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
     }
 
     /**
@@ -75,10 +77,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         this.channelNameForLogging = instrumentation.channelNameForLogging();
     }
 
-    static ConcurrencyLimitedChannelState createState() {
-        return ImmutableConcurrencyLimitedChannelState.builder()
-                .hostLimiter(new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL))
-                .build();
+    static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createHostSpecificState() {
+        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL);
     }
 
     @Override
@@ -183,10 +183,5 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         public String channelNameForLogging() {
             return channelNameForLogging;
         }
-    }
-
-    @Value.Immutable
-    interface ConcurrencyLimitedChannelState {
-        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter hostLimiter();
     }
 }
