@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -39,8 +40,9 @@ import java.util.stream.LongStream;
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(ConcurrencyLimitedChannel.class);
 
-    private static final ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter>
-            HOST_SPECIFIC_STATE_KEY = new ChannelState.Key<>(
+    @VisibleForTesting
+    static final ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter> HOST_SPECIFIC_STATE_KEY =
+            new ChannelState.Key<>(
                     CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
                     ConcurrencyLimitedChannel::createHostSpecificState);
 
