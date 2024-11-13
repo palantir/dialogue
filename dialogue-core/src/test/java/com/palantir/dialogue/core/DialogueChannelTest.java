@@ -380,6 +380,7 @@ public final class DialogueChannelTest {
                         .build())
                 .factory(_args -> mockChannel)
                 .uris(targetUrisRefreshable)
+                .maxQueueSize(1)
                 .build();
 
         // force a bunch of failed requests to drive down the concurrency limit
@@ -394,10 +395,16 @@ public final class DialogueChannelTest {
 
         when(mockChannel.execute(any(), any())).thenReturn(SettableFuture.create());
 
-        // Queue a request
+        // First request should start executing
+        ListenableFuture<Response> started = channel.execute(endpoint, request);
+        assertThat(started).isNotDone();
+
+        // Next request should queue
         ListenableFuture<Response> queued = channel.execute(endpoint, request);
         assertThat(queued).isNotDone();
-        // Next request should be rejected.
+
+        // Next request should be rejected as the queue is full, and concurrency limits have dropped too low,
+        // even after the channel was reloaded
         ListenableFuture<Response> rejected = channel.execute(endpoint, request);
         assertThat(rejected).isDone();
         assertThatThrownBy(rejected::get)
