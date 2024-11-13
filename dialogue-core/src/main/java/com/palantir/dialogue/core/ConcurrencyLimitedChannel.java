@@ -44,7 +44,12 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     static final ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter> HOST_SPECIFIC_STATE_KEY =
             new ChannelState.Key<>(
                     CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
-                    ConcurrencyLimitedChannel::createHostSpecificState);
+                    () -> new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL));
+
+    private static final ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter>
+            ENDPOINT_SPECIFIC_STATE_KEY = new ChannelState.Key<>(
+                    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
+                    () -> new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL));
 
     private final NeverThrowChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
@@ -63,10 +68,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      * Creates a concurrency limited channel for per-endpoint limiting.
      * Metrics are not reported by this component per-endpoint, only by the per-endpoint queue.
      */
-    static LimitedChannel createForEndpoint(Channel channel, String channelName, int uriIndex, Endpoint endpoint) {
+    static LimitedChannel createForEndpoint(
+            Channel channel, String channelName, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
         return new ConcurrencyLimitedChannel(
                 channel,
-                new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL),
+                endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY),
                 new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint));
     }
 
@@ -77,10 +83,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         this.delegate = new NeverThrowChannel(delegate);
         this.limiter = limiter;
         this.channelNameForLogging = instrumentation.channelNameForLogging();
-    }
-
-    static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createHostSpecificState() {
-        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL);
     }
 
     @Override
