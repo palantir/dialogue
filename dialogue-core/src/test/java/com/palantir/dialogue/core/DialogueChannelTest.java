@@ -51,6 +51,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -354,6 +355,54 @@ public final class DialogueChannelTest {
         ListenableFuture<Response> future = channel.execute(endpoint, request);
         assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeUnknownHostException.class);
         assertThat(retries.getCount()).isEqualTo(maxRetries);
+    }
+
+    @Test
+    void test_cached_host_channel_state_retained_when_reloaded() throws Exception {
+        Response unavailable = mock(Response.class);
+        when(unavailable.code()).thenReturn(503);
+        SettableFuture<Response> responseFuture = SettableFuture.create();
+        responseFuture.set(unavailable);
+        when(mockChannel.execute(any(), any())).thenReturn(responseFuture);
+
+        SettableRefreshable<List<TargetUri>> targetUrisRefreshable = Refreshable.create(
+                ImmutableList.of(TargetUri.of("http://localhost:9998"), TargetUri.of("http://localhost:9999")));
+
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .uris(ImmutableList.of("http://localhost:9998", "http://localhost:9999"))
+                        .taggedMetricRegistry(metrics)
+                        .maxNumRetries(1)
+                        .backoffSlotSize(Duration.ZERO)
+                        .build())
+                .factory(_args -> mockChannel)
+                .uris(targetUrisRefreshable)
+                .build();
+
+        // force a bunch of failed requests to drive down the concurrency limit
+        for (int i = 0; i < 20; ++i) {
+            ListenableFuture<Response> future = channel.execute(endpoint, request);
+            assertThat(future.get().code()).isEqualTo(503);
+        }
+
+        // AIMD should have shrunk the window to 1 concurrent request now
+        // simulate a DNS change to force channel re-creation, which should re-use the existing AIMD state
+        targetUrisRefreshable.update(ImmutableList.of(TargetUri.of("http://localhost:9998")));
+
+        when(mockChannel.execute(any(), any())).thenReturn(SettableFuture.create());
+
+        // Queue a request
+        ListenableFuture<Response> queued = channel.execute(endpoint, request);
+        assertThat(queued).isNotDone();
+        // Next request should be rejected.
+        ListenableFuture<Response> rejected = channel.execute(endpoint, request);
+        assertThat(rejected).isDone();
+        assertThatThrownBy(rejected::get)
+                .hasRootCauseExactlyInstanceOf(SafeRuntimeException.class)
+                .hasMessageContaining("queue is full");
     }
 
     @Test
