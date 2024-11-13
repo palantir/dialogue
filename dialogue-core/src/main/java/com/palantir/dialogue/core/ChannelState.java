@@ -26,11 +26,11 @@ final class ChannelState {
         private final Class<T> valueClass;
         private final Supplier<T> factory;
 
-        T cast(final Object value) {
+        private T cast(final Object value) {
             return valueClass.cast(value);
         }
 
-        Supplier<T> getFactory() {
+        private Supplier<T> getFactory() {
             return factory;
         }
 
@@ -44,13 +44,8 @@ final class ChannelState {
     private final Map<Key<?>, Object> state = new HashMap<>();
 
     <T> T getState(Key<T> key) {
-        if (state.containsKey(key)) {
-            return key.cast(state.get(key));
-        } else {
-            T value = key.getFactory().get();
-            Preconditions.checkNotNull(value, "state factory cannot produce a null value");
-            state.put(key, value);
-            return value;
-        }
+        return key.cast(Preconditions.checkNotNull(
+                state.computeIfAbsent(key, keyValue -> keyValue.getFactory().get()),
+                "state factory cannot produce a null value"));
     }
 }
