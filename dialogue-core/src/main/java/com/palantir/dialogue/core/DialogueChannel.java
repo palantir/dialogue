@@ -37,16 +37,14 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Random;
-import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueChannel.class);
@@ -183,17 +181,14 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             // updates.
             LimitedChannel nodeSelectionChannel =
                     new SupplierChannel(cf.uris().map(new Function<List<TargetUri>, LimitedChannel>() {
-                        private final Map<TargetUri, ChannelState> state = new HashMap<>();
+                        private final Map<TargetUri, ChannelState> state = new ConcurrentHashMap<>();
 
                         @Override
                         public LimitedChannel apply(List<TargetUri> targetUris) {
                             // remove state for uris we no longer care about, and create new ChannelStates
                             // for uris we don't know about yet
-                            Set<TargetUri> toRemove = state.keySet().stream()
-                                    .filter(uri -> !targetUris.contains(uri))
-                                    .collect(Collectors.toSet());
-                            toRemove.forEach(state::remove);
-                            targetUris.forEach(uri -> state.putIfAbsent(uri, new ChannelState()));
+                            state.keySet().retainAll(targetUris);
+                            targetUris.forEach(uri -> state.computeIfAbsent(uri, _uri -> new ChannelState()));
 
                             reloadMeter.mark();
                             log.info(
@@ -247,7 +242,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
 
                 ChannelState channelState = state.get(targetUri);
-                Preconditions.checkNotNull(channelState, "no StateHolder exists for this TargetUri");
+                Preconditions.checkNotNull(channelState, "no ChannelState exists for this TargetUri");
 
                 LimitedChannel limitedChannel;
                 if (cf.isConcurrencyLimitingEnabled()) {

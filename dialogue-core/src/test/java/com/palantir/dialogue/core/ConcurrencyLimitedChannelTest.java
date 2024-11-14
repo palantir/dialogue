@@ -94,9 +94,9 @@ public class ConcurrencyLimitedChannelTest {
     @Test
     public void testReuseCachedLimiterState_host() {
         ChannelState state = new ChannelState();
-        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        TaggedMetricRegistry taggedMetrics = new DefaultTaggedMetricRegistry();
         ClientConfiguration clientConfig = mock(ClientConfiguration.class);
-        when(clientConfig.taggedMetricRegistry()).thenReturn(metrics);
+        when(clientConfig.taggedMetricRegistry()).thenReturn(taggedMetrics);
         Config config = mock(Config.class);
         when(config.clientConf()).thenReturn(clientConfig);
         when(config.channelName()).thenReturn("channel");
