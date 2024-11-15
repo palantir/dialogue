@@ -32,6 +32,7 @@ import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -156,8 +157,9 @@ final class QueuedChannel implements Channel {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
+            LimitEnforcement limitEnforcement = limitEnforcement();
             Optional<ListenableFuture<Response>> maybeResult =
-                    delegate.maybeExecute(endpoint, request, limitEnforcement());
+                    delegate.maybeExecute(endpoint, request, limitEnforcement);
             if (maybeResult.isPresent()) {
                 inFlight.incrementAndGet();
                 ListenableFuture<Response> result = maybeResult.get();
@@ -167,6 +169,8 @@ final class QueuedChannel implements Channel {
                     queuedTime.update(0, TimeUnit.NANOSECONDS);
                 }
                 return maybeResult;
+            } else if (!limitEnforcement.enforceLimits()) {
+                return Optional.of(Futures.immediateFailedFuture(limitEnforcementExpectationFailure(endpoint)));
             }
         }
 
@@ -261,8 +265,9 @@ final class QueuedChannel implements Channel {
         }
         try (CloseableSpan ignored = queueHead.span().attach()) {
             Endpoint endpoint = queueHead.endpoint();
+            LimitEnforcement limitEnforcement = limitEnforcement();
             Optional<ListenableFuture<Response>> maybeResponse =
-                    delegate.maybeExecute(endpoint, queueHead.request(), limitEnforcement());
+                    delegate.maybeExecute(endpoint, queueHead.request(), limitEnforcement);
 
             if (maybeResponse.isPresent()) {
                 inFlight.incrementAndGet();
@@ -286,6 +291,17 @@ final class QueuedChannel implements Channel {
                         }
                     }
                 });
+                return true;
+            } else if (!limitEnforcement.enforceLimits()) {
+                decrementQueueSize();
+                queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
+                queueHead.timer().stop();
+                queuedResponse.setException(limitEnforcementExpectationFailure(queueHead.endpoint()));
+                log.warn(
+                        "Failed to make a request bypassing concurrency limits, which should not be possible",
+                        SafeArg.of("channel", channelName),
+                        SafeArg.of("service", endpoint.serviceName()),
+                        SafeArg.of("endpoint", endpoint.endpointName()));
                 return true;
             } else {
                 if (!queuedCalls.offerFirst(queueHead)) {
@@ -326,6 +342,16 @@ final class QueuedChannel implements Channel {
      */
     private LimitEnforcement limitEnforcement() {
         return inFlight.get() <= 0 ? LimitEnforcement.DANGEROUS_BYPASS_LIMITS : LimitEnforcement.DEFAULT_ENABLED;
+    }
+
+    private SafeIllegalStateException limitEnforcementExpectationFailure(Endpoint endpoint) {
+        return new SafeIllegalStateException(
+                "A request which explicitly bypassed rate limits failed to execute, which "
+                        + "violates the requirements of the QueuedChannel. Please report this to "
+                        + "the Dialogue maintainers!",
+                SafeArg.of("channel", channelName),
+                SafeArg.of("service", endpoint.serviceName()),
+                SafeArg.of("endpoint", endpoint.endpointName()));
     }
 
     @Override

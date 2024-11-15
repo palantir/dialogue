@@ -27,6 +27,7 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
@@ -481,5 +482,70 @@ public class QueuedChannelTest {
         assertThat(settableResponses)
                 .as("The queued future is cancelled, and shouldn't be re-submitted")
                 .hasSize(3);
+    }
+
+    @Test
+    public void testInitialRequestIsIllegallyLimited_initialRequest() {
+        // This LimitedChannel ignores the LimitEnforcement parameter, which is not allowed
+        LimitedChannel delegateChannel = (_endpoint, _request, _limitEnforcement) -> Optional.empty();
+        QueuedChannel queued = createQueue(delegateChannel);
+        ListenableFuture<Response> response =
+                queued.maybeExecute(TestEndpoint.GET, Request.builder().build()).get();
+        assertThat(response)
+                .failsWithin(Duration.ZERO)
+                .withThrowableThat()
+                .havingRootCause()
+                .isInstanceOf(SafeIllegalStateException.class)
+                .withMessageContaining("A request which explicitly bypassed rate limits failed to execute");
+    }
+
+    @Test
+    public void testInitialRequestIsIllegallyLimited_queuedRequest() {
+        List<Optional<SettableFuture<Response>>> settableResponses = new CopyOnWriteArrayList<>();
+        AtomicBoolean ignoreLimitEnforcement = new AtomicBoolean(false);
+        LimitedChannel delegateChannel = (_endpoint, _request, limitEnforcement) -> {
+            Optional<SettableFuture<Response>> result = Optional.empty();
+            if (!ignoreLimitEnforcement.get() && !limitEnforcement.enforceLimits()) {
+                result = Optional.of(SettableFuture.create());
+            }
+            settableResponses.add(result);
+            return result.map(item -> item);
+        };
+        QueuedChannelInstrumentation instrumentation = QueuedChannel.channelInstrumentation(
+                DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "channel");
+        QueuedChannel queued = new QueuedChannel(delegateChannel, "channel", "queue-type", instrumentation, 100_000);
+
+        assertThat(settableResponses).isEmpty();
+        assertThat(instrumentation.requestsQueued().getCount()).isZero();
+
+        // Initial request is expected to be allowed in all cases, to allow the queue to be processed
+        assertThat(queued.maybeExecute(TestEndpoint.GET, Request.builder().build()))
+                .hasValueSatisfying(item -> assertThat(item).isNotDone());
+        assertThat(settableResponses).hasSize(1);
+        assertThat(settableResponses.get(0))
+                .hasValueSatisfying(item -> assertThat(item).isNotDone());
+
+        assertThat(instrumentation.requestsQueued().getCount()).isZero();
+
+        // Now that we have a request in flight, we can queue one:
+        Optional<ListenableFuture<Response>> queuedResponse =
+                queued.maybeExecute(TestEndpoint.GET, Request.builder().build());
+        assertThat(queuedResponse).hasValueSatisfying(item -> assertThat(item).isNotDone());
+        assertThat(instrumentation.requestsQueued().getCount()).isOne();
+
+        assertThat(settableResponses).hasSize(3);
+
+        ignoreLimitEnforcement.set(true);
+        // Complete the ongoing request, allowing the queued request to be processed
+        settableResponses.get(0).get().set(new TestResponse().code(200));
+
+        assertThat(queuedResponse).hasValueSatisfying(item -> assertThat(item)
+                .failsWithin(Duration.ZERO)
+                .withThrowableThat()
+                .havingRootCause()
+                .isInstanceOf(SafeIllegalStateException.class)
+                .withMessageContaining("A request which explicitly bypassed rate limits failed to execute"));
+
+        assertThat(instrumentation.requestsQueued().getCount()).isZero();
     }
 }
