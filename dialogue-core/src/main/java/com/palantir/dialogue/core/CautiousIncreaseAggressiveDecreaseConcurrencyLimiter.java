@@ -44,7 +44,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
     private static final SafeLogger log =
             SafeLoggerFactory.get(CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class);
-    private static final double INITIAL_LIMIT = 20;
+    private static final double INITIAL_LIMIT = 1;
     private static final double BACKOFF_RATIO = .9D;
     private static final double MIN_LIMIT = 1;
     private static final double MAX_LIMIT = 1_000_000D;
@@ -84,8 +84,15 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         int currentLimit = (int) getLimit();
         while (true) {
             int currentInFlight = localInFlight.get();
-            if (limitEnforcement.enforceLimits() && currentInFlight >= currentLimit) {
-                return Optional.empty();
+            //            if (limitEnforcement.enforceLimits() && currentInFlight >= currentLimit) {
+            //                return Optional.empty();
+            //            }
+            if (currentInFlight >= currentLimit) {
+                if (limitEnforcement.enforceLimits()) {
+                    return Optional.empty();
+                } else {
+                    log.warn("Bypassing concurrency limits that would have otherwise rejected this request");
+                }
             }
 
             int newInFlight = currentInFlight + 1;

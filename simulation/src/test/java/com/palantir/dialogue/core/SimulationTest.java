@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.codahale.metrics.Meter;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
+import com.google.common.collect.ImmutableList;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -46,8 +47,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -348,8 +351,92 @@ final class SimulationTest {
                 .requestsPerSecond(100)
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofMinutes(10))
+                .abortAfter(Duration.ofMinutes(5))
                 .run();
+    }
+
+    private static final class WtfCase {
+        int servers;
+        int clients;
+        int rps;
+        int duration;
+
+        WtfCase(int servers, int clients, int rps, int duration) {
+            this.servers = servers;
+            this.clients = clients;
+            this.rps = rps;
+            this.duration = duration;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            WtfCase wtfCase = (WtfCase) o;
+            return servers == wtfCase.servers
+                    && clients == wtfCase.clients
+                    && rps == wtfCase.rps
+                    && duration == wtfCase.duration;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(servers, clients, rps, duration);
+        }
+    }
+
+    @SimulationCase
+    public void wtf(Strategy strategy) {
+        List<WtfCase> tests = ImmutableList.of(new WtfCase(1, 2, 50, 40));
+        //                new WtfCase(1, 2, 50, 40));
+        //                new WtfCase(1, 10, 50, 40),
+        //                new WtfCase(2, 1, 50, 40),
+        //                new WtfCase(2, 2, 50, 40),
+        //                new WtfCase(2, 10, 50, 40),
+        //                new WtfCase(1, 1, 100, 20),
+        //                new WtfCase(1, 2, 100, 20),
+        //                new WtfCase(1, 10, 100, 20),
+        //                new WtfCase(2, 1, 100, 20),
+        //                new WtfCase(2, 2, 100, 20),
+        //                new WtfCase(2, 10, 100, 20));
+
+        Map<WtfCase, Map<String, Integer>> results = new HashMap<>();
+
+        for (WtfCase wtf : tests) {
+            Simulation sim = new Simulation();
+            sim.metricsReporter().onlyRecordMetricsFor(MetricNames::reportedMetricsPredicate);
+
+            List<SimulationServer> allServers = new ArrayList<>();
+            for (int i = 1; i <= wtf.servers; ++i) {
+                allServers.add(SimulationServer.builder()
+                        .serverName(String.format("node%d", i))
+                        .simulation(sim)
+                        .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(10), "revert badness")
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .build());
+            }
+            Supplier<Map<String, SimulationServer>> serv = servers(allServers.toArray(new SimulationServer[0]));
+            Strategy strat = strategy;
+            result = Benchmark.builder()
+                    .simulation(sim)
+                    .requestsPerSecond(wtf.rps)
+                    .sendUntil(Duration.ofSeconds(wtf.duration))
+                    .clients(wtf.clients, _i -> strat.getChannel(sim, serv))
+                    .abortAfter(Duration.ofMinutes(5))
+                    .run();
+
+            results.put(wtf, result.statusCodes());
+        }
+
+        System.out.println("============================");
+        for (Map.Entry<WtfCase, Map<String, Integer>> e : results.entrySet()) {
+            WtfCase wtf = e.getKey();
+            System.out.printf(
+                    "servers=%d, clients=%d, rps=%d, duration=%d: %s\n",
+                    wtf.servers, wtf.clients, wtf.rps, wtf.duration, e.getValue());
+        }
+        System.out.println("============================");
     }
 
     @SimulationCase

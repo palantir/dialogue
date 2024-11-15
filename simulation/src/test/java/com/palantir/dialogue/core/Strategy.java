@@ -31,11 +31,11 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-@SuppressWarnings("ImmutableEnumChecker")
+@SuppressWarnings({"ImmutableEnumChecker", "unused"})
 public enum Strategy {
-    CONCURRENCY_LIMITER_ROUND_ROBIN(Strategy::concurrencyLimiter),
-    CONCURRENCY_LIMITER_PIN_UNTIL_ERROR(Strategy::pinUntilError),
-    UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin);
+    CONCURRENCY_LIMITER_ROUND_ROBIN(Strategy::concurrencyLimiter);
+    //    CONCURRENCY_LIMITER_PIN_UNTIL_ERROR(Strategy::pinUntilError),
+    //    UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin);
 
     private static final ClientConfiguration STUB_CONFIG = stubConfig();
     private final Consumer<ClientConfiguration.Builder> applyConfig;

@@ -252,6 +252,24 @@ public final class Benchmark {
 
                                     Futures.addCallback(
                                             future, accumulateStatusCodes, DialogueFutures.safeDirectExecutor());
+                                    Futures.addCallback(
+                                            future,
+                                            new FutureCallback<Response>() {
+                                                @Override
+                                                public void onSuccess(Response result) {
+                                                    log.warn(
+                                                            "req #{} finished with status {}",
+                                                            req.number(),
+                                                            result.code());
+                                                }
+
+                                                @Override
+                                                public void onFailure(Throwable t) {
+                                                    log.warn("req #{} finished with status ERROR", req.number(), t);
+                                                }
+                                            },
+                                            DialogueFutures.safeDirectExecutor());
+
                                     future.addListener(
                                             () -> {
                                                 responsesReceived[0] += 1;

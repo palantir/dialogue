@@ -156,8 +156,9 @@ final class QueuedChannel implements Channel {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
-            Optional<ListenableFuture<Response>> maybeResult =
-                    delegate.maybeExecute(endpoint, request, limitEnforcement());
+            LimitEnforcement enforcement = limitEnforcement();
+            log.warn("limit enforcement set to {}", SafeArg.of("enforcement", enforcement));
+            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request, enforcement);
             if (maybeResult.isPresent()) {
                 inFlight.incrementAndGet();
                 ListenableFuture<Response> result = maybeResult.get();
@@ -261,8 +262,10 @@ final class QueuedChannel implements Channel {
         }
         try (CloseableSpan ignored = queueHead.span().attach()) {
             Endpoint endpoint = queueHead.endpoint();
+            LimitEnforcement enforcement = limitEnforcement();
+            log.warn("limit enforcement set to {}", SafeArg.of("enforcement", enforcement));
             Optional<ListenableFuture<Response>> maybeResponse =
-                    delegate.maybeExecute(endpoint, queueHead.request(), limitEnforcement());
+                    delegate.maybeExecute(endpoint, queueHead.request(), enforcement);
 
             if (maybeResponse.isPresent()) {
                 inFlight.incrementAndGet();
