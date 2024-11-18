@@ -19,12 +19,14 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Gauge;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -87,6 +89,33 @@ public class ConcurrencyLimitedChannelTest {
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
+    }
+
+    @Test
+    public void testReuseCachedLimiterState_host() {
+        ChannelState state = new ChannelState();
+        TaggedMetricRegistry taggedMetrics = new DefaultTaggedMetricRegistry();
+        ClientConfiguration clientConfig = mock(ClientConfiguration.class);
+        when(clientConfig.taggedMetricRegistry()).thenReturn(taggedMetrics);
+        Config config = mock(Config.class);
+        when(config.clientConf()).thenReturn(clientConfig);
+        when(config.channelName()).thenReturn("channel");
+
+        // create two channels for the same host, which should re-use the same AIMD state
+
+        LimitedChannel forHost = ConcurrencyLimitedChannel.createForHost(config, delegate, 0, state);
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
+                state.getState(ConcurrencyLimitedChannel.HOST_SPECIFIC_STATE_KEY);
+
+        assertThat(limiter.getInflight()).isEqualTo(0);
+
+        forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+        assertThat(limiter.getInflight()).isEqualTo(1);
+
+        LimitedChannel forHost2 = ConcurrencyLimitedChannel.createForHost(config, delegate, 0, state);
+        forHost2.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+
+        assertThat(limiter.getInflight()).isEqualTo(2);
     }
 
     @Test
@@ -191,7 +220,7 @@ public class ConcurrencyLimitedChannelTest {
     public void testWithDefaultLimiter() {
         channel = new ConcurrencyLimitedChannel(
                 delegate,
-                ConcurrencyLimitedChannel.createLimiter(Behavior.HOST_LEVEL),
+                new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL),
                 NopConcurrencyLimitedChannelInstrumentation.INSTANCE);
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))

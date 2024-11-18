@@ -29,16 +29,21 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
@@ -174,18 +179,31 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
             // In a future change we should attempt to retain this state for channels that are retained between
             // updates.
-            LimitedChannel nodeSelectionChannel = new SupplierChannel(cf.uris().map(targetUris -> {
-                reloadMeter.mark();
-                log.info(
-                        "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets: {})",
-                        SafeArg.of("channel", cf.channelName()),
-                        UnsafeArg.of("uris", cf.clientConf().uris()),
-                        SafeArg.of("numUris", cf.clientConf().uris().size()),
-                        UnsafeArg.of("targets", targetUris),
-                        SafeArg.of("numTargets", targetUris.size()));
-                ImmutableList<LimitedChannel> targetChannels = createHostChannels(cf, targetUris);
-                return NodeSelectionStrategyChannel.create(cf, targetChannels);
-            }));
+            LimitedChannel nodeSelectionChannel =
+                    new SupplierChannel(cf.uris().map(new Function<List<TargetUri>, LimitedChannel>() {
+                        private final Map<TargetUri, ChannelState> state = new ConcurrentHashMap<>();
+
+                        @Override
+                        public LimitedChannel apply(List<TargetUri> targetUris) {
+                            // remove state for uris we no longer care about, and create new ChannelStates
+                            // for uris we don't know about yet
+                            state.keySet().retainAll(targetUris);
+                            targetUris.forEach(uri -> state.computeIfAbsent(uri, _uri -> new ChannelState()));
+
+                            reloadMeter.mark();
+                            log.info(
+                                    "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets:"
+                                            + " {})",
+                                    SafeArg.of("channel", cf.channelName()),
+                                    UnsafeArg.of("uris", cf.clientConf().uris()),
+                                    SafeArg.of("numUris", cf.clientConf().uris().size()),
+                                    UnsafeArg.of("targets", targetUris),
+                                    SafeArg.of("numTargets", targetUris.size()));
+                            ImmutableList<LimitedChannel> targetChannels =
+                                    createHostChannels(cf, targetUris, Collections.unmodifiableMap(state));
+                            return NodeSelectionStrategyChannel.create(cf, targetChannels);
+                        }
+                    }));
 
             LimitedChannel stickyValidationChannel = new StickyValidationChannel(nodeSelectionChannel);
 
@@ -205,7 +223,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
         }
 
-        private static ImmutableList<LimitedChannel> createHostChannels(Config cf, List<TargetUri> targetUris) {
+        private static ImmutableList<LimitedChannel> createHostChannels(
+                Config cf, List<TargetUri> targetUris, Map<TargetUri, ChannelState> state) {
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < targetUris.size(); uriIndex++) {
                 final int uriIndexForInstrumentation =
@@ -222,6 +241,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
 
+                ChannelState channelState = state.get(targetUri);
+                Preconditions.checkNotNull(channelState, "no ChannelState exists for this TargetUri");
+
                 LimitedChannel limitedChannel;
                 if (cf.isConcurrencyLimitingEnabled()) {
                     Channel unlimited = channel;
@@ -233,7 +255,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                                 unlimited, cf.channelName(), uriIndexForInstrumentation, endpoint);
                         return QueuedChannel.create(cf, endpoint, limited);
                     });
-                    limitedChannel = ConcurrencyLimitedChannel.createForHost(cf, channel, uriIndexForInstrumentation);
+                    limitedChannel = ConcurrencyLimitedChannel.createForHost(
+                            cf, channel, uriIndexForInstrumentation, channelState);
                 } else {
                     limitedChannel = new ChannelToLimitedChannelAdapter(channel);
                 }

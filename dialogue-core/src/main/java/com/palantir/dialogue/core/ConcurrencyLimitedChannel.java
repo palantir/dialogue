@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -39,13 +40,20 @@ import java.util.stream.LongStream;
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(ConcurrencyLimitedChannel.class);
 
+    @VisibleForTesting
+    static final ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter> HOST_SPECIFIC_STATE_KEY =
+            new ChannelState.Key<>(
+                    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
+                    ConcurrencyLimitedChannel::createHostSpecificState);
+
     private final NeverThrowChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
     private final String channelNameForLogging;
 
-    static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex) {
+    static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex, ChannelState hostSpecificState) {
         TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = createLimiter(Behavior.HOST_LEVEL);
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
+                hostSpecificState.getState(HOST_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
         return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
@@ -58,7 +66,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     static LimitedChannel createForEndpoint(Channel channel, String channelName, int uriIndex, Endpoint endpoint) {
         return new ConcurrencyLimitedChannel(
                 channel,
-                createLimiter(Behavior.ENDPOINT_LEVEL),
+                new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL),
                 new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint));
     }
 
@@ -71,8 +79,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         this.channelNameForLogging = instrumentation.channelNameForLogging();
     }
 
-    static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createLimiter(Behavior behavior) {
-        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(behavior);
+    static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createHostSpecificState() {
+        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL);
     }
 
     @Override
