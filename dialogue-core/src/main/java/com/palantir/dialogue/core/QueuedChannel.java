@@ -253,16 +253,20 @@ final class QueuedChannel implements Channel {
         if (queueHead == null) {
             return false;
         }
-        SettableFuture<Response> queuedResponse = queueHead.response();
         // If the future has been completed (most likely via cancel) the call should not be queued.
         // There's a race where cancel may be invoked between this check and execution, but the scheduled
         // request will be quickly cancelled in that case.
-        if (queuedResponse.isDone()) {
+        if (queueHead.response().isDone()) {
             decrementQueueSize();
             queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
             queueHead.timer().stop();
             return true;
         }
+        return scheduleTaskFromQueue(queueHead);
+    }
+
+    private boolean scheduleTaskFromQueue(DeferredCall queueHead) {
+        SettableFuture<Response> queuedResponse = queueHead.response();
         try (CloseableSpan ignored = queueHead.span().attach()) {
             Endpoint endpoint = queueHead.endpoint();
             LimitEnforcement limitEnforcement = limitEnforcement();
