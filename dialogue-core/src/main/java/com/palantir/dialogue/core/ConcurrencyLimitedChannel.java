@@ -46,8 +46,9 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                     CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
                     () -> new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL));
 
-    private static final ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter>
-            ENDPOINT_SPECIFIC_STATE_KEY = new ChannelState.Key<>(
+    @VisibleForTesting
+    static final ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter> ENDPOINT_SPECIFIC_STATE_KEY =
+            new ChannelState.Key<>(
                     CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
                     () -> new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL));
 
