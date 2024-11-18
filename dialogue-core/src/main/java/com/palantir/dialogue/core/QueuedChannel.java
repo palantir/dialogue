@@ -67,6 +67,13 @@ final class QueuedChannel implements Channel {
     private static final SafeLogger log = SafeLoggerFactory.get(QueuedChannel.class);
     private static final LimitEnforcement DO_NOT_SKIP_LIMITS = LimitEnforcement.DEFAULT_ENABLED;
 
+    /**
+     * {@link ThreadLocal} tracking whether a {@link #schedule()} loop is currently running, in order to avoid
+     * unnecessarily deeply recursive evaluation. When this is {@code true}, a caller will iterate over queued
+     * requests later on.
+     */
+    private final ThreadLocal<Boolean> recursiveSchedule = new ThreadLocal<>();
+
     private final Deque<DeferredCall> queuedCalls;
     private final NeverThrowLimitedChannel delegate;
 
@@ -207,16 +214,23 @@ final class QueuedChannel implements Channel {
      */
     @VisibleForTesting
     void schedule() {
-        int numScheduled = 0;
-        while (scheduleNextTask()) {
-            numScheduled++;
-        }
+        if (!Boolean.TRUE.equals(recursiveSchedule.get())) {
+            recursiveSchedule.set(Boolean.TRUE);
+            try {
+                int numScheduled = 0;
+                while (scheduleNextTask()) {
+                    numScheduled++;
+                }
 
-        if (log.isDebugEnabled()) {
-            log.debug(
-                    "Scheduled {} requests on channel {}",
-                    SafeArg.of("numScheduled", numScheduled),
-                    SafeArg.of("channelName", channelName));
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "Scheduled {} requests on channel {}",
+                            SafeArg.of("numScheduled", numScheduled),
+                            SafeArg.of("channelName", channelName));
+                }
+            } finally {
+                recursiveSchedule.remove();
+            }
         }
     }
 
