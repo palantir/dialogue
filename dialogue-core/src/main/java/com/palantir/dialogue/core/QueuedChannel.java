@@ -32,6 +32,7 @@ import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -65,7 +66,6 @@ import org.immutables.value.Value;
  */
 final class QueuedChannel implements Channel {
     private static final SafeLogger log = SafeLoggerFactory.get(QueuedChannel.class);
-    private static final LimitEnforcement DO_NOT_SKIP_LIMITS = LimitEnforcement.DEFAULT_ENABLED;
 
     private final Deque<DeferredCall> queuedCalls;
     private final NeverThrowLimitedChannel delegate;
@@ -75,7 +75,10 @@ final class QueuedChannel implements Channel {
 
     @Safe
     private final String queueType;
-    // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
+
+    // Inexpensive tracker for queuedCalls.size(), due to the high cost of
+    // ConcurrentLinkedDeque.size(). Our ProtectedConcurrentLinkedDeque subtype
+    // makes size() throw.
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
     private final Supplier<Counter> queueSizeCounter;
@@ -84,6 +87,9 @@ final class QueuedChannel implements Channel {
     // Metrics aren't reported until the queue is first used, allowing per-endpoint queues to
     // avoid creating unnecessary data.
     private volatile boolean shouldRecordQueueMetrics;
+
+    // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
+    private final AtomicInteger inFlight = new AtomicInteger();
 
     QueuedChannel(
             LimitedChannel delegate,
@@ -151,9 +157,11 @@ final class QueuedChannel implements Channel {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
+            LimitEnforcement limitEnforcement = limitEnforcement();
             Optional<ListenableFuture<Response>> maybeResult =
-                    delegate.maybeExecute(endpoint, request, DO_NOT_SKIP_LIMITS);
+                    delegate.maybeExecute(endpoint, request, limitEnforcement);
             if (maybeResult.isPresent()) {
+                inFlight.incrementAndGet();
                 ListenableFuture<Response> result = maybeResult.get();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
                 // While the queue was avoid, this is equivalent to spending zero time on the queue.
@@ -161,6 +169,8 @@ final class QueuedChannel implements Channel {
                     queuedTime.update(0, TimeUnit.NANOSECONDS);
                 }
                 return maybeResult;
+            } else if (!limitEnforcement.enforceLimits()) {
+                return Optional.of(Futures.immediateFailedFuture(limitEnforcementExpectationFailure(endpoint)));
             }
         }
 
@@ -199,6 +209,9 @@ final class QueuedChannel implements Channel {
     }
 
     private void onCompletion() {
+        // decrementing inflight must occur prior to calling schedule, ensuring that
+        // schedule may be called after inflight is returned to zero.
+        inFlight.decrementAndGet();
         schedule();
     }
 
@@ -240,22 +253,28 @@ final class QueuedChannel implements Channel {
         if (queueHead == null) {
             return false;
         }
-        SettableFuture<Response> queuedResponse = queueHead.response();
         // If the future has been completed (most likely via cancel) the call should not be queued.
         // There's a race where cancel may be invoked between this check and execution, but the scheduled
         // request will be quickly cancelled in that case.
-        if (queuedResponse.isDone()) {
+        if (queueHead.response().isDone()) {
             decrementQueueSize();
             queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
             queueHead.timer().stop();
             return true;
         }
+        return scheduleTaskFromQueue(queueHead);
+    }
+
+    private boolean scheduleTaskFromQueue(DeferredCall queueHead) {
+        SettableFuture<Response> queuedResponse = queueHead.response();
         try (CloseableSpan ignored = queueHead.span().attach()) {
             Endpoint endpoint = queueHead.endpoint();
+            LimitEnforcement limitEnforcement = limitEnforcement();
             Optional<ListenableFuture<Response>> maybeResponse =
-                    delegate.maybeExecute(endpoint, queueHead.request(), DO_NOT_SKIP_LIMITS);
+                    delegate.maybeExecute(endpoint, queueHead.request(), limitEnforcement);
 
             if (maybeResponse.isPresent()) {
+                inFlight.incrementAndGet();
                 decrementQueueSize();
                 ListenableFuture<Response> response = maybeResponse.get();
                 queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
@@ -276,6 +295,17 @@ final class QueuedChannel implements Channel {
                         }
                     }
                 });
+                return true;
+            } else if (!limitEnforcement.enforceLimits()) {
+                decrementQueueSize();
+                queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
+                queueHead.timer().stop();
+                queuedResponse.setException(limitEnforcementExpectationFailure(queueHead.endpoint()));
+                log.warn(
+                        "Failed to make a request bypassing concurrency limits, which should not be possible",
+                        SafeArg.of("channel", channelName),
+                        SafeArg.of("service", endpoint.serviceName()),
+                        SafeArg.of("endpoint", endpoint.endpointName()));
                 return true;
             } else {
                 if (!queuedCalls.offerFirst(queueHead)) {
@@ -306,6 +336,28 @@ final class QueuedChannel implements Channel {
         }
     }
 
+    /**
+     * This queue implementation requires at least one request to be executable at a time regardless of the underlying
+     * limiter design, because triggering the next schedule attempt is done when a request completes. If no requests
+     * are active, but requests are queued, we risk requests getting "stuck" indefinitely, until another request
+     * attempt is made, which is not guaranteed.
+     * So, when no requests are in flight in the delegate, we explicitly bypass limits to ensure at least one
+     *
+     */
+    private LimitEnforcement limitEnforcement() {
+        return inFlight.get() <= 0 ? LimitEnforcement.DANGEROUS_BYPASS_LIMITS : LimitEnforcement.DEFAULT_ENABLED;
+    }
+
+    private SafeIllegalStateException limitEnforcementExpectationFailure(Endpoint endpoint) {
+        return new SafeIllegalStateException(
+                "A request which explicitly bypassed rate limits failed to execute, which "
+                        + "violates the requirements of the QueuedChannel. Please report this to "
+                        + "the Dialogue maintainers!",
+                SafeArg.of("channel", channelName),
+                SafeArg.of("service", endpoint.serviceName()),
+                SafeArg.of("endpoint", endpoint.endpointName()));
+    }
+
     @Override
     public String toString() {
         return "QueuedChannel{queueSizeEstimate="
@@ -327,6 +379,9 @@ final class QueuedChannel implements Channel {
 
         @Override
         public void onSuccess(Response result) {
+            // decrementing inflight must occur prior to calling schedule, ensuring that
+            // schedule may be called after inflight is returned to zero.
+            inFlight.decrementAndGet();
             if (!response.set(result)) {
                 result.close();
             }
@@ -335,6 +390,9 @@ final class QueuedChannel implements Channel {
 
         @Override
         public void onFailure(Throwable throwable) {
+            // decrementing inflight must occur prior to calling schedule, ensuring that
+            // schedule may be called after inflight is returned to zero.
+            inFlight.decrementAndGet();
             if (!response.setException(throwable)) {
                 if (throwable instanceof CancellationException) {
                     log.debug("Call was canceled", throwable);
