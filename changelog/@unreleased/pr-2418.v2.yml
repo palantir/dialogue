@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Retain endpoint concurrency limits on node refresh
+  links:
+  - https://github.com/palantir/dialogue/pull/2418

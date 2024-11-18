@@ -17,6 +17,8 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -247,12 +249,20 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 LimitedChannel limitedChannel;
                 if (cf.isConcurrencyLimitingEnabled()) {
                     Channel unlimited = channel;
+                    EndpointChannelState endpointChannelState = channelState.getState(EndpointChannelState.KEY);
                     channel = new ChannelToEndpointChannel(endpoint -> {
                         if (endpoint.tags().contains("dialogue-disable-endpoint-concurrency-limiting")) {
                             return unlimited;
                         }
                         LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
-                                unlimited, cf.channelName(), uriIndexForInstrumentation, endpoint);
+                                unlimited,
+                                cf.channelName(),
+                                uriIndexForInstrumentation,
+                                endpoint,
+                                endpointChannelState.get(endpoint));
+                        // Note that because the queue is recreated when nodes are refreshed, it's critical that
+                        // the queue can force at least one request through at a time using the behavior introduced
+                        // by https://github.com/palantir/dialogue/pull/2422
                         return QueuedChannel.create(cf, endpoint, limited);
                     });
                     limitedChannel = ConcurrencyLimitedChannel.createForHost(
@@ -264,6 +274,33 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 perUriChannels.add(limitedChannel);
             }
             return perUriChannels.build();
+        }
+
+        /**
+         * {@link ChannelState} provider for per-endpoint channels like the endpoint concurrency limiter.
+         * This object is held in the per-host state, and can be used to look up a {@link ChannelState}
+         * scoped to an individual {@link Endpoint}.
+         * {@link Endpoint} state is held in a weak-keyed cache, equivalent to the one used in
+         * {@link ChannelToEndpointChannel}.
+         * {@link Endpoint} objects are usually enums, which will never be garbage collected, however it's possible
+         * that callers may build an endpoint instances on a per-call basis, so the weak-keyed map is defensive
+         * against short-lived endpoints.
+         * We don't use the same map because the {@link ChannelToEndpointChannel} retains full channel state which
+         * may or may not be designed to be reused across reloads, and we aim to be more precise with state that is
+         * kept across uri changes.
+         */
+        private record EndpointChannelState(LoadingCache<Endpoint, ChannelState> cache) {
+            private static final ChannelState.Key<EndpointChannelState> KEY =
+                    new ChannelState.Key<>(EndpointChannelState.class, EndpointChannelState::create);
+
+            ChannelState get(Endpoint endpoint) {
+                return cache.get(endpoint);
+            }
+
+            private static EndpointChannelState create() {
+                return new EndpointChannelState(
+                        Caffeine.newBuilder().weakKeys().maximumSize(10_000).build(_key -> new ChannelState()));
+            }
         }
 
         private static EndpointChannelFactory createEndpointChannelFactory(Channel multiHostQueuedChannel, Config cf) {
