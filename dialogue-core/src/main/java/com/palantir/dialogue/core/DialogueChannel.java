@@ -260,6 +260,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                                 uriIndexForInstrumentation,
                                 endpoint,
                                 endpointChannelState.get(endpoint));
+                        // Note that because the queue is recreated when nodes are refreshed, it's critical that
+                        // the queue can force at least one request through at a time using the behavior introduced
+                        // by https://github.com/palantir/dialogue/pull/2422
                         return QueuedChannel.create(cf, endpoint, limited);
                     });
                     limitedChannel = ConcurrencyLimitedChannel.createForHost(
