@@ -1,5 +1,5 @@
 type: improvement
 improvement:
-  description: Proof of concept retaining endpoint concurrency limits on refresh
+  description: Retain endpoint concurrency limits on node refresh
   links:
   - https://github.com/palantir/dialogue/pull/2418
