@@ -1,0 +1,9 @@
+type: improvement
+improvement:
+  description: Parsing String to URI can be expensive in terms of CPU and allocations
+    for high throughput services. This generalizes the caching previously added to
+    DnsSupport in https://github.com/palantir/dialogue/pull/2398 to also cover ApacheHttpClientBlockingChannel
+    requests and HttpsProxyDefaultRoutePlanner proxy parsing to leverage a shared
+    parsed URI cache.
+  links:
+  - https://github.com/palantir/dialogue/pull/2432
