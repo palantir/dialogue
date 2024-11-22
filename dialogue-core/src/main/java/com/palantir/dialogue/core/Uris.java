@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.palantir.dialogue.DialogueImmutablesStyle;
+import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.UnsafeArg;
@@ -40,6 +41,9 @@ public final class Uris {
      * through a service mesh like istio/envoy.
      */
     private static final String MESH_PREFIX = "mesh-";
+
+    private static final Arg<?>[] EMPTY_ARGS = new Arg[0];
+    private static final StackTraceElement[] EMPTY_STACKTRACE = new StackTraceElement[0];
 
     /**
      * Shared cache of string to parsed URI. This avoids excessive allocation overhead when parsing repeated targets.
@@ -110,7 +114,10 @@ public final class Uris {
         default URI uriOrThrow() {
             SafeIllegalArgumentException exception = exception();
             if (exception != null) {
-                throw exception;
+                throw new SafeIllegalArgumentException(
+                        exception.getLogMessage(),
+                        exception,
+                        exception.getArgs().toArray(EMPTY_ARGS));
             }
             return Preconditions.checkNotNull(uri(), "uri");
         }
@@ -125,6 +132,8 @@ public final class Uris {
         }
 
         static @Unsafe MaybeUri failure(SafeIllegalArgumentException exception) {
+            // do not cache stacktrace elements
+            exception.setStackTrace(EMPTY_STACKTRACE);
             return ImmutableMaybeUri.of(null, exception);
         }
     }
