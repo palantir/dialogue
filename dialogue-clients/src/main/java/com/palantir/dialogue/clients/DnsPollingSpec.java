@@ -83,7 +83,8 @@ interface DnsPollingSpec<INPUT> {
 
             @Override
             public Stream<String> extractUris(Optional<ServiceConfiguration> input) {
-                return input.stream().flatMap(item -> item.uris().stream());
+                return input.map(serviceConfiguration -> serviceConfiguration.uris().stream())
+                        .orElseGet(Stream::empty);
             }
 
             @Override

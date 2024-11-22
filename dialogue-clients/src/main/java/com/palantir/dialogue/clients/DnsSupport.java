@@ -18,8 +18,6 @@ package com.palantir.dialogue.clients;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Collections2;
@@ -32,19 +30,18 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.DialogueExecutors;
 import com.palantir.dialogue.core.TargetUri;
-import com.palantir.logsafe.Preconditions;
+import com.palantir.dialogue.core.Uris;
+import com.palantir.dialogue.core.Uris.MaybeUri;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.UnsafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Disposable;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.MetricRegistries;
-import com.palantir.tritium.metrics.caffeine.CacheStats;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.Cleaner;
@@ -90,22 +87,9 @@ final class DnsSupport {
                             .build(),
                     SCHEDULER_NAME)));
 
-    /**
-     * Shared cache of string to parsed URI. This avoids excessive allocation overhead when parsing repeated targets.
-     */
-    private static final LoadingCache<String, MaybeUri> uriCache = CacheStats.of(
-                    SharedTaggedMetricRegistries.getSingleton(), "dialogue-uri")
-            .register(stats -> Caffeine.newBuilder()
-                    .maximumWeight(100_000)
-                    .<String, MaybeUri>weigher((key, _value) -> key.length())
-                    .expireAfterAccess(Duration.ofMinutes(1))
-                    .softValues()
-                    .recordStats(stats)
-                    .build(DnsSupport::tryParseUri));
-
     @VisibleForTesting
     static void invalidateCaches() {
-        uriCache.invalidateAll();
+        Uris.clearCache();
     }
 
     /** Identical to the overload, but using the {@link #sharedScheduler}. */
@@ -210,20 +194,14 @@ final class DnsSupport {
 
     @Unsafe
     static MaybeUri tryParseUri(@Unsafe String uriString) {
-        try {
-            return MaybeUri.success(new URI(uriString));
-        } catch (Exception e) {
-            log.debug("Failed to parse URI", e);
-            return MaybeUri.failure(
-                    new SafeIllegalArgumentException("Failed to parse URI", e, UnsafeArg.of("uri", uriString)));
-        }
+        return Uris.tryParse(uriString);
     }
 
     @Unsafe
     @Nullable
     private static URI tryParseUri(TaggedMetricRegistry metrics, @Safe String serviceName, @Unsafe String uri) {
         try {
-            MaybeUri maybeUri = uriCache.get(uri);
+            MaybeUri maybeUri = Uris.tryParse(uri);
             URI result = maybeUri.uriOrThrow();
             if (result.getHost() == null) {
                 log.error(
@@ -273,29 +251,6 @@ final class DnsSupport {
                 scheduledFuture.cancel(false);
                 activeTasks.dec();
             }
-        }
-    }
-
-    @Unsafe
-    record MaybeUri(@Nullable URI uri, @Nullable SafeIllegalArgumentException exception) {
-        static @Unsafe DnsSupport.MaybeUri success(URI uri) {
-            return new MaybeUri(uri, null);
-        }
-
-        static @Unsafe DnsSupport.MaybeUri failure(SafeIllegalArgumentException exception) {
-            return new MaybeUri(null, exception);
-        }
-
-        boolean isSuccessful() {
-            return uri() != null;
-        }
-
-        @Unsafe
-        URI uriOrThrow() {
-            if (exception() != null) {
-                throw exception();
-            }
-            return Preconditions.checkNotNull(uri(), "uri");
         }
     }
 }

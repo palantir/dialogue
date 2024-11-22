@@ -17,11 +17,12 @@
 package com.palantir.dialogue.hc5;
 
 import com.palantir.conjure.java.client.config.HttpsProxies;
+import com.palantir.dialogue.core.Uris;
+import com.palantir.dialogue.core.Uris.MaybeUri;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.List;
 import javax.annotation.CheckForNull;
 import org.apache.hc.client5.http.impl.routing.DefaultRoutePlanner;
@@ -49,12 +50,8 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
     @Override
     @CheckForNull
     public HttpHost determineProxy(final HttpHost target, final HttpContext _context) throws HttpException {
-        final URI targetUri;
-        try {
-            targetUri = new URI(target.toURI());
-        } catch (final URISyntaxException ex) {
-            throw new HttpException("Cannot convert host to URI: " + target, ex);
-        }
+        final URI targetUri = parseTargetUri(target);
+
         ProxySelector proxySelectorInstance = this.proxySelector;
         if (proxySelectorInstance == null) {
             proxySelectorInstance = ProxySelector.getDefault();
@@ -77,6 +74,15 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
         }
 
         return result;
+    }
+
+    private static URI parseTargetUri(HttpHost target) throws HttpException {
+        MaybeUri maybeUri = Uris.tryParse(target.toString());
+        if (maybeUri.isSuccessful()) {
+            return maybeUri.uriOrThrow();
+        } else {
+            throw new HttpException("Cannot convert host to URI: " + target, maybeUri.exception());
+        }
     }
 
     private Proxy chooseProxy(final List<Proxy> proxies) {
