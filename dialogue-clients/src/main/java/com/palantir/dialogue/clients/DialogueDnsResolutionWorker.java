@@ -26,6 +26,7 @@ import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.dialogue.core.Uris;
 import com.palantir.dialogue.core.Uris.MaybeUri;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -102,7 +103,7 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
             long start = System.nanoTime();
             ImmutableSet<String> allHosts = spec.extractUris(inputState)
                     .filter(Objects::nonNull)
-                    .map(DnsSupport::tryParseUri)
+                    .map(Uris::tryParse)
                     .filter(MaybeUri::isSuccessful)
                     .map(MaybeUri::uri)
                     .filter(Objects::nonNull)

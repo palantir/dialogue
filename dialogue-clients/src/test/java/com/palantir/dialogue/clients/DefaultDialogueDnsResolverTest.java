@@ -86,7 +86,7 @@ class DefaultDialogueDnsResolverTest {
 
         assertThat(result).isEmpty();
         ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
-        assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
+        assertThat(metrics.failure("EAI_NONAME").getCount()).isOne();
     }
 
     @Test
@@ -99,12 +99,12 @@ class DefaultDialogueDnsResolverTest {
         ImmutableSet<InetAddress> result = resolver.resolve(badHost);
 
         assertThat(result).isEmpty();
-        assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
+        assertThat(metrics.failure("EAI_NONAME").getCount()).isOne();
 
         // should resolve from cache
         ImmutableSet<InetAddress> result2 = resolver.resolve(badHost);
         assertThat(result2).isEmpty();
-        assertThat(metrics.failure("CACHED").getCount()).isEqualTo(1);
+        assertThat(metrics.failure("CACHED").getCount()).isOne();
     }
 
     private static ImmutableSet<InetAddress> resolve(String hostname) {

@@ -18,7 +18,6 @@ package com.palantir.dialogue.clients;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
@@ -31,7 +30,6 @@ import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.DialogueExecutors;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.core.Uris;
-import com.palantir.dialogue.core.Uris.MaybeUri;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.Unsafe;
@@ -86,11 +84,6 @@ final class DnsSupport {
                             .setDaemon(true)
                             .build(),
                     SCHEDULER_NAME)));
-
-    @VisibleForTesting
-    static void invalidateCaches() {
-        Uris.clearCache();
-    }
 
     /** Identical to the overload, but using the {@link #sharedScheduler}. */
     static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
@@ -193,16 +186,10 @@ final class DnsSupport {
     }
 
     @Unsafe
-    static MaybeUri tryParseUri(@Unsafe String uriString) {
-        return Uris.tryParse(uriString);
-    }
-
-    @Unsafe
     @Nullable
     private static URI tryParseUri(TaggedMetricRegistry metrics, @Safe String serviceName, @Unsafe String uri) {
         try {
-            MaybeUri maybeUri = Uris.tryParse(uri);
-            URI result = maybeUri.uriOrThrow();
+            URI result = Uris.tryParse(uri).uriOrThrow();
             if (result.getHost() == null) {
                 log.error(
                         "Failed to correctly parse URI {} for service {} due to null host component. "
