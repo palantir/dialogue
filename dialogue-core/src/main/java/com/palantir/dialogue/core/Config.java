@@ -17,7 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
 import com.palantir.logsafe.DoNotLog;
@@ -47,9 +47,7 @@ interface Config {
     default ClientConfiguration clientConf() {
         return ClientConfiguration.builder()
                 .from(rawConfig())
-                .uris(rawConfig().uris().stream()
-                        .map(MeshMode::stripMeshPrefix)
-                        .collect(ImmutableList.toImmutableList()))
+                .uris(Lists.transform(rawConfig().uris(), MeshMode::stripMeshPrefix))
                 .build();
     }
 
@@ -60,7 +58,7 @@ interface Config {
 
     @Value.Derived
     default MeshMode mesh() {
-        return MeshMode.fromUris(rawConfig().uris(), SafeArg.of("channelName", channelName()));
+        return MeshMode.DEFAULT_NO_MESH;
     }
 
     @Value.Derived

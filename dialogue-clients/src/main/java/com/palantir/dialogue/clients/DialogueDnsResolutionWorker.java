@@ -25,7 +25,6 @@ import com.google.common.collect.MultimapBuilder.SetMultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
-import com.palantir.dialogue.clients.DnsSupport.MaybeUri;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -42,7 +41,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
@@ -103,11 +101,8 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
             long start = System.nanoTime();
             ImmutableSet<String> allHosts = spec.extractUris(inputState)
                     .filter(Objects::nonNull)
-                    .map(DnsSupport::tryParseUri)
-                    .filter(MaybeUri::isSuccessful)
-                    .filter(Predicate.not(MaybeUri::isMeshMode))
-                    .map(MaybeUri::uri)
-                    .filter(Objects::nonNull)
+                    .map(maybeUri -> DnsSupport.tryParseUri(maybeUri).uri())
+                    .filter(uri -> uri != null && !uri.getScheme().startsWith("mesh-"))
                     .map(URI::getHost)
                     .filter(Objects::nonNull)
                     .collect(ImmutableSet.toImmutableSet());

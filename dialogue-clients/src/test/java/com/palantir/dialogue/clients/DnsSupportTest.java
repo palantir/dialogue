@@ -19,6 +19,7 @@ package com.palantir.dialogue.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.palantir.dialogue.core.TargetUri;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.URI;
@@ -45,9 +46,6 @@ class DnsSupportTest {
         "github.com,https://github.com/palantir/dialogue/",
         "github.com,https://github.com:443/palantir/dialogue/",
         "github.com,https://github.com:8080/palantir/dialogue/",
-        "github.com,mesh-https://github.com/palantir/dialogue/",
-        "github.com,mesh-https://github.com:443/palantir/dialogue/",
-        "github.com,mesh-https://github.com:8080/palantir/dialogue/",
     })
     void tryGetHost(String expectedHostname, String input) {
         assertThat(DnsSupport.tryParseUri(input)).satisfies(parsed -> {
@@ -55,7 +53,6 @@ class DnsSupportTest {
             assertThat(parsed.uri()).isNotNull();
             assertThat(parsed.uri().getHost()).isEqualTo(expectedHostname);
             assertThat(parsed.exception()).isNull();
-            assertThat(parsed.isMeshMode()).isEqualTo(input.startsWith("mesh-"));
         });
 
         assertThat(DnsSupport.getTargetUris(
@@ -70,17 +67,19 @@ class DnsSupportTest {
 
     @ParameterizedTest
     @CsvSource({
-        "false,https://github.com",
-        "false,https://github.com:443",
-        "false,https://github.com:8080",
-        "false,https://github.com/palantir/dialogue/",
-        "false,https://github.com:443/palantir/dialogue/",
-        "false,https://github.com:8080/palantir/dialogue/",
-        "true,mesh-https://github.com/palantir/dialogue/",
-        "true,mesh-https://github.com:443/palantir/dialogue/",
-        "true,mesh-https://github.com:8080/palantir/dialogue/",
+        "mesh-http://github.com/palantir/dialogue/",
+        "mesh-https://github.com/palantir/dialogue/",
+        "mesh-https://github.com:443/palantir/dialogue/",
+        "mesh-https://github.com:8080/palantir/dialogue/",
     })
-    void isMeshMode(boolean expected, String input) {
-        assertThat(DnsSupport.isMeshMode(input)).isEqualTo(expected).isEqualTo(DnsSupport.isMeshMode(input));
+    void meshSchemeIsInvalid(String input) {
+        assertThat(DnsSupport.tryParseUri(input)).satisfies(parsed -> {
+            //            assertThat(parsed.isSuccessful()).isFalse();
+            assertThat(parsed.uri()).isNull();
+            assertThat(parsed.exception())
+                    .isNotNull()
+                    .isInstanceOf(SafeIllegalArgumentException.class)
+                    .hasMessageContaining("foo");
+        });
     }
 }
