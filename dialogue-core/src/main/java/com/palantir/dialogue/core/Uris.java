@@ -42,9 +42,6 @@ public final class Uris {
      */
     private static final String MESH_PREFIX = "mesh-";
 
-    private static final Arg<?>[] EMPTY_ARGS = new Arg[0];
-    private static final StackTraceElement[] EMPTY_STACKTRACE = new StackTraceElement[0];
-
     /**
      * Shared cache of string to parsed URI. This avoids excessive allocation overhead when parsing repeated targets.
      */
@@ -115,9 +112,7 @@ public final class Uris {
             SafeIllegalArgumentException exception = exception();
             if (exception != null) {
                 throw new SafeIllegalArgumentException(
-                        exception.getLogMessage(),
-                        exception,
-                        exception.getArgs().toArray(EMPTY_ARGS));
+                        "Failed to parse URI", exception, exception.getArgs().toArray(new Arg[0]));
             }
             return Preconditions.checkNotNull(uri(), "uri");
         }
@@ -133,7 +128,7 @@ public final class Uris {
 
         static @Unsafe MaybeUri failure(SafeIllegalArgumentException exception) {
             // do not cache stacktrace elements
-            exception.setStackTrace(EMPTY_STACKTRACE);
+            exception.setStackTrace(new StackTraceElement[0]);
             return ImmutableMaybeUri.of(null, exception);
         }
     }
