@@ -312,8 +312,14 @@ final class RetryingChannel implements EndpointChannel {
             // those are considered as well. When the proxy makes a single request, that is considered part of
             // our initial request to the proxy -- we're counting for total failures sending requests to
             // the upstream server.
-            int additionalAttempts = Math.max(1, Responses.getProxyUpstreamRequestAttempts(response));
-            failures = failures + additionalAttempts;
+            int proxyUpstreamRequestAttempts = Responses.getProxyUpstreamRequestAttempts(response);
+            if (proxyUpstreamRequestAttempts > 1) {
+                log.info(
+                        "Received a Proxy-Upstream-Request-Attempts response header "
+                                + "indicating retries have already occurred",
+                        SafeArg.of("proxyUpstreamRequestAttempts", proxyUpstreamRequestAttempts));
+            }
+            failures = failures + Math.max(1, proxyUpstreamRequestAttempts);
             if (failures <= maxRetries) {
                 response.close();
                 Throwable throwableToLog = log.isTraceEnabled() ? failureSupplier.apply(endpoint, response) : null;
