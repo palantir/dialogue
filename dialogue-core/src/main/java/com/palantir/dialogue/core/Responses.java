@@ -101,6 +101,9 @@ final class Responses {
                 if (parsed >= 0) {
                     return parsed;
                 }
+                log.warn(
+                        "Received an unexpected negative proxy upstream request attempts value, using zero",
+                        SafeArg.of("proxyUpstreamRequestAttempts", proxyUpstreamRequestAttempts));
             } catch (NumberFormatException e) {
                 log.warn(
                         "Failed to parse proxy upstream request attempts, assuming zero",
