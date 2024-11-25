@@ -46,6 +46,13 @@ class ResponsesTest {
     }
 
     @Test
+    void proxyUpstreamRequestAttempts_trimmed() {
+        try (Response response = new TestResponse().withHeader(Responses.PROXY_UPSTREAM_REQUEST_ATTEMPTS, " 2 ")) {
+            assertThat(Responses.getProxyUpstreamRequestAttempts(response)).isEqualTo(2);
+        }
+    }
+
+    @Test
     void proxyUpstreamRequestAttempts_valid_default() {
         try (Response response = new TestResponse().withHeader(Responses.PROXY_UPSTREAM_REQUEST_ATTEMPTS, "0")) {
             assertThat(Responses.getProxyUpstreamRequestAttempts(response)).isZero();
