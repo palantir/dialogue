@@ -314,6 +314,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = RetryingChannel.create(cf, channel, endpoint);
                 channel = DeprecationWarningChannel.create(cf, channel, endpoint);
                 channel = ContentDecodingChannel.create(cf, channel, endpoint);
+                channel = new RetryAdvertisementChannel(channel);
                 channel = new RangeAcceptsIdentityEncodingChannel(channel);
                 channel = ContentEncodingChannel.of(channel, endpoint);
                 channel = TracedChannel.create(cf, channel, endpoint);
