@@ -103,6 +103,37 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void testProxyUpstreamRequestAttemptsAccumulated() {
+        when(channel.execute(any()))
+                .thenAnswer((Answer<ListenableFuture<Response>>) _invocation -> Futures.immediateFuture(
+                        new TestResponse().code(503).withHeader(Responses.PROXY_UPSTREAM_REQUEST_ATTEMPTS, "2")))
+                .thenReturn(FAILED)
+                // the success case should never be reached
+                .thenReturn(SUCCESS);
+
+        // One retry allows an initial request (not a retry) and a single retry.
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                2,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        // Our first request failed (1 failure) and accumulated a second from the 'Proxy-Retry-Attempts: 2' response
+        // header, so the next request which results in a SafeIoException exceeds the limit and is not retried.
+        assertThat(response)
+                .failsWithin(Duration.ZERO)
+                .withThrowableThat()
+                // Bypass the outer ExecutionException implementation detail of Future
+                .havingCause()
+                .isInstanceOf(SafeIoException.class)
+                .withMessage("FAILED");
+    }
+
+    @Test
     public void testRetriesUpToMaxRetriesAndFails() throws ExecutionException, InterruptedException {
         when(channel.execute(any())).thenReturn(FAILED).thenReturn(FAILED).thenReturn(SUCCESS);
 

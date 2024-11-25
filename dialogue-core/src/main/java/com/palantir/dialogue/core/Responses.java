@@ -15,14 +15,23 @@
  */
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.QosReason.DueTo;
 import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
+import java.util.Optional;
 
 /** Utility functionality for {@link Response} handling. */
 final class Responses {
+    private static final SafeLogger log = SafeLoggerFactory.get(Responses.class);
+
+    @VisibleForTesting
+    static final String PROXY_UPSTREAM_REQUEST_ATTEMPTS = "Proxy-Upstream-Request-Attempts";
 
     static boolean isRetryOther(Response response) {
         // Note that a 308 status may be a non-retryable signal, for instance google sometimes
@@ -75,6 +84,34 @@ final class Responses {
 
     static boolean isClientError(Response response) {
         return response.code() / 100 == 4;
+    }
+
+    /**
+     * Returns the integer value of the {@link #PROXY_UPSTREAM_REQUEST_ATTEMPTS} {@link Response#headers() header}.
+     * When the value is missing, negative, or otherwise cannot be parsed, zero is returned.
+     * Rejecting negative values is critical because clients mustn't roll back retry counters based on
+     * responses from a remote server.
+     */
+    static int getProxyUpstreamRequestAttempts(Response response) {
+        Optional<String> maybeProxyUpstreamRequestAttempts = response.getFirstHeader(PROXY_UPSTREAM_REQUEST_ATTEMPTS);
+        if (maybeProxyUpstreamRequestAttempts.isPresent()) {
+            String proxyUpstreamRequestAttempts = maybeProxyUpstreamRequestAttempts.get();
+            try {
+                int parsed = Integer.parseInt(proxyUpstreamRequestAttempts.trim());
+                if (parsed >= 0) {
+                    return parsed;
+                }
+                log.warn(
+                        "Received an unexpected negative proxy upstream request attempts value, using zero",
+                        SafeArg.of("proxyUpstreamRequestAttempts", proxyUpstreamRequestAttempts));
+            } catch (NumberFormatException e) {
+                log.warn(
+                        "Failed to parse proxy upstream request attempts, assuming zero",
+                        SafeArg.of("proxyUpstreamRequestAttempts", proxyUpstreamRequestAttempts),
+                        e);
+            }
+        }
+        return 0;
     }
 
     private Responses() {}

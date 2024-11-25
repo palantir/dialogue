@@ -307,7 +307,20 @@ final class RetryingChannel implements EndpointChannel {
 
         private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
                 Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier, Meter meter) {
-            if (++failures <= maxRetries) {
+            // We've made a request which has failed, so we apply a floor of a single failure if there are no
+            // proxy upstream request attempts. Otherwise, if the proxy has reported upstream request attempts,
+            // those are considered as well. When the proxy makes a single request, that is considered part of
+            // our initial request to the proxy -- we're counting for total failures sending requests to
+            // the upstream server.
+            int proxyUpstreamRequestAttempts = Responses.getProxyUpstreamRequestAttempts(response);
+            if (proxyUpstreamRequestAttempts > 1) {
+                log.info(
+                        "Received a Proxy-Upstream-Request-Attempts response header "
+                                + "indicating retries have already occurred",
+                        SafeArg.of("proxyUpstreamRequestAttempts", proxyUpstreamRequestAttempts));
+            }
+            failures = failures + Math.max(1, proxyUpstreamRequestAttempts);
+            if (failures <= maxRetries) {
                 response.close();
                 Throwable throwableToLog = log.isTraceEnabled() ? failureSupplier.apply(endpoint, response) : null;
                 long backoffNanos = Responses.isRetryOther(response) ? 0 : getBackoffNanoseconds();
