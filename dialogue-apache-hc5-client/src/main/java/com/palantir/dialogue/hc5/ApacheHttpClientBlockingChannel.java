@@ -15,6 +15,7 @@
  */
 package com.palantir.dialogue.hc5;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
@@ -33,7 +34,9 @@ import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.SafeLoggable;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeExceptions;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -45,6 +48,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
@@ -62,11 +66,13 @@ import org.apache.hc.client5.http.classic.ExecRuntime;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.function.Supplier;
+import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.net.URIAuthority;
 
 final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(ApacheHttpClientBlockingChannel.class);
@@ -98,31 +104,12 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
     @Override
     public Response execute(Endpoint endpoint, Request request) throws IOException {
-        // Create base request given the URL
-        URL target = baseUrl.render(endpoint, request);
-        ClassicRequestBuilder builder =
-                ClassicRequestBuilder.create(endpoint.httpMethod().name()).setUri(target.toString());
-
-        // Fill headers
-        request.headerParams().forEach(builder::addHeader);
-
-        if (request.body().isPresent()) {
-            Preconditions.checkArgument(
-                    endpoint.httpMethod() != HttpMethod.GET, "GET endpoints must not have a request body");
-            Preconditions.checkArgument(
-                    endpoint.httpMethod() != HttpMethod.HEAD, "HEAD endpoints must not have a request body");
-            Preconditions.checkArgument(
-                    endpoint.httpMethod() != HttpMethod.OPTIONS, "OPTIONS endpoints must not have a request body");
-            RequestBody body = request.body().get();
-            setBody(builder, body);
-        } else if (requiresEmptyBody(endpoint)) {
-            builder.setEntity(EmptyHttpEntity.INSTANCE);
-        }
         long startTime = System.nanoTime();
         try {
+            ClassicHttpRequest httpRequest = createRequest(baseUrl, endpoint, request);
             HttpClientContext context = HttpClientContext.create();
             resolvedHost.ifPresent(inetAddress -> DialogueRoutePlanner.set(context, inetAddress));
-            CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build(), context);
+            CloseableHttpResponse httpClientResponse = client.apacheClient().execute(httpRequest, context);
             // Defensively ensure that resources are closed if failures occur within this block,
             // for example HttpClientResponse allocation may throw an OutOfMemoryError.
             boolean close = true;
@@ -164,6 +151,42 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             // for our diagnostic information, ensuring it can be recorded in the logs.
             t.addSuppressed(new Diagnostic(failureDiagnosticArgs(endpoint, request, startTime)));
             throw t;
+        }
+    }
+
+    @VisibleForTesting
+    static ClassicHttpRequest createRequest(BaseUrl baseUrl, Endpoint endpoint, Request request) {
+        // Create base request given the URL
+        URL target = baseUrl.render(endpoint, request);
+        ClassicRequestBuilder builder = ClassicRequestBuilder.create(
+                        endpoint.httpMethod().name())
+                .setScheme(target.getProtocol())
+                .setAuthority(parseAuthority(target))
+                .setPath(target.getFile());
+
+        // Fill headers
+        request.headerParams().forEach(builder::addHeader);
+
+        if (request.body().isPresent()) {
+            Preconditions.checkArgument(
+                    endpoint.httpMethod() != HttpMethod.GET, "GET endpoints must not have a request body");
+            Preconditions.checkArgument(
+                    endpoint.httpMethod() != HttpMethod.HEAD, "HEAD endpoints must not have a request body");
+            Preconditions.checkArgument(
+                    endpoint.httpMethod() != HttpMethod.OPTIONS, "OPTIONS endpoints must not have a request body");
+            setBody(builder, request.body().get());
+        } else if (requiresEmptyBody(endpoint)) {
+            builder.setEntity(EmptyHttpEntity.INSTANCE);
+        }
+        return builder.build();
+    }
+
+    @VisibleForTesting
+    static URIAuthority parseAuthority(URL url) {
+        try {
+            return URIAuthority.create(url.getAuthority());
+        } catch (URISyntaxException e) {
+            throw new SafeIllegalArgumentException("Invalid URI authority", e, UnsafeArg.of("url", url));
         }
     }
 
@@ -315,7 +338,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         public ListMultimap<String, String> headers() {
             if (headers == null) {
                 ListMultimap<String, String> tmpHeaders = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
-                        .arrayListValues()
+                        .arrayListValues(1)
                         .build();
                 Iterator<Header> headerIterator = response.headerIterator();
                 while (headerIterator.hasNext()) {
