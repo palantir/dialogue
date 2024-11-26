@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Parsing String to URI can be expensive in terms of CPU and allocations
+    for high throughput services.
+  links:
+  - https://github.com/palantir/dialogue/pull/2437
