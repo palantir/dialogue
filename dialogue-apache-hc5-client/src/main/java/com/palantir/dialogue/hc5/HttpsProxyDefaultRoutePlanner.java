@@ -65,12 +65,12 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
         HttpHost result = null;
         if (p.type() == Proxy.Type.HTTP) {
             // convert the socket address to an HttpHost
-            if (!(p.address() instanceof InetSocketAddress)) {
+            if (p.address() instanceof InetSocketAddress isa) {
+                String scheme = HttpsProxies.isHttps(p) ? "https" : "http";
+                result = new HttpHost(scheme, isa.getAddress(), isa.getHostString(), isa.getPort());
+            } else {
                 throw new HttpException("Unable to handle non-Inet proxy address: " + p.address());
             }
-            final InetSocketAddress isa = (InetSocketAddress) p.address();
-            String scheme = HttpsProxies.isHttps(p) ? "https" : "http";
-            result = new HttpHost(scheme, isa.getAddress(), isa.getHostString(), isa.getPort());
         }
 
         return result;
