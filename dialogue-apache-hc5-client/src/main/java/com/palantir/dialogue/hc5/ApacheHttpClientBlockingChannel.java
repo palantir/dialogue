@@ -184,6 +184,11 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     @VisibleForTesting
     static URIAuthority parseAuthority(URL url) {
         try {
+            String host = url.getHost();
+            if (host != null && !host.startsWith("[")) {
+                // fast path for non-IPv6 hosts
+                return new URIAuthority(url.getUserInfo(), host, url.getPort());
+            }
             return URIAuthority.create(url.getAuthority());
         } catch (URISyntaxException e) {
             throw new SafeIllegalArgumentException("Invalid URI authority", e, UnsafeArg.of("url", url));
