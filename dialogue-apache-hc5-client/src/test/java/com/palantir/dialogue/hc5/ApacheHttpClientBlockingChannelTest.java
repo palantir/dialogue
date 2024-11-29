@@ -112,8 +112,8 @@ class ApacheHttpClientBlockingChannelTest {
         "https://user@www.example.com:8443/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe ,"
                 + " www.example.com, 8443, user",
         "https://user@[::1]:8443/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe , ::1, 8443, user",
-        "https://user@[0000:0000:0000:0000:0000:ffff:c0a8:0102]:8443/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe ,"
-                + " 0000:0000:0000:0000:0000:ffff:c0a8:0102, 8443, user",
+        "https://user@[0000:0000:0000:0000:0000:ffff:c0a8:0102]:8443/path/to/foo/bar?baz=quux&hello=world#an-octothorpe"
+                + " , 0000:0000:0000:0000:0000:ffff:c0a8:0102, 8443, user",
     })
     void parseAuthority(String input, String expectedHost, int expectedPort, String expectedUserInfo) throws Exception {
         URL url = new URL(input);
@@ -145,7 +145,7 @@ class ApacheHttpClientBlockingChannelTest {
         assertThat("www.example.com")
                 .usingComparator(hostComparator)
                 .isEqualTo("www.example.com")
-                .isNotEqualTo("example.com");
+                .isNotEqualTo("github.com");
         assertThat("127.0.0.1")
                 .usingComparator(hostComparator)
                 .isEqualTo("127.0.0.1")
