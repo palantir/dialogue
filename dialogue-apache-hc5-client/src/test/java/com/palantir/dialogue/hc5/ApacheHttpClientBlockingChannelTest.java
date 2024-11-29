@@ -19,16 +19,21 @@ package com.palantir.dialogue.hc5;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ListMultimap;
+import com.google.common.primitives.UnsignedBytes;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.core.BaseUrl;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
+import java.net.UnknownHostException;
+import java.util.Comparator;
 import java.util.Map;
 import org.apache.hc.core5.http.ClassicHttpRequest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -91,21 +96,36 @@ class ApacheHttpClientBlockingChannelTest {
     @ParameterizedTest
     @CsvSource({
         "http://example.com, example.com, -1,",
+        "https://example.com, example.com, -1,",
+        "https://localhost:1234, localhost, 1234,",
+        "https://127.0.0.1, 127.0.0.1, -1,",
+        "https://[0:0:0:0:0:ffff:c0a8:0102], 0:0:0:0:0:ffff:c0a8:0102, -1,",
+        "https://[0000:0000:0000:0000:0000:ffff:c0a8:0102], 0000:0000:0000:0000:0000:ffff:c0a8:0102, -1,",
+        "https://[::1], ::1, -1,",
+        "https://[::ffff:c0a8:102], ::ffff:c0a8:102, -1,",
+        "https://127.0.0.1:1234, 127.0.0.1, 1234,",
+        "https://[::1]:1234, ::1, 1234,",
         "https://www.example.com, www.example.com, -1,",
         "https://www.example.com:443, www.example.com, 443,",
         "https://www.example.com/path/to/foo/bar, www.example.com, -1,",
         "https://www.example.com/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe, www.example.com, -1,",
         "https://user@www.example.com:8443/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe ,"
                 + " www.example.com, 8443, user",
+        "https://user@[::1]:8443/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe , ::1, 8443, user",
+        "https://user@[0000:0000:0000:0000:0000:ffff:c0a8:0102]:8443/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe ,"
+                + " 0000:0000:0000:0000:0000:ffff:c0a8:0102, 8443, user",
     })
     void parseAuthority(String input, String expectedHost, int expectedPort, String expectedUserInfo) throws Exception {
         URL url = new URL(input);
         URI uri = URI.create(input);
+        assertThat(url).isEqualTo(uri.toURL());
+        assertThat(uri).isEqualTo(url.toURI());
         assertThat(ApacheHttpClientBlockingChannel.parseAuthority(url))
                 .isEqualTo(ApacheHttpClientBlockingChannel.parseAuthority(uri.toURL()))
                 .isEqualTo(ApacheHttpClientBlockingChannel.parseAuthority(new URL(uri.toString())))
                 .satisfies(authority -> {
                     assertThat(authority.getHostName())
+                            .usingComparator(hostComparator)
                             .isEqualTo(expectedHost)
                             .isEqualTo(uri.getHost())
                             .isEqualTo(url.getHost());
@@ -118,5 +138,51 @@ class ApacheHttpClientBlockingChannelTest {
                             .isEqualTo(uri.getUserInfo())
                             .isEqualTo(url.getUserInfo());
                 });
+    }
+
+    @Test
+    void testHostComparator() {
+        assertThat("www.example.com")
+                .usingComparator(hostComparator)
+                .isEqualTo("www.example.com")
+                .isNotEqualTo("example.com");
+        assertThat("127.0.0.1")
+                .usingComparator(hostComparator)
+                .isEqualTo("127.0.0.1")
+                .isNotEqualTo("127.0.0.2");
+        assertThat("::1")
+                .usingComparator(hostComparator)
+                .isEqualTo("::1")
+                .isEqualTo("[::1]")
+                .isEqualTo("[0000:0000:0000:0000:0000:0000:0000:0001]")
+                .isNotEqualTo("[::2]")
+                .isNotEqualTo("127.0.0.1");
+        assertThat("::ffff:c0a8:102")
+                .usingComparator(hostComparator)
+                .isEqualTo("::ffff:c0a8:102")
+                .isEqualTo("[0000:0000:0000:0000:0000:ffff:c0a8:0102]")
+                .isNotEqualTo("::ffff:c0a8:101")
+                .isNotEqualTo("[::ffff:c0a8:101]");
+    }
+
+    private static final Comparator<? super String> hostComparator = (host1, host2) -> {
+        if (host1.equals(host2)) {
+            return 0;
+        }
+        // treat IPv6 addresses with and without brackets as equivalent
+        InetAddress address1 = tryGetAddress(host1);
+        InetAddress address2 = tryGetAddress(host2);
+        if (address1 != null && address2 != null) {
+            return UnsignedBytes.lexicographicalComparator().compare(address1.getAddress(), address2.getAddress());
+        }
+        return host1.compareTo(host2);
+    };
+
+    private static InetAddress tryGetAddress(String host) {
+        try {
+            return InetAddress.getByName(host);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
