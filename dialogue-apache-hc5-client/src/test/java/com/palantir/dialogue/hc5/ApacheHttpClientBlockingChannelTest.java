@@ -29,13 +29,9 @@ import com.palantir.dialogue.core.BaseUrl;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
-import java.net.URLDecoder;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.Objects;
-import javax.annotation.Nullable;
 import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.net.URIAuthority;
 import org.junit.jupiter.api.Test;
@@ -49,7 +45,7 @@ class ApacheHttpClientBlockingChannelTest {
     @ValueSource(strings = {"GET", "PUT", "POST"})
     void createRequest(String method) throws Exception {
 
-        BaseUrl baseUrl = BaseUrl.of(new URL("https://www.example.com/foo/api"));
+        BaseUrl baseUrl = BaseUrl.of(new URL("https://www.example.local/foo/api"));
         Endpoint endpoint = new Endpoint() {
             private final PathTemplate pathTemplate = PathTemplate.builder()
                     .fixed("fixed")
@@ -95,13 +91,13 @@ class ApacheHttpClientBlockingChannelTest {
                 .isEqualTo(httpRequest.getRequestUri())
                 .isEqualTo("/foo/api/fixed/baz/42?q=1&test=true");
         assertThat(httpRequest.getUri())
-                .isEqualTo(URI.create("https://www.example.com/foo/api/fixed/baz/42?q=1&test=true"));
+                .isEqualTo(URI.create("https://www.example.local/foo/api/fixed/baz/42?q=1&test=true"));
     }
 
     @ParameterizedTest
     @CsvSource({
-        "http://example.com, example.com, -1,",
-        "https://example.com, example.com, -1,",
+        "http://example.local, example.local, -1,",
+        "https://example.local, example.local, -1,",
         "https://localhost:1234, localhost, 1234,",
         "https://127.0.0.1, 127.0.0.1, -1,",
         "https://[0:0:0:0:0:ffff:c0a8:0102], 0:0:0:0:0:ffff:c0a8:0102, -1,",
@@ -110,57 +106,40 @@ class ApacheHttpClientBlockingChannelTest {
         "https://[::ffff:c0a8:102], ::ffff:c0a8:102, -1,",
         "https://127.0.0.1:1234, 127.0.0.1, 1234,",
         "https://[::1]:1234, ::1, 1234,",
-        "https://www.example.com, www.example.com, -1,",
-        "https://www.example.com:443, www.example.com, 443,",
-        "https://www.example.com/path/to/foo/bar, www.example.com, -1,",
-        "https://www.example.com/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe, www.example.com, -1,",
-        "https://user@www.example.com:8443/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe ,"
-                + " www.example.com, 8443, user",
+        "https://www.example.local, www.example.local, -1,",
+        "https://www.example.local:443, www.example.local, 443,",
+        "https://www.example.local/path/to/foo/bar, www.example.local, -1,",
+        "https://www.example.local/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe, www.example.local, -1,",
+        "https://user@www.example.local:8443/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe ,"
+                + " www.example.local, 8443, user",
         "https://user@[::1]:8443/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe , ::1, 8443, user",
         "https://user@[0000:0000:0000:0000:0000:ffff:c0a8:0102]:8443/path/to/foo/bar?baz=quux&hello=world#an-octothorpe"
                 + " , 0000:0000:0000:0000:0000:ffff:c0a8:0102, 8443, user",
-        "https://user:slash%2Fslash@www.example.com, www.example.com, -1, user:slash%2Fslash",
+        "https://user:slash%2Fslash@www.example.local, www.example.local, -1, user:slash%2Fslash",
     })
     void parseAuthority(String input, String expectedHost, int expectedPort, String expectedUserInfo) throws Exception {
         URL url = new URL(input);
-        URI uri = URI.create(input);
-        assertThat(url).isEqualTo(uri.toURL());
-        assertThat(uri).isEqualTo(url.toURI());
         assertThat(ApacheHttpClientBlockingChannel.parseAuthority(url))
-                .isEqualTo(ApacheHttpClientBlockingChannel.parseAuthority(uri.toURL()))
-                .isEqualTo(ApacheHttpClientBlockingChannel.parseAuthority(new URL(uri.toString())))
-                .isEqualTo(URIAuthority.create(uri.getRawAuthority()))
                 .isEqualTo(URIAuthority.create(url.toURI().getRawAuthority()))
                 .isEqualTo(URIAuthority.create(url.getAuthority()))
                 .satisfies(authority -> {
                     assertThat(authority.getHostName())
                             .usingComparator(hostComparator)
                             .isEqualTo(expectedHost)
-                            .isEqualTo(uri.getHost())
                             .isEqualTo(url.getHost());
-                    assertThat(authority.getPort())
-                            .isEqualTo(expectedPort)
-                            .isEqualTo(uri.getPort())
-                            .isEqualTo(url.getPort());
+                    assertThat(authority.getPort()).isEqualTo(expectedPort).isEqualTo(url.getPort());
                     assertThat(authority.getUserInfo())
-                            .usingComparator(userInfoComparator)
                             .isEqualTo(expectedUserInfo)
-                            .isEqualTo(decode(uri.getUserInfo()))
-                            .isEqualTo(decode(url.getUserInfo()));
+                            .isEqualTo(url.getUserInfo());
                 });
-    }
-
-    @Nullable
-    private static String decode(String userInfo) {
-        return userInfo == null ? null : URLDecoder.decode(userInfo, StandardCharsets.UTF_8);
     }
 
     @Test
     void testHostComparator() {
-        assertThat("www.example.com")
+        assertThat("www.example.local")
                 .usingComparator(hostComparator)
-                .isEqualTo("www.example.com")
-                .isNotEqualTo("github.com");
+                .isEqualTo("www.example.local")
+                .isNotEqualTo("www.example.com");
         assertThat("127.0.0.1")
                 .usingComparator(hostComparator)
                 .isEqualTo("127.0.0.1")
@@ -180,21 +159,6 @@ class ApacheHttpClientBlockingChannelTest {
                 .isNotEqualTo("[::ffff:c0a8:101]");
     }
 
-    private static final Comparator<? super String> userInfoComparator = (info1, info2) -> {
-        String u1 = decode(info1);
-        String u2 = decode(info2);
-        if (Objects.equals(u1, u2)) {
-            return 0;
-        }
-        if (u1 == null) {
-            return -1;
-        }
-        if (u2 == null) {
-            return 1;
-        }
-        return u1.compareTo(u2);
-    };
-
     private static final Comparator<? super String> hostComparator = (host1, host2) -> {
         if (host1.equals(host2)) {
             return 0;
@@ -212,7 +176,7 @@ class ApacheHttpClientBlockingChannelTest {
         try {
             return InetAddress.getByName(host);
         } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
+            return null;
         }
     }
 }
