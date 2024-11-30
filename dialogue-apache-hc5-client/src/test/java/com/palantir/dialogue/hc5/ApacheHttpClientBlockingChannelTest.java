@@ -29,10 +29,15 @@ import com.palantir.dialogue.core.BaseUrl;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Objects;
+import javax.annotation.Nullable;
 import org.apache.hc.core5.http.ClassicHttpRequest;
+import org.apache.hc.core5.net.URIAuthority;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -114,6 +119,7 @@ class ApacheHttpClientBlockingChannelTest {
         "https://user@[::1]:8443/path/to/foo/bar?baz=quux&hello=world#hash-octothorpe , ::1, 8443, user",
         "https://user@[0000:0000:0000:0000:0000:ffff:c0a8:0102]:8443/path/to/foo/bar?baz=quux&hello=world#an-octothorpe"
                 + " , 0000:0000:0000:0000:0000:ffff:c0a8:0102, 8443, user",
+        "https://user:slash%2Fslash@www.example.com, www.example.com, -1, user:slash%2Fslash",
     })
     void parseAuthority(String input, String expectedHost, int expectedPort, String expectedUserInfo) throws Exception {
         URL url = new URL(input);
@@ -123,6 +129,9 @@ class ApacheHttpClientBlockingChannelTest {
         assertThat(ApacheHttpClientBlockingChannel.parseAuthority(url))
                 .isEqualTo(ApacheHttpClientBlockingChannel.parseAuthority(uri.toURL()))
                 .isEqualTo(ApacheHttpClientBlockingChannel.parseAuthority(new URL(uri.toString())))
+                .isEqualTo(URIAuthority.create(uri.getRawAuthority()))
+                .isEqualTo(URIAuthority.create(url.toURI().getRawAuthority()))
+                .isEqualTo(URIAuthority.create(url.getAuthority()))
                 .satisfies(authority -> {
                     assertThat(authority.getHostName())
                             .usingComparator(hostComparator)
@@ -134,10 +143,16 @@ class ApacheHttpClientBlockingChannelTest {
                             .isEqualTo(uri.getPort())
                             .isEqualTo(url.getPort());
                     assertThat(authority.getUserInfo())
+                            .usingComparator(userInfoComparator)
                             .isEqualTo(expectedUserInfo)
-                            .isEqualTo(uri.getUserInfo())
-                            .isEqualTo(url.getUserInfo());
+                            .isEqualTo(decode(uri.getUserInfo()))
+                            .isEqualTo(decode(url.getUserInfo()));
                 });
+    }
+
+    @Nullable
+    private static String decode(String userInfo) {
+        return userInfo == null ? null : URLDecoder.decode(userInfo, StandardCharsets.UTF_8);
     }
 
     @Test
@@ -164,6 +179,21 @@ class ApacheHttpClientBlockingChannelTest {
                 .isNotEqualTo("::ffff:c0a8:101")
                 .isNotEqualTo("[::ffff:c0a8:101]");
     }
+
+    private static final Comparator<? super String> userInfoComparator = (info1, info2) -> {
+        String u1 = decode(info1);
+        String u2 = decode(info2);
+        if (Objects.equals(u1, u2)) {
+            return 0;
+        }
+        if (u1 == null) {
+            return -1;
+        }
+        if (u2 == null) {
+            return 1;
+        }
+        return u1.compareTo(u2);
+    };
 
     private static final Comparator<? super String> hostComparator = (host1, host2) -> {
         if (host1.equals(host2)) {
