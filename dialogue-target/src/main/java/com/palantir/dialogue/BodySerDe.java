@@ -28,6 +28,8 @@ public interface BodySerDe {
     /** Creates a {@link Deserializer} for the requested type. Deserializer instances should be reused. */
     <T> Deserializer<T> deserializer(TypeMarker<T> type);
 
+    <T> Deserializer<T> deserializer(DeserializerArgs<T> deserializerArgs);
+
     /**
      * Returns a {@link Deserializer} that fails if a non-empty reponse body is presented and returns null otherwise.
      */
