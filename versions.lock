@@ -26,7 +26,7 @@ com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.16.0 (1 c
 com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.16.0 (2 constraints: 6116630f)
 com.palantir.conjure.java.runtime:keystores:8.16.0 (2 constraints: 6119b1dd)
 com.palantir.goethe:goethe:0.14.0 (1 constraints: 37052f3b)
-com.palantir.javapoet:javapoet:0.5.0 (2 constraints: c7103ed1)
+com.palantir.javapoet:javapoet:0.6.0 (2 constraints: c81064d1)
 com.palantir.nylon:nylon-threads:0.4.0 (1 constraints: 0c10fa91)
 com.palantir.refreshable:refreshable:2.5.0 (2 constraints: f1188fb2)
 com.palantir.ri:resource-identifier:2.8.0 (2 constraints: fc1495b7)
