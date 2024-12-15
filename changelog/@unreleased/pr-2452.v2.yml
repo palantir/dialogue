@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fix request request path to always include leading slash /
+  links:
+  - https://github.com/palantir/dialogue/pull/2452
