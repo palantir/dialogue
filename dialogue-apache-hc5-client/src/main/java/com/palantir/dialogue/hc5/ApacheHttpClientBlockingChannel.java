@@ -162,7 +162,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                         endpoint.httpMethod().name())
                 .setScheme(target.getProtocol())
                 .setAuthority(parseAuthority(target))
-                .setPath(target.getFile());
+                .setPath(getPath(target));
 
         // Fill headers
         request.headerParams().forEach(builder::addHeader);
@@ -179,6 +179,15 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             builder.setEntity(EmptyHttpEntity.INSTANCE);
         }
         return builder.build();
+    }
+
+    @VisibleForTesting
+    static String getPath(URL target) {
+        String path = target.getFile();
+        if (path.startsWith("/")) {
+            return path;
+        }
+        return path.isEmpty() ? "/" : '/' + path;
     }
 
     @VisibleForTesting

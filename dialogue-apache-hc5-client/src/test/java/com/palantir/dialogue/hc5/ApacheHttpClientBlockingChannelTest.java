@@ -33,6 +33,7 @@ import java.net.UnknownHostException;
 import java.util.Comparator;
 import java.util.Map;
 import org.apache.hc.core5.http.ClassicHttpRequest;
+import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.apache.hc.core5.net.URIAuthority;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -116,9 +117,10 @@ class ApacheHttpClientBlockingChannelTest {
         "https://user@[0000:0000:0000:0000:0000:ffff:c0a8:0102]:8443/path/to/foo/bar?baz=quux&hello=world#an-octothorpe"
                 + " , 0000:0000:0000:0000:0000:ffff:c0a8:0102, 8443, user",
         "https://user:slash%2Fslash@www.example.local, www.example.local, -1, user:slash%2Fslash",
+        "http://localhost:59845/?REQUEST=GetCapabilities&SERVICE=WMS, localhost, 59845, ",
+        "http://localhost:59845?REQUEST=GetCapabilities&SERVICE=WMS, localhost, 59845, ",
     })
-    void parseAuthority(String input, String expectedHost, int expectedPort, String expectedUserInfo) throws Exception {
-        URL url = new URL(input);
+    void parseAuthority(URL url, String expectedHost, int expectedPort, String expectedUserInfo) throws Exception {
         assertThat(ApacheHttpClientBlockingChannel.parseAuthority(url))
                 .isEqualTo(URIAuthority.create(url.toURI().getRawAuthority()))
                 .isEqualTo(URIAuthority.create(url.getAuthority()))
@@ -132,6 +134,88 @@ class ApacheHttpClientBlockingChannelTest {
                             .isEqualTo(expectedUserInfo)
                             .isEqualTo(url.getUserInfo());
                 });
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "https://192.168.1.1",
+                "https://192.168.1.1/",
+                "https://localhost",
+                "https://localhost/",
+                "https://localhost/?REQUEST=GetCapabilities&SERVICE=WMS",
+                "https://localhost:12345",
+                "https://localhost:12345?REQUEST=GetCapabilities&SERVICE=WMS",
+                "https://localhost:12345/?REQUEST=GetCapabilities&SERVICE=WMS",
+                "https://www.example.local/path/to/foo/bar?baz=quux&hello=world",
+            })
+    void getPathStartsWithSlash(URL url) {
+        assertThat(ApacheHttpClientBlockingChannel.getPath(url))
+                .isNotNull()
+                .isNotEmpty()
+                .startsWith("/");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "http://localhost:12345/?REQUEST=GetCapabilities&SERVICE=WMS , http://localhost:12345 , ",
+        "https://localhost:12345/?REQUEST=GetCapabilities&SERVICE=WMS , https://localhost:12345/ ,  ",
+        "https://localhost:12345/api?REQUEST=GetCapabilities&SERVICE=WMS , https://localhost:12345/api ,  ",
+        "https://localhost:12345/api?REQUEST=GetCapabilities&SERVICE=WMS , https://localhost:12345/api/ , ",
+    })
+    void noPathQueryString(URL expectedUrl, String base) throws Exception {
+        Request wmsRequest = Request.builder()
+                .putQueryParams("REQUEST", "GetCapabilities")
+                .putQueryParams("SERVICE", "WMS")
+                .build();
+        BaseUrl baseUrl = BaseUrl.of(new URL(base));
+        Endpoint wmsEndpoint = new Endpoint() {
+            private final PathTemplate pathTemplate = PathTemplate.builder()
+                    .variable("REQUEST")
+                    .variable("SERVICE")
+                    .build();
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "testService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "testEndpoint";
+            }
+
+            @Override
+            public String version() {
+                return "1.2.3";
+            }
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+        };
+        URL target = baseUrl.render(wmsEndpoint, wmsRequest);
+        assertThat(ApacheHttpClientBlockingChannel.getPath(target)).isNotEmpty().startsWith("/");
+
+        ClassicHttpRequest expectedRequest = ClassicRequestBuilder.create(
+                        wmsEndpoint.httpMethod().name())
+                .setUri(target.toString())
+                .build();
+
+        ClassicHttpRequest request = ApacheHttpClientBlockingChannel.createRequest(baseUrl, wmsEndpoint, wmsRequest);
+        assertThat(request.getMethod()).isEqualTo(wmsEndpoint.httpMethod().toString());
+        assertThat(request.getUri())
+                .isEqualTo(expectedUrl.toURI())
+                .isEqualTo(expectedRequest.getUri())
+                .asString()
+                .isEqualTo(expectedUrl.toString());
+        assertThat(request.getPath()).isEqualTo(expectedRequest.getPath());
     }
 
     @Test
