@@ -29,6 +29,7 @@ import com.palantir.conjure.java.api.errors.QosReasons.QosResponseDecodingAdapte
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
+import com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
@@ -48,21 +49,33 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
-// TODO(pm): public because maybe we need to expose this in the dialogue annotations. What does that do?
-// T is the base type of the endpoint response. It's a union of the result type and all of the error types.
-public final class EndpointErrorDecoder<T> {
+/**
+ * Extracts the error from a {@link Response}.
+ * <p>If the error's name is in the {@link #errorNameToJsonDeserializerMap}, this class attempts to deserialize the
+ * {@link Response} body as JSON, to the error type. Otherwise, a {@link RemoteException} is thrown. If the
+ * {@link Response} does not adhere to the expected format, an {@link UnknownRemoteException} is thrown.
+ *
+ * @param <T> the base type of the endpoint response. It's a union of the result type and all the error types.
+ */
+final class EndpointErrorDecoder<T> {
     private static final SafeLogger log = SafeLoggerFactory.get(EndpointErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
-    private final Map<String, TypeMarker<? extends T>> errorNameToTypeMap;
-    private final List<Encoding> encodings;
+    private final Map<String, Encoding.Deserializer<? extends T>> errorNameToJsonDeserializerMap;
 
-    public EndpointErrorDecoder(Map<String, TypeMarker<? extends T>> errorNameToTypeMap, List<Encoding> encodings) {
-        this.errorNameToTypeMap = errorNameToTypeMap;
-        this.encodings = encodings;
+    EndpointErrorDecoder(
+            Map<String, TypeMarker<? extends T>> errorNameToTypeMap, Optional<Encoding> maybeJsonEncoding) {
+        this.errorNameToJsonDeserializerMap = maybeJsonEncoding
+                .<Map<String, Encoding.Deserializer<? extends T>>>map(
+                        jsonEncoding -> errorNameToTypeMap.entrySet().stream()
+                                .collect(Collectors.toMap(
+                                        Map.Entry::getKey, entry -> jsonEncoding.deserializer(entry.getValue()))))
+                .orElseGet(Collections::emptyMap);
     }
 
     public boolean isError(Response response) {
@@ -76,15 +89,12 @@ public final class EndpointErrorDecoder<T> {
         try {
             return decodeInternal(response);
         } catch (Exception e) {
-            // TODO(pm): do we want to add the diagnostic information to the result type as well?
             e.addSuppressed(diagnostic(response));
             throw e;
         }
     }
 
-    // performance sensitive code avoids iterator allocation
-    @SuppressWarnings({"checkstyle:CyclomaticComplexity", "ForLoopReplaceableByForEach"})
-    private T decodeInternal(Response response) {
+    Optional<RuntimeException> checkCode(Response response) {
         int code = response.code();
         switch (code) {
             case 308:
@@ -95,7 +105,7 @@ public final class EndpointErrorDecoder<T> {
                         UnknownRemoteException remoteException = new UnknownRemoteException(code, "");
                         remoteException.initCause(
                                 QosException.retryOther(qosReason(response), new URL(locationHeader)));
-                        throw remoteException;
+                        return Optional.of(remoteException);
                     } catch (MalformedURLException e) {
                         log.error(
                                 "Failed to parse location header for QosException.RetryOther",
@@ -108,15 +118,23 @@ public final class EndpointErrorDecoder<T> {
                 }
                 break;
             case 429:
-                throw response.getFirstHeader(HttpHeaders.RETRY_AFTER)
+                return Optional.of(response.getFirstHeader(HttpHeaders.RETRY_AFTER)
                         .map(Longs::tryParse)
                         .map(Duration::ofSeconds)
                         .map(duration -> QosException.throttle(qosReason(response), duration))
-                        .orElseGet(() -> QosException.throttle(qosReason(response)));
+                        .orElseGet(() -> QosException.throttle(qosReason(response))));
             case 503:
-                throw QosException.unavailable(qosReason(response));
+                return Optional.of(QosException.unavailable(qosReason(response)));
         }
+        return Optional.empty();
+    }
 
+    private T decodeInternal(Response response) {
+        Optional<RuntimeException> maybeQosException = checkCode(response);
+        if (maybeQosException.isPresent()) {
+            throw maybeQosException.get();
+        }
+        int code = response.code();
         String body;
         try {
             body = toString(response.body());
@@ -127,27 +145,25 @@ public final class EndpointErrorDecoder<T> {
         }
 
         Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-        // Use a factory: given contentType, create the deserailizer.
-        // We need Encoding.Deserializer here. That depends on the encoding.
-        if (contentType.isPresent() && Encodings.matchesContentType("application/json", contentType.get())) {
+        String jsonContentType = "application/json";
+        if (contentType.isPresent() && Encodings.matchesContentType(jsonContentType, contentType.get())) {
             try {
                 JsonNode node = MAPPER.readTree(body);
-                if (node.get("errorName") != null) {
-                    // TODO(pm): Update this to use some struct instead of errorName.
-                    TypeMarker<? extends T> container = Optional.ofNullable(
-                                    errorNameToTypeMap.get(node.get("errorName").asText()))
-                            .orElseThrow();
-                    for (int i = 0; i < encodings.size(); i++) {
-                        Encoding encoding = encodings.get(i);
-                        if (encoding.supportsContentType(contentType.get())) {
-                            return encoding.deserializer(container)
-                                    .deserialize(new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
-                        }
-                    }
-                } else {
-                    SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
-                    throw new RemoteException(serializableError, code);
+                JsonNode errorNameNode = node.get("errorName");
+                if (errorNameNode == null) {
+                    throwRemoteException(body, code);
                 }
+                Optional<Deserializer<? extends T>> maybeDeserializer =
+                        Optional.ofNullable(errorNameToJsonDeserializerMap.get(errorNameNode.asText()));
+                if (maybeDeserializer.isEmpty()) {
+                    throwRemoteException(body, code);
+                }
+                return maybeDeserializer
+                        .get()
+                        .deserialize(new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
+            } catch (RemoteException remoteException) {
+                // rethrow the created remote exception
+                throw remoteException;
             } catch (Exception e) {
                 throw new UnknownRemoteException(code, body);
             }
@@ -156,17 +172,22 @@ public final class EndpointErrorDecoder<T> {
         throw new UnknownRemoteException(code, body);
     }
 
-    private static String toString(InputStream body) throws IOException {
+    private static void throwRemoteException(String body, int code) throws IOException {
+        SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
+        throw new RemoteException(serializableError, code);
+    }
+
+    static String toString(InputStream body) throws IOException {
         try (Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8)) {
             return CharStreams.toString(reader);
         }
     }
 
-    private static ResponseDiagnostic diagnostic(Response response) {
+    static ResponseDiagnostic diagnostic(Response response) {
         return new ResponseDiagnostic(diagnosticArgs(response));
     }
 
-    private static ImmutableList<Arg<?>> diagnosticArgs(Response response) {
+    static ImmutableList<Arg<?>> diagnosticArgs(Response response) {
         ImmutableList.Builder<Arg<?>> args = ImmutableList.<Arg<?>>builder().add(SafeArg.of("status", response.code()));
         recordHeader(HttpHeaders.SERVER, response, args);
         recordHeader(HttpHeaders.CONTENT_TYPE, response, args);

@@ -17,6 +17,7 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -24,7 +25,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.CheckedServiceException;
 import com.palantir.conjure.java.api.errors.ErrorType;
+import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.ConjureError;
+import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.EndpointError;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.TypeReturningStubEncoding;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BodySerDe;
@@ -48,48 +52,31 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class EndpointErrorsConjureBodySerDeTest {
     private static final ObjectMapper MAPPER = ObjectMappers.newServerObjectMapper();
-    private ErrorDecoder errorDecoder = ErrorDecoder.INSTANCE;
 
     @Generated("by conjure-java")
-    private sealed interface EndpointReturnBaseType permits StringReturn, ErrorForEndpoint {}
+    private sealed interface EndpointReturnBaseType permits ExpectedReturnValue, ErrorReturnValue {}
 
     @Generated("by conjure-java")
-    record StringReturn(String value) implements EndpointReturnBaseType {
+    record ExpectedReturnValue(String value) implements EndpointReturnBaseType {
         @JsonCreator
-        public static StringReturn create(String value) {
-            return new StringReturn(Preconditions.checkArgumentNotNull(value, "value cannot be null"));
+        public static ExpectedReturnValue create(String value) {
+            return new ExpectedReturnValue(Preconditions.checkArgumentNotNull(value, "value cannot be null"));
         }
     }
 
-    abstract static class EndpointError<T> {
-        @Safe
-        String errorCode;
+    @Generated("by conjure-java")
+    record ComplexArg(int foo, String bar) {}
 
-        @Safe
-        String errorName;
-
-        @Safe
-        String errorInstanceId;
-
-        T args;
-
-        EndpointError(String errorCode, String errorName, String errorInstanceId, T args) {
-            this.errorCode = errorCode;
-            this.errorName = errorName;
-            this.errorInstanceId = errorInstanceId;
-            this.args = args;
-        }
-    }
-
+    @Generated("by conjure-java")
     record ErrorForEndpointArgs(
             @JsonProperty("arg") @Safe String arg,
             @JsonProperty("unsafeArg") @Unsafe String unsafeArg,
             @JsonProperty("complexArg") @Safe ComplexArg complexArg,
             @JsonProperty("optionalArg") @Safe Optional<Integer> optionalArg) {}
 
-    static final class ErrorForEndpoint extends EndpointError<ErrorForEndpointArgs> implements EndpointReturnBaseType {
+    static final class ErrorReturnValue extends EndpointError<ErrorForEndpointArgs> implements EndpointReturnBaseType {
         @JsonCreator
-        ErrorForEndpoint(
+        ErrorReturnValue(
                 @JsonProperty("errorCode") String errorCode,
                 @JsonProperty("errorName") String errorName,
                 @JsonProperty("errorInstanceId") String errorInstanceId,
@@ -97,9 +84,6 @@ public class EndpointErrorsConjureBodySerDeTest {
             super(errorCode, errorName, errorInstanceId, args);
         }
     }
-
-    @Generated("by conjure-java")
-    record ComplexArg(int foo, String bar) {}
 
     @Generated("by conjure-java")
     public static final class TestEndpointError extends CheckedServiceException {
@@ -120,30 +104,34 @@ public class EndpointErrorsConjureBodySerDeTest {
     }
 
     @Test
-    public void testDeserializeCustomErrors() throws IOException {
+    public void testDeserializeCustomError() throws IOException {
+        // Given
         TestEndpointError errorThrownByEndpoint =
                 new TestEndpointError("value", "unsafeValue", new ComplexArg(1, "bar"), Optional.of(2), null);
-
-        ErrorForEndpoint expectedErrorForEndpoint = new ErrorForEndpoint(
-                "FAILED_PRECONDITION",
-                "Default:FailedPrecondition",
-                errorThrownByEndpoint.getErrorInstanceId(),
-                new ErrorForEndpointArgs("value", "unsafeValue", new ComplexArg(1, "bar"), Optional.of(2)));
-
         String responseBody =
                 MAPPER.writeValueAsString(ConjureError.fromCheckedServiceException(errorThrownByEndpoint));
+
         TestResponse response = TestResponse.withBody(responseBody)
                 .contentType("application/json")
                 .code(500);
         BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
         DeserializerArgs<EndpointReturnBaseType> deserializerArgs = DeserializerArgs.<EndpointReturnBaseType>builder()
                 .withBaseType(new TypeMarker<>() {})
-                .withExpectedResult(new TypeMarker<StringReturn>() {})
-                .withErrorType("Default:FailedPrecondition", new TypeMarker<ErrorForEndpoint>() {})
+                .withExpectedResult(new TypeMarker<ExpectedReturnValue>() {})
+                .withErrorType("Default:FailedPrecondition", new TypeMarker<ErrorReturnValue>() {})
                 .build();
+
+        // When
         EndpointErrorsConjureBodySerDeTest.EndpointReturnBaseType value =
                 serializers.deserializer(deserializerArgs).deserialize(response);
 
+        // Then
+        ErrorReturnValue expectedErrorForEndpoint = new ErrorReturnValue(
+                ErrorType.FAILED_PRECONDITION.code().name(),
+                ErrorType.FAILED_PRECONDITION.name(),
+                errorThrownByEndpoint.getErrorInstanceId(),
+                new ErrorForEndpointArgs("value", "unsafeValue", new ComplexArg(1, "bar"), Optional.of(2)));
+        assertThat(value).isInstanceOf(ErrorReturnValue.class);
         assertThat(value)
                 .extracting("errorCode", "errorName", "errorInstanceId", "args")
                 .containsExactly(
@@ -153,8 +141,49 @@ public class EndpointErrorsConjureBodySerDeTest {
                         expectedErrorForEndpoint.args);
     }
 
+    // When an error is deserialized, but the error type is not registered, the error should be deserialized as a
+    // SerializableError and a RemoteException should be thrown.
+    @Test
+    public void testDeserializingUndefinedErrorFallsbackToSerializableError() throws IOException {
+        TestEndpointError errorThrownByEndpoint =
+                new TestEndpointError("value", "unsafeValue", new ComplexArg(1, "bar"), Optional.of(2), null);
+        String responseBody =
+                MAPPER.writeValueAsString(ConjureError.fromCheckedServiceException(errorThrownByEndpoint));
+
+        TestResponse response = TestResponse.withBody(responseBody)
+                .contentType("application/json")
+                .code(500);
+        BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
+        DeserializerArgs<EndpointReturnBaseType> deserializerArgs = DeserializerArgs.<EndpointReturnBaseType>builder()
+                .withBaseType(new TypeMarker<>() {})
+                .withExpectedResult(new TypeMarker<ExpectedReturnValue>() {})
+                // Note: no error types are registered.
+                .build();
+
+        // Then
+        assertThatExceptionOfType(RemoteException.class)
+                .isThrownBy(() -> {
+                    serializers.deserializer(deserializerArgs).deserialize(response);
+                })
+                .satisfies(exception -> {
+                    SerializableError error = exception.getError();
+                    assertThat(error.errorCode())
+                            .isEqualTo(ErrorType.FAILED_PRECONDITION.code().name());
+                    assertThat(error.errorInstanceId()).isEqualTo(errorThrownByEndpoint.getErrorInstanceId());
+                    assertThat(error.errorName()).isEqualTo(ErrorType.FAILED_PRECONDITION.name());
+                    assertThat(error.parameters())
+                            .extracting("arg", "unsafeArg", "complexArg", "optionalArg")
+                            .containsExactly(
+                                    "value",
+                                    "unsafeValue",
+                                    MAPPER.writeValueAsString(new ComplexArg(1, "bar")),
+                                    MAPPER.writeValueAsString(Optional.of(2)));
+                });
+    }
+
     @Test
     public void testDeserializeExpectedValue() {
+        // Given
         String expectedString = "expectedString";
         TestResponse response = TestResponse.withBody(String.format("\"%s\"", expectedString))
                 .contentType("application/json")
@@ -162,12 +191,14 @@ public class EndpointErrorsConjureBodySerDeTest {
         BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
         DeserializerArgs<EndpointReturnBaseType> deserializerArgs = DeserializerArgs.<EndpointReturnBaseType>builder()
                 .withBaseType(new TypeMarker<>() {})
-                .withExpectedResult(new TypeMarker<StringReturn>() {})
-                .withErrorType("Default:FailedPrecondition", new TypeMarker<ErrorForEndpoint>() {})
+                .withExpectedResult(new TypeMarker<ExpectedReturnValue>() {})
+                .withErrorType("Default:FailedPrecondition", new TypeMarker<ErrorReturnValue>() {})
                 .build();
+        // When
         EndpointReturnBaseType value =
                 serializers.deserializer(deserializerArgs).deserialize(response);
-        assertThat(value).isEqualTo(new StringReturn(expectedString));
+        // Then
+        assertThat(value).isEqualTo(new ExpectedReturnValue(expectedString));
     }
 
     private ConjureBodySerDe conjureBodySerDe(String... contentTypes) {
@@ -175,7 +206,6 @@ public class EndpointErrorsConjureBodySerDeTest {
                 Arrays.stream(contentTypes)
                         .map(c -> WeightedEncoding.of(new TypeReturningStubEncoding(c)))
                         .collect(ImmutableList.toImmutableList()),
-                errorDecoder,
                 Encodings.emptyContainerDeserializer(),
                 DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
     }
