@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.palantir.conjure.java.api.errors.CheckedServiceException;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
+import com.palantir.logsafe.Safe;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -29,6 +30,26 @@ import java.util.OptionalLong;
 
 final class EndpointErrorTestUtils {
     private EndpointErrorTestUtils() {}
+
+    abstract static class EndpointError<T> {
+        @Safe
+        String errorCode;
+
+        @Safe
+        String errorName;
+
+        @Safe
+        String errorInstanceId;
+
+        T args;
+
+        EndpointError(String errorCode, String errorName, String errorInstanceId, T args) {
+            this.errorCode = errorCode;
+            this.errorName = errorName;
+            this.errorInstanceId = errorInstanceId;
+            this.args = args;
+        }
+    }
 
     record ConjureError(
             @JsonProperty("errorCode") String errorCode,
