@@ -19,14 +19,15 @@ package com.palantir.conjure.java.dialogue.serde;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
+import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.RequestBody;
@@ -47,6 +48,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class ConjureBodySerDeTest {
 
+    private static final ObjectMapper SERVER_MAPPER = ObjectMappers.newServerObjectMapper();
     private static final TypeMarker<String> TYPE = new TypeMarker<String>() {};
     private static final TypeMarker<Optional<String>> OPTIONAL_TYPE = new TypeMarker<Optional<String>>() {};
 
@@ -137,14 +139,12 @@ public class ConjureBodySerDeTest {
     }
 
     @Test
-    public void testErrorsDecoded() {
-        TestResponse response = new TestResponse().code(400);
-
+    public void testErrorsDecoded() throws JsonProcessingException {
         ServiceException serviceException = new ServiceException(ErrorType.INVALID_ARGUMENT);
         SerializableError serialized = SerializableError.forException(serviceException);
-        errorDecoder = mock(ErrorDecoder.class);
-        when(errorDecoder.isError(response)).thenReturn(true);
-        when(errorDecoder.decode(response)).thenReturn(new RemoteException(serialized, 400));
+        TestResponse response = TestResponse.withBody(SERVER_MAPPER.writeValueAsString(serialized))
+                .code(400)
+                .contentType("application/json");
 
         BodySerDe serializers = conjureBodySerDe("text/plain");
 
@@ -220,14 +220,12 @@ public class ConjureBodySerDeTest {
     }
 
     @Test
-    public void testEmptyResponse_failure() {
-        TestResponse response = new TestResponse().code(400);
-
+    public void testEmptyResponse_failure() throws JsonProcessingException {
         ServiceException serviceException = new ServiceException(ErrorType.INVALID_ARGUMENT);
         SerializableError serialized = SerializableError.forException(serviceException);
-        errorDecoder = mock(ErrorDecoder.class);
-        when(errorDecoder.isError(response)).thenReturn(true);
-        when(errorDecoder.decode(response)).thenReturn(new RemoteException(serialized, 400));
+        TestResponse response = TestResponse.withBody(SERVER_MAPPER.writeValueAsString(serialized))
+                .code(400)
+                .contentType("application/json");
 
         BodySerDe serializers = conjureBodySerDe("application/json");
 
