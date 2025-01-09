@@ -40,12 +40,11 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -68,13 +67,18 @@ public final class ErrorDecoderTest {
         }
     }
 
+    public enum DecoderType {
+        LEGACY,
+        ENDPOINT
+    }
+
     private static final ErrorDecoder decoder = ErrorDecoder.INSTANCE;
     private static final EndpointErrorDecoder<?> endpointErrorDecoder =
-            new EndpointErrorDecoder<>(Collections.emptyMap(), Optional.empty());
+            new EndpointErrorDecoder<>(Collections.emptyMap());
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void extractsRemoteExceptionForAllErrorCodes(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void extractsRemoteExceptionForAllErrorCodes(DecoderType decoderType) {
         for (int code : ImmutableList.of(300, 400, 404, 500)) {
             Response response =
                     TestResponse.withBody(SERIALIZED_EXCEPTION).code(code).contentType("application/json");
@@ -100,7 +104,7 @@ public final class ErrorDecoderTest {
                                 + ")");
             };
 
-            if (isLegacyErrorDecoder) {
+            if (decoderType == DecoderType.LEGACY) {
                 assertThat(decoder.isError(response)).isTrue();
                 RuntimeException result = decoder.decode(response);
                 assertThat(result).isInstanceOfSatisfying(RemoteException.class, validationFunction);
@@ -114,8 +118,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testQos503(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void testQos503(DecoderType decoderType) {
         Response response = TestResponse.withBody(SERIALIZED_EXCEPTION).code(503);
 
         Consumer<RuntimeException> validationFunction = exception -> {
@@ -124,7 +128,7 @@ public final class ErrorDecoderTest {
             });
         };
 
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             assertThat(decoder.isError(response)).isTrue();
             RuntimeException result = decoder.decode(response);
             assertThat(result).isInstanceOfSatisfying(RuntimeException.class, validationFunction);
@@ -137,8 +141,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testQos503WithMetadata(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void testQos503WithMetadata(DecoderType decoderType) {
         Response response = TestResponse.withBody(SERIALIZED_EXCEPTION)
                 .code(503)
                 .withHeader("Qos-Retry-Hint", "do-not-retry")
@@ -155,7 +159,7 @@ public final class ErrorDecoderTest {
             });
         };
 
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             assertThat(decoder.isError(response)).isTrue();
             RuntimeException result = decoder.decode(response);
             assertThat(result).isInstanceOfSatisfying(RuntimeException.class, validationFunction);
@@ -168,8 +172,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testQos429(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void testQos429(DecoderType decoderType) {
         Response response = TestResponse.withBody(SERIALIZED_EXCEPTION).code(429);
 
         Consumer<RuntimeException> validationFunction = exception -> {
@@ -179,7 +183,7 @@ public final class ErrorDecoderTest {
             });
         };
 
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             assertThat(decoder.isError(response)).isTrue();
             RuntimeException result = decoder.decode(response);
             assertThat(result).isInstanceOfSatisfying(RuntimeException.class, validationFunction);
@@ -192,8 +196,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testQos429_retryAfter(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void testQos429_retryAfter(DecoderType decoderType) {
         Response response =
                 TestResponse.withBody(SERIALIZED_EXCEPTION).code(429).withHeader(HttpHeaders.RETRY_AFTER, "3");
 
@@ -204,7 +208,7 @@ public final class ErrorDecoderTest {
             });
         };
 
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             assertThat(decoder.isError(response)).isTrue();
             RuntimeException result = decoder.decode(response);
             assertThat(result).isInstanceOfSatisfying(RuntimeException.class, validationFunction);
@@ -217,8 +221,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testQos429_retryAfter_invalid(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void testQos429_retryAfter_invalid(DecoderType decoderType) {
         Response response =
                 TestResponse.withBody(SERIALIZED_EXCEPTION).code(429).withHeader(HttpHeaders.RETRY_AFTER, "bad");
 
@@ -229,7 +233,7 @@ public final class ErrorDecoderTest {
             });
         };
 
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             assertThat(decoder.isError(response)).isTrue();
             RuntimeException result = decoder.decode(response);
             assertThat(result).isInstanceOfSatisfying(RuntimeException.class, validationFunction);
@@ -242,8 +246,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testQos308_noLocation(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void testQos308_noLocation(DecoderType decoderType) {
         Response response = TestResponse.withBody(SERIALIZED_EXCEPTION).code(308);
 
         Consumer<RuntimeException> validationFunction = exception -> {
@@ -252,7 +256,7 @@ public final class ErrorDecoderTest {
             });
         };
 
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             assertThat(decoder.isError(response)).isTrue();
             RuntimeException result = decoder.decode(response);
             assertThat(result).isInstanceOfSatisfying(RuntimeException.class, validationFunction);
@@ -265,8 +269,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testQos308_invalidLocation(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void testQos308_invalidLocation(DecoderType decoderType) {
         Response response =
                 TestResponse.withBody(SERIALIZED_EXCEPTION).code(308).withHeader(HttpHeaders.LOCATION, "invalid");
 
@@ -276,7 +280,7 @@ public final class ErrorDecoderTest {
             });
         };
 
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             assertThat(decoder.isError(response)).isTrue();
             RuntimeException result = decoder.decode(response);
             assertThat(result).isInstanceOfSatisfying(RuntimeException.class, validationFunction);
@@ -289,8 +293,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void testQos308(boolean isLegacyErrorDecoder) {
+    @EnumSource(ErrorDecoderTest.DecoderType.class)
+    public void testQos308(DecoderType decoderType) {
         String expectedLocation = "https://localhost";
         Response response = TestResponse.withBody(SERIALIZED_EXCEPTION)
                 .code(308)
@@ -306,7 +310,7 @@ public final class ErrorDecoderTest {
                     });
         };
 
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             assertThat(decoder.isError(response)).isTrue();
             RuntimeException result = decoder.decode(response);
             assertThat(result).isInstanceOfSatisfying(RuntimeException.class, validationFunction);
@@ -339,8 +343,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void doesNotHandleUnparseableBody(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void doesNotHandleUnparseableBody(DecoderType decoderType) {
         Response response = TestResponse.withBody("not json").code(500).contentType("application/json/");
 
         Consumer<UnknownRemoteException> validationFunction = exception -> {
@@ -348,7 +352,7 @@ public final class ErrorDecoderTest {
             assertThat(exception.getBody()).isEqualTo("not json");
         };
 
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             RuntimeException result = decoder.decode(response);
             assertThat(result).isInstanceOfSatisfying(UnknownRemoteException.class, validationFunction);
         } else {
@@ -372,8 +376,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void handlesUnexpectedJson(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void handlesUnexpectedJson(DecoderType decoderType) {
         Response response = TestResponse.withBody("{\"error\":\"some-unknown-json\"}")
                 .code(502)
                 .contentType("application/json");
@@ -383,7 +387,7 @@ public final class ErrorDecoderTest {
             assertThat(expected.getBody()).isEqualTo("{\"error\":\"some-unknown-json\"}");
             assertThat(expected.getMessage()).isEqualTo("Response status: 502");
         };
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             assertThat(decoder.decode(response))
                     .isInstanceOfSatisfying(UnknownRemoteException.class, validationFunction);
         } else {
@@ -394,8 +398,8 @@ public final class ErrorDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    public void handlesJsonWithEncoding(boolean isLegacyErrorDecoder) {
+    @EnumSource(DecoderType.class)
+    public void handlesJsonWithEncoding(DecoderType decoderType) {
         int code = 500;
         Response response =
                 TestResponse.withBody(SERIALIZED_EXCEPTION).code(code).contentType("application/json; charset=utf-8");
@@ -408,7 +412,7 @@ public final class ErrorDecoderTest {
             assertThat(exception.getError().errorName()).isEqualTo(ErrorType.FAILED_PRECONDITION.name());
         };
 
-        if (isLegacyErrorDecoder) {
+        if (decoderType == DecoderType.LEGACY) {
             assertThat(decoder.decode(response)).isInstanceOfSatisfying(RemoteException.class, validationFunction);
         } else {
             assertThatExceptionOfType(RemoteException.class)

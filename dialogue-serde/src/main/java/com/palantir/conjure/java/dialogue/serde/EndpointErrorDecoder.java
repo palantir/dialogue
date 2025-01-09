@@ -16,9 +16,10 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.google.common.io.CharStreams;
 import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
@@ -30,7 +31,6 @@ import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer;
-import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
@@ -49,11 +49,10 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 /**
  * Extracts the error from a {@link Response}.
@@ -65,17 +64,23 @@ import java.util.stream.Collectors;
  */
 final class EndpointErrorDecoder<T> {
     private static final SafeLogger log = SafeLoggerFactory.get(EndpointErrorDecoder.class);
-    private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
+    // Errors are currently expected to be JSON objects. See
+    // https://palantir.github.io/conjure/#/docs/spec/wire?id=_55-conjure-errors. As there is greater adoption of
+    // endpoint associated errors and larger parameters, we may be interested in supporting SMILE/CBOR for more
+    // performant handling of larger paramater payloads.
+    private static final Encoding JSON_ENCODING = Encodings.json();
+    private static final Deserializer<NamedError> NAMED_ERROR_DESERIALIZER =
+            JSON_ENCODING.deserializer(new TypeMarker<>() {});
     private final Map<String, Encoding.Deserializer<? extends T>> errorNameToJsonDeserializerMap;
+
+    EndpointErrorDecoder(Map<String, TypeMarker<? extends T>> errorNameToTypeMap) {
+        this(errorNameToTypeMap, Optional.empty());
+    }
 
     EndpointErrorDecoder(
             Map<String, TypeMarker<? extends T>> errorNameToTypeMap, Optional<Encoding> maybeJsonEncoding) {
-        this.errorNameToJsonDeserializerMap = maybeJsonEncoding
-                .<Map<String, Encoding.Deserializer<? extends T>>>map(
-                        jsonEncoding -> errorNameToTypeMap.entrySet().stream()
-                                .collect(Collectors.toMap(
-                                        Map.Entry::getKey, entry -> jsonEncoding.deserializer(entry.getValue()))))
-                .orElseGet(Collections::emptyMap);
+        this.errorNameToJsonDeserializerMap = ImmutableMap.copyOf(
+                Maps.transformValues(errorNameToTypeMap, maybeJsonEncoding.orElse(JSON_ENCODING)::deserializer));
     }
 
     public boolean isError(Response response) {
@@ -129,15 +134,28 @@ final class EndpointErrorDecoder<T> {
         return Optional.empty();
     }
 
+    private @Nullable String extractErrorName(byte[] body) {
+        try {
+            NamedError namedError = NAMED_ERROR_DESERIALIZER.deserialize(new ByteArrayInputStream(body));
+            if (namedError == null) {
+                return null;
+            }
+            return namedError.errorName();
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     private T decodeInternal(Response response) {
         Optional<RuntimeException> maybeQosException = checkCode(response);
         if (maybeQosException.isPresent()) {
             throw maybeQosException.get();
         }
         int code = response.code();
-        String body;
+
+        byte[] body;
         try {
-            body = toString(response.body());
+            body = toByteArray(response.body());
         } catch (NullPointerException | IOException e) {
             UnknownRemoteException exception = new UnknownRemoteException(code, "<unparseable>");
             exception.initCause(e);
@@ -145,41 +163,39 @@ final class EndpointErrorDecoder<T> {
         }
 
         Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-        String jsonContentType = "application/json";
-        if (contentType.isPresent() && Encodings.matchesContentType(jsonContentType, contentType.get())) {
+        if (contentType.isPresent()
+                && Encodings.matchesContentType(JSON_ENCODING.getContentType(), contentType.get())) {
             try {
-                JsonNode node = MAPPER.readTree(body);
-                JsonNode errorNameNode = node.get("errorName");
-                if (errorNameNode == null) {
-                    throwRemoteException(body, code);
+                String errorName = extractErrorName(body);
+                if (errorName == null) {
+                    throw createRemoteException(body, code);
                 }
-                Optional<Deserializer<? extends T>> maybeDeserializer =
-                        Optional.ofNullable(errorNameToJsonDeserializerMap.get(errorNameNode.asText()));
-                if (maybeDeserializer.isEmpty()) {
-                    throwRemoteException(body, code);
+                Deserializer<? extends T> deserializer = errorNameToJsonDeserializerMap.get(errorName);
+                if (deserializer == null) {
+                    throw createRemoteException(body, code);
                 }
-                return maybeDeserializer
-                        .get()
-                        .deserialize(new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
+                return deserializer.deserialize(new ByteArrayInputStream(body));
             } catch (RemoteException remoteException) {
                 // rethrow the created remote exception
                 throw remoteException;
             } catch (Exception e) {
-                throw new UnknownRemoteException(code, body);
+                throw new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
             }
         }
 
-        throw new UnknownRemoteException(code, body);
+        throw new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
     }
 
-    private static void throwRemoteException(String body, int code) throws IOException {
-        SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
-        throw new RemoteException(serializableError, code);
+    private static RemoteException createRemoteException(byte[] body, int code) throws IOException {
+        SerializableError serializableError = JSON_ENCODING
+                .deserializer(new TypeMarker<SerializableError>() {})
+                .deserialize(new ByteArrayInputStream(body));
+        return new RemoteException(serializableError, code);
     }
 
-    static String toString(InputStream body) throws IOException {
+    private static byte[] toByteArray(InputStream body) throws IOException {
         try (Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8)) {
-            return CharStreams.toString(reader);
+            return CharStreams.toString(reader).getBytes(StandardCharsets.UTF_8);
         }
     }
 
@@ -247,4 +263,6 @@ final class EndpointErrorDecoder<T> {
             return response.getFirstHeader(headerName);
         }
     }
+
+    record NamedError(@JsonProperty("errorName") String errorName) {}
 }
