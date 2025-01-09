@@ -21,18 +21,19 @@ import com.palantir.logsafe.Preconditions;
 import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 public final class DeserializerArgs<T> {
     private final TypeMarker<T> baseType;
-    private final TypeMarker<? extends T> expectedResultType;
+    private final TypeMarker<? extends T> successType;
     private final ImmutableMap<String, TypeMarker<? extends T>> errorNameToTypeMarker;
 
     private DeserializerArgs(
             TypeMarker<T> baseType,
-            TypeMarker<? extends T> expectedResultType,
+            TypeMarker<? extends T> successType,
             ImmutableMap<String, TypeMarker<? extends T>> map) {
         this.baseType = baseType;
-        this.expectedResultType = expectedResultType;
+        this.successType = successType;
         this.errorNameToTypeMarker = map;
     }
 
@@ -42,64 +43,53 @@ public final class DeserializerArgs<T> {
 
     public static final class Builder<T> {
         private boolean buildInvoked = false;
-        private TypeMarker<T> baseType;
-        private boolean baseTypeSet = false;
-        private TypeMarker<? extends T> expectedResultType;
-        private boolean expectedResultSet = false;
+        private @Nullable TypeMarker<T> baseType;
+        private @Nullable TypeMarker<? extends T> successType;
         private final Map<String, TypeMarker<? extends T>> errorNameToTypeMarker;
 
-        @SuppressWarnings("NullAway")
-        // We ensure that the baseType and expectedResultType are set before building.
         private Builder() {
             this.errorNameToTypeMarker = new HashMap<>();
         }
 
-        public Builder<T> withBaseType(@Nonnull TypeMarker<T> base) {
+        public Builder<T> baseType(@Nonnull TypeMarker<T> baseT) {
             checkNotBuilt();
-            this.baseType = Preconditions.checkNotNull(base, "base type must be non-null");
-            this.baseTypeSet = true;
+            this.baseType = Preconditions.checkNotNull(baseT, "base type must be non-null");
             return this;
         }
 
-        public Builder<T> withExpectedResult(TypeMarker<? extends T> expectedResultT) {
+        public Builder<T> success(@Nonnull TypeMarker<? extends T> successT) {
             checkNotBuilt();
-            this.expectedResultType =
-                    Preconditions.checkNotNull(expectedResultT, "expected result type must be non-null");
-            this.expectedResultSet = true;
+            this.successType = Preconditions.checkNotNull(successT, "success type must be non-null");
             return this;
         }
 
-        public Builder<T> withErrorType(@Nonnull String errorName, @Nonnull TypeMarker<? extends T> errorType) {
+        public Builder<T> error(@Nonnull String errorName, @Nonnull TypeMarker<? extends T> errorT) {
             checkNotBuilt();
             this.errorNameToTypeMarker.put(
                     Preconditions.checkNotNull(errorName, "error name must be non-null"),
-                    Preconditions.checkNotNull(errorType, "error type must be non-null"));
+                    Preconditions.checkNotNull(errorT, "error type must be non-null"));
             return this;
         }
 
         public DeserializerArgs<T> build() {
             checkNotBuilt();
-            checkRequiredArgsSet();
+            Preconditions.checkNotNull(baseType, "base type must be set");
+            Preconditions.checkNotNull(successType, "success type must be set");
             buildInvoked = true;
-            return new DeserializerArgs<>(baseType, expectedResultType, ImmutableMap.copyOf(errorNameToTypeMarker));
+            return new DeserializerArgs<>(baseType, successType, ImmutableMap.copyOf(errorNameToTypeMarker));
         }
 
         private void checkNotBuilt() {
-            Preconditions.checkState(!buildInvoked, "Build has already been called");
-        }
-
-        private void checkRequiredArgsSet() {
-            Preconditions.checkState(baseTypeSet, "base type must be set");
-            Preconditions.checkState(expectedResultSet, "expected result type must be set");
+            Preconditions.checkState(!buildInvoked, "build has already been called");
         }
     }
 
-    public TypeMarker<? extends T> baseType() {
+    public TypeMarker<T> baseType() {
         return baseType;
     }
 
-    public TypeMarker<? extends T> expectedResultType() {
-        return expectedResultType;
+    public TypeMarker<? extends T> successType() {
+        return successType;
     }
 
     public Map<String, TypeMarker<? extends T>> errorNameToTypeMarker() {

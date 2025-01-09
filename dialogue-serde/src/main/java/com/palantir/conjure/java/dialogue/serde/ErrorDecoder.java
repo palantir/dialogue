@@ -17,6 +17,7 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.io.CharStreams;
 import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
@@ -26,6 +27,10 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Optional;
 
@@ -41,7 +46,7 @@ public enum ErrorDecoder {
     private static final SafeLogger log = SafeLoggerFactory.get(ErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
     private static final EndpointErrorDecoder<?> ENDPOINT_ERROR_DECODER =
-            new EndpointErrorDecoder<>(Collections.emptyMap(), Optional.empty());
+            new EndpointErrorDecoder<>(Collections.emptyMap());
 
     public boolean isError(Response response) {
         return ENDPOINT_ERROR_DECODER.isError(response);
@@ -68,7 +73,7 @@ public enum ErrorDecoder {
         int code = response.code();
         String body;
         try {
-            body = EndpointErrorDecoder.toString(response.body());
+            body = toString(response.body());
         } catch (NullPointerException | IOException e) {
             UnknownRemoteException exception = new UnknownRemoteException(code, "<unparseable>");
             exception.initCause(e);
@@ -86,5 +91,11 @@ public enum ErrorDecoder {
         }
 
         return new UnknownRemoteException(code, body);
+    }
+
+    private static String toString(InputStream body) throws IOException {
+        try (Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8)) {
+            return CharStreams.toString(reader);
+        }
     }
 }

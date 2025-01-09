@@ -82,19 +82,18 @@ final class ConjureBodySerDe implements BodySerDe {
                 emptyContainerDeserializer,
                 BinaryEncoding.MARKER,
                 DeserializerArgs.<InputStream>builder()
-                        .withBaseType(BinaryEncoding.MARKER)
-                        .withExpectedResult(BinaryEncoding.MARKER)
+                        .baseType(BinaryEncoding.MARKER)
+                        .success(BinaryEncoding.MARKER)
                         .build());
         this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerForEndpointRegistry<>(
                 ImmutableList.of(BinaryEncoding.INSTANCE),
                 emptyContainerDeserializer,
                 BinaryEncoding.OPTIONAL_MARKER,
                 DeserializerArgs.<Optional<InputStream>>builder()
-                        .withBaseType(BinaryEncoding.OPTIONAL_MARKER)
-                        .withExpectedResult(BinaryEncoding.OPTIONAL_MARKER)
+                        .baseType(BinaryEncoding.OPTIONAL_MARKER)
+                        .success(BinaryEncoding.OPTIONAL_MARKER)
                         .build());
-        this.emptyBodyDeserializer =
-                new EmptyBodyDeserializer(new EndpointErrorDecoder<>(Collections.emptyMap(), Optional.empty()));
+        this.emptyBodyDeserializer = new EmptyBodyDeserializer(new EndpointErrorDecoder<>(Collections.emptyMap()));
         // Class unloading: Not supported, Jackson keeps strong references to the types
         // it sees: https://github.com/FasterXML/jackson-databind/issues/489
         this.serializers = Caffeine.from(cacheSpec)
@@ -108,8 +107,8 @@ final class ConjureBodySerDe implements BodySerDe {
                 emptyContainerDeserializer,
                 typeMarker,
                 DeserializerArgs.<T>builder()
-                        .withBaseType(typeMarker)
-                        .withExpectedResult(typeMarker)
+                        .baseType(typeMarker)
+                        .success(typeMarker)
                         .build());
     }
 
@@ -254,26 +253,25 @@ final class ConjureBodySerDe implements BodySerDe {
         private final TypeMarker<T> token;
 
         EncodingDeserializerForEndpointRegistry(
-                List<Encoding> encodings,
+                List<Encoding> encodingsSortedByWeight,
                 EmptyContainerDeserializer empty,
                 TypeMarker<T> token,
                 DeserializerArgs<T> deserializersForEndpoint) {
-            this.encodings = encodings.stream()
-                    .map(encoding -> new EncodingDeserializerContainer<>(
-                            encoding, deserializersForEndpoint.expectedResultType()))
+            this.encodings = encodingsSortedByWeight.stream()
+                    .map(encoding ->
+                            new EncodingDeserializerContainer<>(encoding, deserializersForEndpoint.successType()))
                     .collect(ImmutableList.toImmutableList());
             this.endpointErrorDecoder = new EndpointErrorDecoder<>(
                     deserializersForEndpoint.errorNameToTypeMarker(),
-                    // Errors are expected to be JSON objects. See
-                    // https://palantir.github.io/conjure/#/docs/spec/wire?id=_55-conjure-errors.
-                    encodings.stream()
+                    encodingsSortedByWeight.stream()
                             .filter(encoding -> encoding.supportsContentType("application/json"))
-                            .findAny());
+                            .findFirst());
             this.token = token;
             this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(token));
             // Encodings are applied to the accept header in the order of preference based on the provided list.
-            this.acceptValue =
-                    Optional.of(encodings.stream().map(Encoding::getContentType).collect(Collectors.joining(", ")));
+            this.acceptValue = Optional.of(encodingsSortedByWeight.stream()
+                    .map(Encoding::getContentType)
+                    .collect(Collectors.joining(", ")));
         }
 
         @Override

@@ -116,9 +116,9 @@ public class EndpointErrorsConjureBodySerDeTest {
                 .code(500);
         BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
         DeserializerArgs<EndpointReturnBaseType> deserializerArgs = DeserializerArgs.<EndpointReturnBaseType>builder()
-                .withBaseType(new TypeMarker<>() {})
-                .withExpectedResult(new TypeMarker<ExpectedReturnValue>() {})
-                .withErrorType("Default:FailedPrecondition", new TypeMarker<ErrorReturnValue>() {})
+                .baseType(new TypeMarker<>() {})
+                .success(new TypeMarker<ExpectedReturnValue>() {})
+                .error("Default:FailedPrecondition", new TypeMarker<ErrorReturnValue>() {})
                 .build();
 
         // When
@@ -155,8 +155,8 @@ public class EndpointErrorsConjureBodySerDeTest {
                 .code(500);
         BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
         DeserializerArgs<EndpointReturnBaseType> deserializerArgs = DeserializerArgs.<EndpointReturnBaseType>builder()
-                .withBaseType(new TypeMarker<>() {})
-                .withExpectedResult(new TypeMarker<ExpectedReturnValue>() {})
+                .baseType(new TypeMarker<>() {})
+                .success(new TypeMarker<ExpectedReturnValue>() {})
                 // Note: no error types are registered.
                 .build();
 
@@ -190,9 +190,9 @@ public class EndpointErrorsConjureBodySerDeTest {
                 .code(200);
         BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
         DeserializerArgs<EndpointReturnBaseType> deserializerArgs = DeserializerArgs.<EndpointReturnBaseType>builder()
-                .withBaseType(new TypeMarker<>() {})
-                .withExpectedResult(new TypeMarker<ExpectedReturnValue>() {})
-                .withErrorType("Default:FailedPrecondition", new TypeMarker<ErrorReturnValue>() {})
+                .baseType(new TypeMarker<>() {})
+                .success(new TypeMarker<ExpectedReturnValue>() {})
+                .error("Default:FailedPrecondition", new TypeMarker<ErrorReturnValue>() {})
                 .build();
         // When
         EndpointReturnBaseType value =
