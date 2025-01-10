@@ -21,6 +21,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOf
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.CheckedServiceException;
@@ -28,6 +29,7 @@ import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.ConjureError;
+import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.ContentRecordingJsonDeserializer;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.EndpointError;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.TypeReturningStubEncoding;
 import com.palantir.conjure.java.serialization.ObjectMappers;
@@ -42,11 +44,15 @@ import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.UnsafeArg;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import javax.annotation.processing.Generated;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -103,8 +109,10 @@ public class EndpointErrorsConjureBodySerDeTest {
         }
     }
 
-    @Test
-    public void testDeserializeCustomError() throws IOException {
+    // The error should be deserialized using Encodings.json(), when a JSON encoding is not provided.
+    @ParameterizedTest
+    @ValueSource(strings = {"application/json", "text/plain"})
+    public void testDeserializeCustomError(String supportedContentType) throws IOException {
         // Given
         TestEndpointError errorThrownByEndpoint =
                 new TestEndpointError("value", "unsafeValue", new ComplexArg(1, "bar"), Optional.of(2), null);
@@ -114,7 +122,7 @@ public class EndpointErrorsConjureBodySerDeTest {
         TestResponse response = TestResponse.withBody(responseBody)
                 .contentType("application/json")
                 .code(500);
-        BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
+        BodySerDe serializers = conjureBodySerDe(supportedContentType);
         DeserializerArgs<EndpointReturnBaseType> deserializerArgs = DeserializerArgs.<EndpointReturnBaseType>builder()
                 .baseType(new TypeMarker<>() {})
                 .success(new TypeMarker<ExpectedReturnValue>() {})
@@ -199,6 +207,44 @@ public class EndpointErrorsConjureBodySerDeTest {
                 serializers.deserializer(deserializerArgs).deserialize(response);
         // Then
         assertThat(value).isEqualTo(new ExpectedReturnValue(expectedString));
+    }
+
+    // Ensure that the supplied JSON encoding is used when available.
+    @Test
+    public void testDeserializeWithCustomEncoding() throws JsonProcessingException {
+        // Given
+        TestEndpointError errorThrownByEndpoint =
+                new TestEndpointError("value", "unsafeValue", new ComplexArg(1, "bar"), Optional.of(2), null);
+        String responseBody =
+                MAPPER.writeValueAsString(ConjureError.fromCheckedServiceException(errorThrownByEndpoint));
+
+        TypeReturningStubEncoding stubbingEncoding =
+                new TypeReturningStubEncoding("application/json", ContentRecordingJsonDeserializer::new);
+        BodySerDe serializers = new ConjureBodySerDe(
+                List.of(WeightedEncoding.of(stubbingEncoding)),
+                Encodings.emptyContainerDeserializer(),
+                DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
+        TestResponse response = TestResponse.withBody(responseBody)
+                .contentType("application/json")
+                .code(500);
+
+        TypeMarker<ErrorReturnValue> errorTypeMarker = new TypeMarker<>() {};
+        DeserializerArgs<EndpointReturnBaseType> deserializerArgs = DeserializerArgs.<EndpointReturnBaseType>builder()
+                .baseType(new TypeMarker<>() {})
+                .success(new TypeMarker<ExpectedReturnValue>() {})
+                .error("Default:FailedPrecondition", errorTypeMarker)
+                .build();
+
+        // When
+        serializers.deserializer(deserializerArgs).deserialize(response);
+
+        // Then
+        assertThat(stubbingEncoding.getDeserializer(errorTypeMarker))
+                .isInstanceOfSatisfying(ContentRecordingJsonDeserializer.class, deserializer -> {
+                    assertThat(deserializer.getDeserializedContent())
+                            .asInstanceOf(InstanceOfAssertFactories.LIST)
+                            .containsExactly(responseBody);
+                });
     }
 
     private ConjureBodySerDe conjureBodySerDe(String... contentTypes) {

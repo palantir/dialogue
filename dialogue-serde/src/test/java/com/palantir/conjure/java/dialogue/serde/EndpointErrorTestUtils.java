@@ -21,12 +21,19 @@ import com.palantir.conjure.java.api.errors.CheckedServiceException;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Safe;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import java.util.function.Function;
 
 final class EndpointErrorTestUtils {
     private EndpointErrorTestUtils() {}
@@ -84,9 +91,17 @@ final class EndpointErrorTestUtils {
     public static final class TypeReturningStubEncoding implements Encoding {
 
         private final String contentType;
+        private final Function<TypeMarker<?>, Encoding.Deserializer<?>> deserializerFactory;
+        private final Map<TypeMarker<?>, Encoding.Deserializer<?>> deserializers = new HashMap<>();
 
         TypeReturningStubEncoding(String contentType) {
+            this(contentType, typeMarker -> Encodings.json().deserializer(typeMarker));
+        }
+
+        TypeReturningStubEncoding(
+                String contentType, Function<TypeMarker<?>, Encoding.Deserializer<?>> deserializerFactory) {
             this.contentType = contentType;
+            this.deserializerFactory = deserializerFactory;
         }
 
         @Override
@@ -97,9 +112,12 @@ final class EndpointErrorTestUtils {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <T> Encoding.Deserializer<T> deserializer(TypeMarker<T> type) {
             return input -> {
-                return (T) Encodings.json().deserializer(type).deserialize(input);
+                Deserializer<T> deserializer =
+                        (Deserializer<T>) deserializers.computeIfAbsent(type, deserializerFactory);
+                return deserializer.deserialize(input);
             };
         }
 
@@ -116,6 +134,31 @@ final class EndpointErrorTestUtils {
         @Override
         public String toString() {
             return "TypeReturningStubEncoding{" + contentType + '}';
+        }
+
+        @SuppressWarnings("unchecked")
+        public <T> Encoding.Deserializer<T> getDeserializer(TypeMarker<T> type) {
+            return (Deserializer<T>) deserializers.get(type);
+        }
+    }
+
+    public static final class ContentRecordingJsonDeserializer<T> implements Encoding.Deserializer<T> {
+        private final List<String> deserializedContent = new ArrayList<>();
+        private final Encoding.Deserializer<T> delegate;
+
+        ContentRecordingJsonDeserializer(TypeMarker<T> type) {
+            this.delegate = Encodings.json().deserializer(type);
+        }
+
+        public List<String> getDeserializedContent() {
+            return deserializedContent;
+        }
+
+        @Override
+        public T deserialize(InputStream input) throws IOException {
+            String inputString = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            deserializedContent.add(inputString);
+            return delegate.deserialize(new ByteArrayInputStream(inputString.getBytes(StandardCharsets.UTF_8)));
         }
     }
 }
