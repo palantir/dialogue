@@ -20,7 +20,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import com.google.common.io.CharStreams;
 import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
 import com.palantir.conjure.java.api.errors.QosException;
@@ -43,8 +42,6 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -71,6 +68,8 @@ final class EndpointErrorDecoder<T> {
     private static final Encoding JSON_ENCODING = Encodings.json();
     private static final Deserializer<NamedError> NAMED_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(new TypeMarker<>() {});
+    private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
+            JSON_ENCODING.deserializer(new TypeMarker<>() {});
     private final Map<String, Encoding.Deserializer<? extends T>> errorNameToJsonDeserializerMap;
 
     EndpointErrorDecoder(Map<String, TypeMarker<? extends T>> errorNameToTypeMap) {
@@ -83,11 +82,11 @@ final class EndpointErrorDecoder<T> {
                 Maps.transformValues(errorNameToTypeMap, maybeJsonEncoding.orElse(JSON_ENCODING)::deserializer));
     }
 
-    public boolean isError(Response response) {
+    boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
     }
 
-    public T decode(Response response) {
+    T decode(Response response) {
         if (log.isDebugEnabled()) {
             log.debug("Received an error response", diagnosticArgs(response));
         }
@@ -187,15 +186,14 @@ final class EndpointErrorDecoder<T> {
     }
 
     private static RemoteException createRemoteException(byte[] body, int code) throws IOException {
-        SerializableError serializableError = JSON_ENCODING
-                .deserializer(new TypeMarker<SerializableError>() {})
-                .deserialize(new ByteArrayInputStream(body));
+        SerializableError serializableError =
+                SERIALIZABLE_ERROR_DESERIALIZER.deserialize(new ByteArrayInputStream(body));
         return new RemoteException(serializableError, code);
     }
 
     private static byte[] toByteArray(InputStream body) throws IOException {
-        try (Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8)) {
-            return CharStreams.toString(reader).getBytes(StandardCharsets.UTF_8);
+        try (body) {
+            return body.readAllBytes();
         }
     }
 
