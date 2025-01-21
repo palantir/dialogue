@@ -17,10 +17,14 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.palantir.conjure.java.api.errors.CheckedServiceException;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Safe;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,6 +59,20 @@ final class EndpointErrorTestUtils {
             this.errorName = errorName;
             this.errorInstanceId = errorInstanceId;
             this.args = args;
+        }
+    }
+
+    abstract static class CustomNullDeserializer<T> extends JsonDeserializer<T> {
+        public abstract T create();
+
+        @Override
+        public T deserialize(JsonParser _parser, DeserializationContext _ctxt) {
+            throw new SafeIllegalStateException("Attempted to deserialize non-null value as null");
+        }
+
+        @Override
+        public T getNullValue(DeserializationContext _ctxt) {
+            return create();
         }
     }
 

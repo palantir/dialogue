@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.CheckedServiceException;
 import com.palantir.conjure.java.api.errors.ErrorType;
@@ -30,6 +31,7 @@ import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.ConjureError;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.ContentRecordingJsonDeserializer;
+import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.CustomNullDeserializer;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.EndpointError;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.TypeReturningStubEncoding;
 import com.palantir.conjure.java.serialization.ObjectMappers;
@@ -60,6 +62,20 @@ public class EndpointErrorsConjureBodySerDeTest {
     private static final ObjectMapper MAPPER = ObjectMappers.newServerObjectMapper();
 
     @Generated("by conjure-java")
+    private sealed interface EmptyBodyEndpointReturnBaseType permits EmptyReturnValue, ErrorReturnValue {}
+
+    @Generated("by conjure-java")
+    @JsonDeserialize(using = EmptyReturnValue.EmptyReturnValueDeserializer.class)
+    record EmptyReturnValue() implements EmptyBodyEndpointReturnBaseType {
+        private static final class EmptyReturnValueDeserializer extends CustomNullDeserializer<EmptyReturnValue> {
+            @Override
+            public EmptyReturnValue create() {
+                return new EmptyReturnValue();
+            }
+        }
+    }
+
+    @Generated("by conjure-java")
     private sealed interface EndpointReturnBaseType permits ExpectedReturnValue, ErrorReturnValue {}
 
     @Generated("by conjure-java")
@@ -80,7 +96,8 @@ public class EndpointErrorsConjureBodySerDeTest {
             @JsonProperty("complexArg") @Safe ComplexArg complexArg,
             @JsonProperty("optionalArg") @Safe Optional<Integer> optionalArg) {}
 
-    static final class ErrorReturnValue extends EndpointError<ErrorForEndpointArgs> implements EndpointReturnBaseType {
+    static final class ErrorReturnValue extends EndpointError<ErrorForEndpointArgs>
+            implements EndpointReturnBaseType, EmptyBodyEndpointReturnBaseType {
         @JsonCreator
         ErrorReturnValue(
                 @JsonProperty("errorCode") String errorCode,
@@ -207,6 +224,24 @@ public class EndpointErrorsConjureBodySerDeTest {
                 serializers.deserializer(deserializerArgs).deserialize(response);
         // Then
         assertThat(value).isEqualTo(new ExpectedReturnValue(expectedString));
+    }
+
+    @Test
+    public void testDeserializeEmptyBody() {
+        // Given
+        TestResponse response = new TestResponse().code(204);
+        BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
+        DeserializerArgs<EmptyBodyEndpointReturnBaseType> deserializerArgs =
+                DeserializerArgs.<EmptyBodyEndpointReturnBaseType>builder()
+                        .baseType(new TypeMarker<>() {})
+                        .success(new TypeMarker<EmptyReturnValue>() {})
+                        .error("Default:FailedPrecondition", new TypeMarker<ErrorReturnValue>() {})
+                        .build();
+        // When
+        EmptyBodyEndpointReturnBaseType value =
+                serializers.deserializer(deserializerArgs).deserialize(response);
+        // Then
+        assertThat(value).isEqualTo(new EmptyReturnValue());
     }
 
     // Ensure that the supplied JSON encoding is used when available.

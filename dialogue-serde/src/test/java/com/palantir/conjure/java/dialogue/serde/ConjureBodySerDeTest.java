@@ -22,11 +22,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
+import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.CustomNullDeserializer;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
@@ -67,6 +69,24 @@ public class ConjureBodySerDeTest {
         BodySerDe serializers = conjureBodySerDe("application/json");
         Optional<String> value = serializers.deserializer(OPTIONAL_TYPE).deserialize(response);
         assertThat(value).isEmpty();
+    }
+
+    @Test
+    public void testRequestCustomEmpty() {
+        @JsonDeserialize(using = EmptyRecord.EmptyRecordDeserializer.class)
+        record EmptyRecord() {
+            private static final class EmptyRecordDeserializer extends CustomNullDeserializer<EmptyRecord> {
+                @Override
+                public EmptyRecord create() {
+                    return new EmptyRecord();
+                }
+            }
+        }
+        TestResponse response = new TestResponse().code(204);
+        BodySerDe serializers = conjureBodySerDe("application/json");
+        EmptyRecord value =
+                serializers.deserializer(new TypeMarker<EmptyRecord>() {}).deserialize(response);
+        assertThat(value).isNotNull();
     }
 
     private ConjureBodySerDe conjureBodySerDe(String... contentTypes) {
