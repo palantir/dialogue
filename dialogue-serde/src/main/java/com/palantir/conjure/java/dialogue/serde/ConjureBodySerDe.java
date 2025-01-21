@@ -249,14 +249,16 @@ final class ConjureBodySerDe implements BodySerDe {
         private final ImmutableList<EncodingDeserializerContainer<? extends T>> encodings;
         private final EndpointErrorDecoder<T> endpointErrorDecoder;
         private final Optional<String> acceptValue;
-        private final Supplier<Optional<T>> emptyInstance;
+        private final Supplier<Optional<? extends T>> emptyInstance;
         private final TypeMarker<T> token;
+        private final TypeMarker<? extends T> successTypeMarker;
 
         EncodingDeserializerForEndpointRegistry(
                 List<Encoding> encodingsSortedByWeight,
                 EmptyContainerDeserializer empty,
                 TypeMarker<T> token,
                 DeserializerArgs<T> deserializersForEndpoint) {
+            this.successTypeMarker = deserializersForEndpoint.successType();
             this.encodings = encodingsSortedByWeight.stream()
                     .map(encoding ->
                             new EncodingDeserializerContainer<>(encoding, deserializersForEndpoint.successType()))
@@ -267,7 +269,7 @@ final class ConjureBodySerDe implements BodySerDe {
                             .filter(encoding -> encoding.supportsContentType("application/json"))
                             .findFirst());
             this.token = token;
-            this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(token));
+            this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(successTypeMarker));
             // Encodings are applied to the accept header in the order of preference based on the provided list.
             this.acceptValue = Optional.of(encodingsSortedByWeight.stream()
                     .map(Encoding::getContentType)
@@ -284,7 +286,7 @@ final class ConjureBodySerDe implements BodySerDe {
                     // TODO(dfox): what if we get a 204 for a non-optional type???
                     // TODO(dfox): support http200 & body=null
                     // TODO(dfox): what if we were expecting an empty list but got {}?
-                    Optional<T> maybeEmptyInstance = emptyInstance.get();
+                    Optional<? extends T> maybeEmptyInstance = emptyInstance.get();
                     if (maybeEmptyInstance.isPresent()) {
                         return maybeEmptyInstance.get();
                     }
