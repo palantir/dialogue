@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.CheckedServiceException;
 import com.palantir.conjure.java.api.errors.ErrorType;
@@ -31,7 +30,6 @@ import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.ConjureError;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.ContentRecordingJsonDeserializer;
-import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.CustomNullDeserializer;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.EndpointError;
 import com.palantir.conjure.java.dialogue.serde.EndpointErrorTestUtils.TypeReturningStubEncoding;
 import com.palantir.conjure.java.serialization.ObjectMappers;
@@ -65,13 +63,10 @@ public class EndpointErrorsConjureBodySerDeTest {
     private sealed interface EmptyBodyEndpointReturnBaseType permits EmptyReturnValue, ErrorReturnValue {}
 
     @Generated("by conjure-java")
-    @JsonDeserialize(using = EmptyReturnValue.EmptyReturnValueDeserializer.class)
     record EmptyReturnValue() implements EmptyBodyEndpointReturnBaseType {
-        private static final class EmptyReturnValueDeserializer extends CustomNullDeserializer<EmptyReturnValue> {
-            @Override
-            public EmptyReturnValue create() {
-                return new EmptyReturnValue();
-            }
+        @JsonCreator
+        public static EmptyReturnValue create() {
+            return new EmptyReturnValue();
         }
     }
 
