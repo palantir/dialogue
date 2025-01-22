@@ -42,7 +42,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
@@ -105,7 +104,6 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
                     .filter(Objects::nonNull)
                     .map(DnsSupport::tryParseUri)
                     .filter(MaybeUri::isSuccessful)
-                    .filter(Predicate.not(MaybeUri::isMeshMode))
                     .map(MaybeUri::uri)
                     .filter(Objects::nonNull)
                     .map(URI::getHost)

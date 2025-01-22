@@ -75,18 +75,14 @@ final class ContentDecodingChannel implements EndpointChannel {
         if (endpoint.tags().contains(PREFER_COMPRESSED_RESPONSE_TAG)) {
             return () -> true;
         }
-        // In mesh mode or environments which appear to be within an environment,
-        // prefer not to request compressed responses. This heuristic assumes response
-        // compression should not be used in a service mesh, nor when load balancing
+        // Prefer not to request compressed responses for requests which appear to be within an environment.
+        // This heuristic assumes response compression should not be used when load balancing
         // is handled by the client. Note that this will also opt out of response
         // compression when the target host resolves to multiple IP addresses.
-        if (cf.mesh() == MeshMode.DEFAULT_NO_MESH) {
-            // Avoid using refreshable here, as this can be called very frequently, and
-            // refreshable.map can be expensive.
-            return () -> cf.uris().get().size() == 1;
-        }
 
-        return () -> false;
+        // n.b. Avoid using refreshable here, as this can be called very frequently, and
+        // refreshable.map can be expensive.
+        return () -> cf.uris().get().size() == 1;
     }
 
     @Override

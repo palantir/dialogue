@@ -55,7 +55,6 @@ class DnsSupportTest {
             assertThat(parsed.uri()).isNotNull();
             assertThat(parsed.uri().getHost()).isEqualTo(expectedHostname);
             assertThat(parsed.exception()).isNull();
-            assertThat(parsed.isMeshMode()).isEqualTo(input.startsWith("mesh-"));
         });
 
         assertThat(DnsSupport.getTargetUris(
@@ -66,21 +65,5 @@ class DnsSupportTest {
                         taggedMetrics))
                 .hasSize(1)
                 .containsExactly(TargetUri.of(URI.create(input).toString()));
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-        "false,https://github.com",
-        "false,https://github.com:443",
-        "false,https://github.com:8080",
-        "false,https://github.com/palantir/dialogue/",
-        "false,https://github.com:443/palantir/dialogue/",
-        "false,https://github.com:8080/palantir/dialogue/",
-        "true,mesh-https://github.com/palantir/dialogue/",
-        "true,mesh-https://github.com:443/palantir/dialogue/",
-        "true,mesh-https://github.com:8080/palantir/dialogue/",
-    })
-    void isMeshMode(boolean expected, String input) {
-        assertThat(DnsSupport.isMeshMode(input)).isEqualTo(expected).isEqualTo(DnsSupport.isMeshMode(input));
     }
 }
