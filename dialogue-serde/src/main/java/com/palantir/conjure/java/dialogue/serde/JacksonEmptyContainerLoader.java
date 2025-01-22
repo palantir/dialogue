@@ -64,23 +64,26 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
         }
 
         // fallback to manual reflection to handle aliases of optionals (and aliases of aliases of optionals)
-        Method method = getJsonCreatorStaticMethod(type);
-        if (method != null) {
-            Type parameterType = method.getParameters()[0].getParameterizedType();
-            // Class<?> parameterType = method.getParameters()[0].getType();
-            Optional<Object> parameter =
-                    constructEmptyInstance(parameterType, originalType, decrement(maxRecursion, originalType));
-
-            if (parameter.isPresent()) {
-                return invokeStaticFactoryMethod(method, parameter.get());
-            } else {
-                if (log.isDebugEnabled()) {
-                    log.debug(
-                            "Found a @JsonCreator, but couldn't construct the parameter",
-                            SafeArg.of("type", type),
-                            SafeArg.of("parameter", parameter));
+        MethodAndMaybeParameter methodAndMaybeParameter = getJsonCreatorStaticMethodAndMaybeParam(type);
+        if (methodAndMaybeParameter != null) {
+            Method method = methodAndMaybeParameter.method();
+            Type parameterType = methodAndMaybeParameter.parameterType();
+            if (parameterType != null) {
+                Optional<Object> parameter =
+                        constructEmptyInstance(parameterType, originalType, decrement(maxRecursion, originalType));
+                if (parameter.isPresent()) {
+                    return invokeStaticFactoryMethod(method, parameter.get());
+                } else {
+                    if (log.isDebugEnabled()) {
+                        log.debug(
+                                "Found a @JsonCreator, but couldn't construct the parameter",
+                                SafeArg.of("type", type),
+                                SafeArg.of("parameter", parameter));
+                    }
+                    return Optional.empty();
                 }
-                return Optional.empty();
+            } else {
+                return invokeStaticFactoryMethod(method, null);
             }
         }
 
@@ -138,23 +141,29 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
 
     // doesn't attempt to handle multiple @JsonCreator methods on one class
     @Nullable
-    private static Method getJsonCreatorStaticMethod(Type type) {
+    private static MethodAndMaybeParameter getJsonCreatorStaticMethodAndMaybeParam(Type type) {
         if (type instanceof Class) {
             Class<?> clazz = (Class<?>) type;
             for (Method method : clazz.getMethods()) {
+                int parameterCount = method.getParameterCount();
                 if (Modifier.isStatic(method.getModifiers())
-                        && method.getParameterCount() == 1
-                        && method.getAnnotation(JsonCreator.class) != null) {
-                    return method;
+                        && method.getAnnotation(JsonCreator.class) != null
+                        && parameterCount < 2) {
+                    if (parameterCount == 0) {
+                        return new MethodAndMaybeParameter(method, null);
+                    } else if (parameterCount == 1) {
+                        Type parameterType = method.getParameters()[0].getParameterizedType();
+                        return new MethodAndMaybeParameter(method, parameterType);
+                    }
                 }
             }
         }
         return null;
     }
 
-    private static Optional<Object> invokeStaticFactoryMethod(Method method, Object parameter) {
+    private static Optional<Object> invokeStaticFactoryMethod(Method method, @Nullable Object parameter) {
         try {
-            return Optional.ofNullable(method.invoke(null, parameter));
+            return Optional.ofNullable(parameter == null ? method.invoke(null) : method.invoke(null, parameter));
         } catch (IllegalAccessException | InvocationTargetException e) {
             if (log.isDebugEnabled()) {
                 log.debug("Reflection instantiation failed", e);
@@ -162,4 +171,6 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
             return Optional.empty();
         }
     }
+
+    private record MethodAndMaybeParameter(Method method, @Nullable Type parameterType) {}
 }
