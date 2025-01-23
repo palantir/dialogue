@@ -43,8 +43,12 @@ public interface BodySerDe {
      */
     Deserializer<InputStream> inputStreamDeserializer();
 
+    <T> Deserializer<T> inputStreamDeserializer(DeserializerArgs<T> deserializerArgs);
+
     /** Same as {@link #inputStreamDeserializer()} with support for 204 responses. */
     Deserializer<Optional<InputStream>> optionalInputStreamDeserializer();
+
+    <T> Deserializer<T> optionalInputStreamDeserializer(DeserializerArgs<T> deserializerArgs);
 
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);

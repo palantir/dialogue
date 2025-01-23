@@ -47,8 +47,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 
 /** Package private internal API. */
 final class ConjureBodySerDe implements BodySerDe {
@@ -60,7 +62,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
     private final Deserializer<Void> emptyBodyDeserializer;
     private final LoadingCache<Type, Serializer<?>> serializers;
-    private final LoadingCache<Type, EncodingDeserializerForEndpointRegistry<?>> deserializers;
+    private final LoadingCache<Type, EncodingDeserializerForEndpointRegistry<?, ?>> deserializers;
     private final EmptyContainerDeserializer emptyContainerDeserializer;
 
     /**
@@ -77,7 +79,7 @@ final class ConjureBodySerDe implements BodySerDe {
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
         this.defaultEncoding = encodings.get(0).encoding();
         this.emptyContainerDeserializer = emptyContainerDeserializer;
-        this.binaryInputStreamDeserializer = new EncodingDeserializerForEndpointRegistry<>(
+        this.binaryInputStreamDeserializer = EncodingDeserializerForEndpointRegistry.create(
                 ImmutableList.of(BinaryEncoding.INSTANCE),
                 emptyContainerDeserializer,
                 BinaryEncoding.MARKER,
@@ -85,7 +87,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         .baseType(BinaryEncoding.MARKER)
                         .success(BinaryEncoding.MARKER)
                         .build());
-        this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerForEndpointRegistry<>(
+        this.optionalBinaryInputStreamDeserializer = EncodingDeserializerForEndpointRegistry.create(
                 ImmutableList.of(BinaryEncoding.INSTANCE),
                 emptyContainerDeserializer,
                 BinaryEncoding.OPTIONAL_MARKER,
@@ -101,8 +103,8 @@ final class ConjureBodySerDe implements BodySerDe {
         this.deserializers = Caffeine.from(cacheSpec).build(type -> buildCacheEntry(TypeMarker.of(type)));
     }
 
-    private <T> EncodingDeserializerForEndpointRegistry<?> buildCacheEntry(TypeMarker<T> typeMarker) {
-        return new EncodingDeserializerForEndpointRegistry<>(
+    private <T> EncodingDeserializerForEndpointRegistry<?, ?> buildCacheEntry(TypeMarker<T> typeMarker) {
+        return EncodingDeserializerForEndpointRegistry.create(
                 encodingsSortedByWeight,
                 emptyContainerDeserializer,
                 typeMarker,
@@ -143,11 +145,8 @@ final class ConjureBodySerDe implements BodySerDe {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(DeserializerArgs<T> deserializerArgs) {
-        return new EncodingDeserializerForEndpointRegistry<>(
-                encodingsSortedByWeight,
-                emptyContainerDeserializer,
-                (TypeMarker<T>) deserializerArgs.baseType(),
-                deserializerArgs);
+        return EncodingDeserializerForEndpointRegistry.create(
+                encodingsSortedByWeight, emptyContainerDeserializer, deserializerArgs.baseType(), deserializerArgs);
     }
 
     @Override
@@ -161,8 +160,31 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public <T> Deserializer<T> inputStreamDeserializer(DeserializerArgs<T> deserializerArgs) {
+        return new EncodingDeserializerForEndpointRegistry<>(
+                encodingsSortedByWeight,
+                emptyContainerDeserializer,
+                deserializerArgs.baseType(),
+                deserializerArgs,
+                BinaryEncoding.MARKER,
+                is -> createSuccessType(deserializerArgs.successType(), is));
+    }
+
+    @Override
     public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer() {
         return optionalBinaryInputStreamDeserializer;
+    }
+
+    @Override
+    public <T> Deserializer<T> optionalInputStreamDeserializer(DeserializerArgs<T> deserializerArgs) {
+        return new EncodingDeserializerForEndpointRegistry<>(
+                encodingsSortedByWeight,
+                emptyContainerDeserializer,
+                deserializerArgs.baseType(),
+                deserializerArgs,
+                BinaryEncoding.OPTIONAL_MARKER,
+                ois -> createSuccessType(deserializerArgs.successType(), ois));
     }
 
     @Override
@@ -244,24 +266,41 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
-    private static final class EncodingDeserializerForEndpointRegistry<T> implements Deserializer<T> {
+    private static final class EncodingDeserializerForEndpointRegistry<S, T> implements Deserializer<T> {
         private static final SafeLogger log = SafeLoggerFactory.get(EncodingDeserializerForEndpointRegistry.class);
-        private final ImmutableList<EncodingDeserializerContainer<? extends T>> encodings;
+        private final ImmutableList<EncodingDeserializerContainer<? extends S>> encodings;
         private final EndpointErrorDecoder<T> endpointErrorDecoder;
         private final Optional<String> acceptValue;
         private final Supplier<Optional<? extends T>> emptyInstance;
         private final TypeMarker<T> token;
         private final TypeMarker<? extends T> successTypeMarker;
+        private final @Nullable Function<S, T> transform;
+
+        @SuppressWarnings("unchecked")
+        static <T> EncodingDeserializerForEndpointRegistry<T, T> create(
+                List<Encoding> encodingsSortedByWeight,
+                EmptyContainerDeserializer empty,
+                TypeMarker<T> token,
+                DeserializerArgs<T> deserializersForEndpoint) {
+            return new EncodingDeserializerForEndpointRegistry<>(
+                    encodingsSortedByWeight,
+                    empty,
+                    token,
+                    deserializersForEndpoint,
+                    (TypeMarker<T>) deserializersForEndpoint.successType(),
+                    null);
+        }
 
         EncodingDeserializerForEndpointRegistry(
                 List<Encoding> encodingsSortedByWeight,
                 EmptyContainerDeserializer empty,
                 TypeMarker<T> token,
-                DeserializerArgs<T> deserializersForEndpoint) {
+                DeserializerArgs<T> deserializersForEndpoint,
+                TypeMarker<S> intermediateResult,
+                @Nullable Function<S, T> transform) {
             this.successTypeMarker = deserializersForEndpoint.successType();
             this.encodings = encodingsSortedByWeight.stream()
-                    .map(encoding ->
-                            new EncodingDeserializerContainer<>(encoding, deserializersForEndpoint.successType()))
+                    .map(encoding -> new EncodingDeserializerContainer<>(encoding, intermediateResult))
                     .collect(ImmutableList.toImmutableList());
             this.endpointErrorDecoder = new EndpointErrorDecoder<>(
                     deserializersForEndpoint.errorNameToTypeMarker(),
@@ -270,13 +309,14 @@ final class ConjureBodySerDe implements BodySerDe {
                             .findFirst());
             this.token = token;
             this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(successTypeMarker));
-            // Encodings are applied to the accept header in the order of preference based on the provided list.
             this.acceptValue = Optional.of(encodingsSortedByWeight.stream()
                     .map(Encoding::getContentType)
                     .collect(Collectors.joining(", ")));
+            this.transform = transform;
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public T deserialize(Response response) {
             boolean closeResponse = true;
             try {
@@ -300,11 +340,21 @@ final class ConjureBodySerDe implements BodySerDe {
                             "Response is missing Content-Type header",
                             SafeArg.of("received", response.headers().keySet()));
                 }
-                Encoding.Deserializer<? extends T> deserializer = getResponseDeserializer(contentType.get());
-                T deserialized = deserializer.deserialize(response.body());
+                Encoding.Deserializer<? extends S> deserializer = getResponseDeserializer(contentType.get());
+                S deserialized = deserializer.deserialize(response.body());
                 // deserializer has taken on responsibility for closing the response body
                 closeResponse = false;
-                return deserialized;
+                if (transform == null) {
+                    return (T) deserialized;
+                }
+                T responseValue = transform.apply(deserialized);
+                if (responseValue == null) {
+                    throw new SafeRuntimeException(
+                            "Failed to create success type",
+                            SafeArg.of("type", token),
+                            SafeArg.of("deserialized", deserialized));
+                }
+                return responseValue;
             } catch (IOException e) {
                 throw new SafeRuntimeException(
                         "Failed to deserialize response stream",
@@ -326,9 +376,9 @@ final class ConjureBodySerDe implements BodySerDe {
         /** Returns the {@link EncodingDeserializerContainer} to use to deserialize the request body. */
         @SuppressWarnings("ForLoopReplaceableByForEach")
         // performance sensitive code avoids iterator allocation
-        Encoding.Deserializer<? extends T> getResponseDeserializer(String contentType) {
+        Encoding.Deserializer<? extends S> getResponseDeserializer(String contentType) {
             for (int i = 0; i < encodings.size(); i++) {
-                EncodingDeserializerContainer<? extends T> container = encodings.get(i);
+                EncodingDeserializerContainer<? extends S> container = encodings.get(i);
                 if (container.encoding.supportsContentType(contentType)) {
                     return container.deserializer;
                 }
@@ -336,20 +386,17 @@ final class ConjureBodySerDe implements BodySerDe {
             return throwingDeserializer(contentType);
         }
 
-        private Encoding.Deserializer<T> throwingDeserializer(String contentType) {
-            return new Encoding.Deserializer<T>() {
-                @Override
-                public T deserialize(InputStream input) {
-                    try {
-                        input.close();
-                    } catch (RuntimeException | IOException e) {
-                        log.warn("Failed to close InputStream", e);
-                    }
-                    throw new SafeRuntimeException(
-                            "Unsupported Content-Type",
-                            SafeArg.of("received", contentType),
-                            SafeArg.of("supportedEncodings", encodings));
+        private Encoding.Deserializer<S> throwingDeserializer(String contentType) {
+            return input -> {
+                try {
+                    input.close();
+                } catch (RuntimeException | IOException e) {
+                    log.warn("Failed to close InputStream", e);
                 }
+                throw new SafeRuntimeException(
+                        "Unsupported Content-Type",
+                        SafeArg.of("received", contentType),
+                        SafeArg.of("supportedEncodings", encodings));
             };
         }
     }
@@ -399,5 +446,36 @@ final class ConjureBodySerDe implements BodySerDe {
         public String toString() {
             return "EmptyBodyDeserializer{}";
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Nullable
+    private static <T> T createSuccessType(TypeMarker<T> successT, InputStream inputStream) {
+        if (successT.getType() instanceof Class<?>) {
+            try {
+                return (T) ((Class<?>) successT.getType())
+                        .getConstructor(InputStream.class)
+                        .newInstance(inputStream);
+            } catch (ReflectiveOperationException e) {
+                throw new SafeRuntimeException("Failed to create success type", e);
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Nullable
+    private static <T> T createSuccessType(TypeMarker<T> successT, Optional<InputStream> optionalInputStream) {
+        if (successT.getType() instanceof Class<?>) {
+            try {
+                return (T) ((Class<?>) successT.getType())
+                        // TODO(pm): check that the param is Optional<InputStream>
+                        .getConstructor(Optional.class)
+                        .newInstance(optionalInputStream);
+            } catch (ReflectiveOperationException e) {
+                throw new SafeRuntimeException("Failed to create success type", e);
+            }
+        }
+        return null;
     }
 }
