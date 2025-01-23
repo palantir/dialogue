@@ -41,6 +41,8 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -168,7 +170,7 @@ final class ConjureBodySerDe implements BodySerDe {
                 deserializerArgs.baseType(),
                 deserializerArgs,
                 BinaryEncoding.MARKER,
-                is -> createSuccessType(deserializerArgs.successType(), is));
+                (Function<InputStream, T>) createSuccessTypeFunctionForInputStream(deserializerArgs.successType()));
     }
 
     @Override
@@ -177,6 +179,7 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> Deserializer<T> optionalInputStreamDeserializer(DeserializerArgs<T> deserializerArgs) {
         return new EncodingDeserializerForEndpointRegistry<>(
                 encodingsSortedByWeight,
@@ -184,7 +187,8 @@ final class ConjureBodySerDe implements BodySerDe {
                 deserializerArgs.baseType(),
                 deserializerArgs,
                 BinaryEncoding.OPTIONAL_MARKER,
-                ois -> createSuccessType(deserializerArgs.successType(), ois));
+                (Function<Optional<InputStream>, T>)
+                        createSuccessTypeFunctionForOptionalInputStream(deserializerArgs.successType()));
     }
 
     @Override
@@ -271,9 +275,8 @@ final class ConjureBodySerDe implements BodySerDe {
         private final ImmutableList<EncodingDeserializerContainer<? extends S>> encodings;
         private final EndpointErrorDecoder<T> endpointErrorDecoder;
         private final Optional<String> acceptValue;
-        private final Supplier<Optional<? extends T>> emptyInstance;
+        private final Supplier<Optional<? extends S>> emptyInstance;
         private final TypeMarker<T> token;
-        private final TypeMarker<? extends T> successTypeMarker;
         private final @Nullable Function<S, T> transform;
 
         @SuppressWarnings("unchecked")
@@ -298,7 +301,6 @@ final class ConjureBodySerDe implements BodySerDe {
                 DeserializerArgs<T> deserializersForEndpoint,
                 TypeMarker<S> intermediateResult,
                 @Nullable Function<S, T> transform) {
-            this.successTypeMarker = deserializersForEndpoint.successType();
             this.encodings = encodingsSortedByWeight.stream()
                     .map(encoding -> new EncodingDeserializerContainer<>(encoding, intermediateResult))
                     .collect(ImmutableList.toImmutableList());
@@ -308,7 +310,7 @@ final class ConjureBodySerDe implements BodySerDe {
                             .filter(encoding -> encoding.supportsContentType("application/json"))
                             .findFirst());
             this.token = token;
-            this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(successTypeMarker));
+            this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(intermediateResult));
             this.acceptValue = Optional.of(encodingsSortedByWeight.stream()
                     .map(Encoding::getContentType)
                     .collect(Collectors.joining(", ")));
@@ -326,9 +328,12 @@ final class ConjureBodySerDe implements BodySerDe {
                     // TODO(dfox): what if we get a 204 for a non-optional type???
                     // TODO(dfox): support http200 & body=null
                     // TODO(dfox): what if we were expecting an empty list but got {}?
-                    Optional<? extends T> maybeEmptyInstance = emptyInstance.get();
+                    Optional<? extends S> maybeEmptyInstance = emptyInstance.get();
                     if (maybeEmptyInstance.isPresent()) {
-                        return maybeEmptyInstance.get();
+                        if (transform == null) {
+                            return (T) maybeEmptyInstance.get();
+                        }
+                        return transform.apply(maybeEmptyInstance.get());
                     }
                     throw new SafeRuntimeException(
                             "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
@@ -347,14 +352,7 @@ final class ConjureBodySerDe implements BodySerDe {
                 if (transform == null) {
                     return (T) deserialized;
                 }
-                T responseValue = transform.apply(deserialized);
-                if (responseValue == null) {
-                    throw new SafeRuntimeException(
-                            "Failed to create success type",
-                            SafeArg.of("type", token),
-                            SafeArg.of("deserialized", deserialized));
-                }
-                return responseValue;
+                return transform.apply(deserialized);
             } catch (IOException e) {
                 throw new SafeRuntimeException(
                         "Failed to deserialize response stream",
@@ -449,33 +447,57 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @SuppressWarnings("unchecked")
-    @Nullable
-    private static <T> T createSuccessType(TypeMarker<T> successT, InputStream inputStream) {
-        if (successT.getType() instanceof Class<?>) {
+    private static <T> Function<InputStream, T> createSuccessTypeFunctionForInputStream(TypeMarker<T> successT) {
+        return successTypeCreatorFactory(successT, successType -> {
             try {
-                return (T) ((Class<?>) successT.getType())
-                        .getConstructor(InputStream.class)
-                        .newInstance(inputStream);
-            } catch (ReflectiveOperationException e) {
-                throw new SafeRuntimeException("Failed to create success type", e);
+                return ((Class<T>) successType.getType()).getConstructor(InputStream.class);
+            } catch (ReflectiveOperationException ex) {
+                throw new SafeRuntimeException("Failed to create success type", ex);
             }
-        }
-        return null;
+        });
     }
 
     @SuppressWarnings("unchecked")
-    @Nullable
-    private static <T> T createSuccessType(TypeMarker<T> successT, Optional<InputStream> optionalInputStream) {
-        if (successT.getType() instanceof Class<?>) {
+    private static <T> Function<Optional<InputStream>, T> createSuccessTypeFunctionForOptionalInputStream(
+            TypeMarker<T> successT) {
+        return successTypeCreatorFactory(successT, successType -> {
             try {
-                return (T) ((Class<?>) successT.getType())
-                        // TODO(pm): check that the param is Optional<InputStream>
-                        .getConstructor(Optional.class)
-                        .newInstance(optionalInputStream);
+                Class<T> clazz = (Class<T>) successType.getType();
+                for (Constructor<?> ctor : clazz.getConstructors()) {
+                    if (ctor.getParameterCount() != 1) {
+                        continue;
+                    }
+                    Type paramType = ctor.getGenericParameterTypes()[0];
+                    if (paramType instanceof ParameterizedType parameterizedType) {
+                        if (parameterizedType.getRawType().equals(Optional.class)
+                                && parameterizedType.getActualTypeArguments()[0].equals(InputStream.class)) {
+                            return (Constructor<T>) ctor;
+                        }
+                    }
+                }
+            } catch (SecurityException ex) {
+                throw new SafeRuntimeException("Failed to create success type", ex);
+            }
+            throw new SafeRuntimeException(
+                    "Failed to create success type. Could not find constructor with Optional<InputStream> parameter");
+        });
+    }
+
+    private static <S, T> Function<S, T> successTypeCreatorFactory(
+            TypeMarker<T> successT, Function<TypeMarker<T>, Constructor<T>> ctorExtractor) {
+        if (!(successT.getType() instanceof Class<?>)) {
+            throw new SafeRuntimeException("Failed to create success type", SafeArg.of("type", successT));
+        }
+        Constructor<T> ctor = ctorExtractor.apply(successT);
+        if (ctor == null) {
+            throw new SafeRuntimeException("Failed to create success type", SafeArg.of("type", successT));
+        }
+        return ctorParam -> {
+            try {
+                return ctor.newInstance(ctorParam);
             } catch (ReflectiveOperationException e) {
                 throw new SafeRuntimeException("Failed to create success type", e);
             }
-        }
-        return null;
+        };
     }
 }
