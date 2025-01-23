@@ -43,13 +43,8 @@ final class TracedChannel implements EndpointChannel {
     }
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
-        String operationName =
-                "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName() + meshSuffix(cf.mesh());
+        String operationName = "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName();
         return new TracedChannel(delegate, operationName, tracingTags(cf, endpoint));
-    }
-
-    private static String meshSuffix(MeshMode meshMode) {
-        return meshMode == MeshMode.USE_EXTERNAL_MESH ? " (Mesh)" : "";
     }
 
     private static ImmutableMap<String, String> tracingTags(Config cf, Endpoint endpoint) {

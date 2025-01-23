@@ -470,35 +470,6 @@ public class DialogueClientsDnsIntegrationTest {
     }
 
     @Test
-    void meshModeDoesNotUseDnsNodeDiscovery() throws UnknownHostException {
-        String host = "somehost";
-        String service = "service";
-        DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
-                .putAll(
-                        host,
-                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 1}),
-                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
-                .build());
-        Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
-                        Refreshable.only(ServicesConfigBlock.builder()
-                                .defaultSecurity(TestConfigurations.SSL_CONFIG)
-                                .putServices(
-                                        service,
-                                        PartialServiceConfiguration.builder()
-                                                .addUris("mesh-https://" + host + ":8080")
-                                                .build())
-                                .build()))
-                .withDnsNodeDiscovery(true)
-                .withDnsResolver(resolver)
-                .withUserAgent(TestConfigurations.AGENT)
-                .perHost(service)
-                .getNamedPerHostChannels();
-        assertThat(perHostChannels.get())
-                .as("Mesh-mode URIs should result in a single channel")
-                .hasSize(1);
-    }
-
-    @Test
     void proxyDoesNotUseDnsNodeDiscovery() throws UnknownHostException {
         String host = "somehost";
         String service = "service";

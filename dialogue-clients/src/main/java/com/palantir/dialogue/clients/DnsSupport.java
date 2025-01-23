@@ -151,16 +151,6 @@ final class DnsSupport {
         return dnsResolutionResult;
     }
 
-    /**
-     * This prefix may reconfigure several aspects of the client to work better in a world where requests are routed
-     * through a service mesh like istio/envoy.
-     */
-    private static final String MESH_PREFIX = "mesh-";
-
-    static boolean isMeshMode(String uri) {
-        return uri.startsWith(MESH_PREFIX);
-    }
-
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     static ImmutableList<TargetUri> getTargetUris(
             @Safe String serviceNameForLogging,
@@ -177,11 +167,9 @@ final class DnsSupport {
                 continue;
             }
             // When resolvedHosts is an empty optional, dns-based discovery is not supported.
-            // Mesh mode does not require any form of dns updating because all dns results
-            // are considered equivalent.
             // When a proxy is used, pre-resolved IP addresses have no impact. In many cases the
             // proxy handles DNS resolution.
-            if (resolvedHosts.isEmpty() || DnsSupport.isMeshMode(uri) || usesProxy(proxySelector, parsed)) {
+            if (resolvedHosts.isEmpty() || usesProxy(proxySelector, parsed)) {
                 targetUris.add(TargetUri.of(uri));
             } else {
                 String host = parsed.getHost();
@@ -300,10 +288,6 @@ final class DnsSupport {
 
         boolean isSuccessful() {
             return uri() != null;
-        }
-
-        boolean isMeshMode() {
-            return uri() != null && DnsSupport.isMeshMode(uri().getScheme());
         }
 
         @Unsafe

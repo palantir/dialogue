@@ -115,11 +115,8 @@ final class RetryOtherValidatingChannel implements Channel {
     @VisibleForTesting
     @CheckForNull
     static String maybeParseHost(String uri) {
-        // n.b. URL cannot handle mesh-http uris. Ideally we'd use the URI type here,
-        // however there are edge cases where it may fail that URL may succeed.
-        String normalized = MeshMode.stripMeshPrefix(uri);
         try {
-            URL parsed = new URL(normalized);
+            URL parsed = new URL(uri);
             return parsed.getHost();
         } catch (MalformedURLException e) {
             return null;

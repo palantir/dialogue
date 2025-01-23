@@ -49,8 +49,8 @@ import org.mockito.Mockito;
 
 public final class ContentDecodingChannelTest {
 
-    private Config standard;
-    private Config mesh;
+    private Config external;
+    private Config inEnvironment;
 
     @BeforeEach
     void before() throws Exception {
@@ -61,14 +61,18 @@ public final class ContentDecodingChannelTest {
                 tm);
         Refreshable<List<TargetUri>> targets =
                 Refreshable.only(ImmutableList.of(TargetUri.of("https://localhost:8123")));
-        standard = Mockito.mock(Config.class);
-        Mockito.when(standard.mesh()).thenReturn(MeshMode.DEFAULT_NO_MESH);
-        Mockito.when(standard.clientConf()).thenReturn(clientConfig);
-        Mockito.when(standard.uris()).thenReturn(targets);
-        mesh = Mockito.mock(Config.class);
-        Mockito.when(mesh.mesh()).thenReturn(MeshMode.USE_EXTERNAL_MESH);
-        Mockito.when(mesh.clientConf()).thenReturn(clientConfig);
-        Mockito.when(mesh.uris()).thenReturn(targets);
+        external = Mockito.mock(Config.class);
+        Mockito.when(external.clientConf()).thenReturn(clientConfig);
+        Mockito.when(external.uris()).thenReturn(targets);
+        inEnvironment = Mockito.mock(Config.class);
+        Mockito.when(inEnvironment.clientConf())
+                .thenReturn(ClientConfiguration.builder()
+                        .from(clientConfig)
+                        .uris(ImmutableList.of("https://127.0.0.1:8123", "https://127.0.0.2:8123"))
+                        .build());
+        Mockito.when(inEnvironment.uris())
+                .thenReturn(Refreshable.only(ImmutableList.of(
+                        TargetUri.of("https://127.0.0.1:8123"), TargetUri.of("https://127.0.0.2:8123"))));
     }
 
     @Test
@@ -81,7 +85,7 @@ public final class ContentDecodingChannelTest {
             throw new IllegalStateException(e);
         }
         Response response = ContentDecodingChannel.create(
-                        standard,
+                        external,
                         _request -> Futures.immediateFuture(new TestResponse(out.toByteArray())
                                 .withHeader("content-encoding", "gzip")
                                 .withHeader("content-length", Integer.toString(out.size()))),
@@ -92,10 +96,10 @@ public final class ContentDecodingChannelTest {
         assertThat(ByteStreams.toByteArray(response.body())).containsExactly(expected);
     }
 
-    // In mesh mode, decoding should continue to work, but the accept-encoding header will not be sent
-    // in order to hint that we don't want the server to encode.
+    // In when requests appear to be in-environment, decoding should continue to work, but the accept-encoding header
+    // will not be sent in order to hint that we don't want the server to encode.
     @Test
-    public void testDecoding_mesh() throws Exception {
+    public void testDecoding_inEnvironment() throws Exception {
         byte[] expected = new byte[] {1, 2, 3, 4};
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (GZIPOutputStream compressor = new GZIPOutputStream(out)) {
@@ -104,7 +108,7 @@ public final class ContentDecodingChannelTest {
             throw new IllegalStateException(e);
         }
         Response response = ContentDecodingChannel.create(
-                        mesh,
+                        inEnvironment,
                         _request -> Futures.immediateFuture(new TestResponse(out.toByteArray())
                                 .withHeader("content-encoding", "gzip")
                                 .withHeader("content-length", Integer.toString(out.size()))),
@@ -119,7 +123,7 @@ public final class ContentDecodingChannelTest {
     public void testDecoding_delayedFailure() throws Exception {
         // Will fail because it's not valid gzip content
         Response response = ContentDecodingChannel.create(
-                        standard,
+                        external,
                         _request -> Futures.immediateFuture(
                                 // Will fail because it's not valid gzip content
                                 new TestResponse(new byte[] {1, 2, 3, 4}).withHeader("content-encoding", "gzip")),
@@ -136,7 +140,7 @@ public final class ContentDecodingChannelTest {
     public void testOnlyDecodesGzip() throws Exception {
         byte[] content = new byte[] {1, 2, 3, 4};
         Response response = ContentDecodingChannel.create(
-                        standard,
+                        external,
                         _request -> Futures.immediateFuture(
                                 new TestResponse(content).withHeader("content-encoding", "unknown")),
                         TestEndpoint.GET)
@@ -149,7 +153,7 @@ public final class ContentDecodingChannelTest {
     @Test
     public void testRequestHeader() throws Exception {
         ContentDecodingChannel.create(
-                        standard,
+                        external,
                         request -> {
                             assertThat(request.headerParams()).contains(MapEntry.entry("accept-encoding", "gzip"));
                             return Futures.immediateFuture(new TestResponse());
@@ -160,9 +164,9 @@ public final class ContentDecodingChannelTest {
     }
 
     @Test
-    public void testRequestHeader_mesh() throws Exception {
+    public void testRequestHeader_inEnvironment() throws Exception {
         ContentDecodingChannel.create(
-                        mesh,
+                        inEnvironment,
                         request -> {
                             assertThat(request.headerParams().keySet()).doesNotContain("accept-encoding");
                             return Futures.immediateFuture(new TestResponse());
@@ -173,9 +177,9 @@ public final class ContentDecodingChannelTest {
     }
 
     @Test
-    public void testRequestHeader_meshWithOverride() throws Exception {
+    public void testRequestHeader_inEnvironmentWithOverride() throws Exception {
         ContentDecodingChannel.create(
-                        mesh,
+                        inEnvironment,
                         request -> {
                             assertThat(request.headerParams()).contains(MapEntry.entry("accept-encoding", "gzip"));
                             return Futures.immediateFuture(new TestResponse());
@@ -188,7 +192,7 @@ public final class ContentDecodingChannelTest {
     @Test
     public void testRequestHeader_existingIsNotReplaced() throws Exception {
         ContentDecodingChannel.create(
-                        standard,
+                        external,
                         request -> {
                             assertThat(request.headerParams())
                                     .as("The requested 'identity' encoding should not be replaced")
@@ -205,7 +209,7 @@ public final class ContentDecodingChannelTest {
     @Test
     public void testResponseHeaders() throws Exception {
         ContentDecodingChannel.create(
-                        standard,
+                        external,
                         request -> {
                             assertThat(request.headerParams())
                                     .as("The requested 'identity' encoding should not be replaced")

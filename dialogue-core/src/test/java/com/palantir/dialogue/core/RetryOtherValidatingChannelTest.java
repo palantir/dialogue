@@ -102,12 +102,6 @@ public final class RetryOtherValidatingChannelTest {
     }
 
     @Test
-    void parsesMeshUris() {
-        assertThat(RetryOtherValidatingChannel.maybeParseHost("mesh-http://localhost:1234/api"))
-                .isEqualTo("localhost");
-    }
-
-    @Test
     void parsesStandardUris() {
         assertThat(RetryOtherValidatingChannel.maybeParseHost("https://host.palantir.com:1234/api"))
                 .isEqualTo("host.palantir.com");

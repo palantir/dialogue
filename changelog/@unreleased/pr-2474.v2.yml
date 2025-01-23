@@ -1,0 +1,6 @@
+type: break
+break:
+  description: Remove unsupported mesh- URI support. This should have no impact for
+    users.
+  links:
+  - https://github.com/palantir/dialogue/pull/2474

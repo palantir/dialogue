@@ -36,19 +36,11 @@ final class DialogueTracing {
     }
 
     static ImmutableMap<String, String> tracingTags(Config cf) {
-        return ImmutableMap.of(
-                "channel", cf.channelName(),
-                "mesh", Boolean.toString(cf.mesh() == MeshMode.USE_EXTERNAL_MESH));
+        return ImmutableMap.of("channel", cf.channelName());
     }
 
     static ImmutableMap<String, String> tracingTags(Config cf, int hostIndex) {
-        return ImmutableMap.of(
-                "channel",
-                cf.channelName(),
-                "mesh",
-                Boolean.toString(cf.mesh() == MeshMode.USE_EXTERNAL_MESH),
-                "hostIndex",
-                Integer.toString(hostIndex));
+        return ImmutableMap.of("channel", cf.channelName(), "hostIndex", Integer.toString(hostIndex));
     }
 
     static TagTranslator<Response> responseTranslator(ImmutableMap<String, String> tags) {

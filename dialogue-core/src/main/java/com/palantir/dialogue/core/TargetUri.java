@@ -29,7 +29,7 @@ public final class TargetUri implements Comparable<TargetUri> {
     private final Optional<InetAddress> resolvedAddress;
 
     private TargetUri(String uri, Optional<InetAddress> resolvedAddress) {
-        this.uri = MeshMode.stripMeshPrefix(Preconditions.checkNotNull(uri, "uri"));
+        this.uri = Preconditions.checkNotNull(uri, "uri");
         this.resolvedAddress = Preconditions.checkNotNull(resolvedAddress, "resolvedAddress");
     }
 
@@ -108,9 +108,9 @@ public final class TargetUri implements Comparable<TargetUri> {
 
         private Builder() {}
 
-        /** Sets the {@link #uri} field. Note that this does not retain service-mesh prefixes. */
+        /** Sets the {@link #uri} field. */
         public Builder uri(String value) {
-            this.uri = MeshMode.stripMeshPrefix(Preconditions.checkNotNull(value, "uri"));
+            this.uri = Preconditions.checkNotNull(value, "uri");
             return this;
         }
 
