@@ -50,8 +50,6 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
     @Override
     @CheckForNull
     public HttpHost determineProxy(final HttpHost target, final HttpContext _context) throws HttpException {
-        final URI targetUri = parseTargetUri(target);
-
         ProxySelector proxySelectorInstance = this.proxySelector;
         if (proxySelectorInstance == null) {
             proxySelectorInstance = ProxySelector.getDefault();
@@ -60,29 +58,25 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
             // The proxy selector can be "unset", so we must be able to deal with a null selector
             return null;
         }
-        final List<Proxy> proxies = proxySelectorInstance.select(targetUri);
-        final Proxy p = chooseProxy(proxies);
-        HttpHost result = null;
-        if (p.type() == Proxy.Type.HTTP) {
+        Proxy proxy = chooseProxy(proxySelectorInstance.select(parseTargetUri(target)));
+        if (Proxy.Type.HTTP.equals(proxy.type())) {
             // convert the socket address to an HttpHost
-            if (p.address() instanceof InetSocketAddress isa) {
-                String scheme = HttpsProxies.isHttps(p) ? "https" : "http";
-                result = new HttpHost(scheme, isa.getAddress(), isa.getHostString(), isa.getPort());
-            } else {
-                throw new HttpException("Unable to handle non-Inet proxy address: " + p.address());
+            if (proxy.address() instanceof InetSocketAddress isa) {
+                String scheme = HttpsProxies.isHttps(proxy) ? "https" : "http";
+                return new HttpHost(scheme, isa.getAddress(), isa.getHostString(), isa.getPort());
             }
+            throw new HttpException("Unable to handle non-Inet proxy address: " + proxy.address());
         }
 
-        return result;
+        return null;
     }
 
     private static URI parseTargetUri(HttpHost target) throws HttpException {
         MaybeUri maybeUri = Uris.tryParse(target.toString());
         if (maybeUri.isSuccessful()) {
             return maybeUri.uriOrThrow();
-        } else {
-            throw new HttpException("Cannot convert host to URI: " + target, maybeUri.exception());
         }
+        throw new HttpException("Cannot convert host to URI: " + target, maybeUri.exception());
     }
 
     private Proxy chooseProxy(final List<Proxy> proxies) {
@@ -104,7 +98,7 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
         }
         if (result == null) {
             // @@@ log as warning or info that only a socks proxy is available?
-            // result can only be null if all proxies are socks proxies
+            // result can only be null if all proxies are socks proxies.
             // socks proxies are not handled on the route planning level
             result = Proxy.NO_PROXY;
         }

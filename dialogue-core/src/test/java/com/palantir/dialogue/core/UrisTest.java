@@ -49,25 +49,6 @@ class UrisTest {
     void parsesValidUris(String input) {
         assertThat(Uris.tryParse(input)).isNotNull().satisfies(parsed -> {
             assertThat(parsed.isSuccessful()).isTrue();
-            assertThat(parsed.isMeshMode()).isFalse();
-            assertThat(parsed.exception()).isNull();
-            assertThat(parsed.uri()).isNotNull();
-            assertThat(parsed.uriOrThrow()).isNotNull();
-        });
-    }
-
-    @ParameterizedTest
-    @ValueSource(
-            strings = {
-                "mesh-http://www.palantir.com/",
-                "mesh-https://www.palantir.com",
-                "mesh-https://github.com/palantir",
-                "mesh-https://www.example.com/foo/bar/baz",
-            })
-    void parsesMeshUris(String input) {
-        assertThat(Uris.tryParse(input)).isNotNull().satisfies(parsed -> {
-            assertThat(parsed.isSuccessful()).isTrue();
-            assertThat(parsed.isMeshMode()).isTrue();
             assertThat(parsed.exception()).isNull();
             assertThat(parsed.uri()).isNotNull();
             assertThat(parsed.uriOrThrow()).isNotNull();
@@ -79,7 +60,6 @@ class UrisTest {
     void parsesInvalidUris(String input) {
         assertThat(Uris.tryParse(input)).isNotNull().satisfies(parsed -> {
             assertThat(parsed.isSuccessful()).isFalse();
-            assertThat(parsed.isMeshMode()).isFalse();
             assertThat(parsed.exception()).isNotNull();
             assertThat(parsed.uri()).isNull();
             assertThatThrownBy(parsed::uriOrThrow)
@@ -96,9 +76,6 @@ class UrisTest {
         "github.com,https://github.com/palantir/dialogue/",
         "github.com,https://github.com:443/palantir/dialogue/",
         "github.com,https://github.com:8080/palantir/dialogue/",
-        "github.com,mesh-https://github.com/palantir/dialogue/",
-        "github.com,mesh-https://github.com:443/palantir/dialogue/",
-        "github.com,mesh-https://github.com:8080/palantir/dialogue/",
     })
     void tryGetHost(String expectedHostname, String input) {
         assertThat(Uris.tryParse(input)).satisfies(parsed -> {
@@ -106,23 +83,6 @@ class UrisTest {
             assertThat(parsed.uri()).isNotNull();
             assertThat(parsed.uri().getHost()).isEqualTo(expectedHostname);
             assertThat(parsed.exception()).isNull();
-            assertThat(parsed.isMeshMode()).isEqualTo(input.startsWith("mesh-"));
         });
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-        "false,https://github.com",
-        "false,https://github.com:443",
-        "false,https://github.com:8080",
-        "false,https://github.com/palantir/dialogue/",
-        "false,https://github.com:443/palantir/dialogue/",
-        "false,https://github.com:8080/palantir/dialogue/",
-        "true,mesh-https://github.com/palantir/dialogue/",
-        "true,mesh-https://github.com:443/palantir/dialogue/",
-        "true,mesh-https://github.com:8080/palantir/dialogue/",
-    })
-    void isMeshMode(boolean expected, String input) {
-        assertThat(Uris.isMeshMode(input)).isEqualTo(expected).isEqualTo(Uris.isMeshMode(input));
     }
 }

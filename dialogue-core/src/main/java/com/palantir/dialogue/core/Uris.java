@@ -37,12 +37,6 @@ public final class Uris {
     private static final SafeLogger log = SafeLoggerFactory.get(Uris.class);
 
     /**
-     * This prefix may reconfigure several aspects of the client to work better in a world where requests are routed
-     * through a service mesh like istio/envoy.
-     */
-    private static final String MESH_PREFIX = "mesh-";
-
-    /**
      * Shared cache of string to parsed URI. This avoids excessive allocation overhead when parsing repeated targets.
      */
     private static final LoadingCache<String, MaybeUri> uriCache = CacheStats.of(
@@ -75,14 +69,6 @@ public final class Uris {
         uriCache.invalidateAll();
     }
 
-    /**
-     * Returns true if the specified URI string is a mesh-mode formatted URI, configured to route through a
-     * service mesh like istio/envoy.
-     */
-    public static boolean isMeshMode(String uri) {
-        return uri.startsWith(MESH_PREFIX);
-    }
-
     @Unsafe
     @Value.Immutable(builder = false)
     @DialogueImmutablesStyle
@@ -98,12 +84,6 @@ public final class Uris {
         @Value.Derived
         default boolean isSuccessful() {
             return uri() != null;
-        }
-
-        @Value.Derived
-        default boolean isMeshMode() {
-            URI uri = uri();
-            return uri != null && Uris.isMeshMode(uri.getScheme());
         }
 
         @Unsafe

@@ -474,7 +474,7 @@ public final class ApacheHttpClientChannels {
             String name = Preconditions.checkNotNull(clientName, "Client name is required");
             Preconditions.checkArgument(
                     !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
-            Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
+            Preconditions.checkArgument(conf.meshProxy().isEmpty(), "Mesh proxy is not supported");
 
             Timeout socketTimeout = getSocketTimeout(conf, name);
 

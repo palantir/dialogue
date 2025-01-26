@@ -84,12 +84,10 @@ public final class TargetUri implements Comparable<TargetUri> {
         return result;
     }
 
-    /** Note that this does not retain service-mesh prefixes. */
     public static TargetUri of(String uri) {
         return new TargetUri(uri, Optional.empty());
     }
 
-    /** Note that this does not retain service-mesh prefixes. */
     public static TargetUri of(String uri, @Nullable InetAddress resolvedAddress) {
         return new TargetUri(uri, Optional.ofNullable(resolvedAddress));
     }
