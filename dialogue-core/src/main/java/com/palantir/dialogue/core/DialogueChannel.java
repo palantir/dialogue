@@ -24,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
+import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -41,6 +42,7 @@ import com.palantir.refreshable.Refreshable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -305,12 +307,13 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
         private static EndpointChannelFactory createEndpointChannelFactory(Channel multiHostQueuedChannel, Config cf) {
             Channel queuedChannel = new QueueOverrideChannel(multiHostQueuedChannel);
+            Optional<UserAgent> maybeUserAgent = cf.clientConf().userAgent();
             return endpoint -> {
                 EndpointChannel endpointChannel = new EndpointChannelAdapter(endpoint, queuedChannel);
-                EndpointChannel channel = cf.clientConf()
-                        .userAgent()
-                        .map(userAgent -> UserAgentEndpointChannel.create(endpointChannel, endpoint, userAgent))
-                        .orElse(endpointChannel);
+                //noinspection OptionalIsPresent avoid allocation via Optional#map
+                EndpointChannel channel = maybeUserAgent.isEmpty()
+                        ? endpointChannel
+                        : UserAgentEndpointChannel.create(endpointChannel, endpoint, maybeUserAgent.get());
                 channel = RetryingChannel.create(cf, channel, endpoint);
                 channel = DeprecationWarningChannel.create(cf, channel, endpoint);
                 channel = ContentDecodingChannel.create(cf, channel, endpoint);

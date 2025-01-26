@@ -35,12 +35,17 @@ enum DialogueNodeSelectionStrategy {
     UNKNOWN;
 
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueNodeSelectionStrategy.class);
-    private static final Splitter SPLITTER = Splitter.on(",").trimResults().omitEmptyStrings();
+    public static final String COMMA_SEPARATOR = ",";
+    private static final Splitter SPLITTER =
+            Splitter.on(COMMA_SEPARATOR).trimResults().omitEmptyStrings();
 
     static List<DialogueNodeSelectionStrategy> fromHeader(String header) {
-        return SPLITTER.splitToStream(header)
-                .map(DialogueNodeSelectionStrategy::safeValueOf)
-                .toList();
+        if (header.contains(COMMA_SEPARATOR)) {
+            return SPLITTER.splitToStream(header)
+                    .map(DialogueNodeSelectionStrategy::safeValueOf)
+                    .toList();
+        }
+        return List.of(DialogueNodeSelectionStrategy.safeValueOf(header.trim()));
     }
 
     /**

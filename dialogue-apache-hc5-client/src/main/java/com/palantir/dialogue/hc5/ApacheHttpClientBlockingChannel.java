@@ -369,7 +369,12 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public Optional<String> getFirstHeader(String header) {
-            return Optional.ofNullable(response.getFirstHeader(header)).map(Header::getValue);
+            Header firstHeader = response.getFirstHeader(header);
+            if (firstHeader != null) {
+                // explicitly not using Optional::map to avoid extra allocation
+                return Optional.of(firstHeader.getValue());
+            }
+            return Optional.empty();
         }
 
         @Override
