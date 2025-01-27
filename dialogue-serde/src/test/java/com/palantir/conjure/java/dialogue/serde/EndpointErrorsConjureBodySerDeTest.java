@@ -71,12 +71,7 @@ public class EndpointErrorsConjureBodySerDeTest {
     private sealed interface EmptyBodyEndpointReturnBaseType permits EmptyReturnValue, ErrorReturnValue {}
 
     @Generated("by conjure-java")
-    record EmptyReturnValue() implements EmptyBodyEndpointReturnBaseType {
-        @JsonCreator
-        public static EmptyReturnValue create() {
-            return new EmptyReturnValue();
-        }
-    }
+    record EmptyReturnValue() implements EmptyBodyEndpointReturnBaseType {}
 
     @Generated("by conjure-java")
     private sealed interface EndpointReturnBaseType permits ExpectedReturnValue, ErrorReturnValue {}
