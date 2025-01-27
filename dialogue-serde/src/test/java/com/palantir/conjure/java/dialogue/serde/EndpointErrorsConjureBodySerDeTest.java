@@ -21,6 +21,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOf
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
@@ -83,22 +84,23 @@ public class EndpointErrorsConjureBodySerDeTest {
     private sealed interface EndpointOptionalBinaryReturnBaseType permits OptionalBinaryReturnValue, ErrorReturnValue {}
 
     @Generated("by conjure-java")
-    record ExpectedReturnValue(String value) implements EndpointReturnBaseType {
-        @JsonCreator
-        public static ExpectedReturnValue create(String value) {
-            return new ExpectedReturnValue(Preconditions.checkArgumentNotNull(value, "value cannot be null"));
+    record ExpectedReturnValue(@JsonValue String value) implements EndpointReturnBaseType {
+        public ExpectedReturnValue {
+            Preconditions.checkArgumentNotNull(value, "value cannot be null");
         }
     }
 
     @Generated("by conjure-java")
-    record BinaryReturnValue(@MustBeClosed InputStream value) implements EndpointBinaryReturnBaseType {
+    record BinaryReturnValue(@MustBeClosed @JsonValue InputStream value)
+            implements EndpointErrorsConjureBodySerDeTest.EndpointBinaryReturnBaseType {
         public BinaryReturnValue {
             Preconditions.checkArgumentNotNull(value, "value cannot be null");
         }
     }
 
     @Generated("by conjure-java")
-    record OptionalBinaryReturnValue(Optional<InputStream> value) implements EndpointOptionalBinaryReturnBaseType {
+    record OptionalBinaryReturnValue(@JsonValue Optional<InputStream> value)
+            implements EndpointOptionalBinaryReturnBaseType {
         public OptionalBinaryReturnValue {
             Preconditions.checkArgumentNotNull(value, "value cannot be null");
         }
@@ -145,6 +147,26 @@ public class EndpointErrorsConjureBodySerDeTest {
                     SafeArg.of("complexArg", complexArg),
                     SafeArg.of("optionalArg", optionalArg));
         }
+    }
+
+    @Test
+    public void testDeserializeExpectedValue() {
+        // Given
+        String expectedString = "expectedString";
+        TestResponse response = TestResponse.withBody(String.format("\"%s\"", expectedString))
+                .contentType("application/json")
+                .code(200);
+        BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
+        DeserializerArgs<EndpointReturnBaseType> deserializerArgs = DeserializerArgs.<EndpointReturnBaseType>builder()
+                .baseType(new TypeMarker<>() {})
+                .success(new TypeMarker<ExpectedReturnValue>() {})
+                .error("Default:FailedPrecondition", new TypeMarker<ErrorReturnValue>() {})
+                .build();
+        // When
+        EndpointReturnBaseType value =
+                serializers.deserializer(deserializerArgs).deserialize(response);
+        // Then
+        assertThat(value).isEqualTo(new ExpectedReturnValue(expectedString));
     }
 
     // The error should be deserialized using Encodings.json(), when a JSON encoding is not provided.
@@ -227,26 +249,6 @@ public class EndpointErrorsConjureBodySerDeTest {
                 });
     }
 
-    @Test
-    public void testDeserializeExpectedValue() {
-        // Given
-        String expectedString = "expectedString";
-        TestResponse response = TestResponse.withBody(String.format("\"%s\"", expectedString))
-                .contentType("application/json")
-                .code(200);
-        BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
-        DeserializerArgs<EndpointReturnBaseType> deserializerArgs = DeserializerArgs.<EndpointReturnBaseType>builder()
-                .baseType(new TypeMarker<>() {})
-                .success(new TypeMarker<ExpectedReturnValue>() {})
-                .error("Default:FailedPrecondition", new TypeMarker<ErrorReturnValue>() {})
-                .build();
-        // When
-        EndpointReturnBaseType value =
-                serializers.deserializer(deserializerArgs).deserialize(response);
-        // Then
-        assertThat(value).isEqualTo(new ExpectedReturnValue(expectedString));
-    }
-
     @ParameterizedTest
     @ArgumentsSource(BinaryBodyArgumentsProvider.class)
     public void testDeserializeBinaryValue(byte[] binaryBody) {
@@ -254,7 +256,6 @@ public class EndpointErrorsConjureBodySerDeTest {
         TestResponse response = new TestResponse(binaryBody)
                 .contentType("application/octet-stream")
                 .code(200);
-        //         BodySerDe serializers = conjureBodySerDe("application/octet-stream", "text/plain");
 
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(BinaryEncoding.INSTANCE)),
@@ -284,7 +285,6 @@ public class EndpointErrorsConjureBodySerDeTest {
         TestResponse response = new TestResponse(binaryBody)
                 .contentType("application/octet-stream")
                 .code(200);
-        //         BodySerDe serializers = conjureBodySerDe("application/octet-stream", "text/plain");
 
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(BinaryEncoding.INSTANCE)),
