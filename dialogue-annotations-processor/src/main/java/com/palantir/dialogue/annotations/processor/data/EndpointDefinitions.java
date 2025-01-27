@@ -69,8 +69,7 @@ public final class EndpointDefinitions {
                 returnTypesResolver.getReturnType(endpointName, element, requestAnnotationReflector);
         List<ArgumentDefinition> argumentDefinitions = element.getParameters().stream()
                 .map(arg -> getArgumentDefinition(endpointName, arg))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
+                .<ArgumentDefinition>mapMulti(Optional::ifPresent)
                 .collect(Collectors.toList());
 
         if (httpPath.isEmpty()
@@ -81,8 +80,7 @@ public final class EndpointDefinitions {
 
         Set<String> expectedPathParams = httpPath.get().get().stream()
                 .map(HttpPathSegments::getVariableName)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
+                .<String>mapMulti(Optional::ifPresent)
                 .collect(Collectors.toSet());
         Set<String> actualPathParams = argumentDefinitions.stream()
                 .filter(argument -> IS_PATH_PARAMETER.apply(argument.paramType()))
