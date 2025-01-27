@@ -24,6 +24,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -64,26 +65,35 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
         }
 
         // fallback to manual reflection to handle aliases of optionals (and aliases of aliases of optionals)
-        MethodAndMaybeParameter methodAndMaybeParameter = getJsonCreatorStaticMethodAndMaybeParam(type);
-        if (methodAndMaybeParameter != null) {
-            Method method = methodAndMaybeParameter.method();
-            Type parameterType = methodAndMaybeParameter.parameterType();
-            if (parameterType != null) {
-                Optional<Object> parameter =
-                        constructEmptyInstance(parameterType, originalType, decrement(maxRecursion, originalType));
-                if (parameter.isPresent()) {
-                    return invokeStaticFactoryMethod(method, parameter.get());
-                } else {
-                    if (log.isDebugEnabled()) {
-                        log.debug(
-                                "Found a @JsonCreator, but couldn't construct the parameter",
-                                SafeArg.of("type", type),
-                                SafeArg.of("parameter", parameter));
-                    }
-                    return Optional.empty();
-                }
+        Method method = getJsonCreatorStaticMethod(type);
+        if (method != null) {
+            Type parameterType = method.getParameters()[0].getParameterizedType();
+            // Class<?> parameterType = method.getParameters()[0].getType();
+            Optional<Object> parameter =
+                    constructEmptyInstance(parameterType, originalType, decrement(maxRecursion, originalType));
+
+            if (parameter.isPresent()) {
+                return invokeStaticFactoryMethod(method, parameter.get());
             } else {
-                return invokeStaticFactoryMethod(method, null);
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "Found a @JsonCreator, but couldn't construct the parameter",
+                            SafeArg.of("type", type),
+                            SafeArg.of("parameter", parameter));
+                }
+                return Optional.empty();
+            }
+        }
+
+        Constructor<?> emptyRecordConstructor = getEmptyRecordCanonicalConstructor(type);
+        if (emptyRecordConstructor != null) {
+            try {
+                return Optional.of(emptyRecordConstructor.newInstance());
+            } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Empty record construction failed", SafeArg.of("type", type), e);
+                }
+                return Optional.empty();
             }
         }
 
@@ -141,29 +151,36 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
 
     // doesn't attempt to handle multiple @JsonCreator methods on one class
     @Nullable
-    private static MethodAndMaybeParameter getJsonCreatorStaticMethodAndMaybeParam(Type type) {
+    private static Method getJsonCreatorStaticMethod(Type type) {
         if (type instanceof Class) {
             Class<?> clazz = (Class<?>) type;
             for (Method method : clazz.getMethods()) {
-                int parameterCount = method.getParameterCount();
                 if (Modifier.isStatic(method.getModifiers())
-                        && method.getAnnotation(JsonCreator.class) != null
-                        && parameterCount < 2) {
-                    if (parameterCount == 0) {
-                        return new MethodAndMaybeParameter(method, null);
-                    } else if (parameterCount == 1) {
-                        Type parameterType = method.getParameters()[0].getParameterizedType();
-                        return new MethodAndMaybeParameter(method, parameterType);
-                    }
+                        && method.getParameterCount() == 1
+                        && method.getAnnotation(JsonCreator.class) != null) {
+                    return method;
                 }
             }
         }
         return null;
     }
 
-    private static Optional<Object> invokeStaticFactoryMethod(Method method, @Nullable Object parameter) {
+    @Nullable
+    private static Constructor<?> getEmptyRecordCanonicalConstructor(Type type) {
+        if (type instanceof Class) {
+            Class<?> clazz = (Class<?>) type;
+            for (Constructor<?> ctor : clazz.getDeclaredConstructors()) {
+                if (0 == ctor.getParameterCount()) {
+                    return ctor;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static Optional<Object> invokeStaticFactoryMethod(Method method, Object parameter) {
         try {
-            return Optional.ofNullable(parameter == null ? method.invoke(null) : method.invoke(null, parameter));
+            return Optional.ofNullable(method.invoke(null, parameter));
         } catch (IllegalAccessException | InvocationTargetException e) {
             if (log.isDebugEnabled()) {
                 log.debug("Reflection instantiation failed", e);
@@ -171,6 +188,4 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
             return Optional.empty();
         }
     }
-
-    private record MethodAndMaybeParameter(Method method, @Nullable Type parameterType) {}
 }

@@ -20,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
@@ -73,12 +72,7 @@ public class ConjureBodySerDeTest {
 
     @Test
     public void testRequestCustomEmpty() {
-        record EmptyRecord() {
-            @JsonCreator
-            public static EmptyRecord create() {
-                return new EmptyRecord();
-            }
-        }
+        record EmptyRecord() {}
         TestResponse response = new TestResponse().code(204);
         BodySerDe serializers = conjureBodySerDe("application/json");
         EmptyRecord value = serializers
