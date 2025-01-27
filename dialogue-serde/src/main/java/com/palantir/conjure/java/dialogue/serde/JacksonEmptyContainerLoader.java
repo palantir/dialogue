@@ -169,9 +169,11 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
     private static Constructor<?> getEmptyRecordCanonicalConstructor(Type type) {
         if (type instanceof Class) {
             Class<?> clazz = (Class<?>) type;
-            for (Constructor<?> ctor : clazz.getDeclaredConstructors()) {
-                if (0 == ctor.getParameterCount()) {
-                    return ctor;
+            if (clazz.isRecord()) {
+                for (Constructor<?> ctor : clazz.getDeclaredConstructors()) {
+                    if (0 == ctor.getParameterCount()) {
+                        return ctor;
+                    }
                 }
             }
         }
