@@ -165,7 +165,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> inputStreamDeserializer(DeserializerArgs<T> deserializerArgs) {
         return new EncodingDeserializerForEndpointRegistry<>(
-                encodingsSortedByWeight,
+                ImmutableList.of(BinaryEncoding.INSTANCE),
                 emptyContainerDeserializer,
                 deserializerArgs.baseType(),
                 deserializerArgs,
@@ -182,7 +182,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> optionalInputStreamDeserializer(DeserializerArgs<T> deserializerArgs) {
         return new EncodingDeserializerForEndpointRegistry<>(
-                encodingsSortedByWeight,
+                ImmutableList.of(BinaryEncoding.INSTANCE),
                 emptyContainerDeserializer,
                 deserializerArgs.baseType(),
                 deserializerArgs,
