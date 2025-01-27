@@ -649,8 +649,7 @@ final class SimulationTest {
             Supplier<Optional<SimulationServer>>... serverSuppliers) {
         return () -> Arrays.stream(serverSuppliers)
                 .map(Supplier::get)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
+                .<SimulationServer>mapMulti(Optional::ifPresent)
                 .collect(Collectors.toMap(SimulationServer::toString, Function.identity()));
     }
 
