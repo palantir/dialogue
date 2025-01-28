@@ -99,7 +99,8 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
 
         if (log.isDebugEnabled()) {
             log.debug(
-                    "Jackson couldn't instantiate an empty instance and also couldn't find a usable @JsonCreator",
+                    "Jackson couldn't instantiate an empty instance and also couldn't find a usable @JsonCreator"
+                            + " or an empty record constructor",
                     SafeArg.of("type", type));
         }
         return Optional.empty();
