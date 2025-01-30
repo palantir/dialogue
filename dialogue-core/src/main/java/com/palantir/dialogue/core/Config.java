@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.base.Ticker;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
 import com.palantir.logsafe.DoNotLog;

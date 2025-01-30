@@ -18,10 +18,11 @@ package com.palantir.dialogue.clients;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -44,7 +45,6 @@ import com.palantir.refreshable.Disposable;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.MetricRegistries;
-import com.palantir.tritium.metrics.caffeine.CacheStats;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.Cleaner;
@@ -93,16 +93,19 @@ final class DnsSupport {
     /**
      * Shared cache of string to parsed URI. This avoids excessive allocation overhead when parsing repeated targets.
      */
-    @SuppressWarnings("for-rollout:deprecation")
-    private static final LoadingCache<String, MaybeUri> uriCache = CacheStats.of(
-                    SharedTaggedMetricRegistries.getSingleton(), "dialogue-uri")
-            .register(stats -> Caffeine.newBuilder()
-                    .maximumWeight(100_000)
-                    .<String, MaybeUri>weigher((key, _value) -> key.length())
-                    .expireAfterAccess(Duration.ofMinutes(1))
-                    .softValues()
-                    .recordStats(stats)
-                    .build(DnsSupport::tryParseUri));
+    @SuppressWarnings("checkstyle:IllegalType")
+    private static final LoadingCache<String, MaybeUri> uriCache = CacheBuilder.newBuilder()
+            .maximumWeight(100_000)
+            .<String, MaybeUri>weigher((key, _value) -> key.length())
+            .expireAfterAccess(Duration.ofMinutes(1))
+            .softValues()
+            .recordStats()
+            .build(new CacheLoader<>() {
+                @Override
+                public MaybeUri load(String key) {
+                    return DnsSupport.tryParseUri(key);
+                }
+            });
 
     @VisibleForTesting
     static void invalidateCaches() {
@@ -224,7 +227,7 @@ final class DnsSupport {
     @Nullable
     private static URI tryParseUri(TaggedMetricRegistry metrics, @Safe String serviceName, @Unsafe String uri) {
         try {
-            MaybeUri maybeUri = uriCache.get(uri);
+            MaybeUri maybeUri = uriCache.getUnchecked(uri);
             URI result = maybeUri.uriOrThrow();
             if (result.getHost() == null) {
                 log.error(

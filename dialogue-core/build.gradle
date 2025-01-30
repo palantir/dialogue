@@ -8,7 +8,6 @@ dependencies {
     api 'org.jspecify:jspecify'
 
     implementation project(':dialogue-futures')
-    implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.safe-logging:logger'
     implementation 'com.palantir.safe-logging:preconditions'

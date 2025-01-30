@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
+import com.google.common.base.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -57,7 +58,12 @@ class StickyEndpointChannelsTest {
     private StickyEndpointChannels.Builder builder() {
         return StickyEndpointChannels.builder()
                 .random(new Random(11))
-                .ticker(ticker::getAndIncrement)
+                .ticker(new Ticker() {
+                    @Override
+                    public long read() {
+                        return ticker.getAndIncrement();
+                    }
+                })
                 .taggedMetricRegistry(new DefaultTaggedMetricRegistry())
                 .channelName("channelName");
     }

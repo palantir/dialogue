@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Timer;
-import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.base.Ticker;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.util.concurrent.Futures;

@@ -16,8 +16,8 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.github.benmanes.caffeine.cache.CaffeineSpec;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.cache.CacheBuilderSpec;
 import com.google.common.collect.ImmutableList;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import com.palantir.dialogue.BodySerDe;
@@ -32,8 +32,8 @@ import java.util.List;
  */
 public final class DefaultConjureRuntime implements ConjureRuntime {
     @VisibleForTesting
-    static final CaffeineSpec DEFAULT_SERDE_CACHE_SPEC =
-            CaffeineSpec.parse("maximumSize=1000,expireAfterAccess=1m,weakKeys,weakValues");
+    static final CacheBuilderSpec DEFAULT_SERDE_CACHE_SPEC =
+            CacheBuilderSpec.parse("maximumSize=1000,expireAfterAccess=1m,weakKeys,weakValues");
 
     static final ImmutableList<WeightedEncoding> DEFAULT_ENCODINGS = ImmutableList.of(
             WeightedEncoding.of(Encodings.json(), .9),

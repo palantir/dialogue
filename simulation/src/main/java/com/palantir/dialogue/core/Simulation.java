@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -45,7 +44,7 @@ final class Simulation {
         this.listenableExecutor = new ExternalDeterministicScheduler(deterministicExecutor, ticker);
     }
 
-    public Ticker clock() {
+    public TestCaffeineTicker clock() {
         return ticker; // read only!
     }
 
