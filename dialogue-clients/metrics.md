@@ -134,6 +134,17 @@ Instrumentation for the ROUND_ROBIN node selection strategy (currently implement
 Metrics produced instrumented Jackson components.
 - `json.parser.string.length` tagged `format` (histogram): Histogram describing the length of strings parsed from input.
 
+## Deadlines
+
+`com.palantir.deadlines:deadlines`
+
+### deadline
+Metrics for deadlines.
+- `deadline.expired` (meter): Marked every time a deadline expiration is reached
+  - `cause`
+    - `internal`: A deadline expiration was caused by an internal process, such as a server's inability to meet its own internal deadline even though a client provided ample time.
+    - `external`: A deadline expiration was caused due to the inability to meet an externally provided deadline, such as a server being unable to complete required work before a client-provided deadline elapses.
+
 ## Tritium Caffeine
 
 `com.palantir.tritium:tritium-caffeine`
