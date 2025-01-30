@@ -17,10 +17,11 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Ticker;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
@@ -289,17 +290,23 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
          * may or may not be designed to be reused across reloads, and we aim to be more precise with state that is
          * kept across uri changes.
          */
+        @SuppressWarnings("checkstyle:IllegalType")
         private record EndpointChannelState(LoadingCache<Endpoint, ChannelState> cache) {
             private static final ChannelState.Key<EndpointChannelState> KEY =
                     new ChannelState.Key<>(EndpointChannelState.class, EndpointChannelState::create);
 
             ChannelState get(Endpoint endpoint) {
-                return cache.get(endpoint);
+                return cache.getUnchecked(endpoint);
             }
 
             private static EndpointChannelState create() {
                 return new EndpointChannelState(
-                        Caffeine.newBuilder().weakKeys().maximumSize(10_000).build(_key -> new ChannelState()));
+                        CacheBuilder.newBuilder().weakKeys().maximumSize(10_000).build(new CacheLoader<>() {
+                            @Override
+                            public ChannelState load(Endpoint _key) {
+                                return new ChannelState();
+                            }
+                        }));
             }
         }
 

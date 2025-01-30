@@ -17,8 +17,8 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;

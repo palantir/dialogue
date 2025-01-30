@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.base.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.HostEventsSink;

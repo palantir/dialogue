@@ -15,12 +15,12 @@
  */
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.time.Duration;
 
-final class TestCaffeineTicker implements Ticker {
+final class TestCaffeineTicker extends com.google.common.base.Ticker
+        implements com.github.benmanes.caffeine.cache.Ticker {
     private long nanos = 0;
 
     @Override

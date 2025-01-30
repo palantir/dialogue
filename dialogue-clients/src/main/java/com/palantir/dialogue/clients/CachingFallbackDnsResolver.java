@@ -17,8 +17,8 @@
 package com.palantir.dialogue.clients;
 
 import com.codahale.metrics.Meter;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableSet;
 import com.palantir.dialogue.clients.ClientDnsMetrics.Lookup_Result;
 import com.palantir.dialogue.core.DialogueDnsResolver;
@@ -37,11 +37,12 @@ final class CachingFallbackDnsResolver implements DialogueDnsResolver {
     private final Meter lookupFallback;
     private final Meter lookupFailure;
 
+    @SuppressWarnings("checkstyle:IllegalType")
     private final Cache<String, ImmutableSet<InetAddress>> fallbackCache;
 
     CachingFallbackDnsResolver(DialogueDnsResolver delegate, TaggedMetricRegistry registry) {
         this.delegate = delegate;
-        this.fallbackCache = Caffeine.newBuilder()
+        this.fallbackCache = CacheBuilder.newBuilder()
                 .maximumSize(1000)
                 .expireAfterWrite(Duration.ofMinutes(10))
                 .build();
