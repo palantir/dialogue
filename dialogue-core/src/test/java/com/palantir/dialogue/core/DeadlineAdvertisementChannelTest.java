@@ -98,6 +98,34 @@ class DeadlineAdvertisementChannelTest {
         }
     }
 
+    @Test
+    void avoids_sending_zero_deadline() {
+        try (CloseableTracer tracer = CloseableTracer.startSpan("test")) {
+            Duration readTimeout = Duration.ZERO;
+            List<Request> requests = new ArrayList<>();
+            Channel delegate = (_endpoint, request) -> {
+                requests.add(request);
+                return Futures.immediateCancelledFuture();
+            };
+            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout);
+            assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
+                    .isCancelled();
+
+            assertThat(requests).singleElement().satisfies(request -> {
+                assertThat(request.headerParams().keySet())
+                        .singleElement()
+                        .isEqualTo(DeadlinesHttpHeaders.EXPECT_WITHIN);
+                assertThat(request.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN))
+                        .singleElement()
+                        .satisfies(value -> {
+                            double nSeconds = Double.parseDouble(value);
+                            Duration parsed = Duration.ofNanos((long) (nSeconds * 1e9d));
+                            assertThat(parsed).isGreaterThan(Duration.ZERO);
+                        });
+            });
+        }
+    }
+
     private enum Decoder implements RequestDecodingAdapter<Request> {
         INSTANCE;
 

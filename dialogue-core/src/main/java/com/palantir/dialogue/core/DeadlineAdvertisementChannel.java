@@ -31,7 +31,12 @@ final class DeadlineAdvertisementChannel implements Channel {
 
     DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout) {
         this.delegate = delegate;
-        this.readTimeout = readTimeout;
+        // a readTimeout of zero effectively means "no timeout", but we don't want to put 0 on the wire,
+        // so set a very large value instead
+        // this matches the behavior in ApacheHttpClientChannels
+        // see:
+        // https://github.com/palantir/dialogue/blob/develop/dialogue-apache-hc5-client/src/main/java/com/palantir/dialogue/hc5/ApacheHttpClientChannels.java#L641-L648
+        this.readTimeout = readTimeout.isNegative() || readTimeout.isZero() ? Duration.ofDays(1) : readTimeout;
     }
 
     @Override
