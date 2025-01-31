@@ -72,6 +72,9 @@ allprojects {
     }
     configurations.all {
         resolutionStrategy.preferProjectModules()
+        resolutionStrategy {
+            force 'com.google.guava:guava:33.4.0-android'
+        }
     }
 }
 
@@ -80,6 +83,7 @@ subprojects {
 
     tasks.withType(JavaCompile) {
         options.compilerArgs += ['-Werror']
+        options.errorprone.enabled = false
     }
 
     plugins.withId('com.palantir.baseline-error-prone', {

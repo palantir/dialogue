@@ -78,7 +78,7 @@ final class DeprecationWarningChannel implements EndpointChannel {
 
     private FutureCallback<Response> createCallback(String channelName, Endpoint endpoint) {
         // lazily create meter metric name only if deprecated endpoint is accessed
-        Supplier<Meter> meterSupplier = Suppliers.memoize(() -> metrics.deprecations(endpoint.serviceName()));
+        Supplier<Meter> meterSupplier = Suppliers.memoize(() -> metrics.deprecations(endpoint.serviceName()))::get;
         return DialogueFutures.onSuccess(response -> {
             if (response == null) {
                 return;

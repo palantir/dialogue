@@ -60,13 +60,13 @@ final class TimingEndpointChannel implements EndpointChannel {
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
                 .status("success")
-                .build());
+                .build())::get;
         this.failureTimer = Suppliers.memoize(() -> metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
                 .status("failure")
-                .build());
+                .build())::get;
     }
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {

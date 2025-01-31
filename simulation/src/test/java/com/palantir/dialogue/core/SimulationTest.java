@@ -649,7 +649,7 @@ final class SimulationTest {
 
     private Supplier<Map<String, SimulationServer>> servers(SimulationServer... values) {
         return Suppliers.memoize(
-                () -> Arrays.stream(values).collect(Collectors.toMap(SimulationServer::toString, Function.identity())));
+                () -> Arrays.stream(values).collect(Collectors.toMap(SimulationServer::toString, Function.identity())))::get;
     }
 
     /** Use the {@link #beginAt} method to simulate live-reloads. */

@@ -80,7 +80,7 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
 
         private Sticky(ImmutableList<? extends EndpointChannelFactory> channels, BalancedScoreTracker tracker) {
             this.channels = channels;
-            this.getSingleBestChannel = Suppliers.memoize(tracker::getSingleBestChannelByScore);
+            this.getSingleBestChannel = Suppliers.memoize(tracker::getSingleBestChannelByScore)::get;
         }
 
         @Override

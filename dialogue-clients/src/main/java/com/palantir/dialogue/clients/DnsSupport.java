@@ -88,7 +88,7 @@ final class DnsSupport {
                             .setNameFormat(SCHEDULER_NAME + "-%d")
                             .setDaemon(true)
                             .build(),
-                    SCHEDULER_NAME)));
+                    SCHEDULER_NAME)))::get;
 
     /**
      * Shared cache of string to parsed URI. This avoids excessive allocation overhead when parsing repeated targets.

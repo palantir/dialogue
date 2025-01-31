@@ -57,7 +57,7 @@ public final class BaseUrl {
     public URL render(Endpoint endpoint, Request request) {
         DefaultUrlBuilder url = builder.newBuilder();
         endpoint.renderPath(request.pathParameters(), url);
-        request.queryParams().forEach(url::queryParam);
+        request.queryParams().entries().forEach(e -> url.queryParam(e.getKey(), e.getValue()));
         return url.build();
     }
 
