@@ -71,6 +71,8 @@ public final class EndpointDefinitions {
                 .map(arg -> getArgumentDefinition(endpointName, arg))
                 .<ArgumentDefinition>mapMulti(Optional::ifPresent)
                 .collect(Collectors.toList());
+        boolean deprecated = MoreElements.isAnnotationPresent(element, Deprecated.class)
+                || MoreElements.isAnnotationPresent(element.getEnclosingElement(), Deprecated.class);
 
         if (httpPath.isEmpty()
                 || returnType.isEmpty()
@@ -99,6 +101,7 @@ public final class EndpointDefinitions {
                 .httpPath(httpPath.get())
                 .returns(returnType.get())
                 .addAllArguments(argumentDefinitions)
+                .deprecated(deprecated)
                 .build());
     }
 

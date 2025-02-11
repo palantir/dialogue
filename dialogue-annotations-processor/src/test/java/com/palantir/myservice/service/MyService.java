@@ -103,4 +103,8 @@ public interface MyService {
             @Request.Header("h12") List<MyAliasType> header12,
             @Request.HeaderMap Multimap<String, String> headerMap,
             @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
+
+    @Deprecated
+    @Request(method = HttpMethod.GET, path = "/deprecated")
+    void deprecated();
 }
