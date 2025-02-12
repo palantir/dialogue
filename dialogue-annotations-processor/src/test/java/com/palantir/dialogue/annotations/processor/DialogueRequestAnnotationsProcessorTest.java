@@ -112,8 +112,14 @@ public final class DialogueRequestAnnotationsProcessorTest {
         String generatedFqnClassName = clazz.getPackage().getName() + "." + generatedClassName;
         String generatedClassFileRelativePath = generatedFqnClassName.replaceAll("\\.", "/") + ".java";
         assertThat(compilation.generatedFile(StandardLocation.SOURCE_OUTPUT, generatedClassFileRelativePath))
-                .hasValueSatisfying(
-                        javaFileObject -> assertContentsMatch(javaFileObject, generatedClassFileRelativePath));
+                .hasValueSatisfying(javaFileObject -> {
+                    assertContentsMatch(javaFileObject, generatedClassFileRelativePath);
+
+                    assertThat(Compiler.javac()
+                                    .withOptions("-source", "11", "-Werror", "-Xlint:deprecation", "-Xlint:unchecked")
+                                    .compile(javaFileObject))
+                            .succeededWithoutWarnings();
+                });
     }
 
     private Compilation compileTestClass(Path basePath, Class<?> clazz) {
@@ -123,9 +129,7 @@ public final class DialogueRequestAnnotationsProcessorTest {
         try {
             return Compiler.javac()
                     // This is required because this tool does not know about our gradle setting.
-                    .withOptions("-source", "11")
-                    .withOptions("-Werror")
-                    .withOptions("-Xlint:unchecked")
+                    .withOptions("-source", "11", "-Werror", "-Xlint:deprecation", "-Xlint:unchecked")
                     .withProcessors(new DialogueRequestAnnotationsProcessor())
                     .compile(JavaFileObjects.forResource(clazzPath.toUri().toURL()));
         } catch (MalformedURLException e) {

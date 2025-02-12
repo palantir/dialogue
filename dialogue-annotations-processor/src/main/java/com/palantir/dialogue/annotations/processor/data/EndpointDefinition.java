@@ -34,6 +34,11 @@ public interface EndpointDefinition {
 
     ReturnType returns();
 
+    @Value.Default
+    default boolean deprecated() {
+        return false;
+    }
+
     @Value.Derived
     default String channelFieldName() {
         return endpointName().get() + "Channel";

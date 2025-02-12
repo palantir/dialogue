@@ -37,6 +37,7 @@ import com.palantir.dialogue.annotations.processor.data.ParameterType.Cases;
 import com.palantir.dialogue.annotations.processor.data.ParameterTypes;
 import com.palantir.dialogue.annotations.processor.data.ReturnType;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
+import com.palantir.javapoet.AnnotationSpec;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.CodeBlock;
 import com.palantir.javapoet.FieldSpec;
@@ -111,6 +112,10 @@ public final class ServiceImplementationGenerator {
                 .addModifiers(Modifier.PUBLIC)
                 .addParameters(params)
                 .addAnnotation(Override.class);
+
+        if (def.deprecated()) {
+            methodBuilder.addAnnotation(AnnotationSpec.builder(Deprecated.class).build());
+        }
 
         methodBuilder.addCode("$T $L = $T.builder();", Request.Builder.class, REQUEST, Request.class);
 
