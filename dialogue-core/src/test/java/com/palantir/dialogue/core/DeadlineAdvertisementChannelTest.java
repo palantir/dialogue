@@ -21,7 +21,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.deadlines.Deadlines;
 import com.palantir.deadlines.Deadlines.RequestDecodingAdapter;
-import com.palantir.deadlines.api.DeadlinesHttpHeaders;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.TestEndpoint;
@@ -48,10 +47,8 @@ class DeadlineAdvertisementChannelTest {
                     .isCancelled();
 
             assertThat(requests).singleElement().satisfies(request -> {
-                assertThat(request.headerParams().keySet())
-                        .singleElement()
-                        .isEqualTo(DeadlinesHttpHeaders.EXPECT_WITHIN);
-                assertThat(request.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN))
+                assertThat(request.headerParams().keySet()).singleElement().isEqualTo("Expect-Within");
+                assertThat(request.headerParams().get("Expect-Within"))
                         .singleElement()
                         .satisfies(value -> {
                             double nSeconds = Double.parseDouble(value);
@@ -73,9 +70,8 @@ class DeadlineAdvertisementChannelTest {
             };
 
             // set deadline state for this trace to somethign less than configured read timeout
-            Request inboundRequest = Request.builder()
-                    .putHeaderParams(DeadlinesHttpHeaders.EXPECT_WITHIN, "1")
-                    .build();
+            Request inboundRequest =
+                    Request.builder().putHeaderParams("Expect-Within", "1").build();
             Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE);
 
             Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout);
@@ -83,10 +79,8 @@ class DeadlineAdvertisementChannelTest {
                     .isCancelled();
 
             assertThat(requests).singleElement().satisfies(request -> {
-                assertThat(request.headerParams().keySet())
-                        .singleElement()
-                        .isEqualTo(DeadlinesHttpHeaders.EXPECT_WITHIN);
-                assertThat(request.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN))
+                assertThat(request.headerParams().keySet()).singleElement().isEqualTo("Expect-Within");
+                assertThat(request.headerParams().get("Expect-Within"))
                         .singleElement()
                         .satisfies(value -> {
                             double nSeconds = Double.parseDouble(value);
@@ -112,10 +106,8 @@ class DeadlineAdvertisementChannelTest {
                     .isCancelled();
 
             assertThat(requests).singleElement().satisfies(request -> {
-                assertThat(request.headerParams().keySet())
-                        .singleElement()
-                        .isEqualTo(DeadlinesHttpHeaders.EXPECT_WITHIN);
-                assertThat(request.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN))
+                assertThat(request.headerParams().keySet()).singleElement().isEqualTo("Expect-Within");
+                assertThat(request.headerParams().get("Expect-Within"))
                         .singleElement()
                         .satisfies(value -> {
                             double nSeconds = Double.parseDouble(value);
