@@ -27,9 +27,9 @@ import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.ResponseDeserializer;
 import com.palantir.tokens.auth.AuthHeader;
 import java.io.InputStream;
+import java.lang.Deprecated;
 import java.lang.Override;
 import java.lang.String;
-import java.lang.SuppressWarnings;
 import java.lang.Void;
 import java.util.List;
 import java.util.Optional;
@@ -268,7 +268,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             }
 
             @Override
-            @SuppressWarnings("deprecation")
+            @Deprecated
             public void deprecated() {
                 Request.Builder _request = Request.builder();
                 runtime.clients().callBlocking(deprecatedChannel, _request.build(), deprecatedDeserializer);

@@ -114,9 +114,7 @@ public final class ServiceImplementationGenerator {
                 .addAnnotation(Override.class);
 
         if (def.deprecated()) {
-            methodBuilder.addAnnotation(AnnotationSpec.builder(SuppressWarnings.class)
-                    .addMember("value", "$S", "deprecation")
-                    .build());
+            methodBuilder.addAnnotation(AnnotationSpec.builder(Deprecated.class).build());
         }
 
         methodBuilder.addCode("$T $L = $T.builder();", Request.Builder.class, REQUEST, Request.class);
