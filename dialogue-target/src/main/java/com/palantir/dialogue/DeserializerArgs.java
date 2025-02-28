@@ -23,6 +23,11 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+/**
+ * This class is used to specify the success and error types used to construct a {@link Deserializer}. A call to an
+ * endpoint, when successful, returns a success type. When an error occurs, the response body is deserialized into an
+ * error type. The base type is an interface that permits a success type and all error types.
+ */
 public final class DeserializerArgs<T> {
     private final TypeMarker<T> baseType;
     private final TypeMarker<? extends T> successType;
