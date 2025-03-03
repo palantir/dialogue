@@ -59,8 +59,7 @@ public final class ErrorDecoderTest {
 
     private static String createServiceException(ServiceException exception) {
         try {
-            String ret = SERVER_MAPPER.writeValueAsString(SerializableError.forException(exception));
-            return ret;
+            return SERVER_MAPPER.writeValueAsString(SerializableError.forException(exception));
         } catch (JsonProcessingException e) {
             fail("failed to serialize");
             return "";
