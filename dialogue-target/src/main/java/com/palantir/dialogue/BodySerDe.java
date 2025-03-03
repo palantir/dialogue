@@ -29,7 +29,8 @@ public interface BodySerDe {
     <T> Deserializer<T> deserializer(TypeMarker<T> type);
 
     /**
-     * Creates a {@link Deserializer} for the base type {@link T} specified in the {@link DeserializerArgs<T>}.
+     * Creates a {@link Deserializer} for the base type {@link T} specified in the {@link DeserializerArgs}.
+     * <p>
      * Deserializer instances should be reused.
      **/
     <T> Deserializer<T> deserializer(DeserializerArgs<T> deserializerArgs);
@@ -48,7 +49,7 @@ public interface BodySerDe {
     Deserializer<InputStream> inputStreamDeserializer();
 
     /**
-     * Creates a {@link Deserializer} for input streams and with error types specified in the {@link DeserializerArgs<T>}.
+     * Creates a {@link Deserializer} for input streams and with error types specified in the {@link DeserializerArgs}.
      **/
     <T> Deserializer<T> inputStreamDeserializer(DeserializerArgs<T> deserializerArgs);
 
