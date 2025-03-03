@@ -24,6 +24,7 @@ org.apache.httpcomponents.client5:* = 5.3.1
 org.apache.httpcomponents.core5:* = 5.3.3
 org.derive4j:* = 1.1.1
 org.immutables:* = 2.10.1
+org.junit.platform:* = 1.11.4
 org.slf4j:* = 1.7.36
 com.github.ben-manes.caffeine:caffeine = 3.2.0
 
