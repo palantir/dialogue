@@ -24,6 +24,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -84,9 +85,22 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
             }
         }
 
+        Constructor<?> emptyRecordConstructor = getEmptyRecordCanonicalConstructor(type);
+        if (emptyRecordConstructor != null) {
+            try {
+                return Optional.of(emptyRecordConstructor.newInstance());
+            } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Empty record construction failed", SafeArg.of("type", type), e);
+                }
+                return Optional.empty();
+            }
+        }
+
         if (log.isDebugEnabled()) {
             log.debug(
-                    "Jackson couldn't instantiate an empty instance and also couldn't find a usable @JsonCreator",
+                    "Jackson couldn't instantiate an empty instance and also couldn't find a usable @JsonCreator"
+                            + " or an empty record constructor",
                     SafeArg.of("type", type));
         }
         return Optional.empty();
@@ -146,6 +160,24 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
                         && method.getParameterCount() == 1
                         && method.getAnnotation(JsonCreator.class) != null) {
                     return method;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * If {@code type} is a record with 0 components, return the canonical constructor.
+     */
+    @Nullable
+    private static Constructor<?> getEmptyRecordCanonicalConstructor(Type type) {
+        if (type instanceof Class) {
+            Class<?> clazz = (Class<?>) type;
+            if (clazz.isRecord() && clazz.getRecordComponents().length == 0) {
+                for (Constructor<?> ctor : clazz.getDeclaredConstructors()) {
+                    if (0 == ctor.getParameterCount()) {
+                        return ctor;
+                    }
                 }
             }
         }

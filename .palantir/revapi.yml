@@ -311,3 +311,17 @@ acceptedBreaks:
       new: "method com.palantir.dialogue.clients.DialogueClients.StickyChannelSession\
         \ com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2::session()"
       justification: "interface for consumption, not extension"
+  "5.0.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.addedToInterface"
+      new: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::deserializer(com.palantir.dialogue.DeserializerArgs<T>)"
+      justification: "Adding new methods to create deserializers in support of endpoint\
+        \ associated error deserialization"
+    - code: "java.method.addedToInterface"
+      new: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::inputStreamDeserializer(com.palantir.dialogue.DeserializerArgs<T>)"
+      justification: "Adding new methods to create deserializers in support of endpoint\
+        \ associated error deserialization"
+    - code: "java.method.addedToInterface"
+      new: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.DeserializerArgs<T>)"
+      justification: "Adding new methods to create deserializers in support of endpoint\
+        \ associated error deserialization"
