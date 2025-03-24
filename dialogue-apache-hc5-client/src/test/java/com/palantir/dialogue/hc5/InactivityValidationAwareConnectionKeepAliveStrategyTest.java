@@ -21,10 +21,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.http.HttpVersion;
 import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
 import org.apache.hc.core5.util.TimeValue;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,14 +60,41 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
     }
 
     @Test
+    void test_Http1_0_NoKeepAliveHeader() {
+        InactivityValidationAwareConnectionKeepAliveStrategy strategy =
+                new InactivityValidationAwareConnectionKeepAliveStrategy(manager, "name");
+        BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
+        response.setVersion(HttpVersion.HTTP_1_0);
+        TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
+        assertThat(value).isEqualTo(TimeValue.ZERO_MILLISECONDS);
+        assertThat(response.getVersion()).isEqualTo(HttpVersion.HTTP_1_0);
+        verify(manager).getValidateAfterInactivity();
+        verifyNoMoreInteractions(manager);
+    }
+
+    @Test
+    void test_Http1_1_NoKeepAliveHeaderHttpVersion() {
+        InactivityValidationAwareConnectionKeepAliveStrategy strategy =
+                new InactivityValidationAwareConnectionKeepAliveStrategy(manager, "name");
+        BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
+        response.setVersion(HttpVersion.HTTP_1_1);
+        TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
+        assertThat(value).isEqualTo(CONTEXT.getRequestConfig().getConnectionKeepAlive());
+        assertThat(response.getVersion()).isEqualTo(HttpVersion.HTTP_1_1);
+        verify(manager).setValidateAfterInactivity(eq(INITIAL_TIMEOUT));
+    }
+
+    @Test
     void testKeepAliveHeaderWithTimeout() {
         InactivityValidationAwareConnectionKeepAliveStrategy strategy =
                 new InactivityValidationAwareConnectionKeepAliveStrategy(manager, "name");
         BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
         response.addHeader("Keep-Alive", "timeout=60");
+        response.setVersion(HttpVersion.HTTP_1_1);
         TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
         TimeValue expected = TimeValue.ofSeconds(60);
         assertThat(value).isEqualTo(expected);
+        assertThat(response.getVersion()).isEqualTo(HttpVersion.HTTP_1_1);
         verify(manager).setValidateAfterInactivity(eq(expected));
     }
 

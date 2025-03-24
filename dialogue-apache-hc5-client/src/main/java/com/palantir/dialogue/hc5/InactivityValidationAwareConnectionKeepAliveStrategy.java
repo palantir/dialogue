@@ -30,6 +30,8 @@ import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.HeaderElement;
 import org.apache.hc.core5.http.HeaderElements;
 import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.HttpVersion;
+import org.apache.hc.core5.http.ProtocolVersion;
 import org.apache.hc.core5.http.message.MessageSupport;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.util.TimeValue;
@@ -86,6 +88,15 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
                 }
             }
         }
+
+        ProtocolVersion responseVersion = response.getVersion();
+        if (responseVersion != null && responseVersion.lessEquals(HttpVersion.HTTP_1_0)) {
+            log.info(
+                    "HTTP/1.0 requires keep-alive negotiation, but no timeout was found",
+                    SafeArg.of("protocolVersion", responseVersion));
+            return TimeValue.ZERO_MILLISECONDS;
+        }
+
         HttpClientContext clientContext = HttpClientContext.adapt(context);
         RequestConfig requestConfig = clientContext.getRequestConfig();
         updateInactivityValidationInterval(response.getCode(), defaultValidateAfterInactivity);
