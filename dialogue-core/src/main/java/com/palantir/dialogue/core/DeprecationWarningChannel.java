@@ -88,8 +88,8 @@ final class DeprecationWarningChannel implements EndpointChannel {
             }
 
             meterSupplier.get().mark();
-            if (log.isWarnEnabled() && tryAcquire(channelName, endpoint)) {
-                log.warn(
+            if (log.isDebugEnabled() && tryAcquire(channelName, endpoint)) {
+                log.debug(
                         "Using a deprecated endpoint when connecting to service",
                         SafeArg.of("channelName", channelName),
                         SafeArg.of("serviceName", endpoint.serviceName()),
@@ -111,11 +111,7 @@ final class DeprecationWarningChannel implements EndpointChannel {
     private boolean tryAcquire(String channelName, Endpoint endpoint) {
         LoggingRateLimiterKey key =
                 LoggingRateLimiterKey.of(channelName, endpoint.serviceName(), endpoint.endpointName());
-        if (loggingRateLimiter.getIfPresent(key) == null) {
-            loggingRateLimiter.put(key, SENTINEL);
-            return true;
-        }
-        return false;
+        return loggingRateLimiter.asMap().putIfAbsent(key, SENTINEL) == null;
     }
 
     @Override
