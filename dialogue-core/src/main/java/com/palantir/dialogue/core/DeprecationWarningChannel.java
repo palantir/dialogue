@@ -37,10 +37,10 @@ import java.util.function.Supplier;
 import org.immutables.value.Value;
 
 /**
- * A channel that logs warnings when the response from a server contains the "deprecation" header. Logs include the
+ * A channel that records when the response from a server contains the "deprecation" header. Logs include the
  * content of the "server" header when it is provided, and always include endpoint details.
  *
- * <p>Deprecation warnings are produced at most once per minute per service. The {@code client.deprecations} meter may
+ * <p>Deprecation debug logs are produced at most once per minute per service. The {@code client.deprecations} meter may
  * be used to understand more granular rates of deprecated calls against a particular service using the
  * {@code service-name} tag.
  */
