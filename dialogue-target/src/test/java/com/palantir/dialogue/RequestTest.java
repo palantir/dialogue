@@ -108,7 +108,7 @@ public final class RequestTest {
                 .putPathParams("path2", "pathVal2")
                 .build();
 
-        // make sure new query/header/path parameters were added in addition to whatever was in `request1`
+        // make sure new query/header/path parameters were added in addition to whatever was in `oldRequest`
         assertThat(newRequest)
                 .extracting(Request::queryParams)
                 .extracting(Multimap::entries, collection(Map.Entry.class))
