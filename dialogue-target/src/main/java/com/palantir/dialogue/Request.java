@@ -307,7 +307,12 @@ public final class Request {
         private ListMultimap<String, String> mutableQueryParams() {
             if (!isQueryMutable()) {
                 setQueryMutable();
-                queryParams = Multimaps.newListMultimap(new LinkedHashMap<>(), MAP_VALUE_FACTORY);
+                ListMultimap<String, String> mutable =
+                        Multimaps.newListMultimap(new LinkedHashMap<>(), MAP_VALUE_FACTORY);
+                if (!queryParams.isEmpty()) {
+                    queryParams.forEach(mutable::put);
+                }
+                queryParams = mutable;
             }
             return queryParams;
         }
