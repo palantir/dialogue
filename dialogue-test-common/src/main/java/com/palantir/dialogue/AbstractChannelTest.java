@@ -214,16 +214,17 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void encodesQueryParameters() throws Exception {
-        String mustEncode = "%^&/?a=A3&a=A4";
+        String mustEncodeExceptForEquals = "%^&/?a=A3&a=A4";
         request = Request.builder()
                 .from(request)
-                .putQueryParams(mustEncode, mustEncode)
+                .putQueryParams(mustEncodeExceptForEquals, mustEncodeExceptForEquals)
                 .build();
         channel.execute(endpoint, request);
 
         HttpUrl url = server.takeRequest().getRequestUrl();
-        assertThat(url.queryParameterValues(mustEncode)).containsExactlyInAnyOrder(mustEncode);
-        assertThat(url.url().getQuery()).isEqualTo("%25%5E%26/?a%3DA3%26a%3DA4=%25%5E%26/?a%3DA3%26a%3DA4");
+        assertThat(url.queryParameterValues(mustEncodeExceptForEquals))
+                .containsExactlyInAnyOrder(mustEncodeExceptForEquals);
+        assertThat(url.url().getQuery()).isEqualTo("%25%5E%26/?a%3DA3%26a%3DA4=%25%5E%26/?a=A3%26a=A4");
     }
 
     @Test

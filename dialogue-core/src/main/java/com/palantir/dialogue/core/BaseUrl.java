@@ -169,7 +169,7 @@ public final class BaseUrl {
         @Override
         public DefaultUrlBuilder queryParam(String name, String value) {
             this.queryNamesAndValues.put(
-                    BaseUrl.UrlEncoder.encodeQueryNameOrValue(name), BaseUrl.UrlEncoder.encodeQueryNameOrValue(value));
+                    BaseUrl.UrlEncoder.encodeQueryName(name), BaseUrl.UrlEncoder.encodeQueryValue(value));
             return this;
         }
 
@@ -272,6 +272,10 @@ public final class BaseUrl {
         // query = *( pchar / "/" / "?" )
         private static final CharMatcher IS_QUERY_CHAR = IS_P_CHAR.or(CharMatcher.anyOf("/?"));
 
+        // Allow '=' in query param value characters because of Gitlab CDN signed query HTTP spec break.
+        private static final CharMatcher IS_QUERY_VAL_CHAR =
+                IS_P_CHAR.or(CharMatcher.is('=')).or(CharMatcher.anyOf("/?"));
+
         static boolean isHost(String maybeHost) {
             return IS_HOST.matchesAllOf(maybeHost) || isIpv6Host(maybeHost);
         }
@@ -296,8 +300,12 @@ public final class BaseUrl {
             return encode(pathComponent, IS_P_CHAR);
         }
 
-        static String encodeQueryNameOrValue(String nameOrValue) {
-            return encode(nameOrValue, IS_QUERY_CHAR);
+        static String encodeQueryName(String name) {
+            return encode(name, IS_QUERY_CHAR);
+        }
+
+        static String encodeQueryValue(String value) {
+            return encode(value, IS_QUERY_VAL_CHAR);
         }
 
         // percent-encodes every byte in the source string with it's percent-encoded representation, except for

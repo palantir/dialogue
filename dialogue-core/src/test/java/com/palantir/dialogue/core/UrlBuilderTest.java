@@ -183,15 +183,22 @@ public final class UrlBuilderTest {
     @Test
     public void urlEncoder_encodeQuery_onlyEncodesNonReservedChars() {
         String nonReserved = "aAzZ09/?";
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue(nonReserved)).isEqualTo(nonReserved);
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("@[]{}ßçö"))
-                .isEqualTo("%40%5B%5D%7B%7D%C3%9F%C3%A7%C3%B6");
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("=&+")).isEqualTo("%3D%26%2B");
+        assertThat(BaseUrl.UrlEncoder.encodeQueryName(nonReserved)).isEqualTo(nonReserved);
+        assertThat(BaseUrl.UrlEncoder.encodeQueryName("@[]{}ßçö")).isEqualTo("%40%5B%5D%7B%7D%C3%9F%C3%A7%C3%B6");
+        assertThat(BaseUrl.UrlEncoder.encodeQueryName("=&+")).isEqualTo("%3D%26%2B");
+
+        assertThat(BaseUrl.UrlEncoder.encodeQueryValue(nonReserved)).isEqualTo(nonReserved);
+        assertThat(BaseUrl.UrlEncoder.encodeQueryValue("@[]{}ßçö")).isEqualTo("%40%5B%5D%7B%7D%C3%9F%C3%A7%C3%B6");
+        // '=' is reserved for query param values.
+        assertThat(BaseUrl.UrlEncoder.encodeQueryValue("&+")).isEqualTo("%26%2B");
     }
 
     @Test
     public void urlEncoder_encodeQuery_encodesPlusSign() {
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("+"))
+        assertThat(BaseUrl.UrlEncoder.encodeQueryName("+"))
+                .as("'+' must be encoded, otherwise many servers will interpret it as a url encoded space")
+                .isEqualTo("%2B");
+        assertThat(BaseUrl.UrlEncoder.encodeQueryValue("+"))
                 .as("'+' must be encoded, otherwise many servers will interpret it as a url encoded space")
                 .isEqualTo("%2B");
     }
@@ -209,6 +216,13 @@ public final class UrlBuilderTest {
         assertThat(BaseUrl.UrlEncoder.encodePathSegment(":"))
                 .as("Several GCP APIs use ':' within paths, and do not handle encoded colons")
                 .isEqualTo(":");
+    }
+
+    @Test
+    public void urlEncoder_encodePath_allowsEqualsValue() {
+        assertThat(BaseUrl.UrlEncoder.encodeQueryValue("="))
+                .as("Gitlab CDN APIs use '=' within query param values, and do not handle encoded equals")
+                .isEqualTo("=");
     }
 
     @Test
