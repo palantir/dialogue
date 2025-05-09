@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Precompute optimized CharMatchers for BaseUrl$UrlEncoder
+  links:
+  - https://github.com/palantir/dialogue/pull/2572
