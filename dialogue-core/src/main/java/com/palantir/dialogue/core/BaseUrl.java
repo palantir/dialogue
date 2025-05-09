@@ -238,13 +238,15 @@ public final class BaseUrl {
     @VisibleForTesting
     static class UrlEncoder {
         private static final CharMatcher DIGIT = CharMatcher.inRange('0', '9').precomputed();
-        private static final CharMatcher ALPHA = CharMatcher.inRange('a', 'z').or(CharMatcher.inRange('A', 'Z')).precomputed();
+        private static final CharMatcher ALPHA =
+                CharMatcher.inRange('a', 'z').or(CharMatcher.inRange('A', 'Z')).precomputed();
 
         // unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
         private static final CharMatcher UNRESERVED = DIGIT.or(ALPHA).or(CharMatcher.anyOf("-._~")).precomputed();
 
         // sub-delims = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
-        private static final CharMatcher SUB_DELIMS = CharMatcher.anyOf("!$&'()*+,;=").precomputed();
+        private static final CharMatcher SUB_DELIMS =
+                CharMatcher.anyOf("!$&'()*+,;=").precomputed();
         private static final CharMatcher IS_HOST = UNRESERVED.or(SUB_DELIMS).precomputed();
 
         // The RFC permits percent-encoding any character. We also percent encode sub-delimiters to avoid
@@ -260,17 +262,20 @@ public final class BaseUrl {
         // A strict implementation of the rfc allow 'UNRESERVED.or(CharMatcher.anyOf(":@"))',
         // however we have updated it from 'UNRESERVED' to allow colons, and would like to
         // make changes as slowly as possible.
-        private static final CharMatcher IS_P_CHAR = UNRESERVED.or(CharMatcher.is(':')).precomputed();
+        private static final CharMatcher IS_P_CHAR =
+                UNRESERVED.or(CharMatcher.is(':')).precomputed();
 
         // For historical reasons, we allow sub-delims in the base uri if provided directly,
         // but escape them in paths we create/encode. Base-uri paths tend to be simple, so I wouldn't
         // expect the sub-delims to be relevant here in the vast majority of cases. With sufficient
         // research and testing, we should incorporate relevant sub-delims into IS_P_CHAR and update this
         // to: 'IS_P_CHAR.or(CharMatcher.is('/'))'.
-        private static final CharMatcher IS_PATH = IS_P_CHAR.or(SUB_DELIMS).or(CharMatcher.is('/')).precomputed();
+        private static final CharMatcher IS_PATH =
+                IS_P_CHAR.or(SUB_DELIMS).or(CharMatcher.is('/')).precomputed();
 
         // query = *( pchar / "/" / "?" )
-        private static final CharMatcher IS_QUERY_CHAR = IS_P_CHAR.or(CharMatcher.anyOf("/?")).precomputed();
+        private static final CharMatcher IS_QUERY_CHAR =
+                IS_P_CHAR.or(CharMatcher.anyOf("/?")).precomputed();
 
         static boolean isHost(String maybeHost) {
             return IS_HOST.matchesAllOf(maybeHost) || isIpv6Host(maybeHost);
