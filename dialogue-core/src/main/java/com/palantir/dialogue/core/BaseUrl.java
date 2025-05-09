@@ -242,7 +242,8 @@ public final class BaseUrl {
                 CharMatcher.inRange('a', 'z').or(CharMatcher.inRange('A', 'Z')).precomputed();
 
         // unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
-        private static final CharMatcher UNRESERVED = DIGIT.or(ALPHA).or(CharMatcher.anyOf("-._~")).precomputed();
+        private static final CharMatcher UNRESERVED =
+                DIGIT.or(ALPHA).or(CharMatcher.anyOf("-._~")).precomputed();
 
         // sub-delims = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
         private static final CharMatcher SUB_DELIMS =
