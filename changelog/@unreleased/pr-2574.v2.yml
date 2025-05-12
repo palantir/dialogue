@@ -1,5 +1,5 @@
-type: break
-break:
+type: improvement
+improvement:
   description: Dialogue allows unencoded equals signs (=) in URL query parameter values
   links:
   - https://github.com/palantir/dialogue/pull/2574
