@@ -223,7 +223,7 @@ public abstract class AbstractChannelTest {
 
         HttpUrl url = server.takeRequest().getRequestUrl();
         assertThat(url.queryParameterValues(mustEncode)).containsExactlyInAnyOrder(mustEncode);
-        assertThat(url.url().getQuery()).isEqualTo("%25%5E%26/?a%3DA3%26a%3DA4=%25%5E%26/?a%3DA3%26a%3DA4");
+        assertThat(url.url().getQuery()).isEqualTo("%25%5E%26/?a%3DA3%26a%3DA4=%25%5E%26/?a=A3%26a=A4");
     }
 
     @Test
