@@ -169,7 +169,7 @@ public final class BaseUrl {
         @Override
         public DefaultUrlBuilder queryParam(String name, String value) {
             this.queryNamesAndValues.put(
-                    BaseUrl.UrlEncoder.encodeQueryNameOrValue(name), BaseUrl.UrlEncoder.encodeQueryNameOrValue(value));
+                    BaseUrl.UrlEncoder.encodeQueryParamName(name), BaseUrl.UrlEncoder.encodeQueryParamValue(value));
             return this;
         }
 
@@ -278,6 +278,13 @@ public final class BaseUrl {
         private static final CharMatcher IS_QUERY_CHAR =
                 IS_P_CHAR.or(CharMatcher.anyOf("/?")).precomputed();
 
+        // According to https://tools.ietf.org/html/rfc3986#section-3.4, the query component can contain sub-delims
+        // including '='. It would be more correct to extend IS_QUERY_CHAR to include sub-delims and use it for both
+        // query parameter names and values. To make minimal changes (as not to break existing clients), we only
+        // extend IS_QUERY_CHAR to include '=' for query parameter values.
+        private static final CharMatcher IS_QUERY_PARAM_VALUE_CHAR =
+                IS_QUERY_CHAR.or(CharMatcher.anyOf("=")).precomputed();
+
         static boolean isHost(String maybeHost) {
             return IS_HOST.matchesAllOf(maybeHost) || isIpv6Host(maybeHost);
         }
@@ -302,8 +309,12 @@ public final class BaseUrl {
             return encode(pathComponent, IS_P_CHAR);
         }
 
-        static String encodeQueryNameOrValue(String nameOrValue) {
+        static String encodeQueryParamName(String nameOrValue) {
             return encode(nameOrValue, IS_QUERY_CHAR);
+        }
+
+        static String encodeQueryParamValue(String value) {
+            return encode(value, IS_QUERY_PARAM_VALUE_CHAR);
         }
 
         // percent-encodes every byte in the source string with it's percent-encoded representation, except for

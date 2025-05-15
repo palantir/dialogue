@@ -136,6 +136,12 @@ public final class UrlBuilderTest {
         assertThat(minimalUrl().queryParam("question?&", "answer!&").build().toString())
                 .isEqualTo("http://host:80?question?%26=answer%21%26");
         assertThat(minimalUrl().queryParam("q", ":").build().toString()).isEqualTo("http://host:80?q=:");
+        assertThat(minimalUrl()
+                        .queryParam("question1=", "answer1=")
+                        .queryParam("question2=", "answer2=")
+                        .build()
+                        .toString())
+                .isEqualTo("http://host:80?question1%3D=answer1=&question2%3D=answer2=");
     }
 
     @Test
@@ -183,15 +189,14 @@ public final class UrlBuilderTest {
     @Test
     public void urlEncoder_encodeQuery_onlyEncodesNonReservedChars() {
         String nonReserved = "aAzZ09/?";
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue(nonReserved)).isEqualTo(nonReserved);
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("@[]{}ßçö"))
-                .isEqualTo("%40%5B%5D%7B%7D%C3%9F%C3%A7%C3%B6");
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("=&+")).isEqualTo("%3D%26%2B");
+        assertThat(BaseUrl.UrlEncoder.encodeQueryParamName(nonReserved)).isEqualTo(nonReserved);
+        assertThat(BaseUrl.UrlEncoder.encodeQueryParamName("@[]{}ßçö")).isEqualTo("%40%5B%5D%7B%7D%C3%9F%C3%A7%C3%B6");
+        assertThat(BaseUrl.UrlEncoder.encodeQueryParamName("=&+")).isEqualTo("%3D%26%2B");
     }
 
     @Test
     public void urlEncoder_encodeQuery_encodesPlusSign() {
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("+"))
+        assertThat(BaseUrl.UrlEncoder.encodeQueryParamName("+"))
                 .as("'+' must be encoded, otherwise many servers will interpret it as a url encoded space")
                 .isEqualTo("%2B");
     }
