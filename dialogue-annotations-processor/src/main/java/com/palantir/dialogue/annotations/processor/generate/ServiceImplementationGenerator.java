@@ -157,7 +157,7 @@ public final class ServiceImplementationGenerator {
                 .alias((typeName, _parameterSerializerMethodName) -> typeName)
                 .customType(typeName -> typeName)
                 .otherwiseEmpty()
-                .get();
+                .orElseThrow();
         ParameterizedTypeName deserializerType = ParameterizedTypeName.get(ClassName.get(Serializer.class), className);
         return FieldSpec.builder(deserializerType, serializerFieldName)
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)

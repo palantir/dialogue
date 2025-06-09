@@ -23,13 +23,15 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Utility functionality to transform a multimap into a standard map assuming all keys have at most one value.
  */
 final class MultimapAsMap {
 
-    static <K, V> Map<K, V> of(Multimap<K, V> multimap) {
+    @SuppressWarnings("NullAway")
+    static <K, V> Map<K, @Nullable V> of(Multimap<K, V> multimap) {
         return Maps.transformValues(multimap.asMap(), values -> {
             int size = values.size();
             if (size <= 1) {

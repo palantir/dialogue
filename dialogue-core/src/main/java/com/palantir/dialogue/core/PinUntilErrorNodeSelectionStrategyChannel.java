@@ -41,8 +41,9 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
-import javax.annotation.Nullable;
 import org.immutables.value.Value;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Routes all requests to one host until an error is received, then we'll move on to the next host. We explicitly
@@ -142,7 +143,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
         DialogueFutures.addDirectCallback(maybeResponse.get(), new FutureCallback<>() {
             @Override
-            public void onSuccess(Response response) {
+            public void onSuccess(@Nullable Response response) {
                 // We specifically don't switch  429 responses to support transactional
                 // workflows where it is important for a large number of requests to all land on the same node,
                 // even if a couple of them get rate limited in the middle.
@@ -151,14 +152,16 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                                 && !Responses.isQosDueToCustom(response)
                                 && !Responses.isTooManyRequests(response))) {
                     OptionalInt next = incrementHostIfNecessary(pin);
-                    instrumentation.receivedErrorStatus(pin, channel, response, next);
+                    if (response != null) {
+                        instrumentation.receivedErrorStatus(pin, channel, response, next);
+                    }
                 } else {
                     instrumentation.successfulResponse(channel.stableIndex());
                 }
             }
 
             @Override
-            public void onFailure(Throwable throwable) {
+            public void onFailure(@NonNull Throwable throwable) {
                 OptionalInt next = incrementHostIfNecessary(pin);
                 instrumentation.receivedThrowable(pin, channel, throwable, next);
             }
@@ -305,7 +308,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
     /** Purely for metric and service log observability. */
     private static final class Instrumentation {
-        @Nullable
+        private static final Meter[] EMPTY = new Meter[0];
         private final Meter[] successesPerHost;
 
         private final Meter reshuffleMeter;
@@ -336,7 +339,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                                 .build())
                         .toArray(Meter[]::new);
             } else {
-                this.successesPerHost = null;
+                this.successesPerHost = EMPTY;
             }
         }
 
@@ -408,7 +411,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         }
 
         private void successfulResponse(int currentIndex) {
-            if (successesPerHost != null) {
+            if (currentIndex < successesPerHost.length) {
                 successesPerHost[currentIndex].mark();
             }
         }

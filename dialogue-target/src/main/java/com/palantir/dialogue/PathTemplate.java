@@ -79,7 +79,7 @@ public final class PathTemplate {
         for (Segment segment : segments) {
             if (segment.fixed != null) {
                 url.pathSegment(segment.fixed);
-            } else {
+            } else if (segment.variable != null) {
                 url.pathSegments(parameters.get(segment.variable));
             }
         }

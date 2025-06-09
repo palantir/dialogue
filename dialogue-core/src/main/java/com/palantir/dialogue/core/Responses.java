@@ -25,6 +25,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /** Utility functionality for {@link Response} handling. */
 final class Responses {
@@ -33,28 +34,29 @@ final class Responses {
     @VisibleForTesting
     static final String PROXY_UPSTREAM_REQUEST_ATTEMPTS = "Proxy-Upstream-Request-Attempts";
 
-    static boolean isRetryOther(Response response) {
+    static boolean isRetryOther(@Nullable Response response) {
         // Note that a 308 status may be a non-retryable signal, for instance google sometimes
         // uses a '308 Resume Incomplete', so we must verify the presence of a Location header
         // to differentiate the two.
-        return response.code() == 308
+        return response != null
+                && response.code() == 308
                 && response.getFirstHeader(HttpHeaders.LOCATION).isPresent();
     }
 
-    static boolean isTooManyRequests(Response response) {
-        return response.code() == 429;
+    static boolean isTooManyRequests(@Nullable Response response) {
+        return response != null && response.code() == 429;
     }
 
-    static boolean isUnavailable(Response response) {
-        return response.code() == 503;
+    static boolean isUnavailable(@Nullable Response response) {
+        return response != null && response.code() == 503;
     }
 
-    static boolean isQosStatus(Response response) {
+    static boolean isQosStatus(@Nullable Response response) {
         return isRetryOther(response) || isTooManyRequests(response) || isUnavailable(response);
     }
 
-    static boolean isQosDueToCustom(Response result) {
-        if (!isQosStatus(result)) {
+    static boolean isQosDueToCustom(@Nullable Response result) {
+        if (result == null || !isQosStatus(result)) {
             return false;
         }
         QosReason reason = DialogueQosReasonDecoder.parse(result);
@@ -70,20 +72,20 @@ final class Responses {
                 || !RetryHint.DO_NOT_RETRY.equals(reason.retryHint().get());
     }
 
-    static boolean isServerErrorRange(Response response) {
-        return response.code() / 100 == 5;
+    static boolean isServerErrorRange(@Nullable Response response) {
+        return response == null || response.code() / 100 == 5;
     }
 
-    static boolean isInternalServerError(Response response) {
-        return response.code() == 500;
+    static boolean isInternalServerError(@Nullable Response response) {
+        return response == null || response.code() == 500;
     }
 
-    static boolean isSuccess(Response response) {
-        return response.code() / 100 == 2;
+    static boolean isSuccess(@Nullable Response response) {
+        return response != null && response.code() / 100 == 2;
     }
 
-    static boolean isClientError(Response response) {
-        return response.code() / 100 == 4;
+    static boolean isClientError(@Nullable Response response) {
+        return response != null && response.code() / 100 == 4;
     }
 
     /**

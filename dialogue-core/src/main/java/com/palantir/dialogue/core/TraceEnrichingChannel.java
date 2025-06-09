@@ -31,6 +31,8 @@ import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
 import com.palantir.tracing.TracingHeadersEnrichingFunction;
 import com.palantir.tracing.api.SpanType;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 /** A channel that adds Zipkin compatible tracing headers. */
 final class TraceEnrichingChannel implements Channel {
@@ -63,12 +65,16 @@ final class TraceEnrichingChannel implements Channel {
             ListenableFuture<Response> future = executeInternal(endpoint, request);
             return DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
                 @Override
-                public void onSuccess(Response response) {
-                    span.complete(responseTranslator, response);
+                public void onSuccess(@Nullable Response response) {
+                    if (response == null) {
+                        span.complete();
+                    } else {
+                        span.complete(responseTranslator, response);
+                    }
                 }
 
                 @Override
-                public void onFailure(Throwable throwable) {
+                public void onFailure(@NonNull Throwable throwable) {
                     span.complete(throwableTranslator, throwable);
                 }
             });
@@ -90,7 +96,7 @@ final class TraceEnrichingChannel implements Channel {
         INSTANCE;
 
         @Override
-        public void addHeader(String headerName, String headerValue, Request.Builder state) {
+        public void addHeader(@NonNull String headerName, @NonNull String headerValue, Request.Builder state) {
             state.putHeaderParams(headerName, headerValue);
         }
     }

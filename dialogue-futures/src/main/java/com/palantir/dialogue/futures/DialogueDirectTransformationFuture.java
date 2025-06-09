@@ -26,7 +26,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 /**
  * This {@link ListenableFuture} implementation differs from
@@ -47,7 +48,8 @@ final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture
 
     private final SettableFuture<O> output;
 
-    DialogueDirectTransformationFuture(ListenableFuture<I> input, Function<? super I, ? extends O> function) {
+    DialogueDirectTransformationFuture(
+            @NonNull ListenableFuture<I> input, @Nullable Function<? super I, ? extends O> function) {
         this.input = input;
         this.function = function;
         this.output = SettableFuture.create();
@@ -55,7 +57,7 @@ final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture
     }
 
     @Override
-    public void addListener(Runnable listener, Executor executor) {
+    public void addListener(@NonNull Runnable listener, @NonNull Executor executor) {
         output.addListener(listener, executor);
     }
 
@@ -84,23 +86,27 @@ final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture
         return output.isDone();
     }
 
+    @Nullable
     @Override
     public O get() throws InterruptedException, ExecutionException {
         return output.get();
     }
 
+    @Nullable
     @Override
-    public O get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+    public O get(long timeout, @NonNull TimeUnit unit)
+            throws InterruptedException, ExecutionException, TimeoutException {
         return output.get(timeout, unit);
     }
 
     // Future callback methods update the output future based on the input.
 
     @Override
-    public void onSuccess(I result) {
+    public void onSuccess(@Nullable I result) {
         try {
-            O transformed = Preconditions.checkNotNull(function, "transformation function")
-                    .apply(result);
+            Function<? super I, ? extends O> fn = Preconditions.checkNotNull(function, "transformation function");
+            @SuppressWarnings("NullAway")
+            O transformed = fn.apply(result);
             output.set(transformed);
         } catch (Throwable t) {
             output.setException(t);
@@ -110,7 +116,7 @@ final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture
     }
 
     @Override
-    public void onFailure(Throwable throwable) {
+    public void onFailure(@NonNull Throwable throwable) {
         ListenableFuture<I> inputSnapshot = input;
         if (inputSnapshot != null && inputSnapshot.isCancelled()) {
             output.cancel(false);

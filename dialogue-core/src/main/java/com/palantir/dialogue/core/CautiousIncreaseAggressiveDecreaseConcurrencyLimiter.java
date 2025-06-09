@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleBinaryOperator;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Simple lock-free concurrency limiter. Typically, a dispatching
@@ -197,12 +199,14 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         }
 
         @Override
-        public void onSuccess(Response result) {
-            behavior.onSuccess(result, this);
+        public void onSuccess(@Nullable Response result) {
+            if (result != null) {
+                behavior.onSuccess(result, this);
+            }
         }
 
         @Override
-        public void onFailure(Throwable throwable) {
+        public void onFailure(@NonNull Throwable throwable) {
             behavior.onFailure(throwable, this);
         }
 

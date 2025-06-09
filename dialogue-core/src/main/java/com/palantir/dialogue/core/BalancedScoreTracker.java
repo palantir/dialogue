@@ -39,6 +39,8 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Chooses nodes based on stats about each channel, i.e. how many requests are currently
@@ -152,9 +154,11 @@ final class BalancedScoreTracker {
         }
 
         @Override
-        public void onSuccess(Response response) {
+        public void onSuccess(@Nullable Response response) {
             inflight.decrementAndGet();
-
+            if (response == null) {
+                return;
+            }
             if (Responses.isQosDueToCustom(response)) {
                 // The server has marked this QoS exception as something that the balanced score
                 // tracker cannot understand.
@@ -183,7 +187,7 @@ final class BalancedScoreTracker {
         }
 
         @Override
-        public void onFailure(Throwable throwable) {
+        public void onFailure(@NonNull Throwable throwable) {
             inflight.decrementAndGet();
             recentFailuresReservoir.update(FAILURE_WEIGHT);
             observability.debugLogThrowableFailure(recentFailuresReservoir, throwable);

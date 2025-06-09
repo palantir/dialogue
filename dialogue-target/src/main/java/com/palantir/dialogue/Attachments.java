@@ -38,13 +38,17 @@ final class Attachments {
         Preconditions.checkNotNull(key, "key");
         Preconditions.checkNotNull(value, "value");
         key.checkIsInstance(value);
-        return (V) attachments.put(key, value);
+        @SuppressWarnings("unchecked")
+        V result = (V) attachments.put(key, value);
+        return result;
     }
 
     @Nullable
     <V> V getOrDefault(AttachmentKey<V> key, @Nullable V defaultValue) {
         Preconditions.checkNotNull(key, "key");
-        return (V) attachments.getOrDefault(key, defaultValue);
+        @SuppressWarnings("unchecked")
+        V result = (V) attachments.getOrDefault(key, defaultValue);
+        return result;
     }
 
     static final class AttachmentKey<V> {
@@ -65,9 +69,10 @@ final class Attachments {
         }
     }
 
-    @SuppressWarnings({"unchecked", "RawTypes"})
     static <T> AttachmentKey<T> createAttachmentKey(Class<? super T> valueClazz) {
         Preconditions.checkNotNull(valueClazz, "valueClazz");
-        return new AttachmentKey(valueClazz);
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        AttachmentKey<T> key = new AttachmentKey(valueClazz);
+        return key;
     }
 }

@@ -114,7 +114,7 @@ public final class ArgumentTypesResolver {
                             .isPresentMethodName("isPresent")
                             .valueGetMethodName("getAsInt")
                             .innerType(getPrimitiveType(context.getTypeMirror(Integer.class))
-                                    .get())
+                                    .orElseThrow())
                             .build()));
         }
 
@@ -125,7 +125,7 @@ public final class ArgumentTypesResolver {
                             .isPresentMethodName("isPresent")
                             .valueGetMethodName("getAsLong")
                             .innerType(getPrimitiveType(context.getTypeMirror(Long.class))
-                                    .get())
+                                    .orElseThrow())
                             .build()));
         }
 
@@ -136,7 +136,7 @@ public final class ArgumentTypesResolver {
                             .isPresentMethodName("isPresent")
                             .valueGetMethodName("getAsDouble")
                             .innerType(getPrimitiveType(context.getTypeMirror(Double.class))
-                                    .get())
+                                    .orElseThrow())
                             .build()));
         }
 

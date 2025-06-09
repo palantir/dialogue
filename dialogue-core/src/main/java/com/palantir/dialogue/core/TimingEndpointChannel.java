@@ -34,6 +34,8 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 final class TimingEndpointChannel implements EndpointChannel {
 
@@ -81,7 +83,7 @@ final class TimingEndpointChannel implements EndpointChannel {
         return DialogueFutures.addDirectCallback(response, new FutureCallback<>() {
             @Override
             @SuppressWarnings("PreferJavaTimeOverload")
-            public void onSuccess(Response response) {
+            public void onSuccess(@Nullable Response response) {
                 if (Responses.isSuccess(response)) {
                     updateTimer(successTimer);
                 } else if (Responses.isQosStatus(response) || Responses.isInternalServerError(response)) {
@@ -90,7 +92,7 @@ final class TimingEndpointChannel implements EndpointChannel {
             }
 
             @Override
-            public void onFailure(Throwable throwable) {
+            public void onFailure(@NonNull Throwable throwable) {
                 if (throwable instanceof IOException) {
                     updateTimer(failureTimer);
                 } else {

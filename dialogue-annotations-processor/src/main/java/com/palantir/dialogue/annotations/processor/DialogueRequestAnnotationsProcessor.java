@@ -18,11 +18,12 @@ package com.palantir.dialogue.annotations.processor;
 
 import com.google.auto.common.AnnotationMirrors;
 import com.google.auto.common.MoreElements;
-import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.SetMultimap;
 import com.google.errorprone.annotations.CompileTimeConstant;
-import com.palantir.common.streams.KeyedStream;
 import com.palantir.dialogue.DialogueService;
 import com.palantir.dialogue.DialogueServiceFactory;
 import com.palantir.dialogue.annotations.Request;
@@ -64,6 +65,7 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.SimpleAnnotationValueVisitor9;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
+import org.jspecify.annotations.Nullable;
 
 public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor {
 
@@ -97,31 +99,37 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
             return false;
         }
 
-        KeyedStream.of(roundEnv.getElementsAnnotatedWith(Request.class))
-                .map(e -> (Element) e)
-                .mapKeys(Element::getEnclosingElement)
-                .collectToSetMultimap()
-                .asMap()
-                .forEach((interfaceElement, annotatedMethods) -> {
-                    JavaFile javaFile;
-                    try {
-                        javaFile = generateDialogueServiceFactory(interfaceElement, annotatedMethods);
-                    } catch (Throwable e) {
-                        error("Code generation failed", interfaceElement, e);
-                        return;
-                    }
+        Set<? extends Element> elementsAnnotatedWith = roundEnv.getElementsAnnotatedWith(Request.class);
 
-                    try {
-                        Goethe.formatAndEmit(javaFile, filer);
-                    } catch (GoetheException e) {
-                        if (e.getCause() instanceof FilerException) {
-                            // Happens when same file is written twice.
-                            // This indicates additional data was discovered in a subsequent processing round.
-                        } else {
-                            error("Failed to format generated code", interfaceElement, e);
-                        }
-                    }
-                });
+        SetMultimap<Element, Element> elementElementSetMultimap = HashMultimap.create();
+        elementsAnnotatedWith.forEach(element -> {
+            if (element != null) {
+                Element enclosingElement = element.getEnclosingElement();
+                if (enclosingElement != null) {
+                    elementElementSetMultimap.put(enclosingElement, element);
+                }
+            }
+        });
+        Multimaps.asMap(elementElementSetMultimap).forEach((interfaceElement, annotatedMethods) -> {
+            JavaFile javaFile;
+            try {
+                javaFile = generateDialogueServiceFactory(interfaceElement, annotatedMethods);
+            } catch (Throwable e) {
+                error("Code generation failed", interfaceElement, e);
+                return;
+            }
+
+            try {
+                Goethe.formatAndEmit(javaFile, filer);
+            } catch (GoetheException e) {
+                if (e.getCause() instanceof FilerException) {
+                    // Happens when same file is written twice.
+                    // This indicates additional data was discovered in a subsequent processing round.
+                } else {
+                    error("Failed to format generated code", interfaceElement, e);
+                }
+            }
+        });
 
         return false;
     }
@@ -138,21 +146,19 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
 
         Preconditions.checkArgument(nonMethodElements.isEmpty(), "Only methods can be annotated with @Request");
 
-        List<EndpointDefinition> endpoints = processingStep(ctx -> {
-            EndpointDefinitions endpointDefinitions = new EndpointDefinitions(ctx, elements, types);
-            List<Optional<EndpointDefinition>> maybeEndpoints = annotatedMethods.stream()
-                    .map(MoreElements::asExecutable)
-                    .map(endpointDefinitions::tryParseEndpointDefinition)
-                    .collect(Collectors.toList());
+        List<EndpointDefinition> endpoints = Preconditions.checkNotNull(
+                processingStep(ctx -> {
+                    EndpointDefinitions endpointDefinitions = new EndpointDefinitions(ctx, elements, types);
+                    List<Optional<EndpointDefinition>> maybeEndpoints = annotatedMethods.stream()
+                            .map(MoreElements::asExecutable)
+                            .map(endpointDefinitions::tryParseEndpointDefinition)
+                            .toList();
 
-            Preconditions.checkArgument(
-                    maybeEndpoints.stream()
-                            .filter(Predicates.not(Optional::isPresent))
-                            .collect(Collectors.toList())
-                            .isEmpty(),
-                    "Failed validation");
-            return maybeEndpoints.stream().map(Optional::get).collect(Collectors.toList());
-        });
+                    Preconditions.checkArgument(
+                            maybeEndpoints.stream().noneMatch(Optional::isEmpty), "Failed validation");
+                    return maybeEndpoints.stream().map(Optional::get).toList();
+                }),
+                "endpoints");
 
         ClassName serviceInterface = (ClassName) TypeName.get(annotatedInterface.asType());
 
@@ -208,6 +214,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
                 .build();
     }
 
+    @SuppressWarnings("NullAway")
     private void validationStep(Consumer<DefaultErrorContext> validationFunction) {
         processingStep(ctx -> {
             validationFunction.accept(ctx);
@@ -215,6 +222,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
         });
     }
 
+    @Nullable
     private <T> T processingStep(Function<DefaultErrorContext, T> stepFunction) {
         try (DefaultErrorContext ctx = new DefaultErrorContext(messager)) {
             return stepFunction.apply(ctx);
