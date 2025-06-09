@@ -19,8 +19,8 @@ package com.palantir.dialogue.annotations.processor;
 import com.google.auto.common.AnnotationMirrors;
 import com.google.auto.common.MoreElements;
 import com.google.common.base.Throwables;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
 import com.google.errorprone.annotations.CompileTimeConstant;
@@ -101,7 +101,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
 
         Set<? extends Element> elementsAnnotatedWith = roundEnv.getElementsAnnotatedWith(Request.class);
 
-        SetMultimap<Element, Element> elementElementSetMultimap = HashMultimap.create();
+        SetMultimap<Element, Element> elementElementSetMultimap = LinkedHashMultimap.create();
         elementsAnnotatedWith.forEach(element -> {
             if (element != null) {
                 Element enclosingElement = element.getEnclosingElement();

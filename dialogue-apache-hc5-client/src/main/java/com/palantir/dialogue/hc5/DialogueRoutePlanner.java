@@ -65,6 +65,7 @@ final class DialogueRoutePlanner implements HttpRoutePlanner {
                 route.getLayerType());
     }
 
+    @Nullable
     private static HttpHost @Nullable [] extractProxies(HttpRoute route) {
         int hops = route.getHopCount();
         if (hops > 1) {
