@@ -60,7 +60,6 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.ExecRuntime;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
@@ -73,6 +72,7 @@ import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.net.URIAuthority;
+import org.jspecify.annotations.Nullable;
 
 final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(ApacheHttpClientBlockingChannel.class);
@@ -303,8 +303,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         private final ResponseAttachments attachments = ResponseAttachments.create();
 
         // Client reference is used to prevent premature termination
-        @Nullable
-        private ApacheHttpClientChannels.CloseableClient client;
+        private ApacheHttpClientChannels.@Nullable CloseableClient client;
 
         @Nullable
         private ListMultimap<String, String> headers;
@@ -313,7 +312,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         private InputStream responseBody;
 
         HttpClientResponse(
-                ApacheHttpClientChannels.CloseableClient client,
+                ApacheHttpClientChannels.@Nullable CloseableClient client,
                 CloseableHttpResponse response,
                 HttpClientContext context) {
             this.client = client;

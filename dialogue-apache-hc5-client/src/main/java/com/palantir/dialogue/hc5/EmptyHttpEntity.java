@@ -21,10 +21,10 @@ import java.io.OutputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import javax.annotation.Nullable;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.jspecify.annotations.Nullable;
 
 /** Simplest possible empty {@link HttpEntity} implementation. */
 enum EmptyHttpEntity implements HttpEntity {

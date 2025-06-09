@@ -35,8 +35,8 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Stateful object which provides a Channel to routes all requests to one host, using the

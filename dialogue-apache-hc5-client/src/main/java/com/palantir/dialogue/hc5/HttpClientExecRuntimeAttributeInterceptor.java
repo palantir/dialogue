@@ -17,7 +17,6 @@
 package com.palantir.dialogue.hc5;
 
 import java.io.IOException;
-import javax.annotation.Nullable;
 import org.apache.hc.client5.http.classic.ExecChain;
 import org.apache.hc.client5.http.classic.ExecChain.Scope;
 import org.apache.hc.client5.http.classic.ExecChainHandler;
@@ -26,6 +25,7 @@ import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.jspecify.annotations.Nullable;
 
 enum HttpClientExecRuntimeAttributeInterceptor implements ExecChainHandler {
     INSTANCE;

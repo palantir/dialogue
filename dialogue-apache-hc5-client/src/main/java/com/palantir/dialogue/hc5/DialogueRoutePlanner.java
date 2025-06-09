@@ -18,12 +18,12 @@ package com.palantir.dialogue.hc5;
 
 import java.net.InetAddress;
 import java.net.ProxySelector;
-import javax.annotation.Nullable;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.routing.HttpRoutePlanner;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.jspecify.annotations.Nullable;
 
 /**
  * This implementation wraps the default route planner, but allows a specific pre-resolved address to be used.
@@ -65,8 +65,7 @@ final class DialogueRoutePlanner implements HttpRoutePlanner {
                 route.getLayerType());
     }
 
-    @Nullable
-    private static HttpHost[] extractProxies(HttpRoute route) {
+    private static HttpHost @Nullable [] extractProxies(HttpRoute route) {
         int hops = route.getHopCount();
         if (hops > 1) {
             HttpHost[] proxies = new HttpHost[hops - 1];

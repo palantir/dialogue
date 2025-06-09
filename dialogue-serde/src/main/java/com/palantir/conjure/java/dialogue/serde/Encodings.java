@@ -26,7 +26,7 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import java.io.InputStream;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 public final class Encodings {
 

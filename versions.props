@@ -1,6 +1,7 @@
 com.fasterxml.jackson.*:* = 2.19.1
 com.fasterxml.jackson.core:jackson-databind = 2.19.1
 com.google.code.findbugs:jsr305 = 3.0.2
+com.google.code.findbugs:annotations = 3.0.1u2
 com.google.guava:guava = 33.4.8-jre
 com.google.testing.compile:compile-testing = 0.21.0
 com.palantir.common:streams = 2.4.0

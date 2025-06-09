@@ -40,7 +40,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.Nullable;
 import okhttp3.Headers;
 import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
@@ -49,6 +48,7 @@ import okio.BufferedSink;
 import okio.Okio;
 import okio.Source;
 import org.immutables.value.Value;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -325,9 +325,8 @@ public final class MultipartRequestBodyTest {
 
     private RequestBody unknownLengthRequestBody(byte[] value, okhttp3.MediaType contentType) {
         return new RequestBody() {
-            @Nullable
             @Override
-            public okhttp3.MediaType contentType() {
+            public okhttp3.@Nullable MediaType contentType() {
                 return contentType;
             }
 

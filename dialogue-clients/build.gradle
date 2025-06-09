@@ -13,7 +13,7 @@ dependencies {
     implementation project(':dialogue-apache-hc5-client')
     implementation project(':dialogue-serde')
     implementation 'com.github.ben-manes.caffeine:caffeine'
-    implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.google.code.findbugs:annotations'
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.conjure.java.runtime:keystores'
@@ -25,6 +25,7 @@ dependencies {
     implementation 'com.palantir.tritium:tritium-registry'
     implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'io.dropwizard.metrics:metrics-core'
+    implementation 'org.jspecify:jspecify'
 
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'

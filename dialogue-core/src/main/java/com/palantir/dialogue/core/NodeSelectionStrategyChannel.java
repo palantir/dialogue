@@ -33,9 +33,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.Nullable;
 import org.immutables.value.Value;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 final class NodeSelectionStrategyChannel implements LimitedChannel {
     private static final String NODE_SELECTION_HEADER = "Node-Selection-Strategy";

@@ -103,8 +103,9 @@ subprojects {
         }
     })
 
-    tasks.check.dependsOn checkImplicitDependencies
+    tasks.check.dependsOn checkImplicitDependencies, checkUnusedDependencies
     tasks.checkImplicitDependenciesTest.enabled = false // doesn't impact users
+    tasks.checkUnusedDependenciesTest.enabled = false // doesn't impact users
 }
 
 jdks {

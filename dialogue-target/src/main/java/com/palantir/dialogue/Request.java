@@ -30,9 +30,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
+import org.jspecify.annotations.Nullable;
 
 /** Defines the parameters of a single call to an {@link Endpoint}. */
 @ThreadSafe

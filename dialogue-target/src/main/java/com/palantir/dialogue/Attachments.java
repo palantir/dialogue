@@ -21,7 +21,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 final class Attachments {
     @SuppressWarnings("DangerousIdentityKey")

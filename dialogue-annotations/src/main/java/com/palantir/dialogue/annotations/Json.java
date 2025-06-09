@@ -25,7 +25,7 @@ import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import java.io.InputStream;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Implements conjure-style json body and response handling.

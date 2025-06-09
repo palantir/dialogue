@@ -156,7 +156,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
 
                     Preconditions.checkArgument(
                             maybeEndpoints.stream().noneMatch(Optional::isEmpty), "Failed validation");
-                    return maybeEndpoints.stream().map(Optional::get).toList();
+                    return maybeEndpoints.stream().map(Optional::orElseThrow).toList();
                 }),
                 "endpoints");
 

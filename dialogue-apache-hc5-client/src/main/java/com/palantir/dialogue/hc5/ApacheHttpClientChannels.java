@@ -60,7 +60,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
-import javax.annotation.Nullable;
 import javax.net.ssl.SSLSocketFactory;
 import org.apache.hc.client5.http.AuthenticationStrategy;
 import org.apache.hc.client5.http.SystemDefaultDnsResolver;
@@ -92,6 +91,7 @@ import org.apache.hc.core5.pool.PoolReusePolicy;
 import org.apache.hc.core5.pool.PoolStats;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
+import org.jspecify.annotations.Nullable;
 
 public final class ApacheHttpClientChannels {
     private static final SafeLogger log = SafeLoggerFactory.get(ApacheHttpClientChannels.class);
