@@ -29,12 +29,12 @@ buildscript {
         classpath 'org.revapi:gradle-revapi:1.8.0'
         classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.69.0'
         classpath 'com.palantir.baseline:gradle-baseline-java:6.32.0'
-        classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.3.0'
+        classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.4.0'
         classpath 'com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.4.0'
         classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
         classpath 'com.palantir.metricschema:gradle-metric-schema:0.33.0'
         classpath 'com.palantir.suppressible-error-prone:gradle-suppressible-error-prone:2.9.0'
-        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.56.0'
+        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.57.0'
         classpath 'org.unbroken-dome.gradle-plugins:gradle-testsets-plugin:4.1.0'
     }
 }
