@@ -1,0 +1,6 @@
+type: feature
+feature:
+  description: '`dialogue-annotations-processor` now supports service interfaces nested
+    in other classes.'
+  links:
+  - https://github.com/palantir/dialogue/pull/2591
