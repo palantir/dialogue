@@ -18,6 +18,7 @@ package com.palantir.dialogue.annotations.processor.data;
 
 import com.palantir.javapoet.ClassName;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.immutables.value.Value;
 
 @Value.Immutable
@@ -28,7 +29,9 @@ public interface ServiceDefinition {
     @Value.Derived
     default ClassName serviceFactory() {
         return ClassName.get(
-                serviceInterface().packageName(), serviceInterface().simpleName() + "DialogueServiceFactory");
+                serviceInterface().packageName(),
+                serviceInterface().simpleNames().stream()
+                        .collect(Collectors.joining("", "", "DialogueServiceFactory")));
     }
 
     @Value.Derived

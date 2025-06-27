@@ -29,6 +29,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.myservice.service.MismatchedPathParam;
 import com.palantir.myservice.service.MultipleParamAnnotations;
 import com.palantir.myservice.service.MyService;
+import com.palantir.myservice.service.NestedService;
 import com.palantir.myservice.service.RequestAnnotatedClass;
 import com.palantir.myservice.service.UnmatchedPathParam;
 import com.palantir.myservice.service.UnmatchedPathTemplateParam;
@@ -41,6 +42,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
 import org.junit.jupiter.api.Test;
@@ -54,6 +56,11 @@ public final class DialogueRequestAnnotationsProcessorTest {
     @Test
     public void testExampleFileCompiles() {
         assertTestFileCompileAndMatches(TEST_CLASSES_BASE_DIR, MyService.class);
+    }
+
+    @Test
+    public void testNestedExampleFileCompiles() {
+        assertTestFileCompileAndMatches(TEST_CLASSES_BASE_DIR, NestedService.class, NestedService.MyService.class);
     }
 
     @Test
@@ -105,21 +112,26 @@ public final class DialogueRequestAnnotationsProcessorTest {
                 .hadErrorContaining("Path template parameters do not match method path parameters");
     }
 
-    private void assertTestFileCompileAndMatches(Path basePath, Class<?> clazz) {
-        Compilation compilation = compileTestClass(basePath, clazz);
+    private void assertTestFileCompileAndMatches(Path basePath, Class<?> fileClass, Class<?>... serviceClasses) {
+        Compilation compilation = compileTestClass(basePath, fileClass);
         assertThat(compilation).succeededWithoutWarnings();
-        String generatedClassName = clazz.getSimpleName() + "DialogueServiceFactory";
-        String generatedFqnClassName = clazz.getPackage().getName() + "." + generatedClassName;
-        String generatedClassFileRelativePath = generatedFqnClassName.replaceAll("\\.", "/") + ".java";
-        assertThat(compilation.generatedFile(StandardLocation.SOURCE_OUTPUT, generatedClassFileRelativePath))
-                .hasValueSatisfying(javaFileObject -> {
-                    assertContentsMatch(javaFileObject, generatedClassFileRelativePath);
 
-                    assertThat(Compiler.javac()
-                                    .withOptions("-source", "11", "-Werror", "-Xlint:deprecation", "-Xlint:unchecked")
-                                    .compile(javaFileObject))
-                            .succeededWithoutWarnings();
-                });
+        List<Class<?>> classes = serviceClasses.length > 0 ? List.of(serviceClasses) : List.of(fileClass);
+
+        classes.forEach(clazz -> {
+            String generatedClassFileRelativePath =
+                    clazz.getName().replace(".", "/").replace("$", "") + "DialogueServiceFactory.java";
+            assertThat(compilation.generatedFile(StandardLocation.SOURCE_OUTPUT, generatedClassFileRelativePath))
+                    .hasValueSatisfying(javaFileObject -> {
+                        assertContentsMatch(javaFileObject, generatedClassFileRelativePath);
+
+                        assertThat(Compiler.javac()
+                                        .withOptions(
+                                                "-source", "11", "-Werror", "-Xlint:deprecation", "-Xlint:unchecked")
+                                        .compile(javaFileObject))
+                                .succeededWithoutWarnings();
+                    });
+        });
     }
 
     private Compilation compileTestClass(Path basePath, Class<?> clazz) {

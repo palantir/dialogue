@@ -42,7 +42,6 @@ public final class DialogueServiceFactoryGenerator {
     }
 
     public TypeSpec generate() {
-
         TypeSpec.Builder serviceFactoryBuilder = TypeSpec.classBuilder(serviceDefinition.serviceFactory())
                 .addAnnotation(AnnotationSpec.builder(ClassName.get(Generated.class))
                         .addMember("value", "$S", getClass().getCanonicalName())
