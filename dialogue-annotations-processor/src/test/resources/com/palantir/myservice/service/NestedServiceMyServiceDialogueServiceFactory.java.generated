@@ -1,0 +1,82 @@
+package com.palantir.myservice.service;
+
+import com.google.common.collect.ListMultimap;
+import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.DialogueServiceFactory;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
+import com.palantir.dialogue.HttpMethod;
+import com.palantir.dialogue.PathTemplate;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.TypeMarker;
+import com.palantir.dialogue.UrlBuilder;
+import com.palantir.dialogue.annotations.ConjureErrorDecoder;
+import com.palantir.dialogue.annotations.DefaultParameterSerializer;
+import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
+import com.palantir.dialogue.annotations.Json;
+import com.palantir.dialogue.annotations.ParameterSerializer;
+import java.lang.Override;
+import java.lang.String;
+import java.util.Optional;
+import javax.annotation.processing.Generated;
+
+@Generated("com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator")
+public final class NestedServiceMyServiceDialogueServiceFactory
+        implements DialogueServiceFactory<NestedService.MyService> {
+    @Override
+    public NestedService.MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
+        return new NestedService.MyService() {
+            private final ParameterSerializer _parameterSerializer = DefaultParameterSerializer.INSTANCE;
+
+            private final EndpointChannel getChannel = endpointChannelFactory.endpoint(Endpoints.get);
+
+            private final Deserializer<String> getDeserializer = new ErrorHandlingDeserializerFactory<>(
+                            new Json(), new ConjureErrorDecoder())
+                    .deserializerFor(new TypeMarker<String>() {});
+
+            @Override
+            public String get() {
+                Request.Builder _request = Request.builder();
+                return runtime.clients().callBlocking(getChannel, _request.build(), getDeserializer);
+            }
+        };
+    }
+
+    private enum Endpoints implements Endpoint {
+        get {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("get").build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "MyService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "get";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        };
+
+        private static final String VERSION = Optional.ofNullable(
+                        NestedService.MyService.class.getPackage().getImplementationVersion())
+                .orElse("0.0.0");
+    }
+}
