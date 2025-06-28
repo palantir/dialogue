@@ -78,8 +78,8 @@ enum DefaultClients implements Clients {
 
     @Override
     public EndpointChannel bind(Channel channel, Endpoint endpoint) {
-        if (channel instanceof EndpointChannelFactory) {
-            return ((EndpointChannelFactory) channel).endpoint(endpoint);
+        if (channel instanceof EndpointChannelFactory endpointChannelFactory) {
+            return endpointChannelFactory.endpoint(endpoint);
         }
 
         if (log.isDebugEnabled()) {
@@ -119,25 +119,25 @@ enum DefaultClients implements Clients {
 
             // TODO(jellis): can consider propagating other relevant exceptions (eg: HttpConnectTimeoutException)
             // see HttpClientImpl#send(HttpRequest req, BodyHandler<T> responseHandler)
-            if (cause instanceof RemoteException) {
-                throw newRemoteException((RemoteException) cause);
+            if (cause instanceof RemoteException remoteException) {
+                throw newRemoteException(remoteException);
             }
 
-            if (cause instanceof UnknownRemoteException) {
-                throw newUnknownRemoteException((UnknownRemoteException) cause);
+            if (cause instanceof UnknownRemoteException unknownRemoteException) {
+                throw newUnknownRemoteException(unknownRemoteException);
             }
 
             // In this case we provide a suppressed exception to mark the site where the failure was rethrown
             // to avoid losing data while retaining the original failure information.
-            if (cause instanceof RuntimeException) {
+            if (cause instanceof RuntimeException runtimeException) {
                 cause.addSuppressed(new SafeRuntimeException("Rethrown by dialogue"));
-                throw (RuntimeException) cause;
+                throw runtimeException;
             }
 
             // This matches the behavior in Futures.getUnchecked(Future)
-            if (cause instanceof Error) {
+            if (cause instanceof Error error) {
                 cause.addSuppressed(new SafeRuntimeException("Rethrown by dialogue"));
-                throw (Error) cause;
+                throw error;
             }
             throw new DialogueException(cause);
         }
@@ -161,9 +161,9 @@ enum DefaultClients implements Clients {
 
         @Override
         public void onSuccess(Object result) {
-            if (result instanceof Closeable) {
+            if (result instanceof Closeable closeable) {
                 try {
-                    ((Closeable) result).close();
+                    closeable.close();
                 } catch (IOException | RuntimeException e) {
                     log.info(
                             "Failed to close result of {} after the call was canceled",

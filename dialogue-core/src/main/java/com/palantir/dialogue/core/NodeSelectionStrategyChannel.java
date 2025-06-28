@@ -123,6 +123,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         return Optional.of(wrappedFuture);
     }
 
+    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     private NodeSelectionChannel createNodeSelectionChannel(
             @Nullable LimitedChannel previousNodeSelectionStrategy, DialogueNodeSelectionStrategy strategy) {
         NodeSelectionChannel.Builder channelBuilder =
@@ -133,9 +134,9 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
                 DialoguePinuntilerrorMetrics pinuntilerrorMetrics = DialoguePinuntilerrorMetrics.of(metrics);
                 // Previously pin until error, so we should preserve our previous location
-                if (previousNodeSelectionStrategy instanceof PinUntilErrorNodeSelectionStrategyChannel) {
-                    PinUntilErrorNodeSelectionStrategyChannel previousPinUntilError =
-                            (PinUntilErrorNodeSelectionStrategyChannel) previousNodeSelectionStrategy;
+                if (previousNodeSelectionStrategy
+                        instanceof PinUntilErrorNodeSelectionStrategyChannel previousPinUntilError) {
+
                     return channelBuilder
                             .channel(PinUntilErrorNodeSelectionStrategyChannel.of(
                                     Optional.of(previousPinUntilError.getCurrentChannel()),

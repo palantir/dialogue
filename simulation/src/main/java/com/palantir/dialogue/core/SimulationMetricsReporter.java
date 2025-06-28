@@ -74,8 +74,8 @@ final class SimulationMetricsReporter {
                 return;
             }
 
-            if (metric instanceof Counting) { // includes meters too!
-                measurements.get(metricName).add((double) ((Counting) metric).getCount());
+            if (metric instanceof Counting counting) { // includes meters too!
+                measurements.get(metricName).add((double) counting.getCount());
                 return;
             }
 

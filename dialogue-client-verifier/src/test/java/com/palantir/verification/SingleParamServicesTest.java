@@ -137,8 +137,8 @@ public class SingleParamServicesTest {
     }
 
     private static Type getRawType(Type type) {
-        if (type instanceof ParameterizedType) {
-            return ((ParameterizedType) type).getRawType();
+        if (type instanceof ParameterizedType parameterizedType) {
+            return parameterizedType.getRawType();
         }
         return type;
     }
