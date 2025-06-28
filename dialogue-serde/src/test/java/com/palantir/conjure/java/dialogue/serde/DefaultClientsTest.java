@@ -242,7 +242,7 @@ public final class DefaultClientsTest {
         return call(callType, request, stringDeserializer);
     }
 
-    @SuppressWarnings("DirectInvocationOnMock")
+    @SuppressWarnings({"DirectInvocationOnMock", "for-rollout:StatementSwitchToExpressionSwitch"})
     private <T> ListenableFuture<T> call(CallType callType, Request request, Deserializer<T> deserializer) {
         switch (callType) {
             case Async:

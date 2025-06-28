@@ -119,8 +119,8 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
         if (type instanceof Class) {
             return coerceCollections((Class<?>) type);
         }
-        if (type instanceof ParameterizedType) {
-            ParameterizedType parameterizedType = (ParameterizedType) type;
+        if (type instanceof ParameterizedType parameterizedType) {
+
             Type raw = parameterizedType.getRawType();
             if (raw instanceof Class) {
                 return coerceCollections((Class<?>) raw);

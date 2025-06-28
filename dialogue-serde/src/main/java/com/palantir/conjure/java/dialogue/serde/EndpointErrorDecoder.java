@@ -98,6 +98,7 @@ final class EndpointErrorDecoder<T> {
         }
     }
 
+    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     Optional<RuntimeException> checkCode(Response response) {
         int code = response.code();
         switch (code) {

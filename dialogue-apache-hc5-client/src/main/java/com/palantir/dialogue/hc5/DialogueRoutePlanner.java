@@ -89,8 +89,8 @@ final class DialogueRoutePlanner implements HttpRoutePlanner {
     @Nullable
     private static InetAddress get(HttpContext context) {
         Object value = context.getAttribute(ATTRIBUTE);
-        if (value instanceof InetAddress) {
-            return (InetAddress) value;
+        if (value instanceof InetAddress inetAddress) {
+            return inetAddress;
         }
         return null;
     }

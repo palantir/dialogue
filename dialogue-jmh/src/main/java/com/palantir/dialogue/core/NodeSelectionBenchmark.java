@@ -80,6 +80,7 @@ public class NodeSelectionBenchmark {
 
     private LimitedChannel channel;
 
+    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     @Setup(Level.Invocation)
     public void before() {
         ImmutableList<LimitedChannel> channels = IntStream.range(0, numChannels)

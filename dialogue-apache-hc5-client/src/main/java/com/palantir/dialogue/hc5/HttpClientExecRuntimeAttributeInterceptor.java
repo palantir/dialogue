@@ -42,8 +42,8 @@ enum HttpClientExecRuntimeAttributeInterceptor implements ExecChainHandler {
     @Nullable
     static ExecRuntime get(HttpContext context) {
         Object result = context.getAttribute(ATTRIBUTE);
-        if (result instanceof ExecRuntime) {
-            return (ExecRuntime) result;
+        if (result instanceof ExecRuntime execRuntime) {
+            return execRuntime;
         }
         return null;
     }

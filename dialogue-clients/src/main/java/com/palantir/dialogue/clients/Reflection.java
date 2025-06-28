@@ -123,8 +123,8 @@ final class Reflection {
     }
 
     private static EndpointChannelFactory endpointChannelFactory(Channel channel) {
-        if (channel instanceof EndpointChannelFactory) {
-            return (EndpointChannelFactory) channel;
+        if (channel instanceof EndpointChannelFactory endpointChannelFactory) {
+            return endpointChannelFactory;
         }
         return endpoint -> request -> channel.execute(endpoint, request);
     }

@@ -246,8 +246,8 @@ final class RetryingChannel implements EndpointChannel {
             }
 
             RequestBody body = request.body().get();
-            if (body instanceof ConsumptionTrackingRequestBody) {
-                return ((ConsumptionTrackingRequestBody) body).requestBodyCanBeRetried();
+            if (body instanceof ConsumptionTrackingRequestBody consumptionTrackingRequestBody) {
+                return consumptionTrackingRequestBody.requestBodyCanBeRetried();
             }
             return body.repeatable();
         }
@@ -381,6 +381,7 @@ final class RetryingChannel implements EndpointChannel {
             return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
         }
 
+        @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
         private boolean isRetryableQosStatus(Response response) {
             switch (serverQoS) {
                 case AUTOMATIC_RETRY:
@@ -397,9 +398,9 @@ final class RetryingChannel implements EndpointChannel {
 
         private boolean shouldAttemptToRetry(Throwable throwable) {
             if (retryOnTimeout == ClientConfiguration.RetryOnTimeout.DISABLED) {
-                if (throwable instanceof SocketTimeoutException) {
+                if (throwable instanceof SocketTimeoutException socketTimeout) {
                     // non-connect timeouts should not be retried
-                    SocketTimeoutException socketTimeout = (SocketTimeoutException) throwable;
+
                     return socketTimeout.getMessage() != null
                             // String matches CJR RemotingOkHttpCall.shouldRetry
                             && socketTimeout.getMessage().contains("connect timed out");
@@ -523,6 +524,7 @@ final class RetryingChannel implements EndpointChannel {
     /**
      * See https://tools.ietf.org/html/rfc7231#section-4.2.
      */
+    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     private static boolean safeToRetry(HttpMethod httpMethod) {
         switch (httpMethod) {
             case GET:

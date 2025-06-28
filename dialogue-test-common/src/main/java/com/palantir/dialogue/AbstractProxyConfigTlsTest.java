@@ -184,6 +184,7 @@ public abstract class AbstractProxyConfigTlsTest {
         testAuthenticatedProxy(createProxySelector("localhost", httpsProxyPort, true));
     }
 
+    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     private void testAuthenticatedProxy(ProxySelector proxySelector) throws Exception {
         AtomicInteger requestIndex = new AtomicInteger();
         proxyHandler = exchange -> {

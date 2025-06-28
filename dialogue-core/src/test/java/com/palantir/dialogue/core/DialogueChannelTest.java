@@ -447,9 +447,11 @@ public final class DialogueChannelTest {
                 ImmutableList.of("http://localhost", "http" + "://localhost2", "http" + "://localhost3"));
     }
 
+    @SuppressWarnings("for-rollout:UnnecessaryAssignment")
     private void test_can_use_sticky_attachments_impl(
             NodeSelectionStrategy nodeSelectionStrategy, ImmutableList<String> uris) throws ExecutionException {
         String uriHeader = "uri";
+        @SuppressWarnings("for-rollout:UnnecessaryAssignment")
         DialogueChannelFactory factory = args -> {
             mockChannel = Mockito.mock(Channel.class);
             lenient().when(mockChannel.execute(eq(endpoint), any())).thenAnswer((Answer<ListenableFuture<Response>>)

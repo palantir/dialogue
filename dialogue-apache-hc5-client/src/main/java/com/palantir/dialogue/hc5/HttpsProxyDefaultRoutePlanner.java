@@ -79,6 +79,7 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
         return result;
     }
 
+    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     private Proxy chooseProxy(final List<Proxy> proxies) {
         Proxy result = null;
         // check the list for one we can use

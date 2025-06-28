@@ -127,8 +127,8 @@ public final class NoResponseTest {
             assertThat(response.code()).isEqualTo(200);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
-            if (cause instanceof Exception) {
-                throw (Exception) cause;
+            if (cause instanceof Exception exception) {
+                throw exception;
             }
             throw e;
         }
