@@ -16,7 +16,9 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.Deadlines;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -42,7 +44,11 @@ final class DeadlineAdvertisementChannel implements Channel {
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Request.Builder requestBuilder = Request.builder().from(request);
-        Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE);
+        try {
+            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE);
+        } catch (DeadlineExpiredException e) {
+            return Futures.immediateFailedFuture(e);
+        }
         return delegate.execute(endpoint, requestBuilder.build());
     }
 
