@@ -5,7 +5,7 @@ dependencies {
     api project(':dialogue-annotations')
     api project(':dialogue-target')
     api 'com.google.auto:auto-common'
-    api 'com.google.code.findbugs:annotations'
+    api 'com.google.code.findbugs:jsr305'
     api 'com.google.guava:guava'
     api 'com.palantir.common:streams'
     api 'com.palantir.conjure.java:conjure-lib'

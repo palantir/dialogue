@@ -13,7 +13,7 @@ dependencies {
     implementation project(':dialogue-apache-hc5-client')
     implementation project(':dialogue-serde')
     implementation 'com.github.ben-manes.caffeine:caffeine'
-    implementation 'com.google.code.findbugs:annotations'
+    implementation 'com.google.code.findbugs:jsr305'
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.conjure.java.runtime:keystores'

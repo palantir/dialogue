@@ -16,7 +16,7 @@ dependencies {
     implementation 'io.dropwizard.metrics:metrics-core'
     implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
     implementation 'com.palantir.tritium:tritium-metrics'
-    implementation 'com.google.code.findbugs:annotations'
+    implementation 'com.google.code.findbugs:jsr305'
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.palantir.conjure.java.api:errors'
     implementation 'com.palantir.conjure.java.api:service-config'
