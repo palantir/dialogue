@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
@@ -99,9 +100,13 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         assertThatThrownBy(() -> Futures.getUnchecked(again)).hasCauseInstanceOf(UnknownHostException.class);
     }
 
-    @Test
+    @RepeatedTest(value = 1000, failureThreshold = 1)
     public void metrics() throws Exception {
-        ClientConfiguration conf = TestConfigurations.create("http://unused");
+        ClientConfiguration conf = ClientConfiguration.builder()
+                .from(TestConfigurations.create("http://unused"))
+                // Use a longer-than-default connect timeout to avoid flakiness in tests
+                .connectTimeout(Duration.ofSeconds(30))
+                .build();
 
         try (ApacheHttpClientChannels.CloseableClient client =
                 ApacheHttpClientChannels.createCloseableHttpClient(conf, "testClient")) {
