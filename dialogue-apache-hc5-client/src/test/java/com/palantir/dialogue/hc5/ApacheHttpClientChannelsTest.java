@@ -51,7 +51,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
@@ -100,40 +99,32 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         assertThatThrownBy(() -> Futures.getUnchecked(again)).hasCauseInstanceOf(UnknownHostException.class);
     }
 
-    @RepeatedTest(value = 100, failureThreshold = 1)
-    public void metrics() throws Exception {
-        ClientConfiguration conf = ClientConfiguration.builder()
-                .from(TestConfigurations.create("http://unused"))
-                // Use a longer-than-default connect timeout to avoid flakiness in tests
-                .connectTimeout(Duration.ofMinutes(5))
-                .build();
+    @Test
+    public void metrics() {
+        ClientConfiguration conf =
+                TestConfigurations.create(server.url("").url().toString());
 
-        try (ApacheHttpClientChannels.CloseableClient client =
-                ApacheHttpClientChannels.createCloseableHttpClient(conf, "testClient")) {
+        Channel channel = ApacheHttpClientChannels.create(conf, "testClient");
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
 
-            Channel channel = ApacheHttpClientChannels.createSingleUri("http://neverssl.com", client);
-            ListenableFuture<Response> future =
-                    channel.execute(TestEndpoint.GET, Request.builder().build());
-
-            TaggedMetricRegistry metrics = conf.taggedMetricRegistry();
-            try (Response response = Futures.getUnchecked(future)) {
-                assertThat(response.code()).isEqualTo(200);
-
-                assertThat(poolGaugeValue(metrics, "testClient", "idle"))
-                        .describedAs("available")
-                        .isZero();
-                assertThat(poolGaugeValue(metrics, "testClient", "leased"))
-                        .describedAs("leased")
-                        .isEqualTo(1L);
-            }
+        TaggedMetricRegistry metrics = conf.taggedMetricRegistry();
+        try (Response response = Futures.getUnchecked(future)) {
+            assertThat(response.code()).isEqualTo(200);
 
             assertThat(poolGaugeValue(metrics, "testClient", "idle"))
-                    .describedAs("available after response closed")
-                    .isOne();
-            assertThat(poolGaugeValue(metrics, "testClient", "leased"))
-                    .describedAs("leased after response closed")
+                    .describedAs("available")
                     .isZero();
+            assertThat(poolGaugeValue(metrics, "testClient", "leased"))
+                    .describedAs("leased")
+                    .isEqualTo(1L);
         }
+
+        assertThat(poolGaugeValue(metrics, "testClient", "idle"))
+                .describedAs("available after response closed")
+                .isOne();
+        assertThat(poolGaugeValue(metrics, "testClient", "leased"))
+                .describedAs("leased after response closed")
+                .isZero();
     }
 
     @Test
