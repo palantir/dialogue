@@ -6,6 +6,8 @@ dependencies {
     api project(':dialogue-target')
     api 'com.palantir.conjure.java.runtime:client-config'
     api 'org.apache.httpcomponents.client5:httpclient5'
+    api 'org.jspecify:jspecify'
+
     implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.safe-logging:logger'
     implementation 'com.palantir.safe-logging:preconditions'
@@ -17,7 +19,6 @@ dependencies {
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'io.dropwizard.metrics:metrics-core'
     implementation 'org.apache.httpcomponents.core5:httpcore5'
-    implementation 'org.jspecify:jspecify'
 
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-serde')

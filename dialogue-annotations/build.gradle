@@ -6,6 +6,7 @@ dependencies {
     api 'com.palantir.conjure.java:conjure-lib'
     api 'com.palantir.ri:resource-identifier'
     api 'com.palantir.tokens:auth-tokens'
+    api 'org.jspecify:jspecify'
 
     implementation project(':dialogue-serde')
     implementation 'com.fasterxml.jackson.core:jackson-databind'
@@ -13,7 +14,6 @@ dependencies {
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.google.guava:guava'
-    implementation 'org.jspecify:jspecify'
 
     // MultipartRequestBody
     implementation 'org.apache.httpcomponents.core5:httpcore5'

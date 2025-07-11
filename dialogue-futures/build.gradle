@@ -3,10 +3,10 @@ apply plugin: 'org.revapi.revapi-gradle-plugin'
 
 dependencies {
     api 'com.google.guava:guava'
+    api 'org.jspecify:jspecify'
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.palantir.safe-logging:logger'
     implementation 'com.palantir.safe-logging:preconditions'
-    implementation 'org.jspecify:jspecify'
 
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.junit.jupiter:junit-jupiter'
