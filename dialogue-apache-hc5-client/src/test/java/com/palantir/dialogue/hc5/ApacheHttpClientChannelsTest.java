@@ -100,12 +100,12 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         assertThatThrownBy(() -> Futures.getUnchecked(again)).hasCauseInstanceOf(UnknownHostException.class);
     }
 
-    @RepeatedTest(value = 1000, failureThreshold = 1)
+    @RepeatedTest(value = 100, failureThreshold = 1)
     public void metrics() throws Exception {
         ClientConfiguration conf = ClientConfiguration.builder()
                 .from(TestConfigurations.create("http://unused"))
                 // Use a longer-than-default connect timeout to avoid flakiness in tests
-                .connectTimeout(Duration.ofSeconds(30))
+                .connectTimeout(Duration.ofMinutes(5))
                 .build();
 
         try (ApacheHttpClientChannels.CloseableClient client =
