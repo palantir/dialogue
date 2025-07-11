@@ -100,35 +100,31 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
     }
 
     @Test
-    public void metrics() throws Exception {
-        ClientConfiguration conf = TestConfigurations.create("http://unused");
+    public void metrics() {
+        ClientConfiguration conf =
+                TestConfigurations.create(server.url("").url().toString());
 
-        try (ApacheHttpClientChannels.CloseableClient client =
-                ApacheHttpClientChannels.createCloseableHttpClient(conf, "testClient")) {
+        Channel channel = ApacheHttpClientChannels.create(conf, "testClient");
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
 
-            Channel channel = ApacheHttpClientChannels.createSingleUri("http://neverssl.com", client);
-            ListenableFuture<Response> future =
-                    channel.execute(TestEndpoint.GET, Request.builder().build());
-
-            TaggedMetricRegistry metrics = conf.taggedMetricRegistry();
-            try (Response response = Futures.getUnchecked(future)) {
-                assertThat(response.code()).isEqualTo(200);
-
-                assertThat(poolGaugeValue(metrics, "testClient", "idle"))
-                        .describedAs("available")
-                        .isZero();
-                assertThat(poolGaugeValue(metrics, "testClient", "leased"))
-                        .describedAs("leased")
-                        .isEqualTo(1L);
-            }
+        TaggedMetricRegistry metrics = conf.taggedMetricRegistry();
+        try (Response response = Futures.getUnchecked(future)) {
+            assertThat(response.code()).isEqualTo(200);
 
             assertThat(poolGaugeValue(metrics, "testClient", "idle"))
-                    .describedAs("available after response closed")
-                    .isOne();
-            assertThat(poolGaugeValue(metrics, "testClient", "leased"))
-                    .describedAs("leased after response closed")
+                    .describedAs("available")
                     .isZero();
+            assertThat(poolGaugeValue(metrics, "testClient", "leased"))
+                    .describedAs("leased")
+                    .isEqualTo(1L);
         }
+
+        assertThat(poolGaugeValue(metrics, "testClient", "idle"))
+                .describedAs("available after response closed")
+                .isOne();
+        assertThat(poolGaugeValue(metrics, "testClient", "leased"))
+                .describedAs("leased after response closed")
+                .isZero();
     }
 
     @Test
