@@ -34,7 +34,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'
     testImplementation 'org.apache.commons:commons-lang3'
-    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl'
     testRuntimeOnly 'org.apache.logging.log4j:log4j-core'
 }
 
