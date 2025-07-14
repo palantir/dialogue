@@ -105,7 +105,7 @@ final class StickyAttachments {
     }
 
     static void requestStickyToken(Request request) {
-        request.attachments().put(REQUEST_STICKY_TOKEN, Boolean.TRUE);
+        request.attachments().put(REQUEST_STICKY_TOKEN, true);
     }
 
     static Consumer<Request> copyStickyTarget(Response response) {
@@ -115,6 +115,6 @@ final class StickyAttachments {
     }
 
     private static boolean hasRequestStickyToken(Request request) {
-        return Boolean.TRUE.equals(request.attachments().getOrDefault(REQUEST_STICKY_TOKEN, Boolean.FALSE));
+        return Boolean.TRUE.equals(request.attachments().getOrDefault(REQUEST_STICKY_TOKEN, false));
     }
 }
