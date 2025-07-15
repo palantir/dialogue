@@ -39,7 +39,6 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -77,7 +76,7 @@ final class BalancedScoreTracker {
 
     /**
      * Returns all channels, ordered with the best score first. Called on every request, so needs to be performant!
-     * Callers *must* use the {@link ChannelScoreInfo#startRequest} and {@link ChannelScoreInfo#onSuccess} etc
+     * Callers *must* use the {@link ChannelScoreInfo#startRequest} and {@link ChannelScoreInfo#onSuccess} etc.
      * methods to feed information back into the tracker.
      */
     ScoreSnapshot[] getSnapshotsInOrderOfIncreasingScore() {
@@ -187,7 +186,7 @@ final class BalancedScoreTracker {
         }
 
         @Override
-        public void onFailure(@NonNull Throwable throwable) {
+        public void onFailure(Throwable throwable) {
             inflight.decrementAndGet();
             recentFailuresReservoir.update(FAILURE_WEIGHT);
             observability.debugLogThrowableFailure(recentFailuresReservoir, throwable);

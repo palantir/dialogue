@@ -44,7 +44,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /** Package private internal API. */
@@ -180,7 +179,7 @@ enum DefaultClients implements Clients {
         }
 
         @Override
-        public void onFailure(@NonNull Throwable throwable) {
+        public void onFailure(Throwable throwable) {
             log.info("Canceled call failed", throwable);
         }
     }

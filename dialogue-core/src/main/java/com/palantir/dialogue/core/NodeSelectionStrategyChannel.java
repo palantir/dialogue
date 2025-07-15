@@ -209,7 +209,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         }
 
         @Override
-        public void onFailure(@NonNull Throwable _unused) {}
+        public void onFailure(Throwable _unused) {}
 
         private void consumeStrategy(String strategy) {
             Optional<DialogueNodeSelectionStrategy> maybeStrategy =

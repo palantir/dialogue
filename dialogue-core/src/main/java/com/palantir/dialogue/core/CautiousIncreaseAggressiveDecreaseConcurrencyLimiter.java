@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleBinaryOperator;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -206,7 +205,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         }
 
         @Override
-        public void onFailure(@NonNull Throwable throwable) {
+        public void onFailure(Throwable throwable) {
             behavior.onFailure(throwable, this);
         }
 

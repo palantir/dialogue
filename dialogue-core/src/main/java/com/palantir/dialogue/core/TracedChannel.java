@@ -28,7 +28,6 @@ import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TagTranslator;
 import com.palantir.tracing.Tracer;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 final class TracedChannel implements EndpointChannel {
@@ -80,7 +79,7 @@ final class TracedChannel implements EndpointChannel {
                 }
 
                 @Override
-                public void onFailure(@NonNull Throwable throwable) {
+                public void onFailure(Throwable throwable) {
                     span.complete(throwableTranslator, throwable);
                 }
             });

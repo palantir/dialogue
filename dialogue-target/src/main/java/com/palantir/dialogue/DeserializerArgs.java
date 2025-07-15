@@ -20,7 +20,6 @@ import com.google.common.collect.ImmutableMap;
 import com.palantir.logsafe.Preconditions;
 import java.util.HashMap;
 import java.util.Map;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -56,19 +55,19 @@ public final class DeserializerArgs<T> {
             this.errorNameToTypeMarker = new HashMap<>();
         }
 
-        public Builder<T> baseType(@NonNull TypeMarker<T> baseT) {
+        public Builder<T> baseType(TypeMarker<T> baseT) {
             checkNotBuilt();
             this.baseType = Preconditions.checkNotNull(baseT, "base type must be non-null");
             return this;
         }
 
-        public Builder<T> success(@NonNull TypeMarker<? extends T> successT) {
+        public Builder<T> success(TypeMarker<? extends T> successT) {
             checkNotBuilt();
             this.successType = Preconditions.checkNotNull(successT, "success type must be non-null");
             return this;
         }
 
-        public Builder<T> error(@NonNull String errorName, @NonNull TypeMarker<? extends T> errorT) {
+        public Builder<T> error(String errorName, TypeMarker<? extends T> errorT) {
             checkNotBuilt();
             this.errorNameToTypeMarker.put(
                     Preconditions.checkNotNull(errorName, "error name must be non-null"),

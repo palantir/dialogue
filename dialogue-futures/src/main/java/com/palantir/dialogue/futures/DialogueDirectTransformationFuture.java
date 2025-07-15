@@ -116,7 +116,7 @@ final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture
     }
 
     @Override
-    public void onFailure(@NonNull Throwable throwable) {
+    public void onFailure(Throwable throwable) {
         ListenableFuture<I> inputSnapshot = input;
         if (inputSnapshot != null && inputSnapshot.isCancelled()) {
             output.cancel(false);

@@ -31,7 +31,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 final class StickyEndpointChannels2 implements Supplier<Channel> {
@@ -173,7 +172,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                         }
 
                         @Override
-                        public void onFailure(@NonNull Throwable throwable) {
+                        public void onFailure(Throwable throwable) {
                             failed();
                             result.setException(throwable);
                         }
@@ -201,7 +200,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                                 }
 
                                 @Override
-                                public void onFailure(@NonNull Throwable throwable) {
+                                public void onFailure(Throwable throwable) {
                                     result.setException(throwable);
                                 }
                             });

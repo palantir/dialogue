@@ -37,7 +37,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /** Simple adapter to allow simple {@link BlockingChannel} implementations to be used as {@link Channel channels}. */
@@ -97,7 +96,7 @@ public final class BlockingChannelAdapter {
                         public void onSuccess(@Nullable Response _result) {}
 
                         @Override
-                        public void onFailure(@NonNull Throwable throwable) {
+                        public void onFailure(Throwable throwable) {
                             if (throwable instanceof CancellationException) {
                                 future.cancel(true);
                             }

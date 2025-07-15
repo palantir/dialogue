@@ -47,7 +47,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.immutables.value.Value;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -391,7 +390,7 @@ final class QueuedChannel implements Channel {
         }
 
         @Override
-        public void onFailure(@NonNull Throwable throwable) {
+        public void onFailure(Throwable throwable) {
             // decrementing inflight must occur prior to calling schedule, ensuring that
             // schedule may be called after inflight is returned to zero.
             inFlight.decrementAndGet();

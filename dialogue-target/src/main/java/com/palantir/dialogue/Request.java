@@ -32,15 +32,16 @@ import java.util.Optional;
 import java.util.TreeMap;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
+import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /** Defines the parameters of a single call to an {@link Endpoint}. */
 @ThreadSafe
 public final class Request {
 
-    private final ListMultimap<String, String> headerParams;
-    private final ListMultimap<String, String> queryParams;
-    private final ListMultimap<String, String> pathParams;
+    private final ListMultimap<@NonNull String, @NonNull String> headerParams;
+    private final ListMultimap<@NonNull String, @NonNull String> queryParams;
+    private final ListMultimap<@NonNull String, @NonNull String> pathParams;
     private final Optional<RequestBody> body;
     private final RequestAttachments attachments;
 

@@ -42,7 +42,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import org.immutables.value.Value;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -161,7 +160,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             }
 
             @Override
-            public void onFailure(@NonNull Throwable throwable) {
+            public void onFailure(Throwable throwable) {
                 OptionalInt next = incrementHostIfNecessary(pin);
                 instrumentation.receivedThrowable(pin, channel, throwable, next);
             }

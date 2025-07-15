@@ -33,7 +33,6 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 final class HostMetricsChannel implements Channel {
@@ -97,7 +96,7 @@ final class HostMetricsChannel implements Channel {
         }
 
         @Override
-        public void onFailure(@NonNull Throwable throwable) {
+        public void onFailure(Throwable throwable) {
             if (throwable instanceof IOException) {
                 hostEventCallback.recordIoException();
             }

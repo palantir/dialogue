@@ -74,7 +74,7 @@ final class TraceEnrichingChannel implements Channel {
                 }
 
                 @Override
-                public void onFailure(@NonNull Throwable throwable) {
+                public void onFailure(Throwable throwable) {
                     span.complete(throwableTranslator, throwable);
                 }
             });

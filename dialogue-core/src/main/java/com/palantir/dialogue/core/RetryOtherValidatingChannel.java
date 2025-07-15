@@ -37,7 +37,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import javax.annotation.CheckForNull;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 final class RetryOtherValidatingChannel implements Channel {
@@ -65,7 +64,7 @@ final class RetryOtherValidatingChannel implements Channel {
             }
 
             @Override
-            public void onFailure(@NonNull Throwable _throwable) {}
+            public void onFailure(Throwable _throwable) {}
         };
         this.failureReporter = failureReporter;
     }

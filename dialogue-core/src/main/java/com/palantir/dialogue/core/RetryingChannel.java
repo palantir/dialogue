@@ -61,7 +61,6 @@ import java.util.function.BiFunction;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /** Retries failed requests by scheduling them onto a ScheduledExecutorService after an exponential backoff. */
@@ -355,7 +354,7 @@ final class RetryingChannel implements EndpointChannel {
                             }
 
                             @Override
-                            public void onFailure(@NonNull Throwable throwable) {
+                            public void onFailure(Throwable throwable) {
                                 if (delegateResult.isCancelled()) {
                                     responseFuture.cancel(false);
                                 } else if (!responseFuture.setException(throwable)) {
