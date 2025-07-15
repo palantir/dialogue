@@ -26,6 +26,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
+import org.jspecify.annotations.Nullable;
 
 final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
@@ -94,6 +95,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
             poisoned = true;
         }
 
+        @Nullable
         public Runnable getWork() throws InterruptedException {
             if (!isPoisoned()) {
                 return queue.take();

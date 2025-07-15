@@ -7,18 +7,16 @@ dependencies {
     api 'com.google.guava:guava' // ListenableFuture
     api 'com.palantir.ri:resource-identifier'
     api 'com.palantir.tokens:auth-tokens'
+    api 'org.jspecify:jspecify'
+
     implementation project(':dialogue-futures')
     implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
-    implementation 'com.palantir.tritium:tritium-metrics'
-    implementation 'io.dropwizard.metrics:metrics-core'
-    implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.tracing:tracing'
     implementation 'com.fasterxml.jackson.core:jackson-annotations'
     implementation 'com.fasterxml.jackson.core:jackson-core'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
-    implementation 'com.google.code.findbugs:jsr305'
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.palantir.conjure.java.api:errors'
     implementation 'com.palantir.conjure.java:conjure-lib'

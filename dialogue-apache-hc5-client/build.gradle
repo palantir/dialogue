@@ -6,14 +6,14 @@ dependencies {
     api project(':dialogue-target')
     api 'com.palantir.conjure.java.runtime:client-config'
     api 'org.apache.httpcomponents.client5:httpclient5'
+    api 'org.jspecify:jspecify'
+
     implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.safe-logging:logger'
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.tracing:tracing-api'
     implementation 'com.palantir.tritium:tritium-metrics'
-    implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
     implementation 'com.palantir.tracing:tracing'
-    implementation 'com.google.code.findbugs:jsr305'
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.conjure.java.api:service-config'
     implementation 'com.palantir.safe-logging:safe-logging'

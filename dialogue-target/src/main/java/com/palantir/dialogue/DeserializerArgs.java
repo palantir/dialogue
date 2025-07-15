@@ -20,8 +20,7 @@ import com.google.common.collect.ImmutableMap;
 import com.palantir.logsafe.Preconditions;
 import java.util.HashMap;
 import java.util.Map;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * This class is used to specify the success and error types used to construct a {@link Deserializer}. A call to an
@@ -56,19 +55,19 @@ public final class DeserializerArgs<T> {
             this.errorNameToTypeMarker = new HashMap<>();
         }
 
-        public Builder<T> baseType(@Nonnull TypeMarker<T> baseT) {
+        public Builder<T> baseType(TypeMarker<T> baseT) {
             checkNotBuilt();
             this.baseType = Preconditions.checkNotNull(baseT, "base type must be non-null");
             return this;
         }
 
-        public Builder<T> success(@Nonnull TypeMarker<? extends T> successT) {
+        public Builder<T> success(TypeMarker<? extends T> successT) {
             checkNotBuilt();
             this.successType = Preconditions.checkNotNull(successT, "success type must be non-null");
             return this;
         }
 
-        public Builder<T> error(@Nonnull String errorName, @Nonnull TypeMarker<? extends T> errorT) {
+        public Builder<T> error(String errorName, TypeMarker<? extends T> errorT) {
             checkNotBuilt();
             this.errorNameToTypeMarker.put(
                     Preconditions.checkNotNull(errorName, "error name must be non-null"),

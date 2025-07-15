@@ -52,7 +52,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /** Package private internal API. */
 final class ConjureBodySerDe implements BodySerDe {

@@ -23,6 +23,7 @@ import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.StdSerializer;
+import org.jspecify.annotations.NonNull;
 
 public final class MySerializableTypeBodySerializer extends StdSerializer<MySerializableType> {
 
@@ -31,7 +32,7 @@ public final class MySerializableTypeBodySerializer extends StdSerializer<MySeri
             .serializerFor(new TypeMarker<MySerializableType>() {});
 
     @Override
-    public RequestBody serialize(MySerializableType value) {
+    public RequestBody serialize(@NonNull MySerializableType value) {
         return SERIALIZER.serialize(value);
     }
 }

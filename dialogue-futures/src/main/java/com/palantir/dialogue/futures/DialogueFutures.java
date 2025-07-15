@@ -24,6 +24,7 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Internal utility functionality used by Dialogue modules.
@@ -73,7 +74,7 @@ public final class DialogueFutures {
     public static <T> FutureCallback<T> onSuccess(Consumer<T> onSuccess) {
         return new FutureCallback<T>() {
             @Override
-            public void onSuccess(T result) {
+            public void onSuccess(@Nullable T result) {
                 onSuccess.accept(result);
             }
 

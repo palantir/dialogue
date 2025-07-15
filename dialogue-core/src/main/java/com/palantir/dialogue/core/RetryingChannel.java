@@ -61,7 +61,7 @@ import java.util.function.BiFunction;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /** Retries failed requests by scheduling them onto a ScheduledExecutorService after an exponential backoff. */
 final class RetryingChannel implements EndpointChannel {
@@ -347,8 +347,8 @@ final class RetryingChannel implements EndpointChannel {
                         ListenableFuture<Response> delegateResult = delegate.execute(request);
                         DialogueFutures.addDirectCallback(delegateResult, new FutureCallback<>() {
                             @Override
-                            public void onSuccess(Response result) {
-                                if (!responseFuture.set(result)) {
+                            public void onSuccess(@Nullable Response result) {
+                                if (result != null && !responseFuture.set(result)) {
                                     result.close();
                                 }
                             }

@@ -46,6 +46,8 @@ import com.palantir.javapoet.ParameterSpec;
 import com.palantir.javapoet.ParameterizedTypeName;
 import com.palantir.javapoet.TypeName;
 import com.palantir.javapoet.TypeSpec;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -76,10 +78,12 @@ public final class ServiceImplementationGenerator {
                     .flatMap(arg -> ParameterTypes.caseOf(arg.paramType())
                             .body((serializer, serializerFieldName) ->
                                     Optional.of(serializer(arg, serializer, serializerFieldName)))
-                            .header((_headerName, maybeEncoder) -> maybeEncoder.map(this::encoder))
+                            .header((_headerName, maybeEncoder) ->
+                                    maybeEncoder.map(ServiceImplementationGenerator::encoder))
                             .headerMap(encoder -> Optional.of(encoder(encoder)))
-                            .path(maybeEncoder -> maybeEncoder.map(this::encoder))
-                            .query((_paramName, maybeEncoder) -> maybeEncoder.map(this::encoder))
+                            .path(maybeEncoder -> maybeEncoder.map(ServiceImplementationGenerator::encoder))
+                            .query((_paramName, maybeEncoder) ->
+                                    maybeEncoder.map(ServiceImplementationGenerator::encoder))
                             .queryMap(encoder -> Optional.of(encoder(encoder)))
                             .otherwise_(Optional.empty())
                             .stream())
@@ -149,7 +153,7 @@ public final class ServiceImplementationGenerator {
                 .build();
     }
 
-    private FieldSpec serializer(
+    private static FieldSpec serializer(
             ArgumentDefinition argumentDefinition, TypeName serializerType, String serializerFieldName) {
         TypeName className = ArgumentTypes.caseOf(argumentDefinition.argType())
                 .primitive((typeName, _parameterSerializerMethodName) -> typeName)
@@ -157,7 +161,8 @@ public final class ServiceImplementationGenerator {
                 .alias((typeName, _parameterSerializerMethodName) -> typeName)
                 .customType(typeName -> typeName)
                 .otherwiseEmpty()
-                .get();
+                .orElseThrow(() -> new SafeIllegalStateException(
+                        "Unsupported argument type for serializer", SafeArg.of("type", argumentDefinition.argType())));
         ParameterizedTypeName deserializerType = ParameterizedTypeName.get(ClassName.get(Serializer.class), className);
         return FieldSpec.builder(deserializerType, serializerFieldName)
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
@@ -191,7 +196,7 @@ public final class ServiceImplementationGenerator {
                 .build());
     }
 
-    private FieldSpec encoder(ParameterEncoderType type) {
+    private static FieldSpec encoder(ParameterEncoderType type) {
         return FieldSpec.builder(type.encoderJavaType(), type.encoderFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer(CodeBlock.of("new $T()", type.encoderJavaType()))

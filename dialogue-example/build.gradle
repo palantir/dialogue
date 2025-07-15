@@ -5,4 +5,5 @@ subprojects {
         implementation project(':dialogue-target')
     }
     tasks.checkImplicitDependenciesMain.enabled = false
+    tasks.checkUnusedDependenciesMain.enabled = false
 }

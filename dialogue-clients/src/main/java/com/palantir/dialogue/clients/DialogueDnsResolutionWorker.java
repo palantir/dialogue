@@ -42,7 +42,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueDnsResolutionWorker.class);

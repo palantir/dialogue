@@ -29,13 +29,13 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalLong;
-import javax.annotation.Nullable;
 import org.apache.hc.client5.http.entity.mime.AbstractContentBody;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.entity.mime.MultipartPart;
 import org.apache.hc.client5.http.entity.mime.MultipartPartBuilder;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
+import org.jspecify.annotations.Nullable;
 
 public final class MultipartRequestBody implements RequestBody {
 

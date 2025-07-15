@@ -19,6 +19,7 @@ package com.palantir.myservice.service;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.StdDeserializer;
 import java.io.InputStream;
+import org.jspecify.annotations.NonNull;
 
 public final class CustomInputStreamDeserializer extends StdDeserializer<InputStream> {
 
@@ -27,7 +28,7 @@ public final class CustomInputStreamDeserializer extends StdDeserializer<InputSt
     }
 
     @Override
-    public InputStream deserialize(Response response) {
+    public InputStream deserialize(@NonNull Response response) {
         return response.body();
     }
 }

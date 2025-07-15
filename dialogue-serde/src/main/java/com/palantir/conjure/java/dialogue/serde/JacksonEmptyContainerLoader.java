@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
     private static final SafeLogger log = SafeLoggerFactory.get(JacksonEmptyContainerLoader.class);

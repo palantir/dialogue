@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 @Immutable
 public final class PathTemplate {
@@ -79,7 +79,7 @@ public final class PathTemplate {
         for (Segment segment : segments) {
             if (segment.fixed != null) {
                 url.pathSegment(segment.fixed);
-            } else {
+            } else if (segment.variable != null) {
                 url.pathSegments(parameters.get(segment.variable));
             }
         }

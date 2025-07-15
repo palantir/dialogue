@@ -9,6 +9,7 @@ dependencies {
     api 'com.palantir.conjure.java.api:service-config'
     api 'com.palantir.conjure.java.runtime:client-config' // NodeSelectionStrategy etc
     api 'com.palantir.refreshable:refreshable'
+    api 'org.jspecify:jspecify'
 
     implementation project(':dialogue-apache-hc5-client')
     implementation project(':dialogue-serde')

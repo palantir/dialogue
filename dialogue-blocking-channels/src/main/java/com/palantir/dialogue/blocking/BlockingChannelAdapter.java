@@ -37,6 +37,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
+import org.jspecify.annotations.Nullable;
 
 /** Simple adapter to allow simple {@link BlockingChannel} implementations to be used as {@link Channel channels}. */
 public final class BlockingChannelAdapter {
@@ -92,7 +93,7 @@ public final class BlockingChannelAdapter {
                     // The executor task should be interrupted on termination
                     DialogueFutures.addDirectCallback(settableFuture, new FutureCallback<Response>() {
                         @Override
-                        public void onSuccess(Response _result) {}
+                        public void onSuccess(@Nullable Response _result) {}
 
                         @Override
                         public void onFailure(Throwable throwable) {

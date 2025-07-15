@@ -40,3 +40,5 @@ dependencies {
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
+
+tasks.checkUnusedDependenciesMain.enabled = false // IntelliJ workaround above

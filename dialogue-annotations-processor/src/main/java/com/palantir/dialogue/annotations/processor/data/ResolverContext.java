@@ -76,7 +76,7 @@ public final class ResolverContext implements ErrorContext {
             DeclaredType erasedType = types.getDeclaredType(getTypeElement(clazz), innerType);
 
             if (types.isAssignable(declaredType, erasedType)) {
-                return Optional.of(innerType);
+                return Optional.ofNullable(innerType);
             } else {
                 return Optional.empty();
             }

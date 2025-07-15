@@ -31,7 +31,7 @@ final class InstanceVariables {
                         .mapToObj(i -> {
                             String segment = segments[i];
                             CaseFormat caseFormat =
-                                    CaseFormats.estimate(segment).get();
+                                    CaseFormats.estimate(segment).orElseThrow();
                             if (i == 0) {
                                 return caseFormat.to(CaseFormat.LOWER_CAMEL, segment);
                             }

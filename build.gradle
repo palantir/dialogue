@@ -94,15 +94,18 @@ subprojects {
             if (name.toLowerCase().contains("test")) {
                 options.errorprone.disable('NullAway')
             } else {
-                options.errorprone.option('NullAway:AnnotatedPackages', 'com.palantir')
+                options.errorprone.option('NullAway:AnnotatedPackages', 'com.palantir,com.google.common')
+                options.errorprone.option('NullAway:CheckOptionalEmptiness', 'true')
+                options.errorprone.option('NullAway:JSpecifyMode', 'true')
             }
             // This project is performance sensitive
             options.errorprone.disable('PreferJavaTimeOverload')
         }
     })
 
-    tasks.check.dependsOn checkImplicitDependencies
+    tasks.check.dependsOn checkImplicitDependencies, checkUnusedDependencies
     tasks.checkImplicitDependenciesTest.enabled = false // doesn't impact users
+    tasks.checkUnusedDependenciesTest.enabled = false // doesn't impact users
 }
 
 jdks {

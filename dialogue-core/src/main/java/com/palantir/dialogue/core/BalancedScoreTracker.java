@@ -39,6 +39,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Chooses nodes based on stats about each channel, i.e. how many requests are currently
@@ -75,7 +76,7 @@ final class BalancedScoreTracker {
 
     /**
      * Returns all channels, ordered with the best score first. Called on every request, so needs to be performant!
-     * Callers *must* use the {@link ChannelScoreInfo#startRequest} and {@link ChannelScoreInfo#onSuccess} etc
+     * Callers *must* use the {@link ChannelScoreInfo#startRequest} and {@link ChannelScoreInfo#onSuccess} etc.
      * methods to feed information back into the tracker.
      */
     ScoreSnapshot[] getSnapshotsInOrderOfIncreasingScore() {
@@ -152,9 +153,11 @@ final class BalancedScoreTracker {
         }
 
         @Override
-        public void onSuccess(Response response) {
+        public void onSuccess(@Nullable Response response) {
             inflight.decrementAndGet();
-
+            if (response == null) {
+                return;
+            }
             if (Responses.isQosDueToCustom(response)) {
                 // The server has marked this QoS exception as something that the balanced score
                 // tracker cannot understand.

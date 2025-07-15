@@ -32,6 +32,7 @@ import java.util.concurrent.TimeoutException;
 import org.jmock.lib.concurrent.DeterministicExecutor;
 import org.jmock.lib.concurrent.UnsupportedSynchronousOperationException;
 import org.jmock.lib.concurrent.internal.DeltaQueue;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Modified from https://github.com/jmock-developers/jmock-library/blob/498d09a015205f1370bf3855d59db033cf541c3c/jmock/src/main/java/org/jmock/lib/concurrent/DeterministicScheduler.java
@@ -247,7 +248,7 @@ public final class NanosecondPrecisionDeterministicScheduler implements Schedule
         private final Callable<T> command;
         private boolean isCancelled = false;
         private boolean isDone = false;
-        private T futureResult;
+        private @Nullable T futureResult;
         private Exception failure = null;
 
         ScheduledTask(Callable<T> command) {

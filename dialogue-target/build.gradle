@@ -6,6 +6,8 @@ dependencies {
     api 'com.palantir.tokens:auth-tokens'
     api 'com.palantir.ri:resource-identifier'
     api 'com.palantir.conjure.java:conjure-lib'
+    api 'org.jspecify:jspecify'
+
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.google.errorprone:error_prone_annotations'
@@ -13,8 +15,6 @@ dependencies {
 
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.assertj:assertj-guava'
-    testImplementation 'org.immutables:value::annotations'
-    testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'

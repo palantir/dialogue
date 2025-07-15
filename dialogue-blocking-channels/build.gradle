@@ -4,6 +4,8 @@ apply plugin: 'org.revapi.revapi-gradle-plugin'
 dependencies {
     api project(':dialogue-target')
     api 'com.google.guava:guava'
+    api 'org.jspecify:jspecify'
+
     implementation project(':dialogue-futures')
     implementation 'com.palantir.tracing:tracing'
     implementation 'com.palantir.tritium:tritium-metrics'

@@ -21,7 +21,7 @@ import com.palantir.logsafe.Preconditions;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Optional;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 public final class TargetUri implements Comparable<TargetUri> {
 

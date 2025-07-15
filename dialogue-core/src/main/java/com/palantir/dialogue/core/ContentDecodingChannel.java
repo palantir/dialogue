@@ -35,7 +35,7 @@ import java.io.InputStream;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.zip.GZIPInputStream;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Adds support for transparently requesting and decoding <code>Content-Encoding: gzip</code> responses

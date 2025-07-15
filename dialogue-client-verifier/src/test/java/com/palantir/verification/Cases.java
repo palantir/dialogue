@@ -27,7 +27,7 @@ import com.palantir.dialogue.com.palantir.conjure.verification.server.TestCases;
 import java.io.File;
 import java.io.IOException;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 public final class Cases {
 

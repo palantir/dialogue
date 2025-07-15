@@ -26,10 +26,10 @@ import java.util.Optional;
  */
 final class CaseFormats {
 
-    private static final CharMatcher LOWER = CharMatcher.inRange('a', 'z');
-    private static final CharMatcher UPPER = CharMatcher.inRange('A', 'Z');
-    private static final CharMatcher HYPHEN = CharMatcher.is('-');
-    private static final CharMatcher UNDERSCORE = CharMatcher.is('_');
+    private static final CharMatcher LOWER = CharMatcher.inRange('a', 'z').precomputed();
+    private static final CharMatcher UPPER = CharMatcher.inRange('A', 'Z').precomputed();
+    private static final CharMatcher HYPHEN = CharMatcher.is('-').precomputed();
+    private static final CharMatcher UNDERSCORE = CharMatcher.is('_').precomputed();
 
     @SuppressWarnings("checkstyle:CyclomaticComplexity") // Easier to follow as a single method
     static Optional<CaseFormat> estimate(String input) {

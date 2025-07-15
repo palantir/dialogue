@@ -47,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.immutables.value.Value;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A {@link Channel} that queues requests while the underlying {@link LimitedChannel} is unable to accept any new
@@ -378,11 +379,11 @@ final class QueuedChannel implements Channel {
         }
 
         @Override
-        public void onSuccess(Response result) {
+        public void onSuccess(@Nullable Response result) {
             // decrementing inflight must occur prior to calling schedule, ensuring that
             // schedule may be called after inflight is returned to zero.
             inFlight.decrementAndGet();
-            if (!response.set(result)) {
+            if (result != null && !response.set(result)) {
                 result.close();
             }
             schedule();

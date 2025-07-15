@@ -29,9 +29,9 @@ import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import org.jspecify.annotations.Nullable;
 
 final class StickyEndpointChannels2 implements Supplier<Channel> {
 
@@ -164,9 +164,9 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     // those listeners will StackOverflow.
                     DialogueFutures.addDirectCallback(executeWithStickyTokenResult, new FutureCallback<>() {
                         @Override
-                        public void onSuccess(Response response) {
+                        public void onSuccess(@Nullable Response response) {
                             successfulCall(response);
-                            if (!result.set(response)) {
+                            if (response != null && !result.set(response)) {
                                 response.close();
                             }
                         }
@@ -193,8 +193,8 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                             ListenableFuture<Response> queuedRequestResponse = execute(request, endpointChannel);
                             DialogueFutures.addDirectCallback(queuedRequestResponse, new FutureCallback<>() {
                                 @Override
-                                public void onSuccess(Response response) {
-                                    if (!result.set(response)) {
+                                public void onSuccess(@Nullable Response response) {
+                                    if (response != null && !result.set(response)) {
                                         response.close();
                                     }
                                 }
@@ -217,9 +217,9 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
             }
         }
 
-        private synchronized void successfulCall(Response response) {
+        private synchronized void successfulCall(@Nullable Response response) {
             callInFlight = null;
-            if (stickyTarget == null) {
+            if (stickyTarget == null && response != null) {
                 stickyTarget = StickyAttachments.copyStickyTarget(response);
             }
         }

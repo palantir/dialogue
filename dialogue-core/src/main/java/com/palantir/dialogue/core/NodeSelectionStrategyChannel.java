@@ -33,14 +33,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.Nullable;
 import org.immutables.value.Value;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 final class NodeSelectionStrategyChannel implements LimitedChannel {
     private static final String NODE_SELECTION_HEADER = "Node-Selection-Strategy";
 
     private final FutureCallback<Response> callback = new NodeSelectionCallback();
-    private final AtomicReference<NodeSelectionChannel> nodeSelectionStrategy = new AtomicReference<>();
+    private final AtomicReference<@NonNull NodeSelectionChannel> nodeSelectionStrategy = new AtomicReference<>();
     private final NodeSelectionStrategyChooser strategySelector;
 
     private final String channelName;
@@ -201,14 +202,15 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     private final class NodeSelectionCallback implements FutureCallback<Response> {
         @Override
-        public void onSuccess(Response result) {
-            result.getFirstHeader(NODE_SELECTION_HEADER).ifPresent(this::consumeStrategy);
+        public void onSuccess(@Nullable Response result) {
+            if (result != null) {
+                result.getFirstHeader(NODE_SELECTION_HEADER).ifPresent(this::consumeStrategy);
+            }
         }
 
         @Override
         public void onFailure(Throwable _unused) {}
 
-        @SuppressWarnings("NullAway")
         private void consumeStrategy(String strategy) {
             Optional<DialogueNodeSelectionStrategy> maybeStrategy =
                     strategySelector.updateAndGet(DialogueNodeSelectionStrategy.fromHeader(strategy));
@@ -218,7 +220,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             DialogueNodeSelectionStrategy fromServer = maybeStrategy.get();
 
             // Quick check to avoid expensive CAS
-            if (fromServer.equals(nodeSelectionStrategy.get().strategy())) {
+            NodeSelectionChannel nodeSelectionChannel = nodeSelectionStrategy.get();
+            if (nodeSelectionChannel != null && fromServer.equals(nodeSelectionChannel.strategy())) {
                 return;
             }
 

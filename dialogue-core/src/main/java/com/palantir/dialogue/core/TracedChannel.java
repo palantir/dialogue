@@ -28,6 +28,7 @@ import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TagTranslator;
 import com.palantir.tracing.Tracer;
+import org.jspecify.annotations.Nullable;
 
 final class TracedChannel implements EndpointChannel {
     private final EndpointChannel delegate;
@@ -69,8 +70,12 @@ final class TracedChannel implements EndpointChannel {
         try (CloseableSpan ignored = span.attach()) {
             return DialogueFutures.addDirectCallback(delegate.execute(request), new FutureCallback<>() {
                 @Override
-                public void onSuccess(Response response) {
-                    span.complete(responseTranslator, response);
+                public void onSuccess(@Nullable Response response) {
+                    if (response == null) {
+                        span.complete();
+                    } else {
+                        span.complete(responseTranslator, response);
+                    }
                 }
 
                 @Override

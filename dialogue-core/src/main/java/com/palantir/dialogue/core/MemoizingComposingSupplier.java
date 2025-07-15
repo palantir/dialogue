@@ -18,7 +18,7 @@ package com.palantir.dialogue.core;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Returns the result of applying the given function to the result of calling {@link Supplier#get()}}, only reapplying

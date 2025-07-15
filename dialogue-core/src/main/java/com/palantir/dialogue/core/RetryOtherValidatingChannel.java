@@ -37,6 +37,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import javax.annotation.CheckForNull;
+import org.jspecify.annotations.Nullable;
 
 final class RetryOtherValidatingChannel implements Channel {
 
@@ -58,7 +59,7 @@ final class RetryOtherValidatingChannel implements Channel {
         this.hosts = hosts;
         callback = new FutureCallback<>() {
             @Override
-            public void onSuccess(Response result) {
+            public void onSuccess(@Nullable Response result) {
                 validateRetryOther(result);
             }
 
@@ -73,8 +74,8 @@ final class RetryOtherValidatingChannel implements Channel {
         return DialogueFutures.addDirectCallback(delegate.execute(endpoint, request), callback);
     }
 
-    private void validateRetryOther(Response response) {
-        if (!Responses.isRetryOther(response)) {
+    private void validateRetryOther(@Nullable Response response) {
+        if (response == null || !Responses.isRetryOther(response)) {
             return;
         }
         Optional<String> maybeRetryOtherUri = response.getFirstHeader(HttpHeaders.LOCATION);

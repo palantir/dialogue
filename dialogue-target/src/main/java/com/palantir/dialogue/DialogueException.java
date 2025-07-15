@@ -20,7 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeLoggable;
 import java.util.List;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /** Internal marker type for Dialogue network layer failures where no response is returned. */
 public final class DialogueException extends RuntimeException implements SafeLoggable {

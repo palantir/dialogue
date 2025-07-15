@@ -23,12 +23,12 @@ import java.net.ProxySelector;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
-import javax.annotation.CheckForNull;
 import org.apache.hc.client5.http.impl.routing.DefaultRoutePlanner;
 import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Identical to {@link SystemDefaultRoutePlanner} but adds support for connecting to an HTTPS proxy.
@@ -47,7 +47,7 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
     }
 
     @Override
-    @CheckForNull
+    @Nullable
     public HttpHost determineProxy(final HttpHost target, final HttpContext _context) throws HttpException {
         final URI targetUri;
         try {

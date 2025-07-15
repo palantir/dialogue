@@ -30,6 +30,7 @@ import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.data.ParameterEncoderType.EncoderType;
 import com.palantir.javapoet.TypeName;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -115,8 +116,8 @@ public final class ParamTypesResolver {
 
         // TODO(12345): More validation of values.
 
-        AnnotationReflector annotationReflector =
-                ImmutableAnnotationReflector.of(Iterables.getOnlyElement(paramAnnotationMirrors));
+        AnnotationReflector annotationReflector = ImmutableAnnotationReflector.of(
+                Preconditions.checkNotNull(Iterables.getOnlyElement(paramAnnotationMirrors), "paramAnnotationMirrors"));
         if (annotationReflector.isAnnotation(Request.Body.class)) {
             // default annotation param values are not available at annotation processing time
             String serializerName = InstanceVariables.joinCamelCase(endpointName.get(), "Serializer");

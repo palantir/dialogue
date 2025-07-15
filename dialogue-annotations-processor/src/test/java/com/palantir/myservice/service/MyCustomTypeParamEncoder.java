@@ -20,15 +20,16 @@ import com.palantir.dialogue.annotations.ListParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
 import java.util.Collections;
 import java.util.List;
+import org.jspecify.annotations.NonNull;
 
 public final class MyCustomTypeParamEncoder implements ParamEncoder<MyCustomType>, ListParamEncoder<MyCustomType> {
     @Override
-    public String toParamValue(MyCustomType value) {
+    public String toParamValue(@NonNull MyCustomType value) {
         return value.value();
     }
 
     @Override
-    public List<String> toParamValues(MyCustomType value) {
+    public List<String> toParamValues(@NonNull MyCustomType value) {
         return Collections.singletonList(value.value());
     }
 }

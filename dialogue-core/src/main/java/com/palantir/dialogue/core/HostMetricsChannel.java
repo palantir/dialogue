@@ -33,6 +33,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import org.jspecify.annotations.Nullable;
 
 final class HostMetricsChannel implements Channel {
     private final Channel delegate;
@@ -88,8 +89,10 @@ final class HostMetricsChannel implements Channel {
         private final long startNanos = clock.read();
 
         @Override
-        public void onSuccess(Response result) {
-            hostEventCallback.record(result.code(), TimeUnit.NANOSECONDS.toMicros(clock.read() - startNanos));
+        public void onSuccess(@Nullable Response result) {
+            if (result != null) {
+                hostEventCallback.record(result.code(), TimeUnit.NANOSECONDS.toMicros(clock.read() - startNanos));
+            }
         }
 
         @Override
