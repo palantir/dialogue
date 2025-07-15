@@ -17,18 +17,24 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.Deadlines;
+import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.deadlines.Deadlines.RequestDecodingAdapter;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.tracing.CloseableTracer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
 
 class DeadlineAdvertisementChannelTest {
@@ -115,6 +121,31 @@ class DeadlineAdvertisementChannelTest {
                             assertThat(parsed).isGreaterThan(Duration.ZERO);
                         });
             });
+        }
+    }
+
+    @Test
+    void returns_failed_future_on_expired_deadline() {
+        try (CloseableTracer tracer = CloseableTracer.startSpan("test")) {
+            Duration readTimeout = Duration.ofSeconds(10);
+            List<Request> requests = new ArrayList<>();
+            Channel delegate = (_endpoint, request) -> {
+                requests.add(request);
+                return Futures.immediateCancelledFuture();
+            };
+
+            Request inboundRequest =
+                    Request.builder().putHeaderParams("Expect-Within", "0").build();
+            Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
+
+            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout);
+            ListenableFuture<Response> response =
+                    channel.execute(TestEndpoint.GET, Request.builder().build());
+            assertThat(response).isDone();
+            assertThatExceptionOfType(ExecutionException.class)
+                    .isThrownBy(response::get)
+                    .withCauseInstanceOf(DeadlineExpiredException.class);
+            assertThat(requests).isEmpty();
         }
     }
 
