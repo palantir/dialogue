@@ -86,7 +86,9 @@ public enum ErrorDecoder {
                 SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
                 return new RemoteException(serializableError, code);
             } catch (Exception e) {
-                return new UnknownRemoteException(code, body);
+                UnknownRemoteException unknownRemoteException = new UnknownRemoteException(code, body);
+                unknownRemoteException.initCause(e);
+                return unknownRemoteException;
             }
         }
 

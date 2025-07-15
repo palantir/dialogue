@@ -179,7 +179,10 @@ final class EndpointErrorDecoder<T> {
                 // rethrow the created remote exception
                 throw remoteException;
             } catch (Exception e) {
-                throw new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
+                UnknownRemoteException unknownRemoteException =
+                        new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
+                unknownRemoteException.initCause(e);
+                throw unknownRemoteException;
             }
         }
 
