@@ -330,6 +330,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             return snapshot;
         }
 
+        @SuppressWarnings("for-rollout:PreferUncheckedIoException")
         private InputStream createResponseBody() {
             HttpEntity entity = response.getEntity();
             if (entity != null) {

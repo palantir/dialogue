@@ -93,6 +93,7 @@ public final class PathTemplateTest {
                 .hasMessage("Too many parameters supplied, this is a bug");
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static String fill(PathTemplate template, Map<String, String> params) {
         try {
             BaseUrl.DefaultUrlBuilder url = BaseUrl.DefaultUrlBuilder.from(new URL("http://unused:1"));

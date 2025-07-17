@@ -205,6 +205,7 @@ final class ContentDecodingChannel implements EndpointChannel {
             return delegate;
         }
 
+        @SuppressWarnings("for-rollout:PreferUncheckedIoException")
         private InputStream getDelegateSafely() {
             try {
                 return getDelegate();

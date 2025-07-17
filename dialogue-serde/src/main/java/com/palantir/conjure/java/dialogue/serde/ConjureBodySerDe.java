@@ -318,7 +318,7 @@ final class ConjureBodySerDe implements BodySerDe {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "for-rollout:PreferUncheckedIoException"})
         public T deserialize(Response response) {
             boolean closeResponse = true;
             try {

@@ -37,6 +37,7 @@ public final class Cases {
 
     private Cases() {}
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static ClientTestCases deserializeTestCases(File file) {
         try {
             return new ObjectMapper()
@@ -49,6 +50,7 @@ public final class Cases {
         }
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static IgnoredClientTestCases deserializeIgnoredClientTestCases(File file) {
         try {
             return new ObjectMapper(new YAMLFactory())

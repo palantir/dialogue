@@ -39,6 +39,7 @@ public final class CustomStringDeserializer extends StdDeserializer<String> {
         super("text/csv");
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     @Override
     public String deserialize(Response response) {
         try (InputStream is = response.body()) {

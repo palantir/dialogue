@@ -420,6 +420,7 @@ public final class ErrorDecoderTest {
         }
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static RemoteException encodeAndDecode(Exception exception) {
         Preconditions.checkArgument(!(exception instanceof ServiceException), "Use SerializableError#forException");
         Object error = SerializableError.builder()

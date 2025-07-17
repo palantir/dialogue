@@ -144,6 +144,7 @@ class ContentEncodingChannelTest {
         assertThat(result).isSameAs(delegate);
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static byte[] content(RequestBody body) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
@@ -154,6 +155,7 @@ class ContentEncodingChannelTest {
         return baos.toByteArray();
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static byte[] inflate(byte[] data) {
         ByteArrayInputStream bais = new ByteArrayInputStream(data);
         try (GZIPInputStream gzipInputStream = new GZIPInputStream(bais)) {
