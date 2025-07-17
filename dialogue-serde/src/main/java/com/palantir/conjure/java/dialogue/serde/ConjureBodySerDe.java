@@ -36,6 +36,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
@@ -318,7 +319,7 @@ final class ConjureBodySerDe implements BodySerDe {
         }
 
         @Override
-        @SuppressWarnings({"unchecked", "for-rollout:PreferUncheckedIoException"})
+        @SuppressWarnings("unchecked")
         public T deserialize(Response response) {
             boolean closeResponse = true;
             try {
@@ -354,7 +355,7 @@ final class ConjureBodySerDe implements BodySerDe {
                 }
                 return transform.apply(deserialized);
             } catch (IOException e) {
-                throw new SafeRuntimeException(
+                throw new SafeUncheckedIoException(
                         "Failed to deserialize response stream",
                         e,
                         SafeArg.of("contentType", response.getFirstHeader(HttpHeaders.CONTENT_TYPE)),

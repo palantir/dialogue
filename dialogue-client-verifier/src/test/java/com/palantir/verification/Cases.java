@@ -26,6 +26,7 @@ import com.palantir.dialogue.com.palantir.conjure.verification.server.IgnoredTes
 import com.palantir.dialogue.com.palantir.conjure.verification.server.TestCases;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
@@ -37,7 +38,6 @@ public final class Cases {
 
     private Cases() {}
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static ClientTestCases deserializeTestCases(File file) {
         try {
             return new ObjectMapper()
@@ -45,12 +45,11 @@ public final class Cases {
                     .readValue(file, TestCases.class)
                     .getClient();
         } catch (IOException e) {
-            throw new RuntimeException(
+            throw new UncheckedIOException(
                     String.format("Unable to read %s, you may need to run ./gradlew copyTestCases", file), e);
         }
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static IgnoredClientTestCases deserializeIgnoredClientTestCases(File file) {
         try {
             return new ObjectMapper(new YAMLFactory())
@@ -58,7 +57,7 @@ public final class Cases {
                     .readValue(file, IgnoredTestCases.class)
                     .getClient();
         } catch (IOException e) {
-            throw new RuntimeException(String.format("Unable to read %s", file), e);
+            throw new UncheckedIOException(String.format("Unable to read %s", file), e);
         }
     }
 

@@ -22,7 +22,7 @@ import com.google.common.io.ByteStreams;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.StdDeserializer;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -39,7 +39,6 @@ public final class CustomStringDeserializer extends StdDeserializer<String> {
         super("text/csv");
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     @Override
     public String deserialize(Response response) {
         try (InputStream is = response.body()) {
@@ -50,7 +49,7 @@ public final class CustomStringDeserializer extends StdDeserializer<String> {
             Preconditions.checkState(!Strings.isNullOrEmpty(fields.get(1)));
             return fields.get(1);
         } catch (IOException e) {
-            throw new SafeRuntimeException("Failed to serialize payload", e);
+            throw new SafeUncheckedIoException("Failed to serialize payload", e);
         }
     }
 }

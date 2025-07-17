@@ -20,7 +20,7 @@ import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.net.HttpHeaders;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -72,7 +72,6 @@ public final class TestResponse implements Response {
         return attachments;
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     @Override
     public void close() {
         checkNotClosed();
@@ -80,7 +79,7 @@ public final class TestResponse implements Response {
             closeCalled = true;
             inputStream.close();
         } catch (IOException e) {
-            throw new SafeRuntimeException("Failed to close", e);
+            throw new SafeUncheckedIoException("Failed to close", e);
         }
     }
 

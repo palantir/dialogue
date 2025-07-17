@@ -46,6 +46,7 @@ import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.UnsafeArg;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -405,12 +406,11 @@ public class EndpointErrorsConjureBodySerDeTest {
                         .containsExactly(responseBody));
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static byte[] readAllBytesUnchecked(Supplier<InputStream> stream) {
         try (InputStream is = stream.get()) {
             return is.readAllBytes();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 

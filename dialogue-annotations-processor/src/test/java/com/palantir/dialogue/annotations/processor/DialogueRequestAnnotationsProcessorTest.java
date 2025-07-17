@@ -25,7 +25,7 @@ import com.google.common.io.ByteSource;
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.Compiler;
 import com.google.testing.compile.JavaFileObjects;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import com.palantir.myservice.service.MismatchedPathParam;
 import com.palantir.myservice.service.MultipleParamAnnotations;
 import com.palantir.myservice.service.MyService;
@@ -134,7 +134,6 @@ public final class DialogueRequestAnnotationsProcessorTest {
         });
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private Compilation compileTestClass(Path basePath, Class<?> clazz) {
         Path clazzPath = basePath.resolve(Paths.get(
                 Joiner.on("/").join(Splitter.on(".").split(clazz.getPackage().getName())),
@@ -146,11 +145,10 @@ public final class DialogueRequestAnnotationsProcessorTest {
                     .withProcessors(new DialogueRequestAnnotationsProcessor())
                     .compile(JavaFileObjects.forResource(clazzPath.toUri().toURL()));
         } catch (MalformedURLException e) {
-            throw new SafeRuntimeException(e);
+            throw new SafeUncheckedIoException(e);
         }
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private void assertContentsMatch(JavaFileObject javaFileObject, String generatedClassFile) {
         try {
             Path output = RESOURCES_BASE_DIR.resolve(generatedClassFile + ".generated");
@@ -161,7 +159,7 @@ public final class DialogueRequestAnnotationsProcessorTest {
             }
             assertThat(generatedContents).isEqualTo(readFromFile(output));
         } catch (IOException e) {
-            throw new SafeRuntimeException(e);
+            throw new SafeUncheckedIoException(e);
         }
     }
 
