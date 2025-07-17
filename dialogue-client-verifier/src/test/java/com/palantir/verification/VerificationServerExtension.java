@@ -80,6 +80,7 @@ public final class VerificationServerExtension implements BeforeAllCallback, Aft
 
     private static void blockUntilServerStarted(InputStream inputStream) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
+        @SuppressWarnings("for-rollout:PreferUncheckedIoException")
         Thread thread = new Thread(() -> {
             try (BufferedReader reader =
                     new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {

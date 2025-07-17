@@ -442,6 +442,7 @@ public final class MyServiceIntegrationTest {
         myServiceDialogue.multipleStringPathSegmentsUsingCustomEncoder("a::b/c");
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private void testCustomResponse(int code) {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.PUT);
@@ -508,6 +509,7 @@ public final class MyServiceIntegrationTest {
             return assertThat(Optional.of(headerValues));
         }
 
+        @SuppressWarnings("for-rollout:PreferUncheckedIoException")
         public AbstractStringAssert<?> assertBodyUtf8() {
             try {
                 return assertThat(

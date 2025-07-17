@@ -405,6 +405,7 @@ public class EndpointErrorsConjureBodySerDeTest {
                         .containsExactly(responseBody));
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static byte[] readAllBytesUnchecked(Supplier<InputStream> stream) {
         try (InputStream is = stream.get()) {
             return is.readAllBytes();

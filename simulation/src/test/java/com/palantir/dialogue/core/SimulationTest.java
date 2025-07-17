@@ -767,6 +767,7 @@ final class SimulationTest {
         Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static String buildTxtSection() throws IOException {
         try (Stream<Path> list = Files.list(Paths.get("src/test/resources/txt"))) {
             List<Path> files = list.filter(p -> !p.toString().endsWith("report.md"))

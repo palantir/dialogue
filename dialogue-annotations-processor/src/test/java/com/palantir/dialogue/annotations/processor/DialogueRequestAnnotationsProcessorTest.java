@@ -134,6 +134,7 @@ public final class DialogueRequestAnnotationsProcessorTest {
         });
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private Compilation compileTestClass(Path basePath, Class<?> clazz) {
         Path clazzPath = basePath.resolve(Paths.get(
                 Joiner.on("/").join(Splitter.on(".").split(clazz.getPackage().getName())),
@@ -149,6 +150,7 @@ public final class DialogueRequestAnnotationsProcessorTest {
         }
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private void assertContentsMatch(JavaFileObject javaFileObject, String generatedClassFile) {
         try {
             Path output = RESOURCES_BASE_DIR.resolve(generatedClassFile + ".generated");

@@ -72,6 +72,7 @@ public final class TestResponse implements Response {
         return attachments;
     }
 
+    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     @Override
     public void close() {
         checkNotClosed();
