@@ -24,7 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.PathTemplate;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Map;
@@ -93,14 +93,13 @@ public final class PathTemplateTest {
                 .hasMessage("Too many parameters supplied, this is a bug");
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static String fill(PathTemplate template, Map<String, String> params) {
         try {
             BaseUrl.DefaultUrlBuilder url = BaseUrl.DefaultUrlBuilder.from(new URL("http://unused:1"));
             template.fill(params, url);
             return url.build().getPath();
         } catch (IOException e) {
-            throw new SafeRuntimeException("failed to construct url", e);
+            throw new SafeUncheckedIoException("failed to construct url", e);
         }
     }
 }

@@ -31,6 +31,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -144,24 +145,22 @@ class ContentEncodingChannelTest {
         assertThat(result).isSameAs(delegate);
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static byte[] content(RequestBody body) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
             body.writeTo(baos);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
         return baos.toByteArray();
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static byte[] inflate(byte[] data) {
         ByteArrayInputStream bais = new ByteArrayInputStream(data);
         try (GZIPInputStream gzipInputStream = new GZIPInputStream(bais)) {
             return ByteStreams.toByteArray(gzipInputStream);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 

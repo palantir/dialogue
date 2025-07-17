@@ -38,6 +38,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.function.Consumer;
@@ -420,7 +421,6 @@ public final class ErrorDecoderTest {
         }
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static RemoteException encodeAndDecode(Exception exception) {
         Preconditions.checkArgument(!(exception instanceof ServiceException), "Use SerializableError#forException");
         Object error = SerializableError.builder()
@@ -431,7 +431,7 @@ public final class ErrorDecoderTest {
         try {
             json = SERVER_MAPPER.writeValueAsString(error);
         } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
 
         // TODO(rfink): Resurrect

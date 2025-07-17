@@ -33,6 +33,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -344,7 +345,6 @@ public final class MultipartRequestBodyTest {
         };
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private void assertOkhttpAndDialogueMatch(MultipartBody okhttp, MultipartRequestBody dialogue) {
         try {
             Buffer buffer = new Buffer();
@@ -355,7 +355,7 @@ public final class MultipartRequestBodyTest {
 
             assertThat(byteArrayOutputStream.toString(CHARSET.name())).isEqualTo(buffer.readString(CHARSET));
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 }

@@ -26,7 +26,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.BufferedInputStream;
@@ -205,12 +205,11 @@ final class ContentDecodingChannel implements EndpointChannel {
             return delegate;
         }
 
-        @SuppressWarnings("for-rollout:PreferUncheckedIoException")
         private InputStream getDelegateSafely() {
             try {
                 return getDelegate();
             } catch (IOException e) {
-                throw new SafeRuntimeException("Failed to create a GZIPInputStream", e);
+                throw new SafeUncheckedIoException("Failed to create a GZIPInputStream", e);
             }
         }
 

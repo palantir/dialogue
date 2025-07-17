@@ -37,7 +37,7 @@ import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeExceptions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.api.TraceHttpHeaders;
@@ -330,14 +330,13 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             return snapshot;
         }
 
-        @SuppressWarnings("for-rollout:PreferUncheckedIoException")
         private InputStream createResponseBody() {
             HttpEntity entity = response.getEntity();
             if (entity != null) {
                 try {
                     return new ResponseInputStream(entity.getContent(), this);
                 } catch (IOException e) {
-                    throw new SafeRuntimeException("Failed to get response stream", e);
+                    throw new SafeUncheckedIoException("Failed to get response stream", e);
                 }
             }
             return new ByteArrayInputStream(new byte[0]);

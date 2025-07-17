@@ -37,6 +37,7 @@ import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.annotations.ContentBody;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import com.palantir.refreshable.Refreshable;
 import io.undertow.Undertow;
 import io.undertow.server.HttpServerExchange;
@@ -442,7 +443,6 @@ public final class MyServiceIntegrationTest {
         myServiceDialogue.multipleStringPathSegmentsUsingCustomEncoder("a::b/c");
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private void testCustomResponse(int code) {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.PUT);
@@ -465,7 +465,7 @@ public final class MyServiceIntegrationTest {
                     .isEqualTo("Custom Body");
             assertThat(response.headers().get("My-Custom-Header")).containsExactly("my-custom-header-value");
         } catch (IOException e) {
-            throw new SafeRuntimeException(e);
+            throw new SafeUncheckedIoException(e);
         }
     }
 
@@ -509,13 +509,12 @@ public final class MyServiceIntegrationTest {
             return assertThat(Optional.of(headerValues));
         }
 
-        @SuppressWarnings("for-rollout:PreferUncheckedIoException")
         public AbstractStringAssert<?> assertBodyUtf8() {
             try {
                 return assertThat(
                         CharStreams.toString(new InputStreamReader(exchange.getInputStream(), StandardCharsets.UTF_8)));
             } catch (IOException e) {
-                throw new SafeRuntimeException(e);
+                throw new SafeUncheckedIoException(e);
             }
         }
 

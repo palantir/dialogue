@@ -33,6 +33,7 @@ import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -767,7 +768,6 @@ final class SimulationTest {
         Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
     }
 
-    @SuppressWarnings("for-rollout:PreferUncheckedIoException")
     private static String buildTxtSection() throws IOException {
         try (Stream<Path> list = Files.list(Paths.get("src/test/resources/txt"))) {
             List<Path> files = list.filter(p -> !p.toString().endsWith("report.md"))
@@ -783,7 +783,7 @@ final class SimulationTest {
                                     p.getFileName().toString(),
                                     new String(Files.readAllBytes(p), StandardCharsets.UTF_8));
                         } catch (IOException e) {
-                            throw new RuntimeException(e);
+                            throw new UncheckedIOException(e);
                         }
                     })
                     .collect(Collectors.joining("", "```\n", "```\n"));

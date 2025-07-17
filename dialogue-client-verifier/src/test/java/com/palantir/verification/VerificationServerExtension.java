@@ -29,6 +29,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
@@ -80,7 +81,6 @@ public final class VerificationServerExtension implements BeforeAllCallback, Aft
 
     private static void blockUntilServerStarted(InputStream inputStream) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        @SuppressWarnings("for-rollout:PreferUncheckedIoException")
         Thread thread = new Thread(() -> {
             try (BufferedReader reader =
                     new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
@@ -96,7 +96,7 @@ public final class VerificationServerExtension implements BeforeAllCallback, Aft
                     System.out.println(line);
                 }
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
         });
         thread.setDaemon(true);
