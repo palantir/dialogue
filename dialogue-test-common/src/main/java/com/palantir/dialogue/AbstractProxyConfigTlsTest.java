@@ -184,7 +184,6 @@ public abstract class AbstractProxyConfigTlsTest {
         testAuthenticatedProxy(createProxySelector("localhost", httpsProxyPort, true));
     }
 
-    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     private void testAuthenticatedProxy(ProxySelector proxySelector) throws Exception {
         AtomicInteger requestIndex = new AtomicInteger();
         proxyHandler = exchange -> {
@@ -192,18 +191,20 @@ public abstract class AbstractProxyConfigTlsTest {
             HeaderMap responseHeaders = exchange.getResponseHeaders();
 
             switch (requestIndex.getAndIncrement()) {
-                case 0:
+                case 0 -> {
                     // okhttp and hc5 differ in this case, okhttp always sends credentials over the wire
                     // while hc5 does not expose credentials until the server provides a challenge.
                     // assertThat(requestHeaders.getHeaderNames()).doesNotContain(Headers.PROXY_AUTHORIZATION);
                     responseHeaders.put(Headers.PROXY_AUTHENTICATE, "Basic realm=test");
                     exchange.setStatusCode(407); // indicates authenticated proxy
                     return;
-                case 1:
+                }
+                case 1 -> {
                     assertThat(requestHeaders.get(Headers.PROXY_AUTHORIZATION))
                             .containsExactly("Basic ZmFrZVVzZXJAZmFrZS5jb206ZmFrZTpQYXNzd29yZA==");
                     new ConnectHandler(ResponseCodeHandler.HANDLE_500).handleRequest(exchange);
                     return;
+                }
             }
             throw new IllegalStateException("Expected exactly two requests");
         };

@@ -80,7 +80,6 @@ public class NodeSelectionBenchmark {
 
     private LimitedChannel channel;
 
-    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     @Setup(Level.Invocation)
     public void before() {
         ImmutableList<LimitedChannel> channels = IntStream.range(0, numChannels)
@@ -88,9 +87,9 @@ public class NodeSelectionBenchmark {
                 .collect(ImmutableList.toImmutableList());
 
         if (headerDriven) {
-            switch (selectionStrategy) {
-                case PIN_UNTIL_ERROR:
-                    channel = new NodeSelectionStrategyChannel(
+            channel = switch (selectionStrategy) {
+                case PIN_UNTIL_ERROR ->
+                    new NodeSelectionStrategyChannel(
                             NodeSelectionStrategyChannel::getFirstKnownStrategy,
                             DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
                             "channelName",
@@ -98,9 +97,8 @@ public class NodeSelectionBenchmark {
                             ticker,
                             metrics,
                             channels);
-                    break;
-                case ROUND_ROBIN:
-                    channel = new NodeSelectionStrategyChannel(
+                case ROUND_ROBIN ->
+                    new NodeSelectionStrategyChannel(
                             NodeSelectionStrategyChannel::getFirstKnownStrategy,
                             DialogueNodeSelectionStrategy.BALANCED,
                             "channelName",
@@ -108,14 +106,12 @@ public class NodeSelectionBenchmark {
                             ticker,
                             metrics,
                             channels);
-                    break;
-                default:
-                    throw new SafeIllegalArgumentException("Unsupported");
-            }
+                default -> throw new SafeIllegalArgumentException("Unsupported");
+            };
         } else {
-            switch (selectionStrategy) {
-                case PIN_UNTIL_ERROR:
-                    channel = PinUntilErrorNodeSelectionStrategyChannel.of(
+            channel = switch (selectionStrategy) {
+                case PIN_UNTIL_ERROR ->
+                    PinUntilErrorNodeSelectionStrategyChannel.of(
                             Optional.empty(),
                             DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
                             channels,
@@ -123,14 +119,10 @@ public class NodeSelectionBenchmark {
                             random,
                             ticker,
                             "channelName");
-                    break;
-                case ROUND_ROBIN:
-                    channel =
-                            new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
-                    break;
-                default:
-                    throw new SafeIllegalArgumentException("Unsupported");
-            }
+                case ROUND_ROBIN ->
+                    new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
+                default -> throw new SafeIllegalArgumentException("Unsupported");
+            };
         }
     }
 
