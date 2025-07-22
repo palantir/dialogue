@@ -79,22 +79,17 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
         return result;
     }
 
-    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     private Proxy chooseProxy(final List<Proxy> proxies) {
         Proxy result = null;
         // check the list for one we can use
         for (int i = 0; (result == null) && (i < proxies.size()); i++) {
             final Proxy p = proxies.get(i);
             switch (p.type()) {
-                case DIRECT:
-                case HTTP:
-                    result = p;
-                    break;
-
-                case SOCKS:
+                case DIRECT, HTTP -> result = p;
+                case SOCKS -> {
                     // SOCKS hosts are not handled on the route level.
                     // The socket may make use of the SOCKS host though.
-                    break;
+                }
             }
         }
         if (result == null) {

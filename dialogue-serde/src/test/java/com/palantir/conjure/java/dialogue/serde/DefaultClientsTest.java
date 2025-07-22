@@ -242,17 +242,15 @@ public final class DefaultClientsTest {
         return call(callType, request, stringDeserializer);
     }
 
-    @SuppressWarnings({"DirectInvocationOnMock", "for-rollout:StatementSwitchToExpressionSwitch"})
+    @SuppressWarnings("DirectInvocationOnMock")
     private <T> ListenableFuture<T> call(CallType callType, Request request, Deserializer<T> deserializer) {
-        switch (callType) {
-            case Async:
-                return DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
-            case Blocking:
-                return executor.submit(() -> DefaultClients.INSTANCE.callBlocking(
+        return switch (callType) {
+            case Async -> DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
+            case Blocking ->
+                executor.submit(() -> DefaultClients.INSTANCE.callBlocking(
                         request1 -> channel.execute(endpoint, request1), request, deserializer));
-            default:
-                throw new SafeIllegalStateException("Unknown call type");
-        }
+            default -> throw new SafeIllegalStateException("Unknown call type");
+        };
     }
 
     private void assertStringResult(CallType callType, ListenableFuture<String> result) {

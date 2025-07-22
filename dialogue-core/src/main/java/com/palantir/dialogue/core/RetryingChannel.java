@@ -35,7 +35,6 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -381,19 +380,15 @@ final class RetryingChannel implements EndpointChannel {
             return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
         }
 
-        @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
         private boolean isRetryableQosStatus(Response response) {
-            switch (serverQoS) {
-                case AUTOMATIC_RETRY:
-                    return Responses.isRetryableQos(response);
-                case PROPAGATE_429_and_503_TO_CALLER:
-                    return Responses.isQosStatus(response)
+            return switch (serverQoS) {
+                case AUTOMATIC_RETRY -> Responses.isRetryableQos(response);
+                case PROPAGATE_429_and_503_TO_CALLER ->
+                    Responses.isQosStatus(response)
                             && !Responses.isTooManyRequests(response)
                             && !Responses.isUnavailable(response)
                             && Responses.isRetryableQos(response);
-            }
-            throw new SafeIllegalStateException(
-                    "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
+            };
         }
 
         private boolean shouldAttemptToRetry(Throwable throwable) {
@@ -524,21 +519,11 @@ final class RetryingChannel implements EndpointChannel {
     /**
      * See https://tools.ietf.org/html/rfc7231#section-4.2.
      */
-    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     private static boolean safeToRetry(HttpMethod httpMethod) {
-        switch (httpMethod) {
-            case GET:
-            case HEAD:
-            case OPTIONS:
-            case PUT:
-            case DELETE:
-                return true;
-            case POST:
-            case PATCH:
-                return false;
-        }
-
-        throw new SafeIllegalStateException("Unknown method", SafeArg.of("httpMethod", httpMethod));
+        return switch (httpMethod) {
+            case GET, HEAD, OPTIONS, PUT, DELETE -> true;
+            case POST, PATCH -> false;
+        };
     }
 
     private static ListeningScheduledExecutorService instrument(

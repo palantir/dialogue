@@ -98,11 +98,10 @@ final class EndpointErrorDecoder<T> {
         }
     }
 
-    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     Optional<RuntimeException> checkCode(Response response) {
         int code = response.code();
         switch (code) {
-            case 308:
+            case 308 -> {
                 Optional<String> location = response.getFirstHeader(HttpHeaders.LOCATION);
                 if (location.isPresent()) {
                     String locationHeader = location.get();
@@ -121,15 +120,17 @@ final class EndpointErrorDecoder<T> {
                     log.error("Retrieved HTTP status code 308 without Location header, cannot perform "
                             + "redirect. This appears to be a server-side protocol violation.");
                 }
-                break;
-            case 429:
+            }
+            case 429 -> {
                 return Optional.of(response.getFirstHeader(HttpHeaders.RETRY_AFTER)
                         .map(Longs::tryParse)
                         .map(Duration::ofSeconds)
                         .map(duration -> QosException.throttle(qosReason(response), duration))
                         .orElseGet(() -> QosException.throttle(qosReason(response))));
-            case 503:
+            }
+            case 503 -> {
                 return Optional.of(QosException.unavailable(qosReason(response)));
+            }
         }
         return Optional.empty();
     }

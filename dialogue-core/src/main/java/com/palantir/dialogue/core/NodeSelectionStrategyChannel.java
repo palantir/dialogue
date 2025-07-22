@@ -124,15 +124,13 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         return Optional.of(wrappedFuture);
     }
 
-    @SuppressWarnings("for-rollout:StatementSwitchToExpressionSwitch")
     private NodeSelectionChannel createNodeSelectionChannel(
             @Nullable LimitedChannel previousNodeSelectionStrategy, DialogueNodeSelectionStrategy strategy) {
         NodeSelectionChannel.Builder channelBuilder =
                 NodeSelectionChannel.builder().strategy(strategy);
 
         switch (strategy) {
-            case PIN_UNTIL_ERROR:
-            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
+            case PIN_UNTIL_ERROR, PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE -> {
                 DialoguePinuntilerrorMetrics pinuntilerrorMetrics = DialoguePinuntilerrorMetrics.of(metrics);
                 // Previously pin until error, so we should preserve our previous location
                 if (previousNodeSelectionStrategy
@@ -160,13 +158,15 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                                     channelName))
                             .build();
                 }
-            case BALANCED:
+            }
+            case BALANCED -> {
                 // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
                 return channelBuilder
                         .channel(new BalancedNodeSelectionStrategyChannel(channels, random, tick, metrics, channelName))
                         .build();
-            case UNKNOWN:
+            }
+            case UNKNOWN -> {}
         }
         throw new SafeRuntimeException("Unknown NodeSelectionStrategy", SafeArg.of("unknown", strategy));
     }
