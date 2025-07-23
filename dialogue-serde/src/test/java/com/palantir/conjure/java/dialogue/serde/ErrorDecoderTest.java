@@ -74,7 +74,7 @@ public final class ErrorDecoderTest {
 
     private static final ErrorDecoder decoder = ErrorDecoder.INSTANCE;
     private static final EndpointErrorDecoder<?> endpointErrorDecoder =
-            new EndpointErrorDecoder<>(Collections.emptyMap());
+            new EndpointErrorDecoder<>(Collections.emptyMap(), Collections.emptyMap());
 
     @ParameterizedTest
     @EnumSource(DecoderType.class)

@@ -17,6 +17,8 @@
 package com.palantir.dialogue;
 
 import com.google.common.collect.ImmutableMap;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
+import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.logsafe.Preconditions;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,14 +33,17 @@ public final class DeserializerArgs<T> {
     private final TypeMarker<T> baseType;
     private final TypeMarker<? extends T> successType;
     private final ImmutableMap<String, TypeMarker<? extends T>> errorNameToTypeMarker;
+    private final ImmutableMap<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers;
 
     private DeserializerArgs(
             TypeMarker<T> baseType,
             TypeMarker<? extends T> successType,
-            ImmutableMap<String, TypeMarker<? extends T>> map) {
+            ImmutableMap<String, TypeMarker<? extends T>> map,
+            ImmutableMap<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers) {
         this.baseType = baseType;
         this.successType = successType;
         this.errorNameToTypeMarker = map;
+        this.errorNameToExceptionTypeMarkers = errorNameToExceptionTypeMarkers;
     }
 
     public static <T> Builder<T> builder() {
@@ -50,9 +55,11 @@ public final class DeserializerArgs<T> {
         private @Nullable TypeMarker<T> baseType;
         private @Nullable TypeMarker<? extends T> successType;
         private final Map<String, TypeMarker<? extends T>> errorNameToTypeMarker;
+        private final Map<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers;
 
         private Builder() {
             this.errorNameToTypeMarker = new HashMap<>();
+            this.errorNameToExceptionTypeMarkers = new HashMap<>();
         }
 
         public Builder<T> baseType(TypeMarker<T> baseT) {
@@ -75,12 +82,27 @@ public final class DeserializerArgs<T> {
             return this;
         }
 
+        public <U extends AbstractSerializableError<?>, V extends RemoteException> Builder<T> exception(
+                String errorName, TypeMarker<U> errorType, TypeMarker<V> exceptionType) {
+            checkNotBuilt();
+            this.errorNameToExceptionTypeMarkers.put(
+                    Preconditions.checkNotNull(errorName, "error name must be non-null"),
+                    new ErrorExceptionPair<>(
+                            Preconditions.checkNotNull(errorType, "error type must be non-null"),
+                            Preconditions.checkNotNull(exceptionType, "exception type must be non-null")));
+            return this;
+        }
+
         public DeserializerArgs<T> build() {
             checkNotBuilt();
             Preconditions.checkNotNull(baseType, "base type must be set");
             Preconditions.checkNotNull(successType, "success type must be set");
             buildInvoked = true;
-            return new DeserializerArgs<>(baseType, successType, ImmutableMap.copyOf(errorNameToTypeMarker));
+            return new DeserializerArgs<>(
+                    baseType,
+                    successType,
+                    ImmutableMap.copyOf(errorNameToTypeMarker),
+                    ImmutableMap.copyOf(errorNameToExceptionTypeMarkers));
         }
 
         private void checkNotBuilt() {
@@ -99,4 +121,11 @@ public final class DeserializerArgs<T> {
     public Map<String, TypeMarker<? extends T>> errorNameToTypeMarker() {
         return errorNameToTypeMarker;
     }
+
+    public ImmutableMap<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers() {
+        return errorNameToExceptionTypeMarkers;
+    }
+
+    public record ErrorExceptionPair<U extends AbstractSerializableError<?>>(
+            TypeMarker<U> errorType, TypeMarker<? extends RemoteException> exceptionType) {}
 }

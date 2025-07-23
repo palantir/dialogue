@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.QosReasons;
@@ -30,6 +31,7 @@ import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer;
+import com.palantir.dialogue.DeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
@@ -42,6 +44,8 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Type;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -71,15 +75,27 @@ final class EndpointErrorDecoder<T> {
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(new TypeMarker<>() {});
     private final Map<String, Encoding.Deserializer<? extends T>> errorNameToJsonDeserializerMap;
+    private final Map<String, DeserializerExceptionPair<?>> errorNameToExceptionDeserializerMap;
 
-    EndpointErrorDecoder(Map<String, TypeMarker<? extends T>> errorNameToTypeMap) {
-        this(errorNameToTypeMap, Optional.empty());
+    private record DeserializerExceptionPair<U extends AbstractSerializableError<?>>(
+            Encoding.Deserializer<U> deserializer, TypeMarker<? extends RemoteException> exceptionType) {}
+
+    EndpointErrorDecoder(
+            Map<String, TypeMarker<? extends T>> errorNameToTypeMap,
+            Map<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMap) {
+        this(errorNameToTypeMap, errorNameToExceptionTypeMap, Optional.empty());
     }
 
     EndpointErrorDecoder(
-            Map<String, TypeMarker<? extends T>> errorNameToTypeMap, Optional<Encoding> maybeJsonEncoding) {
+            Map<String, TypeMarker<? extends T>> errorNameToTypeMap,
+            Map<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMap,
+            Optional<Encoding> maybeJsonEncoding) {
         this.errorNameToJsonDeserializerMap = ImmutableMap.copyOf(
                 Maps.transformValues(errorNameToTypeMap, maybeJsonEncoding.orElse(JSON_ENCODING)::deserializer));
+        this.errorNameToExceptionDeserializerMap = ImmutableMap.copyOf(Maps.transformValues(
+                errorNameToExceptionTypeMap,
+                errorExceptionPair ->
+                        createDeserializerForException(maybeJsonEncoding.orElse(JSON_ENCODING), errorExceptionPair)));
     }
 
     boolean isError(Response response) {
@@ -147,6 +163,7 @@ final class EndpointErrorDecoder<T> {
         }
     }
 
+    @SuppressWarnings("CyclomaticComplexity")
     private T decodeInternal(Response response) {
         Optional<RuntimeException> maybeQosException = checkCode(response);
         if (maybeQosException.isPresent()) {
@@ -173,7 +190,27 @@ final class EndpointErrorDecoder<T> {
                 }
                 Deserializer<? extends T> deserializer = errorNameToJsonDeserializerMap.get(errorName);
                 if (deserializer == null) {
-                    throw createRemoteException(body, code);
+                    // Attempt to get a deserializer from the exception type.
+                    DeserializerExceptionPair<?> deserializerExceptionPair =
+                            errorNameToExceptionDeserializerMap.get(errorName);
+                    if (deserializerExceptionPair == null) {
+                        throw createRemoteException(body, code);
+                    }
+                    AbstractSerializableError<?> error =
+                            deserializerExceptionPair.deserializer().deserialize(new ByteArrayInputStream(body));
+
+                    Type exceptionType =
+                            deserializerExceptionPair.exceptionType().getType();
+                    if (exceptionType == null) {
+                        throw createRemoteException(body, code);
+                    }
+                    @SuppressWarnings("unchecked")
+                    Class<? extends RemoteException> exceptionClass =
+                            (Class<? extends RemoteException>) Class.forName(exceptionType.getTypeName());
+
+                    Constructor<? extends RemoteException> exceptionConstructor =
+                            exceptionClass.getConstructor(error.getClass(), int.class);
+                    throw exceptionConstructor.newInstance(error, code);
                 }
                 return deserializer.deserialize(new ByteArrayInputStream(body));
             } catch (RemoteException remoteException) {
@@ -268,4 +305,11 @@ final class EndpointErrorDecoder<T> {
     }
 
     record NamedError(@JsonProperty("errorName") String errorName) {}
+
+    // Purely to provide Java type inference information.
+    private static <U extends AbstractSerializableError<?>>
+            EndpointErrorDecoder.DeserializerExceptionPair<U> createDeserializerForException(
+                    Encoding encoding, ErrorExceptionPair<U> pair) {
+        return new DeserializerExceptionPair<>(encoding.deserializer(pair.errorType()), pair.exceptionType());
+    }
 }

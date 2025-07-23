@@ -6,6 +6,7 @@ dependencies {
     api 'com.palantir.tokens:auth-tokens'
     api 'com.palantir.ri:resource-identifier'
     api 'com.palantir.conjure.java:conjure-lib'
+    api 'com.palantir.conjure.java.api:errors'
     api 'org.jspecify:jspecify'
     api 'com.palantir.conjure.java.api:errors'
 
