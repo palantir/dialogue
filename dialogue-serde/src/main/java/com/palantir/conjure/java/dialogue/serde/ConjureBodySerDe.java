@@ -98,7 +98,8 @@ final class ConjureBodySerDe implements BodySerDe {
                         .baseType(BinaryEncoding.OPTIONAL_MARKER)
                         .success(BinaryEncoding.OPTIONAL_MARKER)
                         .build());
-        this.emptyBodyDeserializer = new EmptyBodyDeserializer(new EndpointErrorDecoder<>(Collections.emptyMap()));
+        this.emptyBodyDeserializer =
+                new EmptyBodyDeserializer(new EndpointErrorDecoder<>(Collections.emptyMap(), Collections.emptyMap()));
         // Class unloading: Not supported, Jackson keeps strong references to the types
         // it sees: https://github.com/FasterXML/jackson-databind/issues/489
         this.serializers = Caffeine.from(cacheSpec)
@@ -307,6 +308,7 @@ final class ConjureBodySerDe implements BodySerDe {
                     .collect(ImmutableList.toImmutableList());
             this.endpointErrorDecoder = new EndpointErrorDecoder<>(
                     deserializersForEndpoint.errorNameToTypeMarker(),
+                    deserializersForEndpoint.errorNameToExceptionTypeMarkers(),
                     encodingsSortedByWeight.stream()
                             .filter(encoding -> encoding.supportsContentType("application/json"))
                             .findFirst());
