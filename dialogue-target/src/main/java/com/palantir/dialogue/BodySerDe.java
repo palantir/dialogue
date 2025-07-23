@@ -22,6 +22,10 @@ import java.util.Optional;
 /** Request and response Deserialization and Serialization functionality used by generated code. */
 public interface BodySerDe {
 
+    default boolean supportJsonErrorDeserialization() {
+        return false;
+    }
+
     /** Creates a {@link Serializer} for the requested type. Serializer instances should be reused. */
     <T> Serializer<T> serializer(TypeMarker<T> type);
 

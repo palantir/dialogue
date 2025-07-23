@@ -67,6 +67,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, EncodingDeserializerForEndpointRegistry<?, ?>> deserializers;
     private final EmptyContainerDeserializer emptyContainerDeserializer;
+    private final boolean supportJsonErrorDeserialization;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -77,6 +78,20 @@ final class ConjureBodySerDe implements BodySerDe {
             List<WeightedEncoding> rawEncodings,
             EmptyContainerDeserializer emptyContainerDeserializer,
             CaffeineSpec cacheSpec) {
+        this(rawEncodings, emptyContainerDeserializer, /* supportJsonErrorDeserialization = */ false, cacheSpec);
+    }
+
+    /**
+     * Selects the first (based on input order) of the provided encodings that
+     * {@link Encoding#supportsContentType supports} the serialization format {@link HttpHeaders#ACCEPT accepted}
+     * by a given request, or the first serializer if no such serializer can be found.
+     */
+    ConjureBodySerDe(
+            List<WeightedEncoding> rawEncodings,
+            EmptyContainerDeserializer emptyContainerDeserializer,
+            boolean supportJsonErrorDeserialization,
+            CaffeineSpec cacheSpec) {
+        this.supportJsonErrorDeserialization = supportJsonErrorDeserialization;
         List<WeightedEncoding> encodings = decorateEncodings(rawEncodings);
         this.encodingsSortedByWeight = sortByWeight(encodings);
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
@@ -105,6 +120,11 @@ final class ConjureBodySerDe implements BodySerDe {
         this.serializers = Caffeine.from(cacheSpec)
                 .build(type -> new EncodingSerializerRegistry<>(defaultEncoding, TypeMarker.of(type)));
         this.deserializers = Caffeine.from(cacheSpec).build(type -> buildCacheEntry(TypeMarker.of(type)));
+    }
+
+    @Override
+    public boolean supportJsonErrorDeserialization() {
+        return this.supportJsonErrorDeserialization;
     }
 
     private <T> EncodingDeserializerForEndpointRegistry<?, ?> buildCacheEntry(TypeMarker<T> typeMarker) {
