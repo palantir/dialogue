@@ -165,6 +165,7 @@ final class EndpointErrorDecoder<T> {
 
     @SuppressWarnings("CyclomaticComplexity")
     private T decodeInternal(Response response) {
+        // Check for QoS exceptions first
         Optional<RuntimeException> maybeQosException = checkCode(response);
         if (maybeQosException.isPresent()) {
             throw maybeQosException.get();
@@ -189,30 +190,30 @@ final class EndpointErrorDecoder<T> {
                     throw createRemoteException(body, code);
                 }
                 Deserializer<? extends T> deserializer = errorNameToJsonDeserializerMap.get(errorName);
-                if (deserializer == null) {
-                    // Attempt to get a deserializer from the exception type.
-                    DeserializerExceptionPair<?> deserializerExceptionPair =
-                            errorNameToExceptionDeserializerMap.get(errorName);
-                    if (deserializerExceptionPair == null) {
-                        throw createRemoteException(body, code);
-                    }
-                    AbstractSerializableError<?> error =
-                            deserializerExceptionPair.deserializer().deserialize(new ByteArrayInputStream(body));
-
-                    Type exceptionType =
-                            deserializerExceptionPair.exceptionType().getType();
-                    if (exceptionType == null) {
-                        throw createRemoteException(body, code);
-                    }
-                    @SuppressWarnings("unchecked")
-                    Class<? extends RemoteException> exceptionClass =
-                            (Class<? extends RemoteException>) Class.forName(exceptionType.getTypeName());
-
-                    Constructor<? extends RemoteException> exceptionConstructor =
-                            exceptionClass.getConstructor(error.getClass(), int.class);
-                    throw exceptionConstructor.newInstance(error, code);
+                if (deserializer != null) {
+                    return deserializer.deserialize(new ByteArrayInputStream(body));
                 }
-                return deserializer.deserialize(new ByteArrayInputStream(body));
+                // Attempt to get a deserializer from the exception type.
+                DeserializerExceptionPair<?> deserializerExceptionPair =
+                        errorNameToExceptionDeserializerMap.get(errorName);
+                if (deserializerExceptionPair == null) {
+                    throw createRemoteException(body, code);
+                }
+                AbstractSerializableError<?> error;
+                try {
+                    error = deserializerExceptionPair.deserializer().deserialize(new ByteArrayInputStream(body));
+                } catch (Exception e) {
+                    // If we're unable to deserialize the error as JSON, throw a RemoteException.
+                    throw createRemoteException(body, code);
+                }
+                Type exceptionType = deserializerExceptionPair.exceptionType().getType();
+                @SuppressWarnings("unchecked")
+                Class<? extends RemoteException> exceptionClass =
+                        (Class<? extends RemoteException>) Class.forName(exceptionType.getTypeName());
+
+                Constructor<? extends RemoteException> exceptionConstructor =
+                        exceptionClass.getConstructor(error.getClass(), int.class);
+                throw exceptionConstructor.newInstance(error, code);
             } catch (RemoteException remoteException) {
                 // rethrow the created remote exception
                 throw remoteException;

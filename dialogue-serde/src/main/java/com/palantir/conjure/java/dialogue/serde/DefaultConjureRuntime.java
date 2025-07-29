@@ -46,7 +46,6 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
         this.bodySerDe = new ConjureBodySerDe(
                 builder.encodings.isEmpty() ? DEFAULT_ENCODINGS : builder.encodings,
                 Encodings.emptyContainerDeserializer(),
-                builder.supportJsonErrorDeserialization,
                 DEFAULT_SERDE_CACHE_SPEC);
     }
 
@@ -72,7 +71,6 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
     public static final class Builder {
 
         private final List<WeightedEncoding> encodings = new ArrayList<>();
-        private boolean supportJsonErrorDeserialization = false;
 
         private Builder() {}
 
@@ -89,12 +87,6 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
         @CanIgnoreReturnValue
         public Builder encodings(Encoding value, double weight) {
             encodings.add(WeightedEncoding.of(value, weight));
-            return this;
-        }
-
-        @CanIgnoreReturnValue
-        public Builder supportJsonErrorDeserialization(boolean supportJsonErrorDeserializationValue) {
-            this.supportJsonErrorDeserialization = supportJsonErrorDeserializationValue;
             return this;
         }
 
