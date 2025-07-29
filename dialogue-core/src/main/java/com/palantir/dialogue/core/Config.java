@@ -79,6 +79,11 @@ interface Config {
 
     OptionalInt overrideSingleHostIndex();
 
+    @Value.Default
+    default boolean acceptJsonErrorDeserialization() {
+        return false;
+    }
+
     @Value.Check
     default void check() {
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");

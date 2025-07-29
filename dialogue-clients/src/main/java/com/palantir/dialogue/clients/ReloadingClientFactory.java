@@ -104,6 +104,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 dnsResult.resolvedHosts(),
                                 params.taggedMetrics())))
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
+                .acceptJsonErrorDeserialization(params.acceptJsonErrorDeserialization())
                 .build();
     }
 
@@ -135,6 +136,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         Optional<ExecutorService> blockingExecutor();
+
+        @Value.Default
+        default boolean acceptJsonErrorDeserialization() {
+            return false;
+        }
     }
 
     @Override
@@ -390,6 +396,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public ReloadingFactory withDnsNodeDiscovery(boolean dnsNodeDiscovery) {
         return new ReloadingClientFactory(params.withDnsNodeDiscovery(dnsNodeDiscovery), cache);
+    }
+
+    @Override
+    public ReloadingFactory withAcceptJsonErrorDeserialization(boolean acceptJsonErrorDeserialization) {
+        return new ReloadingClientFactory(
+                params.withAcceptJsonErrorDeserialization(acceptJsonErrorDeserialization), cache);
     }
 
     @Override
