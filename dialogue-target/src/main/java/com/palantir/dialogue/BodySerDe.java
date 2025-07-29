@@ -16,16 +16,12 @@
 
 package com.palantir.dialogue;
 
+import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
 import java.io.InputStream;
 import java.util.Optional;
 
 /** Request and response Deserialization and Serialization functionality used by generated code. */
 public interface BodySerDe {
-
-    default boolean supportJsonErrorDeserialization() {
-        return false;
-    }
-
     /** Creates a {@link Serializer} for the requested type. Serializer instances should be reused. */
     <T> Serializer<T> serializer(TypeMarker<T> type);
 
@@ -65,4 +61,8 @@ public interface BodySerDe {
 
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);
+
+    default Optional<ConjureErrorParameterFormat> errorParameterDeserializationFormat() {
+        return Optional.empty();
+    }
 }

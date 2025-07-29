@@ -120,7 +120,8 @@ enum DefaultClients implements Clients {
 
             // TODO(jellis): can consider propagating other relevant exceptions (eg: HttpConnectTimeoutException)
             // see HttpClientImpl#send(HttpRequest req, BodyHandler<T> responseHandler)
-            if (cause instanceof RemoteException remoteException) {
+            if (cause instanceof RemoteException remoteException
+                    && cause.getClass().equals(RemoteException.class)) {
                 throw newRemoteException(remoteException);
             }
 

@@ -325,3 +325,10 @@ acceptedBreaks:
       new: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.DeserializerArgs<T>)"
       justification: "Adding new methods to create deserializers in support of endpoint\
         \ associated error deserialization"
+  "6.2.0":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method T com.palantir.conjure.java.clients.ConjureClients.WithClientOptions<T>::withConjureErrorParameterSerializationFormat(com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat)\
+        \ @ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory"
+      justification: "Adding a method to allow clients to enable JSON error parameter\
+        \ deserialization"
