@@ -34,6 +34,32 @@ class ChannelNamesTest {
     }
 
     @Test
+    void prepends_enabled_disabled_with_field_name() {
+        String channelName = ChannelNames.reloading(
+                "multipass",
+                ImmutableReloadingParams.builder()
+                        .scb(Refreshable.only(null))
+                        .clientQoS(ClientConfiguration.ClientQoS.ENABLED)
+                        .retryOnTimeout(ClientConfiguration.RetryOnTimeout.DISABLED)
+                        .build());
+        assertThat(channelName).isEqualTo("dialogue-multipass-CLIENT_QOS_ENABLED-RETRY_ON_TIMEOUT_DISABLED");
+    }
+
+    @Test
+    void does_not_prepend_field_name_to_values_not_named_enabled_disabled() {
+        String channelName = ChannelNames.reloading(
+                "multipass",
+                ImmutableReloadingParams.builder()
+                        .scb(Refreshable.only(null))
+                        .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS)
+                        .retryOnTimeout(ClientConfiguration.RetryOnTimeout.DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS)
+                        .build());
+        assertThat(channelName)
+                .isEqualTo("dialogue-multipass-DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS-"
+                        + "DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS");
+    }
+
+    @Test
     void verbose_if_necessary() {
         String channelName = ChannelNames.reloading(
                 "multipass",

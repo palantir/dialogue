@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.clients;
 
+import com.palantir.conjure.java.client.config.ClientConfiguration;
+
 final class ChannelNames {
 
     static String reloading(String serviceName) {
@@ -37,11 +39,16 @@ final class ChannelNames {
     private static String summarizeOptions(AugmentClientConfig augment) {
         StringBuilder builder = new StringBuilder();
         augment.nodeSelectionStrategy().ifPresent(value -> builder.append("-").append(value));
+        // For settings with generic names ENABLED/DISABLED, prepend the field name so it's understandable.
         augment.maxNumRetries()
                 .ifPresent(value -> builder.append("-MAX_RETRIES_").append(value));
-        augment.clientQoS().ifPresent(value -> builder.append("-").append(value));
+        augment.clientQoS().ifPresent(value -> builder.append(
+                        value == ClientConfiguration.ClientQoS.ENABLED ? "-CLIENT_QOS_" : "-")
+                .append(value));
         augment.serverQoS().ifPresent(value -> builder.append("-").append(value));
-        augment.retryOnTimeout().ifPresent(value -> builder.append("-").append(value));
+        augment.retryOnTimeout().ifPresent(value -> builder.append(
+                        value == ClientConfiguration.RetryOnTimeout.DISABLED ? "-RETRY_ON_TIMEOUT_" : "-")
+                .append(value));
         return builder.toString();
     }
 
