@@ -145,6 +145,7 @@ Metrics for deadlines.
     - `internal`: A deadline expiration was caused by an internal process, such as a server's inability to meet its own internal deadline even though a client provided ample time.
     - `external`: A deadline expiration was caused due to the inability to meet an externally provided deadline, such as a server being unable to complete required work before a client-provided deadline elapses.
   - `intent`: Describes the intent (or not) to propagate an expired deadline on further RPC calls.
+    - `throw`: Enforcement was enabled for this trace at the time the deadline expiration was reached, and an exception was thrown.
     - `propagate`: Deadline propagation was enabled for this trace at the time the deadline expiration was reached. This means that further RPC calls will still potentially propagate an expired deadline value.
     - `propagate-already-expired`: Deadline propagation was enabled for this trace, but the deadline had already expired by the time it was first received.
     - `ignore`: Deadline propagation was disabled for this trace at the time the deadline expiration was reached. This means that further RPC calls will not propagate an expired deadline value any more.
