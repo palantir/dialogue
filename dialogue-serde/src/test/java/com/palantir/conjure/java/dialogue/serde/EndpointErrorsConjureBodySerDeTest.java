@@ -134,6 +134,7 @@ public class EndpointErrorsConjureBodySerDeTest {
 
     @Generated("by conjure-java")
     public static final class TestEndpointError extends CheckedServiceException {
+        @SuppressWarnings("removal")
         private TestEndpointError(
                 @Safe String arg,
                 @Unsafe String unsafeArg,
