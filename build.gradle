@@ -39,7 +39,7 @@ buildscript {
 }
 
 plugins {
-id 'com.palantir.consistent-versions' version '2.36.0'
+id 'com.palantir.consistent-versions' version '2.37.0'
 }
 
 apply plugin: 'com.palantir.external-publish'
