@@ -190,7 +190,7 @@ public class RetryingChannelTest {
 
         verify(channel, times(2)).execute(REQUEST);
         assertThat(Duration.ofNanos(System.nanoTime() - startTime))
-                .as("IOException retry immediately on first failure")
+                .as("First failure with retryable exceptions should be immediately retried")
                 .isLessThan(backoffSlotSize);
     }
 
