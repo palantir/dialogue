@@ -103,6 +103,8 @@ final class RetryingChannel implements EndpointChannel {
     private final ClientConfiguration.ServerQoS serverQoS;
     private final ClientConfiguration.RetryOnTimeout retryOnTimeout;
     private final Duration backoffSlotSize;
+    private final int backoffFactor;
+    private final Duration maxBackoff;
     private final DoubleSupplier jitter;
     private final Supplier<Meter> retryDueToServerError;
     private final Supplier<Meter> retryDueToQosResponse;
@@ -121,6 +123,8 @@ final class RetryingChannel implements EndpointChannel {
                 clientConf.taggedMetricRegistry(),
                 clientConf.maxNumRetries(),
                 clientConf.backoffSlotSize(),
+                clientConf.backoffFactor(),
+                clientConf.maxBackoff(),
                 clientConf.serverQoS(),
                 clientConf.retryOnTimeout(),
                 cf.scheduler(),
@@ -134,6 +138,8 @@ final class RetryingChannel implements EndpointChannel {
             String channelName,
             int maxRetries,
             Duration backoffSlotSize,
+            int backoffFactor,
+            Duration maxBackoff,
             ClientConfiguration.ServerQoS serverQoS,
             ClientConfiguration.RetryOnTimeout retryOnTimeout) {
         this(
@@ -143,6 +149,8 @@ final class RetryingChannel implements EndpointChannel {
                 new DefaultTaggedMetricRegistry(),
                 maxRetries,
                 backoffSlotSize,
+                backoffFactor,
+                maxBackoff,
                 serverQoS,
                 retryOnTimeout,
                 sharedScheduler.get(),
@@ -156,6 +164,8 @@ final class RetryingChannel implements EndpointChannel {
             TaggedMetricRegistry metrics,
             int maxRetries,
             Duration backoffSlotSize,
+            int backoffFactor,
+            Duration maxBackoff,
             ClientConfiguration.ServerQoS serverQoS,
             ClientConfiguration.RetryOnTimeout retryOnTimeout,
             ScheduledExecutorService scheduler,
@@ -165,6 +175,8 @@ final class RetryingChannel implements EndpointChannel {
         this.channelName = channelName;
         this.maxRetries = maxRetries;
         this.backoffSlotSize = backoffSlotSize;
+        this.backoffFactor = backoffFactor;
+        this.maxBackoff = maxBackoff;
         this.serverQoS = serverQoS;
         this.retryOnTimeout = retryOnTimeout;
         this.scheduler = instrument(scheduler, metrics);
@@ -376,8 +388,9 @@ final class RetryingChannel implements EndpointChannel {
             if (failures == 0) {
                 return 0L;
             }
-            int upperBound = (int) Math.pow(2, failures - 1);
-            return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
+            int upperBound = (int) Math.pow(backoffFactor, failures - 1);
+            long backoffNanos = Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
+            return Math.min(backoffNanos, maxBackoff.toNanos());
         }
 
         private boolean isRetryableQosStatus(Response response) {
