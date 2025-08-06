@@ -218,6 +218,7 @@ final class RetryingChannel implements EndpointChannel {
         private final Optional<SafeRuntimeException> callsiteStacktrace;
         private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
         private int failures = 0;
+        private boolean dueToThrowable = false;
 
         private RetryingCallback(
                 Endpoint endpoint, Request request, Optional<SafeRuntimeException> callsiteStacktrace) {
@@ -272,6 +273,7 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
+            dueToThrowable = true;
             if (++failures <= maxRetries) {
                 if (requestCanBeRetried() && shouldAttemptToRetry(clientSideThrowable)) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
@@ -374,6 +376,9 @@ final class RetryingChannel implements EndpointChannel {
 
         private long getBackoffNanoseconds() {
             if (failures == 0) {
+                return 0L;
+            }
+            if (dueToThrowable && failures == 1) {
                 return 0L;
             }
             int upperBound = (int) Math.pow(2, failures - 1);
