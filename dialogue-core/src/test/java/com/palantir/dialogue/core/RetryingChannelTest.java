@@ -170,6 +170,31 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void retriesFirstFailureImmediately() throws Exception {
+        when(channel.execute(any())).thenReturn(FAILED).thenReturn(SUCCESS);
+
+        // One retry allows an initial request (not a retry) and a single retry.
+        long startTime = System.nanoTime();
+        Duration backoffSlotSize = Duration.ofSeconds(10);
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                1,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
+
+        verify(channel, times(2)).execute(REQUEST);
+        assertThat(Duration.ofNanos(System.nanoTime() - startTime))
+                .as("IOException retry immediately on first failure")
+                .isLessThan(backoffSlotSize);
+    }
+
+    @Test
     public void retries_429s() throws Exception {
         when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>)
                 _invocation -> Futures.immediateFuture(new TestResponse().code(429)));
