@@ -276,7 +276,7 @@ final class RetryingChannel implements EndpointChannel {
                 if (requestCanBeRetried() && shouldAttemptToRetry(clientSideThrowable)) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
                     Meter retryReason = retryDueToThrowable.apply(clientSideThrowable);
-                    long backoffNanoseconds = getBackoffNanoseconds();
+                    long backoffNanoseconds = failures <= 1 ? 0 : getBackoffNanoseconds();
                     infoLogRetry(backoffNanoseconds, OptionalInt.empty(), clientSideThrowable);
                     return scheduleRetry(retryReason, backoffNanoseconds);
                 } else if (log.isDebugEnabled()) {
