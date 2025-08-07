@@ -41,11 +41,12 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.ChannelCache.OverrideHostIndex;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
-import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.dialogue.core.StickyChannelFactory;
+import com.palantir.dialogue.core.StickyEndpointChannelCache;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
@@ -236,7 +237,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public StickyChannelFactory getStickyChannels(String serviceName) {
+    public DialogueClients.StickyChannelFactory getStickyChannels(String serviceName) {
         Refreshable<List<Channel>> perHostChannels = perHost(serviceName).getPerHostChannels();
 
         Refreshable<Supplier<Channel>> bestSupplier = perHostChannels.map(singleHostChannels -> {
@@ -260,7 +261,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     .build();
         });
 
-        return new StickyChannelFactory() {
+        return new DialogueClients.StickyChannelFactory() {
             @Override
             public Channel getStickyChannel() {
                 return bestSupplier.get().get();
@@ -281,10 +282,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public StickyChannelFactory2 getStickyChannels2(String serviceName) {
         Supplier<InternalDialogueChannel> internalDialogueChannel = getInternalDialogueChannel(serviceName);
+        StickyEndpointChannelCache stickyCache = new StickyEndpointChannelCache();
         return new StickyChannelFactory2() {
             @Override
             public Channel getStickyChannel() {
-                return internalDialogueChannel.get().stickyChannels().get();
+                return internalDialogueChannel.get().stickyChannel(stickyCache);
             }
 
             @Override
@@ -479,8 +481,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Override
-        public Supplier<Channel> stickyChannels() {
-            return () -> this;
+        public Channel stickyChannel(StickyEndpointChannelCache cache) {
+            return this;
         }
 
         @Override
@@ -490,9 +492,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     /* Abstracts away DialogueChannel so that we can handle no-service/no-uri case in #getInternalDialogueChannel. */
-    private interface InternalDialogueChannel extends Channel, EndpointChannelFactory {
-        Supplier<Channel> stickyChannels();
-    }
+    private interface InternalDialogueChannel extends Channel, EndpointChannelFactory, StickyChannelFactory {}
 
     private static final class InternalDialogueChannelFromDialogueChannel implements InternalDialogueChannel {
 
@@ -513,8 +513,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Override
-        public Supplier<Channel> stickyChannels() {
-            return dialogueChannel.stickyChannels();
+        public Channel stickyChannel(StickyEndpointChannelCache cache) {
+            return dialogueChannel.stickyChannel(cache);
         }
     }
 

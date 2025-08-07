@@ -33,17 +33,17 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import org.jspecify.annotations.Nullable;
 
-final class StickyEndpointChannels2 implements Supplier<Channel> {
+final class StickyChannels2 implements StickyChannelFactory {
 
     private final Supplier<EndpointChannelFactory> delegate;
 
-    StickyEndpointChannels2(Supplier<EndpointChannelFactory> endpointChannelFactory) {
+    StickyChannels2(Supplier<EndpointChannelFactory> endpointChannelFactory) {
         this.delegate = endpointChannelFactory;
     }
 
     @Override
-    public Channel get() {
-        return new StickyChannel2(delegate.get());
+    public Channel stickyChannel(StickyEndpointChannelCache cache) {
+        return new StickyChannel2(delegate.get(), cache);
     }
 
     @Override
@@ -51,10 +51,10 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         return "StickyEndpointChannels2{" + delegate + "}";
     }
 
-    static Supplier<Channel> create(Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
+    static StickyChannelFactory create(
+            Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
         Supplier<Channel> queueOverrideSupplier = new QueueOverrideSupplier(cf, nodeSelectionChannel);
-        return new StickyEndpointChannels2(
-                new StickyEndpointChannels2EndpointFactorySupplier(queueOverrideSupplier, delegate));
+        return new StickyChannels2(new StickyEndpointChannels2EndpointFactorySupplier(queueOverrideSupplier, delegate));
     }
 
     private static final class QueueOverrideSupplier implements Supplier<Channel> {
@@ -109,14 +109,17 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
     private static final class StickyChannel2 implements EndpointChannelFactory, Channel {
 
         private final EndpointChannelFactory channelFactory;
+        private final StickyEndpointChannelCache cache;
         private final StickyRouter router = new StickyRouter();
 
-        private StickyChannel2(EndpointChannelFactory channelFactory) {
+        private StickyChannel2(EndpointChannelFactory channelFactory, StickyEndpointChannelCache cache) {
             this.channelFactory = channelFactory;
+            this.cache = cache;
         }
 
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
+            EndpointChannel endpointChannel = cache.getChannel(endpoint, endpoint -> channelFactory.endpoint(endpoint));
             return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint));
         }
 
