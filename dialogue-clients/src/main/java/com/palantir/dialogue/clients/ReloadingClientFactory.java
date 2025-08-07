@@ -481,7 +481,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Override
-        public Channel stickyChannel(StickyEndpointChannelCache cache) {
+        public Channel stickyChannel(StickyEndpointChannelCache _cache) {
             return this;
         }
 
