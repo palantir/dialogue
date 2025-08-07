@@ -119,8 +119,8 @@ final class StickyChannels2 implements StickyChannelFactory {
 
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
-            EndpointChannel endpointChannel = cache.getChannel(endpoint, endpoint -> channelFactory.endpoint(endpoint));
-            return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint));
+            EndpointChannel endpointChannel = cache.getChannel(endpoint, channelFactory::endpoint);
+            return new StickyEndpointChannel(router, endpointChannel);
         }
 
         @Override
