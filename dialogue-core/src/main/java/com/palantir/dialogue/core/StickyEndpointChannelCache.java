@@ -20,17 +20,18 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.HttpMethod;
 import java.util.function.Function;
 
 public class StickyEndpointChannelCache {
-    record StickyCacheKey(String serviceName, String endpointName) {}
+    record StickyCacheKey(String serviceName, HttpMethod httpMethod, String endpointName) {}
 
     private Cache<StickyCacheKey, EndpointChannel> cache =
             Caffeine.newBuilder().maximumSize(1000).weakValues().build();
 
     public EndpointChannel getChannel(Endpoint endpoint, Function<Endpoint, EndpointChannel> channelFactory) {
         return cache.get(
-                new StickyCacheKey(endpoint.serviceName(), endpoint.endpointName()),
+                new StickyCacheKey(endpoint.serviceName(), endpoint.httpMethod(), endpoint.endpointName()),
                 _unused -> channelFactory.apply(endpoint));
     }
 }
