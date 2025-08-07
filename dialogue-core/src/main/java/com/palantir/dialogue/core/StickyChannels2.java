@@ -35,15 +35,17 @@ import org.jspecify.annotations.Nullable;
 
 final class StickyChannels2 implements StickyChannelFactory {
 
-    private final Supplier<EndpointChannelFactory> delegate;
+    private final Supplier<Channel> queueOverrideSupplier;
+    private final EndpointChannelFactory delegate;
 
-    StickyChannels2(Supplier<EndpointChannelFactory> endpointChannelFactory) {
-        this.delegate = endpointChannelFactory;
+    StickyChannels2(Supplier<Channel> queueOverrideSupplier, EndpointChannelFactory delegate) {
+        this.queueOverrideSupplier = queueOverrideSupplier;
+        this.delegate = delegate;
     }
 
     @Override
     public Channel stickyChannel(StickyEndpointChannelCache cache) {
-        return new StickyChannel2(delegate.get(), cache);
+        return new StickyChannel2(queueOverrideSupplier, delegate, cache);
     }
 
     @Override
@@ -54,7 +56,7 @@ final class StickyChannels2 implements StickyChannelFactory {
     static StickyChannelFactory create(
             Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
         Supplier<Channel> queueOverrideSupplier = new QueueOverrideSupplier(cf, nodeSelectionChannel);
-        return new StickyChannels2(new StickyEndpointChannels2EndpointFactorySupplier(queueOverrideSupplier, delegate));
+        return new StickyChannels2(queueOverrideSupplier, delegate);
     }
 
     private static final class QueueOverrideSupplier implements Supplier<Channel> {
@@ -81,45 +83,31 @@ final class StickyChannels2 implements StickyChannelFactory {
         }
     }
 
-    private static final class StickyEndpointChannels2EndpointFactorySupplier
-            implements Supplier<EndpointChannelFactory> {
+    private static final class StickyChannel2 implements EndpointChannelFactory, Channel {
 
-        private final Supplier<Channel> queueOverrideSupplier;
+        private final Channel queueOverride;
         private final EndpointChannelFactory delegate;
+        private final StickyEndpointChannelCache cache;
+        private final StickyRouter router = new StickyRouter();
 
-        StickyEndpointChannels2EndpointFactorySupplier(
-                Supplier<Channel> queueOverrideSupplier, EndpointChannelFactory delegate) {
-            this.queueOverrideSupplier = queueOverrideSupplier;
-            this.delegate = delegate;
-        }
-
-        @Override
-        public EndpointChannelFactory get() {
-            Channel queueOverride = queueOverrideSupplier.get();
-            return endpoint -> {
+        private StickyChannel2(
+                Supplier<Channel> queueOverrideSupplier,
+                EndpointChannelFactory delegate,
+                StickyEndpointChannelCache cache) {
+            this.queueOverride = queueOverrideSupplier.get();
+            this.delegate = endpoint -> {
                 EndpointChannel endpointChannel = delegate.endpoint(endpoint);
                 return (EndpointChannel) request -> {
                     QueueAttachments.setQueueOverride(request, queueOverride);
                     return endpointChannel.execute(request);
                 };
             };
-        }
-    }
-
-    private static final class StickyChannel2 implements EndpointChannelFactory, Channel {
-
-        private final EndpointChannelFactory channelFactory;
-        private final StickyEndpointChannelCache cache;
-        private final StickyRouter router = new StickyRouter();
-
-        private StickyChannel2(EndpointChannelFactory channelFactory, StickyEndpointChannelCache cache) {
-            this.channelFactory = channelFactory;
             this.cache = cache;
         }
 
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
-            EndpointChannel endpointChannel = cache.getChannel(endpoint, channelFactory::endpoint);
+            EndpointChannel endpointChannel = cache.getChannel(endpoint, delegate::endpoint);
             return new StickyEndpointChannel(router, endpointChannel);
         }
 
@@ -130,7 +118,7 @@ final class StickyChannels2 implements StickyChannelFactory {
 
         @Override
         public String toString() {
-            return "Sticky{" + channelFactory + '}';
+            return "Sticky{" + delegate + '}';
         }
     }
 
