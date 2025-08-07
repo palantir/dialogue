@@ -95,20 +95,18 @@ final class StickyChannels2 implements StickyChannelFactory {
                 EndpointChannelFactory delegate,
                 StickyEndpointChannelCache cache) {
             this.queueOverride = queueOverrideSupplier.get();
-            this.delegate = endpoint -> {
-                EndpointChannel endpointChannel = delegate.endpoint(endpoint);
-                return (EndpointChannel) request -> {
-                    QueueAttachments.setQueueOverride(request, queueOverride);
-                    return endpointChannel.execute(request);
-                };
-            };
+            this.delegate = delegate;
             this.cache = cache;
         }
 
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
-            EndpointChannel endpointChannel = cache.getChannel(endpoint, delegate::endpoint);
-            return new StickyEndpointChannel(router, endpointChannel);
+            EndpointChannel cachedEndpoint = cache.getChannel(endpoint, delegate::endpoint);
+            EndpointChannel endpointWithQueueOverride = request -> {
+                QueueAttachments.setQueueOverride(request, queueOverride);
+                return cachedEndpoint.execute(request);
+            };
+            return new StickyEndpointChannel(router, endpointWithQueueOverride);
         }
 
         @Override
