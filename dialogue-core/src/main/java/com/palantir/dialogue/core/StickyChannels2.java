@@ -83,7 +83,7 @@ final class StickyChannels2 implements StickyChannelFactory {
         }
     }
 
-    private static final class StickyChannel2 implements EndpointChannelFactory, Channel {
+    private static final class StickyChannel2 implements Channel {
 
         private final Channel queueOverride;
         private final EndpointChannelFactory delegate;
@@ -100,18 +100,13 @@ final class StickyChannels2 implements StickyChannelFactory {
         }
 
         @Override
-        public EndpointChannel endpoint(Endpoint endpoint) {
-            EndpointChannel cachedEndpoint = cache.getChannel(endpoint, delegate::endpoint);
-            EndpointChannel endpointWithQueueOverride = request -> {
-                QueueAttachments.setQueueOverride(request, queueOverride);
-                return cachedEndpoint.execute(request);
-            };
-            return new StickyEndpointChannel(router, endpointWithQueueOverride);
-        }
-
-        @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-            return endpoint(endpoint).execute(request);
+            EndpointChannel cachedEndpoint = cache.getChannel(endpoint, delegate::endpoint);
+            EndpointChannel endpointWithQueueOverride = innerRequest -> {
+                QueueAttachments.setQueueOverride(innerRequest, queueOverride);
+                return cachedEndpoint.execute(innerRequest);
+            };
+            return router.execute(request, endpointWithQueueOverride);
         }
 
         @Override
@@ -227,26 +222,6 @@ final class StickyChannels2 implements StickyChannelFactory {
                 Consumer<Request> stickyTarget, Request request, EndpointChannel endpointChannel) {
             stickyTarget.accept(request);
             return endpointChannel.execute(request);
-        }
-    }
-
-    private static final class StickyEndpointChannel implements EndpointChannel {
-        private final StickyRouter stickyRouter;
-        private final EndpointChannel delegate;
-
-        StickyEndpointChannel(StickyRouter stickyRouter, EndpointChannel delegate) {
-            this.stickyRouter = stickyRouter;
-            this.delegate = delegate;
-        }
-
-        @Override
-        public ListenableFuture<Response> execute(Request request) {
-            return stickyRouter.execute(request, delegate);
-        }
-
-        @Override
-        public String toString() {
-            return "StickyEndpointChannel{delegate=" + delegate + '}';
         }
     }
 }
