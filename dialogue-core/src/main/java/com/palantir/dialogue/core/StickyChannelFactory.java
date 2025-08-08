@@ -19,5 +19,5 @@ package com.palantir.dialogue.core;
 import com.palantir.dialogue.Channel;
 
 public interface StickyChannelFactory {
-    Channel stickyChannel(StickyEndpointChannelCache cache);
+    Channel stickyChannel();
 }

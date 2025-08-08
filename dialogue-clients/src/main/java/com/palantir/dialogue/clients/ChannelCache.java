@@ -16,11 +16,14 @@
 
 package com.palantir.dialogue.clients;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.TargetUri;
@@ -74,6 +77,9 @@ final class ChannelCache {
             // Avoid holding onto old targets, which is now more common as we bind to resolved IP addresses
             .weakValues()
             .build(this::createNonLiveReloadingChannel);
+    // TODO: add docs
+    private final Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache =
+            Caffeine.newBuilder().maximumSize(1000).weakValues().build();
     private final int instanceNumber;
 
     private ChannelCache() {
@@ -183,6 +189,7 @@ final class ChannelCache {
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
                         .findAny())
+                .stickyEndpointChannelsCache(stickyEndpointChannelsCache)
                 .build();
     }
 

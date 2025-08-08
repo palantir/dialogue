@@ -46,7 +46,6 @@ import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.StickyChannelFactory;
-import com.palantir.dialogue.core.StickyEndpointChannelCache;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
@@ -282,11 +281,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public StickyChannelFactory2 getStickyChannels2(String serviceName) {
         Supplier<InternalDialogueChannel> internalDialogueChannel = getInternalDialogueChannel(serviceName);
-        StickyEndpointChannelCache stickyCache = new StickyEndpointChannelCache();
         return new StickyChannelFactory2() {
             @Override
             public Channel getStickyChannel() {
-                return internalDialogueChannel.get().stickyChannel(stickyCache);
+                return internalDialogueChannel.get().stickyChannel();
             }
 
             @Override
@@ -481,7 +479,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Override
-        public Channel stickyChannel(StickyEndpointChannelCache _cache) {
+        public Channel stickyChannel() {
             return this;
         }
 
@@ -513,8 +511,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Override
-        public Channel stickyChannel(StickyEndpointChannelCache cache) {
-            return dialogueChannel.stickyChannel(cache);
+        public Channel stickyChannel() {
+            return dialogueChannel.stickyChannel();
         }
     }
 

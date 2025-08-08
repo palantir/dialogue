@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
@@ -31,6 +32,8 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.ChannelState.Key;
+import com.palantir.dialogue.core.DialogueChannelFactory.ChannelArgs;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -46,6 +49,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory, StickyChannelFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueChannel.class);
@@ -70,8 +74,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
     }
 
     @Override
-    public Channel stickyChannel(StickyEndpointChannelCache cache) {
-        return stickyChannelFactory.stickyChannel(cache);
+    public Channel stickyChannel() {
+        return stickyChannelFactory.stickyChannel();
     }
 
     public static Builder builder() {
@@ -87,7 +91,12 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
     public static final class Builder {
         private final ImmutableConfig.Builder builder = ImmutableConfig.builder();
 
-        private Builder() {}
+        @Nullable
+        private Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache;
+
+        private Builder() {
+            stickyEndpointChannelsCache = null;
+        }
 
         /**
          * {@link Safe} loggable name to identify this channel for instrumentation and debugging. While this value
@@ -165,6 +174,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
             return this;
         }
 
+        public Builder stickyEndpointChannelsCache(Cache<Endpoint, EndpointChannel> value) {
+            this.stickyEndpointChannelsCache = value;
+            return this;
+        }
+
         @CheckReturnValue
         public DialogueChannel build() {
             Config cf = builder.build();
@@ -211,9 +225,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
 
             Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
             EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
-
             StickyChannelFactory stickyChannelFactory =
-                    StickyChannels2.create(cf, stickyValidationChannel, channelFactory);
+                    StickyChannels2.create(cf, stickyValidationChannel, stickyEndpointChannelsCache, channelFactory);
 
             Meter createMeter = clientMetrics
                     .create()
@@ -233,7 +246,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
                         cf.overrideSingleHostIndex().orElse(uriIndex);
                 TargetUri targetUri = targetUris.get(uriIndex);
                 Channel channel = cf.channelFactory()
-                        .create(DialogueChannelFactory.ChannelArgs.builder()
+                        .create(ChannelArgs.builder()
                                 .uri(targetUri.uri())
                                 .uriIndexForInstrumentation(uriIndexForInstrumentation)
                                 .resolvedAddress(targetUri.resolvedAddress())
@@ -292,8 +305,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
          * kept across uri changes.
          */
         private record EndpointChannelState(LoadingCache<Endpoint, ChannelState> cache) {
-            private static final ChannelState.Key<EndpointChannelState> KEY =
-                    new ChannelState.Key<>(EndpointChannelState.class, EndpointChannelState::create);
+            private static final Key<EndpointChannelState> KEY =
+                    new Key<>(EndpointChannelState.class, EndpointChannelState::create);
 
             ChannelState get(Endpoint endpoint) {
                 return cache.get(endpoint);
