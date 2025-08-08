@@ -18,6 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.palantir.dialogue.Channel;
 
-public interface StickyChannelFactory {
+public interface StickyEndpointChannelsFactory {
     Channel stickyChannel();
 }

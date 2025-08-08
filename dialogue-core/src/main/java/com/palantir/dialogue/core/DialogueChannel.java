@@ -51,16 +51,16 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 
-public final class DialogueChannel implements Channel, EndpointChannelFactory, StickyChannelFactory {
+public final class DialogueChannel implements Channel, EndpointChannelFactory, StickyEndpointChannelsFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueChannel.class);
     private final EndpointChannelFactory delegate;
     private final Config cf;
-    private final StickyChannelFactory stickyChannelFactory;
+    private final StickyEndpointChannelsFactory stickyEndpointChannelsFactory;
 
-    private DialogueChannel(Config cf, EndpointChannelFactory delegate, StickyChannelFactory stickyChannelFactory) {
+    private DialogueChannel(Config cf, EndpointChannelFactory delegate, StickyEndpointChannelsFactory stickyEndpointChannelsFactory) {
         this.cf = cf;
         this.delegate = delegate;
-        this.stickyChannelFactory = stickyChannelFactory;
+        this.stickyEndpointChannelsFactory = stickyEndpointChannelsFactory;
     }
 
     @Override
@@ -75,7 +75,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
 
     @Override
     public Channel stickyChannel() {
-        return stickyChannelFactory.stickyChannel();
+        return stickyEndpointChannelsFactory.stickyChannel();
     }
 
     public static Builder builder() {
@@ -225,8 +225,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
 
             Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
             EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
-            StickyChannelFactory stickyChannelFactory =
-                    StickyChannels2.create(cf, stickyValidationChannel, stickyEndpointChannelsCache, channelFactory);
+            StickyEndpointChannelsFactory stickyEndpointChannelsFactory =
+                    StickyEndpointChannels2.create(cf, stickyValidationChannel, stickyEndpointChannelsCache, channelFactory);
 
             Meter createMeter = clientMetrics
                     .create()
@@ -235,7 +235,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
                     .build();
             createMeter.mark();
 
-            return new DialogueChannel(cf, channelFactory, stickyChannelFactory);
+            return new DialogueChannel(cf, channelFactory, stickyEndpointChannelsFactory);
         }
 
         private static ImmutableList<LimitedChannel> createHostChannels(

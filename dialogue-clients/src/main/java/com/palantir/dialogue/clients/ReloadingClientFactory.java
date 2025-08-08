@@ -45,8 +45,8 @@ import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
-import com.palantir.dialogue.core.StickyChannelFactory;
 import com.palantir.dialogue.core.StickyEndpointChannels;
+import com.palantir.dialogue.core.StickyEndpointChannelsFactory;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
@@ -490,7 +490,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     /* Abstracts away DialogueChannel so that we can handle no-service/no-uri case in #getInternalDialogueChannel. */
-    private interface InternalDialogueChannel extends Channel, EndpointChannelFactory, StickyChannelFactory {}
+    private interface InternalDialogueChannel extends Channel, EndpointChannelFactory, StickyEndpointChannelsFactory {}
 
     private static final class InternalDialogueChannelFromDialogueChannel implements InternalDialogueChannel {
 

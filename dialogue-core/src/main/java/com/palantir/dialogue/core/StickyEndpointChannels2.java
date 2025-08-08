@@ -34,13 +34,13 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import org.jspecify.annotations.Nullable;
 
-final class StickyChannels2 implements StickyChannelFactory {
+final class StickyEndpointChannels2 implements StickyEndpointChannelsFactory {
 
     private final Supplier<Channel> queueOverrideSupplier;
     private final Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache;
     private final EndpointChannelFactory delegate;
 
-    StickyChannels2(
+    StickyEndpointChannels2(
             Supplier<Channel> queueOverrideSupplier,
             Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache,
             EndpointChannelFactory delegate) {
@@ -59,13 +59,13 @@ final class StickyChannels2 implements StickyChannelFactory {
         return "StickyEndpointChannels2{" + delegate + "}";
     }
 
-    static StickyChannelFactory create(
+    static StickyEndpointChannelsFactory create(
             Config cf,
             LimitedChannel nodeSelectionChannel,
             Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache,
             EndpointChannelFactory delegate) {
         Supplier<Channel> queueOverrideSupplier = new QueueOverrideSupplier(cf, nodeSelectionChannel);
-        return new StickyChannels2(queueOverrideSupplier, stickyEndpointChannelsCache, delegate);
+        return new StickyEndpointChannels2(queueOverrideSupplier, stickyEndpointChannelsCache, delegate);
     }
 
     private static final class QueueOverrideSupplier implements Supplier<Channel> {
