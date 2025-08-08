@@ -60,12 +60,9 @@ final class StickyEndpointChannels2 implements StickyEndpointChannelsFactory {
     }
 
     static StickyEndpointChannelsFactory create(
-            Config cf,
-            LimitedChannel nodeSelectionChannel,
-            Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache,
-            EndpointChannelFactory delegate) {
+            Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
         Supplier<Channel> queueOverrideSupplier = new QueueOverrideSupplier(cf, nodeSelectionChannel);
-        return new StickyEndpointChannels2(queueOverrideSupplier, stickyEndpointChannelsCache, delegate);
+        return new StickyEndpointChannels2(queueOverrideSupplier, cf.stickyEndpointChannelCache(), delegate);
     }
 
     private static final class QueueOverrideSupplier implements Supplier<Channel> {

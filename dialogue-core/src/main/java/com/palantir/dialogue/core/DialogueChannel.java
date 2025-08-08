@@ -48,7 +48,6 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
-import javax.annotation.Nullable;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory, StickyEndpointChannelsFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueChannel.class);
@@ -91,12 +90,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
     public static final class Builder {
         private final ImmutableConfig.Builder builder = ImmutableConfig.builder();
 
-        @Nullable
-        private Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache;
-
-        private Builder() {
-            stickyEndpointChannelsCache = null;
-        }
+        private Builder() {}
 
         /**
          * {@link Safe} loggable name to identify this channel for instrumentation and debugging. While this value
@@ -175,7 +169,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
         }
 
         public Builder stickyEndpointChannelsCache(Cache<Endpoint, EndpointChannel> value) {
-            this.stickyEndpointChannelsCache = value;
+            builder.stickyEndpointChannelCache(value);
             return this;
         }
 
@@ -225,8 +219,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
 
             Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
             EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
-            StickyEndpointChannelsFactory stickyEndpointChannelsFactory = StickyEndpointChannels2.create(
-                    cf, stickyValidationChannel, stickyEndpointChannelsCache, channelFactory);
+            StickyEndpointChannelsFactory stickyEndpointChannelsFactory =
+                    StickyEndpointChannels2.create(cf, stickyValidationChannel, channelFactory);
 
             Meter createMeter = clientMetrics
                     .create()
