@@ -32,7 +32,6 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.ChannelState.Key;
 import com.palantir.dialogue.core.DialogueChannelFactory.ChannelArgs;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
@@ -57,7 +56,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
     private final Config cf;
     private final StickyEndpointChannelsFactory stickyEndpointChannelsFactory;
 
-    private DialogueChannel(Config cf, EndpointChannelFactory delegate, StickyEndpointChannelsFactory stickyEndpointChannelsFactory) {
+    private DialogueChannel(
+            Config cf, EndpointChannelFactory delegate, StickyEndpointChannelsFactory stickyEndpointChannelsFactory) {
         this.cf = cf;
         this.delegate = delegate;
         this.stickyEndpointChannelsFactory = stickyEndpointChannelsFactory;
@@ -225,8 +225,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
 
             Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
             EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
-            StickyEndpointChannelsFactory stickyEndpointChannelsFactory =
-                    StickyEndpointChannels2.create(cf, stickyValidationChannel, stickyEndpointChannelsCache, channelFactory);
+            StickyEndpointChannelsFactory stickyEndpointChannelsFactory = StickyEndpointChannels2.create(
+                    cf, stickyValidationChannel, stickyEndpointChannelsCache, channelFactory);
 
             Meter createMeter = clientMetrics
                     .create()
@@ -305,8 +305,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
          * kept across uri changes.
          */
         private record EndpointChannelState(LoadingCache<Endpoint, ChannelState> cache) {
-            private static final Key<EndpointChannelState> KEY =
-                    new Key<>(EndpointChannelState.class, EndpointChannelState::create);
+            private static final ChannelState.Key<EndpointChannelState> KEY =
+                    new ChannelState.Key<>(EndpointChannelState.class, EndpointChannelState::create);
 
             ChannelState get(Endpoint endpoint) {
                 return cache.get(endpoint);

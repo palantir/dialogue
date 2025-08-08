@@ -41,6 +41,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.ChannelCache.OverrideHostIndex;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
@@ -236,7 +237,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public DialogueClients.StickyChannelFactory getStickyChannels(String serviceName) {
+    public StickyChannelFactory getStickyChannels(String serviceName) {
         Refreshable<List<Channel>> perHostChannels = perHost(serviceName).getPerHostChannels();
 
         Refreshable<Supplier<Channel>> bestSupplier = perHostChannels.map(singleHostChannels -> {
@@ -260,7 +261,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     .build();
         });
 
-        return new DialogueClients.StickyChannelFactory() {
+        return new StickyChannelFactory() {
             @Override
             public Channel getStickyChannel() {
                 return bestSupplier.get().get();
