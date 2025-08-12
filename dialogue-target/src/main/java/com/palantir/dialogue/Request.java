@@ -78,7 +78,7 @@ public final class Request {
      * @deprecated in favor of {@link #pathParameters()} which returns a multimap
      */
     @Deprecated
-    public Map<String, String> pathParams() {
+    public Map<String, @Nullable String> pathParams() {
         return MultimapAsMap.of(pathParams);
     }
 
