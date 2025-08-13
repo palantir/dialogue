@@ -27,6 +27,7 @@ import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.DeserializerArgs;
+import com.palantir.dialogue.ExceptionDeserializerArgs;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
@@ -67,6 +68,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, EncodingDeserializerForEndpointRegistry<?, ?>> deserializers;
     private final EmptyContainerDeserializer emptyContainerDeserializer;
+    // TODO(pm): we need to cache the ExceptionDeserializerArgs deserializers.
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -98,8 +100,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         .baseType(BinaryEncoding.OPTIONAL_MARKER)
                         .success(BinaryEncoding.OPTIONAL_MARKER)
                         .build());
-        this.emptyBodyDeserializer =
-                new EmptyBodyDeserializer(new EndpointErrorDecoder<>(Collections.emptyMap(), Collections.emptyMap()));
+        this.emptyBodyDeserializer = new EmptyBodyDeserializer(new EndpointErrorDecoder<>(Collections.emptyMap()));
         // Class unloading: Not supported, Jackson keeps strong references to the types
         // it sees: https://github.com/FasterXML/jackson-databind/issues/489
         this.serializers = Caffeine.from(cacheSpec)
@@ -154,6 +155,12 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
+        return EncodingDeserializerForEndpointRegistry.createExceptionThrowing(
+                encodingsSortedByWeight, emptyContainerDeserializer, exceptionDeserializerArgs);
+    }
+
+    @Override
     public Deserializer<Void> emptyBodyDeserializer() {
         return emptyBodyDeserializer;
     }
@@ -176,6 +183,13 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    public Deserializer<InputStream> inputStreamDeserializer(
+            ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
+        return EncodingDeserializerForEndpointRegistry.createExceptionThrowing(
+                ImmutableList.of(BinaryEncoding.INSTANCE), emptyContainerDeserializer, exceptionDeserializerArgs);
+    }
+
+    @Override
     public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer() {
         return optionalBinaryInputStreamDeserializer;
     }
@@ -191,6 +205,13 @@ final class ConjureBodySerDe implements BodySerDe {
                 BinaryEncoding.OPTIONAL_MARKER,
                 (Function<Optional<InputStream>, T>)
                         createSuccessTypeFunctionForOptionalInputStream(deserializerArgs.successType()));
+    }
+
+    @Override
+    public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
+            ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
+        return EncodingDeserializerForEndpointRegistry.createExceptionThrowing(
+                ImmutableList.of(BinaryEncoding.INSTANCE), emptyContainerDeserializer, exceptionDeserializerArgs);
     }
 
     @Override
@@ -262,7 +283,6 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     private static final class EncodingSerializerContainer<T> {
-
         private final Encoding encoding;
         private final Encoding.Serializer<T> serializer;
 
@@ -275,7 +295,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private static final class EncodingDeserializerForEndpointRegistry<S, T> implements Deserializer<T> {
         private static final SafeLogger log = SafeLoggerFactory.get(EncodingDeserializerForEndpointRegistry.class);
         private final ImmutableList<EncodingDeserializerContainer<? extends S>> encodings;
-        private final EndpointErrorDecoder<T> endpointErrorDecoder;
+        private final AbstractErrorDecoder<T> errorDecoder;
         private final Optional<String> acceptValue;
         private final Supplier<Optional<? extends S>> emptyInstance;
         private final TypeMarker<T> token;
@@ -296,6 +316,23 @@ final class ConjureBodySerDe implements BodySerDe {
                     null);
         }
 
+        static <T> EncodingDeserializerForEndpointRegistry<T, T> createExceptionThrowing(
+                List<Encoding> encodingsSortedByWeight,
+                EmptyContainerDeserializer empty,
+                ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
+            return new EncodingDeserializerForEndpointRegistry<>(
+                    encodingsSortedByWeight,
+                    empty,
+                    exceptionDeserializerArgs.returnType(),
+                    new ExceptionThrowingErrorDecoder<>(
+                            exceptionDeserializerArgs.errorNameToExceptionTypeMarkers(),
+                            encodingsSortedByWeight.stream()
+                                    .filter(encoding -> encoding.supportsContentType("application/json"))
+                                    .findFirst()),
+                    exceptionDeserializerArgs.returnType(),
+                    null);
+        }
+
         EncodingDeserializerForEndpointRegistry(
                 List<Encoding> encodingsSortedByWeight,
                 EmptyContainerDeserializer empty,
@@ -303,15 +340,30 @@ final class ConjureBodySerDe implements BodySerDe {
                 DeserializerArgs<T> deserializersForEndpoint,
                 TypeMarker<S> intermediateResult,
                 @Nullable Function<S, T> transform) {
+            this(
+                    encodingsSortedByWeight,
+                    empty,
+                    token,
+                    new EndpointErrorDecoder<>(
+                            deserializersForEndpoint.errorNameToTypeMarker(),
+                            encodingsSortedByWeight.stream()
+                                    .filter(encoding -> encoding.supportsContentType("application/json"))
+                                    .findFirst()),
+                    intermediateResult,
+                    transform);
+        }
+
+        EncodingDeserializerForEndpointRegistry(
+                List<Encoding> encodingsSortedByWeight,
+                EmptyContainerDeserializer empty,
+                TypeMarker<T> token,
+                AbstractErrorDecoder<T> errorDecoder,
+                TypeMarker<S> intermediateResult,
+                @Nullable Function<S, T> transform) {
             this.encodings = encodingsSortedByWeight.stream()
                     .map(encoding -> new EncodingDeserializerContainer<>(encoding, intermediateResult))
                     .collect(ImmutableList.toImmutableList());
-            this.endpointErrorDecoder = new EndpointErrorDecoder<>(
-                    deserializersForEndpoint.errorNameToTypeMarker(),
-                    deserializersForEndpoint.errorNameToExceptionTypeMarkers(),
-                    encodingsSortedByWeight.stream()
-                            .filter(encoding -> encoding.supportsContentType("application/json"))
-                            .findFirst());
+            this.errorDecoder = errorDecoder;
             this.token = token;
             this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(intermediateResult));
             this.acceptValue = Optional.of(encodingsSortedByWeight.stream()
@@ -325,8 +377,8 @@ final class ConjureBodySerDe implements BodySerDe {
         public T deserialize(Response response) {
             boolean closeResponse = true;
             try {
-                if (endpointErrorDecoder.isError(response)) {
-                    return endpointErrorDecoder.decode(response);
+                if (errorDecoder.isError(response)) {
+                    return errorDecoder.decode(response);
                 } else if (response.code() == 204) {
                     // TODO(dfox): what if we get a 204 for a non-optional type???
                     // TODO(dfox): support http200 & body=null
@@ -420,10 +472,10 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     private static final class EmptyBodyDeserializer implements Deserializer<Void> {
-        private final EndpointErrorDecoder<?> endpointErrorDecoder;
+        private final AbstractErrorDecoder<?> decoder;
 
-        EmptyBodyDeserializer(EndpointErrorDecoder<?> endpointErrorDecoder) {
-            this.endpointErrorDecoder = endpointErrorDecoder;
+        EmptyBodyDeserializer(AbstractErrorDecoder<?> decoder) {
+            this.decoder = decoder;
         }
 
         @Override
@@ -431,8 +483,8 @@ final class ConjureBodySerDe implements BodySerDe {
         public Void deserialize(Response response) {
             // We should not fail if a server that previously returned nothing starts returning a response
             try (Response unused = response) {
-                if (endpointErrorDecoder.isError(response)) {
-                    endpointErrorDecoder.decode(response);
+                if (decoder.isError(response)) {
+                    decoder.decode(response);
                 }
                 return null;
             }

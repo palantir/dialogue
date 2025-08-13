@@ -332,3 +332,15 @@ acceptedBreaks:
         \ @ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory"
       justification: "Adding a method to allow clients to enable JSON error parameter\
         \ deserialization"
+  "6.4.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.addedToInterface"
+      new: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::deserializer(com.palantir.dialogue.ExceptionDeserializerArgs<T>)"
+      justification: "Allowing clients to request exceptions be thrown for errors"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.Deserializer<java.io.InputStream> com.palantir.dialogue.BodySerDe::inputStreamDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.io.InputStream>)"
+      justification: "Allowing clients to request exceptions be thrown for errors"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.Deserializer<java.util.Optional<java.io.InputStream>>\
+        \ com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.util.Optional<java.io.InputStream>>)"
+      justification: "Allowing clients to request exceptions be thrown for errors"
