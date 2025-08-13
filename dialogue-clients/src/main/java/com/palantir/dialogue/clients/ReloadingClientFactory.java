@@ -41,6 +41,7 @@ import com.palantir.dialogue.DeserializerArgs;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
+import com.palantir.dialogue.ExceptionDeserializerArgs;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
@@ -205,6 +206,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Override
+        public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
+            return delegate.deserializer(exceptionDeserializerArgs);
+        }
+
+        @Override
         public Deserializer<Void> emptyBodyDeserializer() {
             return delegate.emptyBodyDeserializer();
         }
@@ -220,6 +226,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Override
+        public Deserializer<InputStream> inputStreamDeserializer(
+                ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
+            return delegate.inputStreamDeserializer(exceptionDeserializerArgs);
+        }
+
+        @Override
         public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer() {
             return delegate.optionalInputStreamDeserializer();
         }
@@ -227,6 +239,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Override
         public <T> Deserializer<T> optionalInputStreamDeserializer(DeserializerArgs<T> deserializerArgs) {
             return delegate.optionalInputStreamDeserializer(deserializerArgs);
+        }
+
+        @Override
+        public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
+                ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
+            return delegate.optionalInputStreamDeserializer(exceptionDeserializerArgs);
         }
 
         @Override

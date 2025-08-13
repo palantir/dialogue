@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2024 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2025 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,39 +19,36 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
-import com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer;
+import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * Extracts the error from a {@link Response}.
- * <p>If the error's name is in the {@link #errorNameToJsonDeserializerMap}, this class attempts to deserialize the
- * {@link Response} body as JSON, to the error type. Otherwise, a {@link RemoteException} is thrown. If the
- * {@link Response} does not adhere to the expected format, an {@link UnknownRemoteException} is thrown.
- *
- * @param <T> the base type of the endpoint response. It's a union of the result type and all the error types.
- */
-final class EndpointErrorDecoder<T> extends AbstractErrorDecoder<T> {
-    private static final SafeLogger log = SafeLoggerFactory.get(EndpointErrorDecoder.class);
-    private final Map<String, Encoding.Deserializer<? extends T>> errorNameToJsonDeserializerMap;
+final class ExceptionThrowingErrorDecoder<T> extends AbstractErrorDecoder<T> {
+    private static final SafeLogger log = SafeLoggerFactory.get(ExceptionThrowingErrorDecoder.class);
+    private final Map<String, DeserializerExceptionPair<?>> errorNameToExceptionDeserializerMap;
 
-    EndpointErrorDecoder(Map<String, TypeMarker<? extends T>> errorNameToTypeMap) {
-        this(errorNameToTypeMap, Optional.empty());
+    ExceptionThrowingErrorDecoder(Map<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMap) {
+        this(errorNameToExceptionTypeMap, Optional.empty());
     }
 
-    EndpointErrorDecoder(
-            Map<String, TypeMarker<? extends T>> errorNameToTypeMap, Optional<Encoding> maybeJsonEncoding) {
-        this.errorNameToJsonDeserializerMap = ImmutableMap.copyOf(
-                Maps.transformValues(errorNameToTypeMap, maybeJsonEncoding.orElse(JSON_ENCODING)::deserializer));
+    ExceptionThrowingErrorDecoder(
+            Map<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMap, Optional<Encoding> maybeJsonEncoding) {
+        this.errorNameToExceptionDeserializerMap = ImmutableMap.copyOf(Maps.transformValues(
+                errorNameToExceptionTypeMap,
+                errorExceptionPair ->
+                        createDeserializerForException(maybeJsonEncoding.orElse(JSON_ENCODING), errorExceptionPair)));
     }
 
     @Override
@@ -91,11 +88,28 @@ final class EndpointErrorDecoder<T> extends AbstractErrorDecoder<T> {
                 if (errorName == null) {
                     throw createRemoteException(body, code);
                 }
-                Deserializer<? extends T> deserializer = errorNameToJsonDeserializerMap.get(errorName);
-                if (deserializer == null) {
+                DeserializerExceptionPair<?> deserializerExceptionPair =
+                        errorNameToExceptionDeserializerMap.get(errorName);
+                if (deserializerExceptionPair == null) {
                     throw createRemoteException(body, code);
                 }
-                return deserializer.deserialize(new ByteArrayInputStream(body));
+
+                // Attempt to deserialize the error using the deserializer for the specific exception type.
+                AbstractSerializableError<?> error;
+                try {
+                    error = deserializerExceptionPair.deserializer().deserialize(new ByteArrayInputStream(body));
+                } catch (Exception e) {
+                    // If we're unable to deserialize the error as JSON, throw a RemoteException.
+                    throw createRemoteException(body, code);
+                }
+
+                Type exceptionType = deserializerExceptionPair.exceptionType().getType();
+                @SuppressWarnings("unchecked")
+                Class<? extends RemoteException> exceptionClass =
+                        (Class<? extends RemoteException>) Class.forName(exceptionType.getTypeName());
+                Constructor<? extends RemoteException> exceptionConstructor =
+                        exceptionClass.getConstructor(error.getClass(), int.class);
+                throw exceptionConstructor.newInstance(error, code);
             } catch (RemoteException remoteException) {
                 // rethrow the created remote exception
                 throw remoteException;
@@ -108,5 +122,14 @@ final class EndpointErrorDecoder<T> extends AbstractErrorDecoder<T> {
         }
 
         throw new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
+    }
+
+    private record DeserializerExceptionPair<U extends AbstractSerializableError<?>>(
+            Encoding.Deserializer<U> deserializer, TypeMarker<? extends RemoteException> exceptionType) {}
+
+    // Purely to provide Java type inference information.
+    private static <U extends AbstractSerializableError<?>> DeserializerExceptionPair<U> createDeserializerForException(
+            Encoding encoding, ErrorExceptionPair<U> pair) {
+        return new DeserializerExceptionPair<>(encoding.deserializer(pair.errorType()), pair.exceptionType());
     }
 }

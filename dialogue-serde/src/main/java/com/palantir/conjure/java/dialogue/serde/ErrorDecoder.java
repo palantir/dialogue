@@ -46,7 +46,7 @@ public enum ErrorDecoder {
     private static final SafeLogger log = SafeLoggerFactory.get(ErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
     private static final EndpointErrorDecoder<?> ENDPOINT_ERROR_DECODER =
-            new EndpointErrorDecoder<>(Collections.emptyMap(), Collections.emptyMap());
+            new EndpointErrorDecoder<>(Collections.emptyMap());
 
     public boolean isError(Response response) {
         return ENDPOINT_ERROR_DECODER.isError(response);
@@ -65,7 +65,7 @@ public enum ErrorDecoder {
         // TODO(rfink): What about HTTP/101 switching protocols?
         // TODO(rfink): What about HEAD requests?
 
-        Optional<RuntimeException> maybeQosException = ENDPOINT_ERROR_DECODER.checkCode(response);
+        Optional<RuntimeException> maybeQosException = ENDPOINT_ERROR_DECODER.checkCode(response, log);
         if (maybeQosException.isPresent()) {
             return maybeQosException.get();
         }
