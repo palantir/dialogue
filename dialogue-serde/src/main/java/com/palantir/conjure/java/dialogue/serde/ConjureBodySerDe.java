@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -58,7 +59,6 @@ import org.jspecify.annotations.Nullable;
 
 /** Package private internal API. */
 final class ConjureBodySerDe implements BodySerDe {
-
     private static final SafeLogger log = SafeLoggerFactory.get(ConjureBodySerDe.class);
     private final List<Encoding> encodingsSortedByWeight;
     private final Encoding defaultEncoding;
@@ -67,8 +67,8 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<Void> emptyBodyDeserializer;
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, EncodingDeserializerForEndpointRegistry<?, ?>> deserializers;
+    private final LoadingCache<ExceptionDeserializerCacheKey<?>, Deserializer<?>> exceptionDeserializers;
     private final EmptyContainerDeserializer emptyContainerDeserializer;
-    // TODO(pm): we need to cache the ExceptionDeserializerArgs deserializers.
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -106,6 +106,23 @@ final class ConjureBodySerDe implements BodySerDe {
         this.serializers = Caffeine.from(cacheSpec)
                 .build(type -> new EncodingSerializerRegistry<>(defaultEncoding, TypeMarker.of(type)));
         this.deserializers = Caffeine.from(cacheSpec).build(type -> buildCacheEntry(TypeMarker.of(type)));
+        this.exceptionDeserializers = Caffeine.from(cacheSpec).build(this::buildExceptionCacheEntry);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> Deserializer<T> buildExceptionCacheEntry(ExceptionDeserializerCacheKey<T> key) {
+        ExceptionDeserializerArgs<T> args = key.args();
+        return switch (key.type()) {
+            case STANDARD ->
+                EncodingDeserializerForEndpointRegistry.createExceptionThrowing(
+                        encodingsSortedByWeight, emptyContainerDeserializer, args);
+            case EMPTY_BODY ->
+                (Deserializer<T>) new EmptyBodyDeserializer(
+                        new ExceptionThrowingErrorDecoder<>(args.errorNameToExceptionTypeMarkers()));
+            case INPUT_STREAM, OPTIONAL_INPUT_STREAM ->
+                EncodingDeserializerForEndpointRegistry.createExceptionThrowing(
+                        ImmutableList.of(BinaryEncoding.INSTANCE), emptyContainerDeserializer, args);
+        };
     }
 
     private <T> EncodingDeserializerForEndpointRegistry<?, ?> buildCacheEntry(TypeMarker<T> typeMarker) {
@@ -155,9 +172,10 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
-        return EncodingDeserializerForEndpointRegistry.createExceptionThrowing(
-                encodingsSortedByWeight, emptyContainerDeserializer, exceptionDeserializerArgs);
+        return (Deserializer<T>) exceptionDeserializers.get(
+                new ExceptionDeserializerCacheKey<>(exceptionDeserializerArgs, CacheEntryType.STANDARD));
     }
 
     @Override
@@ -166,9 +184,10 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
-        return new EmptyBodyDeserializer(
-                new ExceptionThrowingErrorDecoder<>(exceptionDeserializerArgs.errorNameToExceptionTypeMarkers()));
+        return (Deserializer<Void>) exceptionDeserializers.get(
+                new ExceptionDeserializerCacheKey<>(exceptionDeserializerArgs, CacheEntryType.EMPTY_BODY));
     }
 
     @Override
@@ -189,10 +208,11 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Deserializer<InputStream> inputStreamDeserializer(
             ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
-        return EncodingDeserializerForEndpointRegistry.createExceptionThrowing(
-                ImmutableList.of(BinaryEncoding.INSTANCE), emptyContainerDeserializer, exceptionDeserializerArgs);
+        return (Deserializer<InputStream>) exceptionDeserializers.get(
+                new ExceptionDeserializerCacheKey<>(exceptionDeserializerArgs, CacheEntryType.INPUT_STREAM));
     }
 
     @Override
@@ -214,10 +234,11 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
             ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
-        return EncodingDeserializerForEndpointRegistry.createExceptionThrowing(
-                ImmutableList.of(BinaryEncoding.INSTANCE), emptyContainerDeserializer, exceptionDeserializerArgs);
+        return (Deserializer<Optional<InputStream>>) exceptionDeserializers.get(
+                new ExceptionDeserializerCacheKey<>(exceptionDeserializerArgs, CacheEntryType.OPTIONAL_INPUT_STREAM));
     }
 
     @Override
@@ -560,5 +581,50 @@ final class ConjureBodySerDe implements BodySerDe {
                 throw new SafeRuntimeException("Failed to create success type", e);
             }
         };
+    }
+
+    private enum CacheEntryType {
+        STANDARD,
+        EMPTY_BODY,
+        INPUT_STREAM,
+        OPTIONAL_INPUT_STREAM
+    }
+
+    private static final class ExceptionDeserializerCacheKey<T> {
+        private final ExceptionDeserializerArgs<T> args;
+        private final CacheEntryType type;
+
+        ExceptionDeserializerCacheKey(ExceptionDeserializerArgs<T> args, CacheEntryType type) {
+            this.args = Preconditions.checkNotNull(args, "args must be non-null");
+            this.type = Preconditions.checkNotNull(type, "type must be non-null");
+        }
+
+        public ExceptionDeserializerArgs<T> args() {
+            return args;
+        }
+
+        public CacheEntryType type() {
+            return type;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof ExceptionDeserializerCacheKey<?> other)) {
+                return false;
+            }
+            return type == other.type
+                    && Objects.equals(
+                            args.returnType().getType(), other.args.returnType().getType())
+                    && Objects.equals(
+                            args.errorNameToExceptionTypeMarkers(), other.args.errorNameToExceptionTypeMarkers());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(args.returnType().getType(), args.errorNameToExceptionTypeMarkers(), type);
+        }
     }
 }
