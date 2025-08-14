@@ -150,18 +150,18 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     private static final class ErrorSerializationFormatSettingConjureRuntime implements ConjureRuntime {
         private final ConjureRuntime delegate;
-        private final ConjureErrorParameterFormat errorParameterSerializationFormat;
+        private final BodySerDe bodySerDe;
 
         ErrorSerializationFormatSettingConjureRuntime(
                 ConjureRuntime delegate, ConjureErrorParameterFormat errorParameterSerializationFormat) {
             this.delegate = delegate;
-            this.errorParameterSerializationFormat = errorParameterSerializationFormat;
+            this.bodySerDe = new ErrorParameterSerializationFormatSettingBodySerDe(
+                    delegate.bodySerDe(), errorParameterSerializationFormat);
         }
 
         @Override
         public BodySerDe bodySerDe() {
-            return new ErrorParameterSerializationFormatSettingBodySerDe(
-                    delegate.bodySerDe(), errorParameterSerializationFormat);
+            return bodySerDe;
         }
 
         @Override
@@ -177,17 +177,17 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     private static final class ErrorParameterSerializationFormatSettingBodySerDe implements BodySerDe {
         private final BodySerDe delegate;
-        private final ConjureErrorParameterFormat errorParameterDeserializationFormat;
+        private final Optional<ConjureErrorParameterFormat> errorParameterDeserializationFormat;
 
         ErrorParameterSerializationFormatSettingBodySerDe(
                 BodySerDe delegate, ConjureErrorParameterFormat errorParameterDeserializationFormat) {
             this.delegate = delegate;
-            this.errorParameterDeserializationFormat = errorParameterDeserializationFormat;
+            this.errorParameterDeserializationFormat = Optional.of(errorParameterDeserializationFormat);
         }
 
         @Override
         public Optional<ConjureErrorParameterFormat> errorParameterDeserializationFormat() {
-            return Optional.of(errorParameterDeserializationFormat);
+            return errorParameterDeserializationFormat;
         }
 
         @Override
