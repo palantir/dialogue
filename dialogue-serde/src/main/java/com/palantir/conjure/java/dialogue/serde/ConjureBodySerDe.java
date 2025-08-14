@@ -166,6 +166,12 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
+        return new EmptyBodyDeserializer(
+                new ExceptionThrowingErrorDecoder<>(exceptionDeserializerArgs.errorNameToExceptionTypeMarkers()));
+    }
+
+    @Override
     public Deserializer<InputStream> inputStreamDeserializer() {
         return binaryInputStreamDeserializer;
     }

@@ -325,22 +325,28 @@ acceptedBreaks:
       new: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.DeserializerArgs<T>)"
       justification: "Adding new methods to create deserializers in support of endpoint\
         \ associated error deserialization"
-  "6.2.0":
+  "6.4.0":
     com.palantir.dialogue:dialogue-clients:
     - code: "java.method.addedToInterface"
       new: "method T com.palantir.conjure.java.clients.ConjureClients.WithClientOptions<T>::withConjureErrorParameterSerializationFormat(com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat)\
         \ @ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory"
-      justification: "Adding a method to allow clients to enable JSON error parameter\
-        \ deserialization"
-  "6.4.0":
+      justification: "Adding new methods to support deserialization of errors into\
+        \ custom exceptions"
     com.palantir.dialogue:dialogue-target:
     - code: "java.method.addedToInterface"
       new: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::deserializer(com.palantir.dialogue.ExceptionDeserializerArgs<T>)"
-      justification: "Allowing clients to request exceptions be thrown for errors"
+      justification: "Adding new methods to support deserialization of errors into\
+        \ custom exceptions"
     - code: "java.method.addedToInterface"
       new: "method com.palantir.dialogue.Deserializer<java.io.InputStream> com.palantir.dialogue.BodySerDe::inputStreamDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.io.InputStream>)"
-      justification: "Allowing clients to request exceptions be thrown for errors"
+      justification: "Adding new methods to support deserialization of errors into\
+        \ custom exceptions"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.Deserializer<java.lang.Void> com.palantir.dialogue.BodySerDe::emptyBodyDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.lang.Void>)"
+      justification: "Adding new methods to support deserialization of errors into\
+        \ custom exceptions"
     - code: "java.method.addedToInterface"
       new: "method com.palantir.dialogue.Deserializer<java.util.Optional<java.io.InputStream>>\
         \ com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.util.Optional<java.io.InputStream>>)"
-      justification: "Allowing clients to request exceptions be thrown for errors"
+      justification: "Adding new methods to support deserialization of errors into\
+        \ custom exceptions"

@@ -48,6 +48,11 @@ public interface BodySerDe {
     Deserializer<Void> emptyBodyDeserializer();
 
     /**
+     * Similar to {@link #emptyBodyDeserializer()} but allows for specifying error type to exception mapping.
+     */
+    Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs);
+
+    /**
      * Returns a {@link Deserializer} that reads an {@link InputStream} from the {@link Response} body.
      * <p>
      * This method is named <pre>inputStreamDeserializer</pre> not <pre>binaryDeserializer</pre>

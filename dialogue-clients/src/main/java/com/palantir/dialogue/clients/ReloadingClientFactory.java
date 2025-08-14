@@ -216,6 +216,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Override
+        public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
+            return delegate.emptyBodyDeserializer(exceptionDeserializerArgs);
+        }
+
+        @Override
         public Deserializer<InputStream> inputStreamDeserializer() {
             return delegate.inputStreamDeserializer();
         }
