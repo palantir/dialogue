@@ -16,8 +16,12 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.palantir.conjure.java.api.errors.CheckedServiceException;
+import com.palantir.conjure.java.api.errors.ErrorType;
+import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Safe;
@@ -29,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
@@ -62,19 +67,69 @@ final class EndpointErrorTestUtils {
             @JsonProperty("errorCode") String errorCode,
             @JsonProperty("errorName") String errorName,
             @JsonProperty("errorInstanceId") String errorInstanceId,
-            @JsonProperty("parameters") Map<String, Object> parameters) {
+            @JsonProperty("parameters") Map<String, Object> parameters,
+            @JsonIgnore Optional<Map<String, String>> legacyParameters) {
+
+        @JsonProperty("legacyParameters")
+        // Only populate the legacy parameters field if it is non-empty.
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        Map<String, String> getLegacyParametersForSerialization() {
+            return legacyParameters.orElse(null);
+        }
+
         static ConjureError fromCheckedServiceException(CheckedServiceException exception) {
-            Map<String, Object> parameters = new HashMap<>();
-            for (Arg<?> arg : exception.getArgs()) {
-                if (shouldIncludeArgInParameters(arg)) {
-                    parameters.put(arg.getName(), arg.getValue());
-                }
-            }
+            Map<String, Object> parameters = getParametersFromArgs(exception.getArgs());
             return new ConjureError(
                     exception.getErrorType().code().name(),
                     exception.getErrorType().name(),
                     exception.getErrorInstanceId(),
-                    parameters);
+                    parameters,
+                    Optional.empty());
+        }
+
+        static ConjureError fromServiceException(ServiceException exception) {
+            Map<String, Object> parameters = new HashMap<>();
+            for (Arg<?> arg : exception.getArgs()) {
+                parameters.put(arg.getName(), Objects.toString(arg.getValue()));
+            }
+            ErrorType errorType = exception.getErrorType();
+            return new ConjureError(
+                    errorType.code().name(),
+                    errorType.name(),
+                    exception.getErrorInstanceId(),
+                    parameters,
+                    Optional.empty());
+        }
+
+        /**
+         * Creates a {@link ConjureError} from a {@link ServiceException} where the parameter values are serialized as
+         * JSON. Currently, this should only be used when clients send a request with a custom header specifying the
+         * parameter serialization format: <code>Accept-Conjure-Error-Parameter-Format</code> with value
+         * <code>JSON</code>.
+         */
+        static ConjureError fromServiceExceptionWithJsonSerializedParameterValues(ServiceException exception) {
+            Map<String, Object> parameters = getParametersFromArgs(exception.getArgs());
+            ErrorType errorType = exception.getErrorType();
+            return new ConjureError(
+                    errorType.code().name(),
+                    errorType.name(),
+                    exception.getErrorInstanceId(),
+                    parameters,
+                    Optional.empty());
+        }
+
+        /**
+         * Construct the parameters map from the provided arguments. Parameters are included if they are not null and
+         * not {@link Optional#empty}.
+         */
+        private static Map<String, Object> getParametersFromArgs(Iterable<Arg<?>> args) {
+            Map<String, Object> parameters = new HashMap<>();
+            for (Arg<?> arg : args) {
+                if (shouldIncludeArgInParameters(arg)) {
+                    parameters.put(arg.getName(), arg.getValue());
+                }
+            }
+            return parameters;
         }
 
         private static boolean shouldIncludeArgInParameters(Arg<?> arg) {
