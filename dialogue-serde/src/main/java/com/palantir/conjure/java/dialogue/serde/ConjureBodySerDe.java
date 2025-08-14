@@ -46,6 +46,7 @@ import java.io.OutputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -106,7 +107,12 @@ final class ConjureBodySerDe implements BodySerDe {
         this.serializers = Caffeine.from(cacheSpec)
                 .build(type -> new EncodingSerializerRegistry<>(defaultEncoding, TypeMarker.of(type)));
         this.deserializers = Caffeine.from(cacheSpec).build(type -> buildCacheEntry(TypeMarker.of(type)));
-        this.exceptionDeserializers = Caffeine.from(cacheSpec).build(this::buildExceptionCacheEntry);
+        // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
+        this.exceptionDeserializers = Caffeine.newBuilder()
+                .weakValues()
+                .expireAfterAccess(Duration.ofMinutes(1))
+                .maximumSize(1_000)
+                .build(this::buildExceptionCacheEntry);
     }
 
     @SuppressWarnings("unchecked")
@@ -604,15 +610,14 @@ final class ConjureBodySerDe implements BodySerDe {
                 return false;
             }
             return type == other.type
-                    && Objects.equals(
-                            args.returnType().getType(), other.args.returnType().getType())
+                    && Objects.equals(args.returnType(), other.args.returnType())
                     && Objects.equals(
                             args.errorNameToExceptionTypeMarkers(), other.args.errorNameToExceptionTypeMarkers());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(args.returnType().getType(), args.errorNameToExceptionTypeMarkers(), type);
+            return Objects.hash(args.returnType(), args.errorNameToExceptionTypeMarkers(), type);
         }
 
         @Override
