@@ -119,7 +119,7 @@ final class ConjureBodySerDe implements BodySerDe {
             case EMPTY_BODY ->
                 (Deserializer<T>) new EmptyBodyDeserializer(
                         new ExceptionThrowingErrorDecoder<>(args.errorNameToExceptionTypeMarkers()));
-            case INPUT_STREAM, OPTIONAL_INPUT_STREAM ->
+            case INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM ->
                 EncodingDeserializerForEndpointRegistry.createExceptionThrowing(
                         ImmutableList.of(BinaryEncoding.INSTANCE), emptyContainerDeserializer, args);
         };
@@ -211,8 +211,8 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public Deserializer<InputStream> inputStreamDeserializer(
             ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
-        return (Deserializer<InputStream>) exceptionDeserializers.get(
-                new ExceptionDeserializerCacheKey<>(exceptionDeserializerArgs, CacheEntryType.INPUT_STREAM));
+        return (Deserializer<InputStream>) exceptionDeserializers.get(new ExceptionDeserializerCacheKey<>(
+                exceptionDeserializerArgs, CacheEntryType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
     }
 
     @Override
@@ -237,8 +237,8 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
             ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
-        return (Deserializer<Optional<InputStream>>) exceptionDeserializers.get(
-                new ExceptionDeserializerCacheKey<>(exceptionDeserializerArgs, CacheEntryType.OPTIONAL_INPUT_STREAM));
+        return (Deserializer<Optional<InputStream>>) exceptionDeserializers.get(new ExceptionDeserializerCacheKey<>(
+                exceptionDeserializerArgs, CacheEntryType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
     }
 
     @Override
@@ -586,25 +586,13 @@ final class ConjureBodySerDe implements BodySerDe {
     private enum CacheEntryType {
         STANDARD,
         EMPTY_BODY,
-        INPUT_STREAM,
-        OPTIONAL_INPUT_STREAM
+        INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
     }
 
-    private static final class ExceptionDeserializerCacheKey<T> {
-        private final ExceptionDeserializerArgs<T> args;
-        private final CacheEntryType type;
-
-        ExceptionDeserializerCacheKey(ExceptionDeserializerArgs<T> args, CacheEntryType type) {
-            this.args = Preconditions.checkNotNull(args, "args must be non-null");
-            this.type = Preconditions.checkNotNull(type, "type must be non-null");
-        }
-
-        public ExceptionDeserializerArgs<T> args() {
-            return args;
-        }
-
-        public CacheEntryType type() {
-            return type;
+    private record ExceptionDeserializerCacheKey<T>(ExceptionDeserializerArgs<T> args, CacheEntryType type) {
+        ExceptionDeserializerCacheKey {
+            Preconditions.checkNotNull(args, "args must be non-null");
+            Preconditions.checkNotNull(type, "type must be non-null");
         }
 
         @Override
@@ -625,6 +613,11 @@ final class ConjureBodySerDe implements BodySerDe {
         @Override
         public int hashCode() {
             return Objects.hash(args.returnType().getType(), args.errorNameToExceptionTypeMarkers(), type);
+        }
+
+        @Override
+        public String toString() {
+            return "ExceptionDeserializerCacheKey{" + "args=" + args + ", type=" + type + '}';
         }
     }
 }
