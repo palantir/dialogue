@@ -617,7 +617,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
         @Override
         public String toString() {
-            return "ExceptionDeserializerCacheKey{" + "args=" + args + ", type=" + type + '}';
+            return "ExceptionDeserializerCacheKey{" + "args.returnType=" + args.returnType() + ", type=" + type + '}';
         }
     }
 }
