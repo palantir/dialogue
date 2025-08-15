@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue;
 
-import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
 import java.io.InputStream;
 import java.util.Optional;
 
@@ -82,8 +81,4 @@ public interface BodySerDe {
 
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);
-
-    default Optional<ConjureErrorParameterFormat> errorParameterDeserializationFormat() {
-        return Optional.empty();
-    }
 }
