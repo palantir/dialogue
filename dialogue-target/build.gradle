@@ -6,12 +6,12 @@ dependencies {
     api 'com.palantir.tokens:auth-tokens'
     api 'com.palantir.ri:resource-identifier'
     api 'com.palantir.conjure.java:conjure-lib'
-    api 'com.palantir.conjure.java.api:errors'
     api 'org.jspecify:jspecify'
     api 'com.palantir.conjure.java.api:errors'
 
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'com.palantir.conjure.java.api:errors'
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.google.code.findbugs:jsr305'
 

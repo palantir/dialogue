@@ -26,7 +26,6 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
-import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.HostEventsSink;
@@ -257,11 +256,6 @@ class DialogueClientsTest {
 
         @Override
         public Alternative withHostEventsSink(HostEventsSink _hostEventsSink) {
-            return this;
-        }
-
-        @Override
-        public Alternative withConjureErrorParameterSerializationFormat(ConjureErrorParameterFormat _format) {
             return this;
         }
 
