@@ -25,7 +25,12 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * TODO.
+ * Arguments for deserializing exceptions from error responses.
+ * <p>
+ * This class enables deserializing error responses into exceptions. It holds the return type
+ * for successful responses and maintains a mapping from error names to their corresponding error and exception types.
+ *
+ * @param <T> the return type for successful responses
  */
 public final class ExceptionDeserializerArgs<T> {
     private final TypeMarker<T> returnType;
