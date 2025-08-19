@@ -276,6 +276,10 @@ final class RetryingChannel implements EndpointChannel {
                 if (requestCanBeRetried() && shouldAttemptToRetry(clientSideThrowable)) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
                     Meter retryReason = retryDueToThrowable.apply(clientSideThrowable);
+                    // Retry immediately when we failed to reach the server, since it wasn't a capacity issue
+                    // Note that this should retry on another node with DialogueNodeSelectionStrategy.BALANCED,
+                    // since this failure since this failure should be recorded in BalancedScoreTracker and
+                    // the inner-most NodeSelectionStrategyChannel should select a new node.
                     long backoffNanoseconds = failures <= 1 ? 0 : getBackoffNanoseconds();
                     infoLogRetry(backoffNanoseconds, OptionalInt.empty(), clientSideThrowable);
                     return scheduleRetry(retryReason, backoffNanoseconds);
