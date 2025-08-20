@@ -30,13 +30,6 @@ public interface BodySerDe {
     <T> Deserializer<T> deserializer(TypeMarker<T> type);
 
     /**
-     * Creates a {@link Deserializer} for the base type {@link T} specified in the {@link DeserializerArgs}.
-     * <p>
-     * Deserializer instances should be reused.
-     **/
-    <T> Deserializer<T> deserializer(DeserializerArgs<T> deserializerArgs);
-
-    /**
      * Returns a {@link Deserializer} that fails if a non-empty reponse body is presented and returns null otherwise.
      */
     Deserializer<Void> emptyBodyDeserializer();
@@ -49,16 +42,8 @@ public interface BodySerDe {
      */
     Deserializer<InputStream> inputStreamDeserializer();
 
-    /**
-     * Creates a {@link Deserializer} for input streams and with error types specified in the {@link DeserializerArgs}.
-     **/
-    <T> Deserializer<T> inputStreamDeserializer(DeserializerArgs<T> deserializerArgs);
-
     /** Same as {@link #inputStreamDeserializer()} with support for 204 responses. */
     Deserializer<Optional<InputStream>> optionalInputStreamDeserializer();
-
-    /** Same as {@link #inputStreamDeserializer(DeserializerArgs)} with support for 204 responses. */
-    <T> Deserializer<T> optionalInputStreamDeserializer(DeserializerArgs<T> deserializerArgs);
 
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);

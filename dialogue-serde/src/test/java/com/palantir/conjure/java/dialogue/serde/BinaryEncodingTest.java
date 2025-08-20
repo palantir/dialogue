@@ -34,6 +34,7 @@ public class BinaryEncodingTest {
         TestResponse response = new TestResponse().code(200).contentType("application/octet-stream");
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(new ConjureBodySerDeTest.StubEncoding("application/json"))),
+                ErrorDecoder.INSTANCE,
                 Encodings.emptyContainerDeserializer(),
                 DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
         InputStream deserialized = serializers.inputStreamDeserializer().deserialize(response);
@@ -57,6 +58,7 @@ public class BinaryEncodingTest {
         TestResponse response = new TestResponse().code(200).contentType("application/octet-stream");
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(new ConjureBodySerDeTest.StubEncoding("application/json"))),
+                ErrorDecoder.INSTANCE,
                 Encodings.emptyContainerDeserializer(),
                 DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
         Optional<InputStream> maybe =
