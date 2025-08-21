@@ -22,7 +22,6 @@ import java.util.Optional;
 
 /** Request and response Deserialization and Serialization functionality used by generated code. */
 public interface BodySerDe {
-
     /** Creates a {@link Serializer} for the requested type. Serializer instances should be reused. */
     <T> Serializer<T> serializer(TypeMarker<T> type);
 
@@ -30,9 +29,21 @@ public interface BodySerDe {
     <T> Deserializer<T> deserializer(TypeMarker<T> type);
 
     /**
+     * Creates a {@link Deserializer} for the base type {@link T} specified in the {@link ExceptionDeserializerArgs}.
+     * <p>
+     * Deserializer instances should be reused.
+     **/
+    <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs);
+
+    /**
      * Returns a {@link Deserializer} that fails if a non-empty reponse body is presented and returns null otherwise.
      */
     Deserializer<Void> emptyBodyDeserializer();
+
+    /**
+     * Similar to {@link #emptyBodyDeserializer()} but allows for specifying error type to exception mapping.
+     */
+    Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs);
 
     /**
      * Returns a {@link Deserializer} that reads an {@link InputStream} from the {@link Response} body.
@@ -42,8 +53,18 @@ public interface BodySerDe {
      */
     Deserializer<InputStream> inputStreamDeserializer();
 
+    /**
+     * Creates a {@link Deserializer} for input streams and with error types specified in the {@link ExceptionDeserializerArgs}.
+     **/
+    Deserializer<InputStream> inputStreamDeserializer(ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs);
+
     /** Same as {@link #inputStreamDeserializer()} with support for 204 responses. */
     Deserializer<Optional<InputStream>> optionalInputStreamDeserializer();
+
+    /**
+     * Same as {@link #inputStreamDeserializer(ExceptionDeserializerArgs)} with support for 204 responses. */
+    Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
+            ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs);
 
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);

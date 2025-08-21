@@ -347,3 +347,18 @@ acceptedBreaks:
       old: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.DeserializerArgs<T>)"
       justification: "Removing support for creating deserializers for result types\
         \ while we rethink the ideal way to model endpoint associated errors"
+  "6.8.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.addedToInterface"
+      new: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::deserializer(com.palantir.dialogue.ExceptionDeserializerArgs<T>)"
+      justification: "Adding methods to support deserialization of errors as exceptions"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.Deserializer<java.io.InputStream> com.palantir.dialogue.BodySerDe::inputStreamDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.io.InputStream>)"
+      justification: "Adding methods to support deserialization of errors as exceptions"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.Deserializer<java.lang.Void> com.palantir.dialogue.BodySerDe::emptyBodyDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.lang.Void>)"
+      justification: "Adding methods to support deserialization of errors as exceptions"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.Deserializer<java.util.Optional<java.io.InputStream>>\
+        \ com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.util.Optional<java.io.InputStream>>)"
+      justification: "Adding methods to support deserialization of errors as exceptions"
