@@ -16,23 +16,9 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.io.CharStreams;
-import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.RemoteException;
-import com.palantir.conjure.java.api.errors.SerializableError;
-import com.palantir.conjure.java.api.errors.UnknownRemoteException;
-import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.logger.SafeLogger;
-import com.palantir.logsafe.logger.SafeLoggerFactory;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.Optional;
 
 /**
  * Extracts and returns a {@link RemoteException} from an {@link Response}.
@@ -43,8 +29,6 @@ import java.util.Optional;
 public enum ErrorDecoder {
     INSTANCE;
 
-    private static final SafeLogger log = SafeLoggerFactory.get(ErrorDecoder.class);
-    private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
     private static final ExceptionDeserializingErrorDecoder EXCEPTION_DESERIALIZING_ERROR_DECODER =
             new ExceptionDeserializingErrorDecoder(Collections.emptyMap());
 
@@ -53,51 +37,6 @@ public enum ErrorDecoder {
     }
 
     public RuntimeException decode(Response response) {
-        if (log.isDebugEnabled()) {
-            log.debug("Received an error response", ExceptionDeserializingErrorDecoder.diagnosticArgs(response));
-        }
-        RuntimeException result = decodeInternal(response);
-        result.addSuppressed(ExceptionDeserializingErrorDecoder.diagnostic(response));
-        return result;
-    }
-
-    private RuntimeException decodeInternal(Response response) {
-        // TODO(rfink): What about HTTP/101 switching protocols?
-        // TODO(rfink): What about HEAD requests?
-
-        Optional<RuntimeException> maybeException = EXCEPTION_DESERIALIZING_ERROR_DECODER.checkCode(response);
-        if (maybeException.isPresent()) {
-            return maybeException.get();
-        }
-
-        int code = response.code();
-        String body;
-        try {
-            body = toString(response.body());
-        } catch (NullPointerException | IOException e) {
-            UnknownRemoteException exception = new UnknownRemoteException(code, "<unparseable>");
-            exception.initCause(e);
-            return exception;
-        }
-
-        Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-        if (contentType.isPresent() && Encodings.matchesContentType("application/json", contentType.get())) {
-            try {
-                SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
-                return new RemoteException(serializableError, code);
-            } catch (Exception e) {
-                UnknownRemoteException unknownRemoteException = new UnknownRemoteException(code, body);
-                unknownRemoteException.initCause(e);
-                return unknownRemoteException;
-            }
-        }
-
-        return new UnknownRemoteException(code, body);
-    }
-
-    private static String toString(InputStream body) throws IOException {
-        try (Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8)) {
-            return CharStreams.toString(reader);
-        }
+        return EXCEPTION_DESERIALIZING_ERROR_DECODER.decode(response);
     }
 }

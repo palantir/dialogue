@@ -20,8 +20,6 @@ import com.google.common.collect.ImmutableMap;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.logsafe.Preconditions;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
@@ -43,6 +41,8 @@ public final class ExceptionDeserializerArgs<T> {
         this.errorNameToExceptionTypeMarkers = errorNameToExceptionTypeMarkers;
     }
 
+    // toString, equals, and hashCode are implemented because ExceptionDeserializerArgs are used as keys in a Caffeine
+    // cache.
     @Override
     public String toString() {
         return "ExceptionDeserializerArgs{"
@@ -68,6 +68,8 @@ public final class ExceptionDeserializerArgs<T> {
         return Objects.hash(returnType, errorNameToExceptionTypeMarkers);
     }
 
+    // A builder is manually constructed (instead of using a library like Immutables) to avoid having to force all
+    // clients to take a dependency on such a library.
     public static <T> Builder<T> builder() {
         return new Builder<>();
     }
@@ -75,10 +77,10 @@ public final class ExceptionDeserializerArgs<T> {
     public static final class Builder<T> {
         private boolean buildInvoked = false;
         private @Nullable TypeMarker<T> returnType;
-        private final Map<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers;
+        private final ImmutableMap.Builder<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers;
 
         private Builder() {
-            this.errorNameToExceptionTypeMarkers = new HashMap<>();
+            this.errorNameToExceptionTypeMarkers = ImmutableMap.builder();
         }
 
         public Builder<T> returnType(TypeMarker<T> returnT) {
@@ -87,6 +89,13 @@ public final class ExceptionDeserializerArgs<T> {
             return this;
         }
 
+        /**
+         * Registers an error name with its corresponding error type and exception type.
+         * @param errorName the name of the error
+         * @param errorType the type marker for the error
+         * @param exceptionType the type marker for the exception. It is expected that the exception type implements a
+         * constructor that takes the error type as the first parameter, and an integer status code as the second.
+         */
         public <U extends AbstractSerializableError<?>, V extends RemoteException> Builder<T> exception(
                 String errorName, TypeMarker<U> errorType, TypeMarker<V> exceptionType) {
             checkNotBuilt();
@@ -102,7 +111,7 @@ public final class ExceptionDeserializerArgs<T> {
             checkNotBuilt();
             Preconditions.checkNotNull(returnType, "base type must be set");
             buildInvoked = true;
-            return new ExceptionDeserializerArgs<>(returnType, ImmutableMap.copyOf(errorNameToExceptionTypeMarkers));
+            return new ExceptionDeserializerArgs<>(returnType, errorNameToExceptionTypeMarkers.buildKeepingLast());
         }
 
         private void checkNotBuilt() {

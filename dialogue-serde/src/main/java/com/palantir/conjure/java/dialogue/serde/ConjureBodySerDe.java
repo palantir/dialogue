@@ -27,6 +27,7 @@ import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
+import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
@@ -48,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -95,39 +97,42 @@ final class ConjureBodySerDe implements BodySerDe {
         this.serializers = Caffeine.from(cacheSpec)
                 .build(type -> new EncodingSerializerRegistry<>(defaultEncoding, TypeMarker.of(type)));
         this.deserializers = Caffeine.from(cacheSpec)
-                .build(type -> new EncodingDeserializerRegistry<>(
-                        encodingsSortedByWeight,
-                        new ExceptionDeserializingErrorDecoder(Collections.emptyMap()),
+                .build(type -> deserializerFor(
+                        DeserializerType.STANDARD,
                         emptyContainerDeserializer,
-                        TypeMarker.of(type)));
+                        TypeMarker.of(type),
+                        Collections.emptyMap()));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
                 .expireAfterAccess(Duration.ofMinutes(1))
                 .maximumSize(1_000)
-                .build(key -> buildCacheEntry(key, emptyContainerDeserializer));
+                .build(key -> deserializerFor(
+                        key.type(),
+                        emptyContainerDeserializer,
+                        key.args().returnType(),
+                        key.args().errorNameToExceptionTypeMarkers()));
     }
 
     @SuppressWarnings("unchecked")
-    private <T> Deserializer<T> buildCacheEntry(
-            ExceptionDeserializerCacheKey<T> key, EmptyContainerDeserializer emptyContainerDeserializer) {
-        ExceptionDeserializerArgs<T> args = key.args();
-        return switch (key.type()) {
+    private <T> Deserializer<T> deserializerFor(
+            DeserializerType type,
+            EmptyContainerDeserializer emptyContainerDeserializer,
+            TypeMarker<T> returnType,
+            Map<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers) {
+        ExceptionDeserializingErrorDecoder errorDecoder =
+                new ExceptionDeserializingErrorDecoder(errorNameToExceptionTypeMarkers);
+        return switch (type) {
             case STANDARD ->
                 new EncodingDeserializerRegistry<>(
-                        encodingsSortedByWeight,
-                        new ExceptionDeserializingErrorDecoder(args.errorNameToExceptionTypeMarkers()),
-                        emptyContainerDeserializer,
-                        args.returnType());
-            case EMPTY_BODY ->
-                (Deserializer<T>) new EmptyBodyDeserializer(
-                        new ExceptionDeserializingErrorDecoder(args.errorNameToExceptionTypeMarkers()));
+                        encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, returnType);
+            case EMPTY_BODY -> (Deserializer<T>) new EmptyBodyDeserializer(errorDecoder);
             case INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM ->
                 new EncodingDeserializerRegistry<>(
                         ImmutableList.of(BinaryEncoding.INSTANCE),
-                        new ExceptionDeserializingErrorDecoder(args.errorNameToExceptionTypeMarkers()),
+                        errorDecoder,
                         emptyContainerDeserializer,
-                        args.returnType());
+                        returnType);
         };
     }
 
@@ -163,7 +168,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
         return (Deserializer<T>) exceptionDeserializers.get(
-                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, CacheEntryType.STANDARD));
+                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.STANDARD));
     }
 
     @Override
@@ -175,7 +180,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
         return (Deserializer<Void>) exceptionDeserializers.get(
-                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, CacheEntryType.EMPTY_BODY));
+                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.EMPTY_BODY));
     }
 
     @Override
@@ -188,7 +193,7 @@ final class ConjureBodySerDe implements BodySerDe {
     public Deserializer<InputStream> inputStreamDeserializer(
             ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
         return (Deserializer<InputStream>) exceptionDeserializers.get(ExceptionDeserializerCacheKey.of(
-                exceptionDeserializerArgs, CacheEntryType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
+                exceptionDeserializerArgs, DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
     }
 
     @Override
@@ -201,7 +206,7 @@ final class ConjureBodySerDe implements BodySerDe {
     public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
             ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
         return (Deserializer<Optional<InputStream>>) exceptionDeserializers.get(ExceptionDeserializerCacheKey.of(
-                exceptionDeserializerArgs, CacheEntryType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
+                exceptionDeserializerArgs, DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
     }
 
     @Override
@@ -433,19 +438,19 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
-    private enum CacheEntryType {
+    private enum DeserializerType {
         STANDARD,
         EMPTY_BODY,
         INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
     }
 
-    private record ExceptionDeserializerCacheKey<T>(ExceptionDeserializerArgs<T> args, CacheEntryType type) {
+    private record ExceptionDeserializerCacheKey<T>(ExceptionDeserializerArgs<T> args, DeserializerType type) {
         ExceptionDeserializerCacheKey {
             Preconditions.checkNotNull(args, "args must be non-null");
             Preconditions.checkNotNull(type, "type must be non-null");
         }
 
-        static <T> ExceptionDeserializerCacheKey<T> of(ExceptionDeserializerArgs<T> args, CacheEntryType type) {
+        static <T> ExceptionDeserializerCacheKey<T> of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
             return new ExceptionDeserializerCacheKey<>(args, type);
         }
     }

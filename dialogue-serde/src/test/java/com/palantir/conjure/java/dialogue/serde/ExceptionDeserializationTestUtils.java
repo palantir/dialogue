@@ -16,14 +16,24 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.CheckedServiceException;
 import com.palantir.conjure.java.api.errors.ErrorType;
+import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
+import com.palantir.dialogue.ExceptionDeserializerArgs;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
+import com.palantir.logsafe.Safe;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.Unsafe;
+import com.palantir.logsafe.UnsafeArg;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -32,21 +42,133 @@ import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.function.Function;
+import javax.annotation.processing.Generated;
+import org.jspecify.annotations.Nullable;
 
 final class ExceptionDeserializationTestUtils {
+    private ExceptionDeserializationTestUtils() {}
+
+    static final ErrorType TEST_ERROR_TYPE = ErrorType.create(ErrorType.Code.INVALID_ARGUMENT, "Conjure:TestError");
+
+    static ServiceException testError(@Safe String stringArg, @Unsafe ComplexArg complexArg) {
+        return new ServiceException(
+                TEST_ERROR_TYPE, SafeArg.of("stringArg", stringArg), UnsafeArg.of("complexArg", complexArg));
+    }
+
+    @Generated("by conjure-java")
+    record ComplexArg(@JsonProperty("foo") @Safe int foo, @JsonProperty("bar") @Unsafe String bar) {}
+
+    @Generated("by conjure-java")
+    record TestErrorParameters(
+            @JsonProperty("stringArg") @Safe String stringArg,
+            @JsonProperty("complexArg") @Unsafe ComplexArg complexArg) {}
+
+    @Generated("by conjure-java")
+    static final class TestErrorSerializableError extends AbstractSerializableError<TestErrorParameters> {
+        @Nullable
+        private final Map<String, String> legacyParameters;
+
+        @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+        TestErrorSerializableError(
+                @JsonProperty("errorCode") @Safe String errorCode,
+                @JsonProperty("errorName") @Safe String errorName,
+                @JsonProperty("errorInstanceId") @Safe String errorInstanceId,
+                @JsonProperty("parameters") TestErrorParameters parameters,
+                @JsonProperty("legacyParameters") @Nullable Map<String, String> legacyParameters) {
+            super(errorCode, errorName, errorInstanceId, parameters);
+            this.legacyParameters = legacyParameters;
+        }
+
+        SerializableError toSerializableError() {
+            SerializableError.Builder builder = SerializableError.builder();
+            if (legacyParameters != null) {
+                builder.putAllParameters(legacyParameters);
+            } else {
+                builder.putParameters("stringArg", Objects.toString(parameters().stringArg()))
+                        .putParameters(
+                                "complexArg", Objects.toString(parameters().complexArg()));
+            }
+            builder.errorCode(errorCode()).errorName(errorName()).errorInstanceId(errorInstanceId());
+            return builder.build();
+        }
+    }
+
+    @Generated("by conjure-java")
+    static final class TestErrorException extends RemoteException {
+        private final TestErrorSerializableError error;
+
+        // Constructor needs to be public so that the exception can be created via reflection
+        @SuppressWarnings("RedundantModifier")
+        public TestErrorException(TestErrorSerializableError error, int status) {
+            super(error.toSerializableError(), status);
+            this.error = error;
+        }
+
+        TestErrorSerializableError error() {
+            return error;
+        }
+    }
+
+    static ExceptionDeserializerArgs<InputStream> createInputStreamDeserializerArgs() {
+        return ExceptionDeserializerArgs.<InputStream>builder()
+                .returnType(new TypeMarker<>() {})
+                .exception(
+                        ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name(),
+                        new TypeMarker<TestErrorSerializableError>() {},
+                        new TypeMarker<TestErrorException>() {})
+                .build();
+    }
+
+    static ExceptionDeserializerArgs<Optional<InputStream>> createOptionalInputStreamDeserializerArgs() {
+        return ExceptionDeserializerArgs.<Optional<InputStream>>builder()
+                .returnType(new TypeMarker<>() {})
+                .exception(
+                        ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name(),
+                        new TypeMarker<TestErrorSerializableError>() {},
+                        new TypeMarker<TestErrorException>() {})
+                .build();
+    }
+
+    static ExceptionDeserializerArgs<Void> createVoidDeserializerArgs() {
+        return ExceptionDeserializerArgs.<Void>builder()
+                .returnType(new TypeMarker<>() {})
+                .exception(
+                        ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name(),
+                        new TypeMarker<TestErrorSerializableError>() {},
+                        new TypeMarker<TestErrorException>() {})
+                .build();
+    }
+
+    static ExceptionDeserializerArgs<String> createStringDeserializerArgs() {
+        return ExceptionDeserializerArgs.<String>builder()
+                .returnType(new TypeMarker<>() {})
+                .exception(
+                        ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name(),
+                        new TypeMarker<TestErrorSerializableError>() {},
+                        new TypeMarker<TestErrorException>() {})
+                .build();
+    }
+
+    static void assertRemoteExceptionIsTestErrorException(RemoteException exp, String expectedErrorInstanceId) {
+        assertThat(exp).isInstanceOfSatisfying(TestErrorException.class, exception -> {
+            TestErrorSerializableError error = exception.error();
+            assertThat(error.errorCode())
+                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE
+                            .code()
+                            .name());
+            assertThat(error.errorName()).isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name());
+            assertThat(error.errorInstanceId()).isEqualTo(expectedErrorInstanceId);
+            assertThat(error.parameters().stringArg()).isEqualTo("foo");
+            assertThat(error.parameters().complexArg().foo()).isEqualTo(1);
+            assertThat(error.parameters().complexArg().bar()).isEqualTo("bar");
+        });
+    }
+
     record ConjureError(
             @JsonProperty("errorCode") String errorCode,
             @JsonProperty("errorName") String errorName,
             @JsonProperty("errorInstanceId") String errorInstanceId,
-            @JsonProperty("parameters") Map<String, Object> parameters,
-            @JsonIgnore Optional<Map<String, String>> legacyParameters) {
-
-        @JsonProperty("legacyParameters")
-        // Only populate the legacy parameters field if it is non-empty.
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        Map<String, String> getLegacyParametersForSerialization() {
-            return legacyParameters.orElse(null);
-        }
+            @JsonProperty("parameters") Map<String, Object> parameters) {
 
         static ConjureError fromCheckedServiceException(CheckedServiceException exception) {
             Map<String, Object> parameters = getParametersFromArgs(exception.getArgs());
@@ -54,8 +176,7 @@ final class ExceptionDeserializationTestUtils {
                     exception.getErrorType().code().name(),
                     exception.getErrorType().name(),
                     exception.getErrorInstanceId(),
-                    parameters,
-                    Optional.empty());
+                    parameters);
         }
 
         static ConjureError fromServiceException(ServiceException exception) {
@@ -65,11 +186,7 @@ final class ExceptionDeserializationTestUtils {
             }
             ErrorType errorType = exception.getErrorType();
             return new ConjureError(
-                    errorType.code().name(),
-                    errorType.name(),
-                    exception.getErrorInstanceId(),
-                    parameters,
-                    Optional.empty());
+                    errorType.code().name(), errorType.name(), exception.getErrorInstanceId(), parameters);
         }
 
         /**
@@ -82,11 +199,7 @@ final class ExceptionDeserializationTestUtils {
             Map<String, Object> parameters = getParametersFromArgs(exception.getArgs());
             ErrorType errorType = exception.getErrorType();
             return new ConjureError(
-                    errorType.code().name(),
-                    errorType.name(),
-                    exception.getErrorInstanceId(),
-                    parameters,
-                    Optional.empty());
+                    errorType.code().name(), errorType.name(), exception.getErrorInstanceId(), parameters);
         }
 
         /**

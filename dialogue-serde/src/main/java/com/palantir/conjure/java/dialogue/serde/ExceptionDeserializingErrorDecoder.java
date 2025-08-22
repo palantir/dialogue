@@ -95,24 +95,9 @@ final class ExceptionDeserializingErrorDecoder {
         if (log.isDebugEnabled()) {
             log.debug("Received an error response", diagnosticArgs(response));
         }
-        try {
-            return decodeInternal(response);
-        } catch (Exception e) {
-            e.addSuppressed(diagnostic(response));
-            throw e;
-        }
-    }
-
-    private @Nullable String extractErrorName(byte[] body) {
-        try {
-            NamedError namedError = NAMED_ERROR_DESERIALIZER.deserialize(new ByteArrayInputStream(body));
-            if (namedError == null) {
-                return null;
-            }
-            return namedError.errorName();
-        } catch (IOException | RuntimeException e) {
-            return null;
-        }
+        RuntimeException result = decodeInternal(response);
+        result.addSuppressed(diagnostic(response));
+        return result;
     }
 
     Optional<RuntimeException> checkCode(Response response) {
@@ -160,8 +145,8 @@ final class ExceptionDeserializingErrorDecoder {
         }
         int code = response.code();
         byte[] body;
-        try {
-            body = toByteArray(response.body());
+        try (InputStream bodyStream = response.body()) {
+            body = bodyStream.readAllBytes();
         } catch (NullPointerException | IOException e) {
             UnknownRemoteException exception = new UnknownRemoteException(code, "<unparseable>");
             exception.initCause(e);
@@ -213,12 +198,6 @@ final class ExceptionDeserializingErrorDecoder {
         SerializableError serializableError =
                 SERIALIZABLE_ERROR_DESERIALIZER.deserialize(new ByteArrayInputStream(body));
         return new RemoteException(serializableError, code);
-    }
-
-    private static byte[] toByteArray(InputStream body) throws IOException {
-        try (body) {
-            return body.readAllBytes();
-        }
     }
 
     static ResponseDiagnostic diagnostic(Response response) {
@@ -283,6 +262,18 @@ final class ExceptionDeserializingErrorDecoder {
         @Override
         public Optional<String> getFirstHeader(Response response, String headerName) {
             return response.getFirstHeader(headerName);
+        }
+    }
+
+    private @Nullable String extractErrorName(byte[] body) {
+        try {
+            NamedError namedError = NAMED_ERROR_DESERIALIZER.deserialize(new ByteArrayInputStream(body));
+            if (namedError == null) {
+                return null;
+            }
+            return namedError.errorName();
+        } catch (IOException | RuntimeException e) {
+            return null;
         }
     }
 

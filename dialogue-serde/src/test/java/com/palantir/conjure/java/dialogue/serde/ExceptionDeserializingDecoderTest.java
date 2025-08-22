@@ -18,37 +18,27 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
-import com.palantir.conjure.java.api.errors.AbstractSerializableError;
-import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
+import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.ComplexArg;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.ConjureError;
+import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
-import com.palantir.logsafe.Safe;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.Unsafe;
-import com.palantir.logsafe.UnsafeArg;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
-import javax.annotation.processing.Generated;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -61,67 +51,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 final class ExceptionDeserializingDecoderTest {
     private static final ObjectMapper MAPPER = ObjectMappers.newServerObjectMapper();
-    public static final ErrorType TEST_ERROR_TYPE =
-            ErrorType.create(ErrorType.Code.INVALID_ARGUMENT, "Conjure:TestError");
-
-    public static ServiceException testError(@Safe String stringArg, @Unsafe ComplexArg complexArg) {
-        return new ServiceException(
-                TEST_ERROR_TYPE, SafeArg.of("stringArg", stringArg), UnsafeArg.of("complexArg", complexArg));
-    }
-
-    @Generated("by conjure-java")
-    record ComplexArg(@JsonProperty("foo") @Safe int foo, @JsonProperty("bar") @Unsafe String bar) {}
-
-    @Generated("by conjure-java")
-    record TestErrorParameters(
-            @JsonProperty("stringArg") @Safe String stringArg,
-            @JsonProperty("complexArg") @Unsafe ComplexArg complexArg) {}
-
-    @Generated("by conjure-java")
-    static final class TestErrorSerializableError extends AbstractSerializableError<TestErrorParameters> {
-        @Nullable
-        private final Map<String, String> legacyParameters;
-
-        @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-        TestErrorSerializableError(
-                @JsonProperty("errorCode") @Safe String errorCode,
-                @JsonProperty("errorName") @Safe String errorName,
-                @JsonProperty("errorInstanceId") @Safe String errorInstanceId,
-                @JsonProperty("parameters") TestErrorParameters parameters,
-                @JsonProperty("legacyParameters") @Nullable Map<String, String> legacyParameters) {
-            super(errorCode, errorName, errorInstanceId, parameters);
-            this.legacyParameters = legacyParameters;
-        }
-
-        SerializableError toSerializableError() {
-            SerializableError.Builder builder = SerializableError.builder();
-            if (legacyParameters != null) {
-                builder.putAllParameters(legacyParameters);
-            } else {
-                builder.putParameters("stringArg", Objects.toString(parameters().stringArg()))
-                        .putParameters(
-                                "complexArg", Objects.toString(parameters().complexArg()));
-            }
-            builder.errorCode(errorCode()).errorName(errorName()).errorInstanceId(errorInstanceId());
-            return builder.build();
-        }
-    }
-
-    @Generated("by conjure-java")
-    static final class TestErrorException extends RemoteException {
-        private final TestErrorSerializableError error;
-
-        // Constructor needs to be public so that the exception can be created via reflection
-        @SuppressWarnings("RedundantModifier")
-        public TestErrorException(TestErrorSerializableError error, int status) {
-            super(error.toSerializableError(), status);
-            this.error = error;
-        }
-
-        TestErrorSerializableError error() {
-            return error;
-        }
-    }
 
     @Test
     public void testDeserializeReturnValue() {
@@ -131,7 +60,8 @@ final class ExceptionDeserializingDecoderTest {
                 .contentType("application/json")
                 .code(200);
         BodySerDe bodySerDe = conjureBodySerDe("application/json", "text/plain");
-        ExceptionDeserializerArgs<String> exceptionDeserializerArgs = createStringDeserializerArgs();
+        ExceptionDeserializerArgs<String> exceptionDeserializerArgs =
+                ExceptionDeserializationTestUtils.createStringDeserializerArgs();
         // When
         String value = bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
         // Then
@@ -145,7 +75,7 @@ final class ExceptionDeserializingDecoderTest {
     @Test
     public void testDeserializationFallsBackToRemoteExceptionWhenToStringParamsAreSent() throws IOException {
         // Given
-        ServiceException expectedError = testError("foo", new ComplexArg(1, "bar"));
+        ServiceException expectedError = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
         String responseBody = MAPPER.writeValueAsString(ConjureError.fromServiceException(expectedError));
 
         // The server is sending the Objects.toString representation of ComplexArg over the wire. This is not valid
@@ -156,7 +86,8 @@ final class ExceptionDeserializingDecoderTest {
                 .contentType("application/json")
                 .code(500);
         BodySerDe bodySerDe = conjureBodySerDe("application/json", "text/plain");
-        ExceptionDeserializerArgs<String> exceptionDeserializerArgs = createStringDeserializerArgs();
+        ExceptionDeserializerArgs<String> exceptionDeserializerArgs =
+                ExceptionDeserializationTestUtils.createStringDeserializerArgs();
         // When
         try {
             bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
@@ -168,18 +99,74 @@ final class ExceptionDeserializingDecoderTest {
 
             SerializableError serializableError = e.getError();
             assertThat(serializableError.errorCode())
-                    .isEqualTo(TEST_ERROR_TYPE.code().name());
-            assertThat(serializableError.errorName()).isEqualTo(TEST_ERROR_TYPE.name());
+                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE
+                            .code()
+                            .name());
+            assertThat(serializableError.errorName())
+                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name());
             assertThat(serializableError.errorInstanceId()).isEqualTo(expectedError.getErrorInstanceId());
             assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
             assertThat(serializableError.parameters().get("complexArg")).isEqualTo("ComplexArg[foo=1, bar=bar]");
+            assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
+                    .startsWith("Response Diagnostic Information:"));
+        }
+    }
+
+    /**
+     * This test validates that when a server sends an error that the client has not specified in the mapping from error
+     * name -> exception, the deserializer falls back to throwing a RemoteException.
+     */
+    @Test
+    public void testDeserializationFallsBackToRemoteExceptionWhenErrorIsNotKnown() throws IOException {
+        // Given
+        ServiceException expectedError = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
+        String responseBody = MAPPER.writeValueAsString(
+                ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(expectedError));
+
+        // The server is sending the JSON representation of ComplexArg over the wire.
+
+        String expectedJsonComplexArg = """
+            "complexArg":{"foo":1,"bar":"bar"}
+        """.strip();
+        assertThat(responseBody).contains(expectedJsonComplexArg);
+
+        TestResponse response = TestResponse.withBody(responseBody)
+                .contentType("application/json")
+                .code(500);
+        BodySerDe bodySerDe = conjureBodySerDe("application/json", "text/plain");
+        // The client does not know about TestErrorException, so we do not register it when constructing the
+        // deserializer.
+        ExceptionDeserializerArgs<String> exceptionDeserializerArgs = ExceptionDeserializerArgs.<String>builder()
+                .returnType(new TypeMarker<>() {})
+                .build();
+        // When
+        try {
+            bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
+        } catch (RemoteException e) {
+            // Deserialization should have failed because `ComplexArg[foo=1, bar=bar]` is not a valid JSON
+            // representation of a ComplexArg. We should not throw a TestErrorException here, but rather fallback to
+            // throwing a RemoteException.
+            assertThat(e).isNotInstanceOf(TestErrorException.class);
+
+            SerializableError serializableError = e.getError();
+            assertThat(serializableError.errorCode())
+                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE
+                            .code()
+                            .name());
+            assertThat(serializableError.errorName())
+                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name());
+            assertThat(serializableError.errorInstanceId()).isEqualTo(expectedError.getErrorInstanceId());
+            assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
+            assertThat(serializableError.parameters().get("complexArg")).isEqualTo("{\"foo\":1,\"bar\":\"bar\"}");
+            assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
+                    .startsWith("Response Diagnostic Information:"));
         }
     }
 
     @Test
     public void testDeserializeExpectedException() throws IOException {
         // Given
-        ServiceException expectedError = testError("foo", new ComplexArg(1, "bar"));
+        ServiceException expectedError = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
         String responseBody = MAPPER.writeValueAsString(
                 ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(expectedError));
 
@@ -193,7 +180,8 @@ final class ExceptionDeserializingDecoderTest {
                 .contentType("application/json")
                 .code(500);
         BodySerDe bodySerDe = conjureBodySerDe("application/json", "text/plain");
-        ExceptionDeserializerArgs<String> exceptionDeserializerArgs = createStringDeserializerArgs();
+        ExceptionDeserializerArgs<String> exceptionDeserializerArgs =
+                ExceptionDeserializationTestUtils.createStringDeserializerArgs();
 
         try {
             // When
@@ -201,7 +189,10 @@ final class ExceptionDeserializingDecoderTest {
         } catch (RemoteException e) {
             // Then
             // The error should have been deserialized as a TestErrorException.
-            assertRemoteExceptionIsTestErrorException(e, expectedError.getErrorInstanceId());
+            ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
+                    e, expectedError.getErrorInstanceId());
+            assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
+                    .startsWith("Response Diagnostic Information:"));
         }
     }
 
@@ -210,7 +201,8 @@ final class ExceptionDeserializingDecoderTest {
         // Given
         TestResponse response = TestResponse.withBody(null);
         BodySerDe bodySerDe = conjureBodySerDe("application/json", "text/plain");
-        ExceptionDeserializerArgs<Void> exceptionDeserializerArgs = createVoidDeserializerArgs();
+        ExceptionDeserializerArgs<Void> exceptionDeserializerArgs =
+                ExceptionDeserializationTestUtils.createVoidDeserializerArgs();
         // Assert that deserializing a void return type does not throw an exception
         bodySerDe.emptyBodyDeserializer(exceptionDeserializerArgs).deserialize(response);
     }
@@ -218,7 +210,7 @@ final class ExceptionDeserializingDecoderTest {
     @Test
     public void testDeserializeExceptionFromEndpointWithVoidReturnType() throws IOException {
         // Given
-        ServiceException expectedError = testError("foo", new ComplexArg(1, "bar"));
+        ServiceException expectedError = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
         String responseBody = MAPPER.writeValueAsString(
                 ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(expectedError));
 
@@ -232,7 +224,8 @@ final class ExceptionDeserializingDecoderTest {
                 .contentType("application/json")
                 .code(500);
         BodySerDe bodySerDe = conjureBodySerDe("application/json", "text/plain");
-        ExceptionDeserializerArgs<Void> exceptionDeserializerArgs = createVoidDeserializerArgs();
+        ExceptionDeserializerArgs<Void> exceptionDeserializerArgs =
+                ExceptionDeserializationTestUtils.createVoidDeserializerArgs();
 
         try {
             // When
@@ -240,7 +233,10 @@ final class ExceptionDeserializingDecoderTest {
         } catch (RemoteException e) {
             // Then
             // The error should have been deserialized as a TestErrorException.
-            assertRemoteExceptionIsTestErrorException(e, expectedError.getErrorInstanceId());
+            ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
+                    e, expectedError.getErrorInstanceId());
+            assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
+                    .startsWith("Response Diagnostic Information:"));
         }
     }
 
@@ -259,7 +255,7 @@ final class ExceptionDeserializingDecoderTest {
 
         if (isOptional) {
             ExceptionDeserializerArgs<Optional<InputStream>> deserializerArgs =
-                    createOptionalInputStreamDeserializerArgs();
+                    ExceptionDeserializationTestUtils.createOptionalInputStreamDeserializerArgs();
             assertThat(bodySerDe
                             .optionalInputStreamDeserializer(deserializerArgs)
                             .deserialize(response))
@@ -267,7 +263,8 @@ final class ExceptionDeserializingDecoderTest {
                                     readAllBytesUnchecked(optionalInputStream::get))
                             .isEqualTo(binaryData)));
         } else {
-            ExceptionDeserializerArgs<InputStream> deserializerArgs = createInputStreamDeserializerArgs();
+            ExceptionDeserializerArgs<InputStream> deserializerArgs =
+                    ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs();
             assertThat(bodySerDe.inputStreamDeserializer(deserializerArgs).deserialize(response))
                     .satisfies(value ->
                             assertThat(readAllBytesUnchecked(() -> value)).isEqualTo(binaryData));
@@ -277,7 +274,7 @@ final class ExceptionDeserializingDecoderTest {
     @Test
     public void testDeserializeExceptionThrownFromEndpointWithBinaryReturnType() throws IOException {
         // Given
-        ServiceException expectedError = testError("foo", new ComplexArg(1, "bar"));
+        ServiceException expectedError = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
         String responseBody = MAPPER.writeValueAsString(
                 ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(expectedError));
 
@@ -296,13 +293,17 @@ final class ExceptionDeserializingDecoderTest {
                 Encodings.emptyContainerDeserializer(),
                 DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
 
-        ExceptionDeserializerArgs<InputStream> deserializerArgs = createInputStreamDeserializerArgs();
+        ExceptionDeserializerArgs<InputStream> deserializerArgs =
+                ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs();
 
         try {
             // When
             bodySerDe.inputStreamDeserializer(deserializerArgs).deserialize(response);
         } catch (RemoteException e) {
-            assertRemoteExceptionIsTestErrorException(e, expectedError.getErrorInstanceId());
+            ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
+                    e, expectedError.getErrorInstanceId());
+            assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
+                    .startsWith("Response Diagnostic Information:"));
         }
     }
 
@@ -312,88 +313,42 @@ final class ExceptionDeserializingDecoderTest {
         BodySerDe bodySerDe = conjureBodySerDe("application/json", "text/plain");
 
         // When
-        Deserializer<InputStream> inputStreamDeserializer1 =
-                bodySerDe.inputStreamDeserializer(createInputStreamDeserializerArgs());
-        Deserializer<InputStream> inputStreamDeserializer2 =
-                bodySerDe.inputStreamDeserializer(createInputStreamDeserializerArgs());
+        Deserializer<InputStream> inputStreamDeserializer1 = bodySerDe.inputStreamDeserializer(
+                ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs());
+        Deserializer<InputStream> inputStreamDeserializer2 = bodySerDe.inputStreamDeserializer(
+                ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs());
 
         // Then
         assertThat(inputStreamDeserializer1).isSameAs(inputStreamDeserializer2);
 
         // When
         Deserializer<Optional<InputStream>> optionalInputStreamDeserializer1 =
-                bodySerDe.optionalInputStreamDeserializer(createOptionalInputStreamDeserializerArgs());
+                bodySerDe.optionalInputStreamDeserializer(
+                        ExceptionDeserializationTestUtils.createOptionalInputStreamDeserializerArgs());
         Deserializer<Optional<InputStream>> optionalInputStreamDeserializer2 =
-                bodySerDe.optionalInputStreamDeserializer(createOptionalInputStreamDeserializerArgs());
+                bodySerDe.optionalInputStreamDeserializer(
+                        ExceptionDeserializationTestUtils.createOptionalInputStreamDeserializerArgs());
 
         // Then
         assertThat(optionalInputStreamDeserializer1).isSameAs(optionalInputStreamDeserializer2);
 
         // When
-        Deserializer<Void> voidDeserializer1 = bodySerDe.emptyBodyDeserializer(createVoidDeserializerArgs());
-        Deserializer<Void> voidDeserializer2 = bodySerDe.emptyBodyDeserializer(createVoidDeserializerArgs());
+        Deserializer<Void> voidDeserializer1 =
+                bodySerDe.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs());
+        Deserializer<Void> voidDeserializer2 =
+                bodySerDe.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs());
 
         // Then
         assertThat(voidDeserializer1).isSameAs(voidDeserializer2);
 
         // When
-        Deserializer<String> stringDeserializer1 = bodySerDe.deserializer(createStringDeserializerArgs());
-        Deserializer<String> stringDeserializer2 = bodySerDe.deserializer(createStringDeserializerArgs());
+        Deserializer<String> stringDeserializer1 =
+                bodySerDe.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
+        Deserializer<String> stringDeserializer2 =
+                bodySerDe.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
 
         // Then
         assertThat(stringDeserializer1).isSameAs(stringDeserializer2);
-    }
-
-    private static ExceptionDeserializerArgs<InputStream> createInputStreamDeserializerArgs() {
-        return ExceptionDeserializerArgs.<InputStream>builder()
-                .returnType(new TypeMarker<>() {})
-                .exception(
-                        TEST_ERROR_TYPE.name(),
-                        new TypeMarker<TestErrorSerializableError>() {},
-                        new TypeMarker<TestErrorException>() {})
-                .build();
-    }
-
-    private static ExceptionDeserializerArgs<Optional<InputStream>> createOptionalInputStreamDeserializerArgs() {
-        return ExceptionDeserializerArgs.<Optional<InputStream>>builder()
-                .returnType(new TypeMarker<>() {})
-                .exception(
-                        TEST_ERROR_TYPE.name(),
-                        new TypeMarker<TestErrorSerializableError>() {},
-                        new TypeMarker<TestErrorException>() {})
-                .build();
-    }
-
-    private static ExceptionDeserializerArgs<Void> createVoidDeserializerArgs() {
-        return ExceptionDeserializerArgs.<Void>builder()
-                .returnType(new TypeMarker<>() {})
-                .exception(
-                        TEST_ERROR_TYPE.name(),
-                        new TypeMarker<TestErrorSerializableError>() {},
-                        new TypeMarker<TestErrorException>() {})
-                .build();
-    }
-
-    private static ExceptionDeserializerArgs<String> createStringDeserializerArgs() {
-        return ExceptionDeserializerArgs.<String>builder()
-                .returnType(new TypeMarker<>() {})
-                .exception(
-                        TEST_ERROR_TYPE.name(),
-                        new TypeMarker<TestErrorSerializableError>() {},
-                        new TypeMarker<TestErrorException>() {})
-                .build();
-    }
-
-    private static void assertRemoteExceptionIsTestErrorException(RemoteException exp, String expectedErrorInstanceId) {
-        assertThat(exp).isInstanceOfSatisfying(TestErrorException.class, exception -> {
-            TestErrorSerializableError error = exception.error();
-            assertThat(error.errorCode()).isEqualTo(TEST_ERROR_TYPE.code().name());
-            assertThat(error.errorName()).isEqualTo(TEST_ERROR_TYPE.name());
-            assertThat(error.errorInstanceId()).isEqualTo(expectedErrorInstanceId);
-            assertThat(error.parameters().stringArg()).isEqualTo("foo");
-            assertThat(error.parameters().complexArg().foo()).isEqualTo(1);
-            assertThat(error.parameters().complexArg().bar()).isEqualTo("bar");
-        });
     }
 
     private static byte[] readAllBytesUnchecked(Supplier<InputStream> stream) {
