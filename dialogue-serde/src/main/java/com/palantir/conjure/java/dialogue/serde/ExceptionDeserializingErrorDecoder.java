@@ -53,6 +53,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -222,9 +223,11 @@ final class ExceptionDeserializingErrorDecoder {
         response.getFirstHeader(header).ifPresent(server -> args.add(SafeArg.of(header, server)));
     }
 
-    private static final class ResponseDiagnostic extends RuntimeException implements SafeLoggable {
+    @VisibleForTesting
+    static final class ResponseDiagnostic extends RuntimeException implements SafeLoggable {
 
-        private static final String SAFE_MESSAGE = "Response Diagnostic Information";
+        @VisibleForTesting
+        static final String SAFE_MESSAGE = "Response Diagnostic Information";
 
         private final ImmutableList<Arg<?>> args;
 

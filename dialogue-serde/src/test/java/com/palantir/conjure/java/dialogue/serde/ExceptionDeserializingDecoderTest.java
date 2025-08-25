@@ -108,7 +108,7 @@ final class ExceptionDeserializingDecoderTest {
             assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
             assertThat(serializableError.parameters().get("complexArg")).isEqualTo("ComplexArg[foo=1, bar=bar]");
             assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
-                    .startsWith("Response Diagnostic Information:"));
+                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
         }
     }
 
@@ -159,7 +159,7 @@ final class ExceptionDeserializingDecoderTest {
             assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
             assertThat(serializableError.parameters().get("complexArg")).isEqualTo("{\"foo\":1,\"bar\":\"bar\"}");
             assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
-                    .startsWith("Response Diagnostic Information:"));
+                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
         }
     }
 
@@ -192,7 +192,7 @@ final class ExceptionDeserializingDecoderTest {
             ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
                     e, expectedError.getErrorInstanceId());
             assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
-                    .startsWith("Response Diagnostic Information:"));
+                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
         }
     }
 
@@ -236,7 +236,7 @@ final class ExceptionDeserializingDecoderTest {
             ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
                     e, expectedError.getErrorInstanceId());
             assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
-                    .startsWith("Response Diagnostic Information:"));
+                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
         }
     }
 
@@ -303,7 +303,7 @@ final class ExceptionDeserializingDecoderTest {
             ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
                     e, expectedError.getErrorInstanceId());
             assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
-                    .startsWith("Response Diagnostic Information:"));
+                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
         }
     }
 
