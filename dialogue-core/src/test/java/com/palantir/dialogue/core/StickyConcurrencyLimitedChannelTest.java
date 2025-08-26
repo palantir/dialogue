@@ -131,14 +131,14 @@ public final class StickyConcurrencyLimitedChannelTest {
 
     @Test
     public void acquire_fails() {
-        when(mockLimiter.acquire(any())).thenReturn(Optional.empty());
+        when(mockLimiter.acquire(any())).thenReturn(null);
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DANGEROUS_BYPASS_LIMITS))
                 .isEmpty();
         verifyNoInteractions(permit, delegate);
     }
 
     private void whenAcquireSuccessful() {
-        when(mockLimiter.acquire(any())).thenReturn(Optional.of(permit));
+        when(mockLimiter.acquire(any())).thenReturn(permit);
     }
 
     private void whenOnlyInFlight(boolean onlyInFlight) {

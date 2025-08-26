@@ -38,7 +38,6 @@ import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,14 +63,12 @@ public class ConcurrencyLimitedChannelTest {
     @Spy
     private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit hostPermit =
             new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL)
-                    .acquire(LimitEnforcement.DEFAULT_ENABLED)
-                    .get();
+                    .acquire(LimitEnforcement.DEFAULT_ENABLED);
 
     @Spy
     private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit endpointPermit =
             new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL)
-                    .acquire(LimitEnforcement.DEFAULT_ENABLED)
-                    .get();
+                    .acquire(LimitEnforcement.DEFAULT_ENABLED);
 
     @Mock
     private Response response;
@@ -264,19 +261,19 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     private void mockHostLimitAvailable() {
-        when(mockLimiter.acquire(any())).thenReturn(Optional.of(hostPermit));
+        when(mockLimiter.acquire(any())).thenReturn(hostPermit);
     }
 
     private void mockHostLimitUnavailable() {
-        when(mockLimiter.acquire(any())).thenReturn(Optional.empty());
+        when(mockLimiter.acquire(any())).thenReturn(null);
     }
 
     private void mockEndpointLimitAvailable() {
-        when(mockLimiter.acquire(any())).thenReturn(Optional.of(endpointPermit));
+        when(mockLimiter.acquire(any())).thenReturn(endpointPermit);
     }
 
     private void mockEndpointLimitUnavailable() {
-        when(mockLimiter.acquire(any())).thenReturn(Optional.empty());
+        when(mockLimiter.acquire(any())).thenReturn(null);
     }
 
     @SuppressWarnings("unchecked")
