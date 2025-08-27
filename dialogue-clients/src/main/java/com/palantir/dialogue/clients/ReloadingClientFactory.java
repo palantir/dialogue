@@ -104,6 +104,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 dnsResult.resolvedHosts(),
                                 params.taggedMetrics())))
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
+                .deadlineEnforcement(params.deadlineEnforcement().orElse(false))
                 .build();
     }
 
@@ -390,6 +391,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public ReloadingFactory withDnsNodeDiscovery(boolean dnsNodeDiscovery) {
         return new ReloadingClientFactory(params.withDnsNodeDiscovery(dnsNodeDiscovery), cache);
+    }
+
+    @Override
+    public ReloadingFactory withDeadlineEnforcement(boolean deadlineEnforcementEnabled) {
+        return new ReloadingClientFactory(params.withDeadlineEnforcement(deadlineEnforcementEnabled), cache);
     }
 
     @Override

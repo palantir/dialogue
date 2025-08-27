@@ -141,6 +141,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        public Builder deadlineEnforcement(boolean enforcementEnabled) {
+            builder.deadlineEnforcementEnabled(enforcementEnabled);
+            return this;
+        }
+
         @VisibleForTesting
         Builder random(Random value) {
             builder.random(value);
@@ -243,7 +248,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
                 channel = new DeadlineAdvertisementChannel(
-                        channel, cf.clientConf().readTimeout());
+                        channel, cf.clientConf().readTimeout(), cf.deadlineEnforcementEnabled());
 
                 ChannelState channelState = state.get(targetUri);
                 Preconditions.checkNotNull(channelState, "no ChannelState exists for this TargetUri");

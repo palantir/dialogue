@@ -30,9 +30,11 @@ final class DeadlineAdvertisementChannel implements Channel {
 
     private final Channel delegate;
     private final Duration readTimeout;
+    private final boolean enforcementEnabled;
 
-    DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout) {
+    DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, boolean enforcementEnabled) {
         this.delegate = delegate;
+        this.enforcementEnabled = enforcementEnabled;
         // a readTimeout of zero effectively means "no timeout", but we don't want to put 0 on the wire,
         // so set a very large value instead
         // this matches the behavior in ApacheHttpClientChannels
