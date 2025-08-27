@@ -25,14 +25,15 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
+import java.util.Optional;
 
 final class DeadlineAdvertisementChannel implements Channel {
 
     private final Channel delegate;
     private final Duration readTimeout;
-    private final boolean enforcementEnabled;
+    private final Optional<Boolean> enforcementEnabled;
 
-    DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, boolean enforcementEnabled) {
+    DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, Optional<Boolean> enforcementEnabled) {
         this.delegate = delegate;
         this.enforcementEnabled = enforcementEnabled;
         // a readTimeout of zero effectively means "no timeout", but we don't want to put 0 on the wire,
@@ -46,10 +47,12 @@ final class DeadlineAdvertisementChannel implements Channel {
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Request.Builder requestBuilder = Request.builder().from(request);
-        try {
-            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE);
-        } catch (DeadlineExpiredException e) {
-            return Futures.immediateFailedFuture(e);
+        if (enforcementEnabled.isPresent()) {
+            try {
+                Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE);
+            } catch (DeadlineExpiredException e) {
+                return Futures.immediateFailedFuture(e);
+            }
         }
         return delegate.execute(endpoint, requestBuilder.build());
     }

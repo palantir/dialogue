@@ -141,7 +141,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
-        public Builder deadlineEnforcement(boolean enforcementEnabled) {
+        public Builder deadlineEnforcement(Optional<Boolean> enforcementEnabled) {
             builder.deadlineEnforcementEnabled(enforcementEnabled);
             return this;
         }
