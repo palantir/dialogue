@@ -41,6 +41,7 @@ import com.palantir.refreshable.Refreshable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -105,8 +106,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         /**
-         * Exists for backcompat, prefer {@link #uris( Refreshable)}.
-         * @deprecated prefer {@link #uris( Refreshable)}.
+         * Exists for backcompat, prefer {@link #uris(Refreshable)}.
+         *
+         * @deprecated prefer {@link #uris(Refreshable)}.
          */
         @Deprecated
         public Builder uris(List<TargetUri> value) {
@@ -120,6 +122,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
         /**
          * Please use {@link #factory(DialogueChannelFactory)}.
+         *
          * @deprecated prefer {@link #factory(DialogueChannelFactory)}
          */
         @Deprecated

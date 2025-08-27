@@ -160,8 +160,7 @@ class DeadlineAdvertisementChannelTest {
             return Futures.immediateCancelledFuture();
         };
         Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.empty());
-        assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
-                .isCancelled();
+        assertThat(channel.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
 
         assertThat(requests).singleElement().satisfies(request -> {
             assertThat(request.headerParams()).doesNotContainKey("Expect-Within");
