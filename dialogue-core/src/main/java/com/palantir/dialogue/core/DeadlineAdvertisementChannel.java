@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.Deadlines;
+import com.palantir.deadlines.DeadlinesHttpHeaders;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -47,12 +48,17 @@ final class DeadlineAdvertisementChannel implements Channel {
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Request.Builder requestBuilder = Request.builder().from(request);
-        if (enforcementEnabled.isPresent()) {
-            try {
-                Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE);
-            } catch (DeadlineExpiredException e) {
-                return Futures.immediateFailedFuture(e);
+        try {
+            // TODO(blaub) ideally this should be pushed down into deadlines-java
+            if (enforcementEnabled.isPresent()) {
+                RequestBuilderEncodingAdapter.INSTANCE.setHeader(
+                        requestBuilder,
+                        DeadlinesHttpHeaders.EXPECT_WITHIN_ENFORCED,
+                        enforcementEnabled.get() ? "true" : "false");
             }
+            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE);
+        } catch (DeadlineExpiredException e) {
+            return Futures.immediateFailedFuture(e);
         }
         return delegate.execute(endpoint, requestBuilder.build());
     }
