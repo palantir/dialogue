@@ -104,7 +104,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 dnsResult.resolvedHosts(),
                                 params.taggedMetrics())))
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
-                .deadlineEnforcement(params.deadlineEnforcement().orElse(false))
+                .deadlineEnforcement(params.deadlineEnforcement())
                 .build();
     }
 

@@ -183,7 +183,7 @@ final class ChannelCache {
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
                         .findAny())
-                .deadlineEnforcement(channelCacheRequest.deadlineEnforcement().orElse(false))
+                .deadlineEnforcement(channelCacheRequest.deadlineEnforcement())
                 .build();
     }
 

@@ -48,7 +48,7 @@ class DeadlineAdvertisementChannelTest {
                 requests.add(request);
                 return Futures.immediateCancelledFuture();
             };
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, false);
+            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(false));
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
                     .isCancelled();
 
@@ -80,7 +80,7 @@ class DeadlineAdvertisementChannelTest {
                     Request.builder().putHeaderParams("Expect-Within", "1").build();
             Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE);
 
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, false);
+            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(false));
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
                     .isCancelled();
 
@@ -107,7 +107,7 @@ class DeadlineAdvertisementChannelTest {
                 requests.add(request);
                 return Futures.immediateCancelledFuture();
             };
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, false);
+            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(false));
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
                     .isCancelled();
 
@@ -138,7 +138,7 @@ class DeadlineAdvertisementChannelTest {
                     Request.builder().putHeaderParams("Expect-Within", "0").build();
             Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
 
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, false);
+            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(false));
             ListenableFuture<Response> response =
                     channel.execute(TestEndpoint.GET, Request.builder().build());
             assertThat(response).isDone();
@@ -147,6 +147,24 @@ class DeadlineAdvertisementChannelTest {
                     .withCauseInstanceOf(DeadlineExpiredException.class);
             assertThat(requests).isEmpty();
         }
+    }
+
+    @Test
+    void omits_deadline_header_when_enforcement_is_absent() {
+        Duration readTimeout = Duration.ofMinutes(1);
+
+        List<Request> requests = new ArrayList<>();
+        Channel delegate = (_endpoint, request) -> {
+            requests.add(request);
+            return Futures.immediateCancelledFuture();
+        };
+        Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.empty());
+        assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
+                .isCancelled();
+
+        assertThat(requests).singleElement().satisfies(request -> {
+            assertThat(request.headerParams()).doesNotContainKey("Expect-Within");
+        });
     }
 
     private enum Decoder implements RequestDecodingAdapter<Request> {
