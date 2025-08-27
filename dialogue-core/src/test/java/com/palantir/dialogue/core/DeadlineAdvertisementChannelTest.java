@@ -48,7 +48,7 @@ class DeadlineAdvertisementChannelTest {
                 requests.add(request);
                 return Futures.immediateCancelledFuture();
             };
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout);
+            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, false);
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
                     .isCancelled();
 
@@ -81,7 +81,7 @@ class DeadlineAdvertisementChannelTest {
                     Request.builder().putHeaderParams("Expect-Within", "1").build();
             Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE);
 
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout);
+            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, false);
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
                     .isCancelled();
 
@@ -108,7 +108,7 @@ class DeadlineAdvertisementChannelTest {
                 requests.add(request);
                 return Futures.immediateCancelledFuture();
             };
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout);
+            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, false);
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
                     .isCancelled();
 
@@ -139,7 +139,7 @@ class DeadlineAdvertisementChannelTest {
                     Request.builder().putHeaderParams("Expect-Within", "0").build();
             Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
 
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout);
+            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, false);
             ListenableFuture<Response> response =
                     channel.execute(TestEndpoint.GET, Request.builder().build());
             assertThat(response).isDone();
