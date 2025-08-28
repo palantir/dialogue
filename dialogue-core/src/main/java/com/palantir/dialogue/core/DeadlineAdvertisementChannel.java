@@ -49,6 +49,7 @@ final class DeadlineAdvertisementChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Request.Builder requestBuilder = Request.builder().from(request);
         try {
+            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE);
             // TODO(blaub) ideally this should be pushed down into deadlines-java
             if (enforcementEnabled.isPresent()) {
                 RequestBuilderEncodingAdapter.INSTANCE.setHeader(
@@ -56,7 +57,6 @@ final class DeadlineAdvertisementChannel implements Channel {
                         DeadlinesHttpHeaders.EXPECT_WITHIN_ENFORCED,
                         enforcementEnabled.get() ? "true" : "false");
             }
-            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE);
         } catch (DeadlineExpiredException e) {
             return Futures.immediateFailedFuture(e);
         }

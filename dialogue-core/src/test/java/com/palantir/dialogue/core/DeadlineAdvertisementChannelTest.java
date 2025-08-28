@@ -162,7 +162,46 @@ class DeadlineAdvertisementChannelTest {
         assertThat(channel.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
 
         assertThat(requests).singleElement().satisfies(request -> {
-            assertThat(request.headerParams().keys()).doesNotContain("Expect-Within-Enforced");
+            assertThat(request.headerParams().get("Expect-Within")).containsExactly("60.000");
+            assertThat(request.headerParams().keySet()).doesNotContain("Expect-Within-Enforced");
+        });
+    }
+
+    @Test
+    void adds_enforcement_header_when_enabled() {
+        Duration readTimeout = Duration.ofMinutes(1);
+
+        List<Request> requests = new ArrayList<>();
+        Channel delegate = (_endpoint, request) -> {
+            requests.add(request);
+            return Futures.immediateCancelledFuture();
+        };
+        Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(true));
+        assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
+                .isCancelled();
+
+        assertThat(requests).singleElement().satisfies(request -> {
+            assertThat(request.headerParams().get("Expect-Within")).containsExactly("60.000");
+            assertThat(request.headerParams().get("Expect-Within-Enforced")).containsExactly("true");
+        });
+    }
+
+    @Test
+    void adds_enforcement_header_when_disabled() {
+        Duration readTimeout = Duration.ofMinutes(1);
+
+        List<Request> requests = new ArrayList<>();
+        Channel delegate = (_endpoint, request) -> {
+            requests.add(request);
+            return Futures.immediateCancelledFuture();
+        };
+        Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(false));
+        assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
+                .isCancelled();
+
+        assertThat(requests).singleElement().satisfies(request -> {
+            assertThat(request.headerParams().get("Expect-Within")).containsExactly("60.000");
+            assertThat(request.headerParams().get("Expect-Within-Enforced")).containsExactly("false");
         });
     }
 
