@@ -96,7 +96,7 @@ com.palantir.tritium:tritium-registry:0.104.0 (6 constraints: e565f144)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
-io.dropwizard.metrics:metrics-core:4.2.34 (6 constraints: 9a61a2a7)
+io.dropwizard.metrics:metrics-core:4.2.35 (6 constraints: 9b61a7a8)
 
 javax.annotation:javax.annotation-api:1.3.2 (1 constraints: 0805fb35)
 
