@@ -163,7 +163,7 @@ class DeadlineAdvertisementChannelTest {
         assertThat(channel.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
 
         assertThat(requests).singleElement().satisfies(request -> {
-            assertThat(request.headerParams()).doesNotContainKey("Expect-Within");
+            assertThat(request.headerParams().keys()).doesNotContain("Expect-Within-Enforced");
         });
     }
 
