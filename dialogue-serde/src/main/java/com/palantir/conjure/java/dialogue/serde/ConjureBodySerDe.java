@@ -80,18 +80,14 @@ final class ConjureBodySerDe implements BodySerDe {
         this.encodingsSortedByWeight = sortByWeight(encodings);
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
         this.defaultEncoding = encodings.get(0).encoding();
-        this.binaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
-                ImmutableList.of(BinaryEncoding.INSTANCE),
-                new ExceptionDeserializingErrorDecoder(Collections.emptyMap()),
+        this.binaryInputStreamDeserializer = deserializerFor(
+                DeserializerType.STANDARD, emptyContainerDeserializer, BinaryEncoding.MARKER, Collections.emptyMap());
+        this.optionalBinaryInputStreamDeserializer = deserializerFor(
+                DeserializerType.STANDARD,
                 emptyContainerDeserializer,
-                BinaryEncoding.MARKER);
-        this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
-                ImmutableList.of(BinaryEncoding.INSTANCE),
-                new ExceptionDeserializingErrorDecoder(Collections.emptyMap()),
-                emptyContainerDeserializer,
-                BinaryEncoding.OPTIONAL_MARKER);
-        this.emptyBodyDeserializer =
-                new EmptyBodyDeserializer(new ExceptionDeserializingErrorDecoder(Collections.emptyMap()));
+                BinaryEncoding.OPTIONAL_MARKER,
+                Collections.emptyMap());
+        this.emptyBodyDeserializer = new EmptyBodyDeserializer(ExceptionDeserializingErrorDecoder.withoutExceptions());
         // Class unloading: Not supported, Jackson keeps strong references to the types
         // it sees: https://github.com/FasterXML/jackson-databind/issues/489
         this.serializers = Caffeine.from(cacheSpec)
@@ -119,7 +115,7 @@ final class ConjureBodySerDe implements BodySerDe {
             DeserializerType type,
             EmptyContainerDeserializer emptyContainerDeserializer,
             TypeMarker<T> returnType,
-            Map<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers) {
+            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers) {
         ExceptionDeserializingErrorDecoder errorDecoder =
                 new ExceptionDeserializingErrorDecoder(errorNameToExceptionTypeMarkers);
         return switch (type) {

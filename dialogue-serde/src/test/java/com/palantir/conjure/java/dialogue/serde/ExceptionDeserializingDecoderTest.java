@@ -124,7 +124,6 @@ final class ExceptionDeserializingDecoderTest {
                 ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(expectedError));
 
         // The server is sending the JSON representation of ComplexArg over the wire.
-
         String expectedJsonComplexArg = """
             "complexArg":{"foo":1,"bar":"bar"}
         """.strip();
@@ -143,9 +142,8 @@ final class ExceptionDeserializingDecoderTest {
         try {
             bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
         } catch (RemoteException e) {
-            // Deserialization should have failed because `ComplexArg[foo=1, bar=bar]` is not a valid JSON
-            // representation of a ComplexArg. We should not throw a TestErrorException here, but rather fallback to
-            // throwing a RemoteException.
+            // Deserialization should have failed because the deserializer does not know about TestErrorException. We
+            // should not throw a TestErrorException here, but rather fallback to throwing a RemoteException.
             assertThat(e).isNotInstanceOf(TestErrorException.class);
 
             SerializableError serializableError = e.getError();

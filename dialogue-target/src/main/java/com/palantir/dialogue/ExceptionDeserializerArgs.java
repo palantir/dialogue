@@ -33,10 +33,10 @@ import org.jspecify.annotations.Nullable;
  */
 public final class ExceptionDeserializerArgs<T> {
     private final TypeMarker<T> returnType;
-    private final ImmutableMap<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers;
+    private final ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers;
 
     private ExceptionDeserializerArgs(
-            TypeMarker<T> returnType, ImmutableMap<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers) {
+            TypeMarker<T> returnType, ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers) {
         this.returnType = returnType;
         this.errorNameToExceptionTypeMarkers = errorNameToExceptionTypeMarkers;
     }
@@ -77,7 +77,7 @@ public final class ExceptionDeserializerArgs<T> {
     public static final class Builder<T> {
         private boolean buildInvoked = false;
         private @Nullable TypeMarker<T> returnType;
-        private final ImmutableMap.Builder<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers;
+        private final ImmutableMap.Builder<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers;
 
         private Builder() {
             this.errorNameToExceptionTypeMarkers = ImmutableMap.builder();
@@ -111,7 +111,7 @@ public final class ExceptionDeserializerArgs<T> {
             checkNotBuilt();
             Preconditions.checkNotNull(returnType, "base type must be set");
             buildInvoked = true;
-            return new ExceptionDeserializerArgs<>(returnType, errorNameToExceptionTypeMarkers.buildKeepingLast());
+            return new ExceptionDeserializerArgs<>(returnType, errorNameToExceptionTypeMarkers.buildOrThrow());
         }
 
         private void checkNotBuilt() {
@@ -123,10 +123,11 @@ public final class ExceptionDeserializerArgs<T> {
         return returnType;
     }
 
-    public ImmutableMap<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMarkers() {
+    public ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers() {
         return errorNameToExceptionTypeMarkers;
     }
 
-    public record ErrorExceptionPair<U extends AbstractSerializableError<?>>(
-            TypeMarker<U> errorType, TypeMarker<? extends RemoteException> exceptionType) {}
+    public record ErrorExceptionPair<U extends AbstractSerializableError<?>, V extends RemoteException>(
+            TypeMarker<U> errorType, TypeMarker<V> exceptionType) {
+    }
 }

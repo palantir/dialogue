@@ -45,11 +45,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Type;
+import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,14 +75,18 @@ final class ExceptionDeserializingErrorDecoder {
             JSON_ENCODING.deserializer(new TypeMarker<>() {});
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(new TypeMarker<>() {});
-    private final Map<String, DeserializerExceptionPair<?>> errorNameToExceptionDeserializerMap;
+    private final Map<String, DeserializerExceptionPair<?, ?>> errorNameToExceptionDeserializerMap;
 
-    ExceptionDeserializingErrorDecoder(Map<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMap) {
+    static ExceptionDeserializingErrorDecoder withoutExceptions() {
+        return new ExceptionDeserializingErrorDecoder(Collections.emptyMap());
+    }
+
+    ExceptionDeserializingErrorDecoder(Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap) {
         this(errorNameToExceptionTypeMap, Optional.empty());
     }
 
     ExceptionDeserializingErrorDecoder(
-            Map<String, ErrorExceptionPair<?>> errorNameToExceptionTypeMap, Optional<Encoding> maybeJsonEncoding) {
+            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap, Optional<Encoding> maybeJsonEncoding) {
         this.errorNameToExceptionDeserializerMap = ImmutableMap.copyOf(Maps.transformValues(
                 errorNameToExceptionTypeMap,
                 errorExceptionPair ->
@@ -101,7 +106,8 @@ final class ExceptionDeserializingErrorDecoder {
         return result;
     }
 
-    Optional<RuntimeException> checkCode(Response response) {
+    private RuntimeException decodeInternal(Response response) {
+        // Check if the response code indicates an error, and if so, handle it accordingly.
         int code = response.code();
         switch (code) {
             case 308 -> {
@@ -112,7 +118,7 @@ final class ExceptionDeserializingErrorDecoder {
                         UnknownRemoteException remoteException = new UnknownRemoteException(code, "");
                         remoteException.initCause(
                                 QosException.retryOther(qosReason(response), new URL(locationHeader)));
-                        return Optional.of(remoteException);
+                        return remoteException;
                     } catch (MalformedURLException e) {
                         log.error(
                                 "Failed to parse location header for QosException.RetryOther",
@@ -125,26 +131,17 @@ final class ExceptionDeserializingErrorDecoder {
                 }
             }
             case 429 -> {
-                return Optional.of(response.getFirstHeader(HttpHeaders.RETRY_AFTER)
+                return response.getFirstHeader(HttpHeaders.RETRY_AFTER)
                         .map(Longs::tryParse)
                         .map(Duration::ofSeconds)
                         .map(duration -> QosException.throttle(qosReason(response), duration))
-                        .orElseGet(() -> QosException.throttle(qosReason(response))));
+                        .orElseGet(() -> QosException.throttle(qosReason(response)));
             }
             case 503 -> {
-                return Optional.of(QosException.unavailable(qosReason(response)));
+                return QosException.unavailable(qosReason(response));
             }
         }
-        return Optional.empty();
-    }
 
-    private RuntimeException decodeInternal(Response response) {
-        // Check if the response code indicates an error, and if so, handle it accordingly.
-        Optional<RuntimeException> maybeException = checkCode(response);
-        if (maybeException.isPresent()) {
-            return maybeException.get();
-        }
-        int code = response.code();
         byte[] body;
         try (InputStream bodyStream = response.body()) {
             body = bodyStream.readAllBytes();
@@ -164,29 +161,23 @@ final class ExceptionDeserializingErrorDecoder {
             if (errorName == null) {
                 return createRemoteException(body, code);
             }
-            DeserializerExceptionPair<?> deserializerExceptionPair = errorNameToExceptionDeserializerMap.get(errorName);
+            DeserializerExceptionPair<?, ?> deserializerExceptionPair =
+                    errorNameToExceptionDeserializerMap.get(errorName);
             if (deserializerExceptionPair == null) {
                 return createRemoteException(body, code);
             }
             // Attempt to deserialize the error using the deserializer for the specific exception type.
             try {
+                // The concrete error type is a subtype of AbstractSerializableError<?> at runtime.
+                // AbstractSerializableError is an abstract class.
                 AbstractSerializableError<?> error =
                         deserializerExceptionPair.deserializer().deserialize(new ByteArrayInputStream(body));
-                Type exceptionType = deserializerExceptionPair.exceptionType().getType();
-                @SuppressWarnings("unchecked")
-                Class<? extends RemoteException> exceptionClass =
-                        (Class<? extends RemoteException>) Class.forName(exceptionType.getTypeName());
-                Constructor<? extends RemoteException> exceptionConstructor =
-                        exceptionClass.getConstructor(error.getClass(), int.class);
-                return exceptionConstructor.newInstance(error, code);
+                return deserializerExceptionPair.getExceptionFromSerializableError(error, code);
             } catch (Exception e) {
                 // If we're unable to deserialize the error as JSON, throw a RemoteException.
                 log.error("Failed to deserialize error response as exception", SafeArg.of("errorName", errorName), e);
                 return createRemoteException(body, code);
             }
-        } catch (RemoteException remoteException) {
-            // rethrow the created remote exception
-            return remoteException;
         } catch (Exception e) {
             UnknownRemoteException unknownRemoteException =
                     new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
@@ -282,12 +273,24 @@ final class ExceptionDeserializingErrorDecoder {
 
     record NamedError(@JsonProperty("errorName") String errorName) {}
 
-    private record DeserializerExceptionPair<U extends AbstractSerializableError<?>>(
-            Encoding.Deserializer<U> deserializer, TypeMarker<? extends RemoteException> exceptionType) {}
+    private record DeserializerExceptionPair<U extends AbstractSerializableError<?>, V extends RemoteException>(
+            Encoding.Deserializer<U> deserializer, TypeMarker<V> exceptionType) {
+        @SuppressWarnings("unchecked")
+        public V getExceptionFromSerializableError(AbstractSerializableError<?> error, int code)
+                throws InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchMethodException,
+                        ClassNotFoundException {
+            Class<? extends RemoteException> exceptionClass = (Class<? extends RemoteException>)
+                    Class.forName(exceptionType.getType().getTypeName());
+            Constructor<? extends RemoteException> exceptionConstructor =
+                    exceptionClass.getConstructor(error.getClass(), int.class);
+            return (V) exceptionConstructor.newInstance(error, code);
+        }
+    }
 
     // Purely to provide Java type inference information.
-    private static <U extends AbstractSerializableError<?>> DeserializerExceptionPair<U> createDeserializerForException(
-            Encoding encoding, ErrorExceptionPair<U> pair) {
+    private static <U extends AbstractSerializableError<?>, V extends RemoteException>
+            DeserializerExceptionPair<U, V> createDeserializerForException(
+                    Encoding encoding, ErrorExceptionPair<U, V> pair) {
         return new DeserializerExceptionPair<>(encoding.deserializer(pair.errorType()), pair.exceptionType());
     }
 }
