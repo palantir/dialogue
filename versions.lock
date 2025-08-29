@@ -104,9 +104,9 @@ joda-time:joda-time:2.12.7 (1 constraints: 2f16b1f1)
 
 org.apache.httpcomponents.client5:httpclient5:5.3.1 (1 constraints: 0b050e36)
 
-org.apache.httpcomponents.core5:httpcore5:5.3.4 (3 constraints: a62aeeaa)
+org.apache.httpcomponents.core5:httpcore5:5.3.5 (3 constraints: a82a5bab)
 
-org.apache.httpcomponents.core5:httpcore5-h2:5.3.4 (1 constraints: 3f130d3c)
+org.apache.httpcomponents.core5:httpcore5-h2:5.3.5 (1 constraints: 3f130d3c)
 
 org.checkerframework:checker-qual:3.26.0 (3 constraints: 582dfd19)
 
