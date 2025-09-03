@@ -48,7 +48,7 @@ class DeadlineAdvertisementChannelTest {
                 requests.add(request);
                 return Futures.immediateCancelledFuture();
             };
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(false));
+            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
                     .isCancelled();
 
@@ -80,7 +80,7 @@ class DeadlineAdvertisementChannelTest {
                     Request.builder().putHeaderParams("Expect-Within", "1").build();
             Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE);
 
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(false));
+            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
                     .isCancelled();
 
@@ -107,7 +107,7 @@ class DeadlineAdvertisementChannelTest {
                 requests.add(request);
                 return Futures.immediateCancelledFuture();
             };
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(false));
+            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
                     .isCancelled();
 
@@ -136,9 +136,13 @@ class DeadlineAdvertisementChannelTest {
 
             Request inboundRequest =
                     Request.builder().putHeaderParams("Expect-Within", "0").build();
+            // TODO(blaub): this is bad... when the parsed state says ENFORCE, but the channel for outbound requests
+            // from this client is constructed with DISABLE, which one do we respect? i think it should be DISABLE
+            // but this will require changes to the deadlines library and the API for encodeToRequest()
             Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
 
-            Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(false));
+            // TODO(blaub): wat? enforcement??
+            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, false);
             ListenableFuture<Response> response =
                     channel.execute(TestEndpoint.GET, Request.builder().build());
             assertThat(response).isDone();
@@ -158,7 +162,7 @@ class DeadlineAdvertisementChannelTest {
             requests.add(request);
             return Futures.immediateCancelledFuture();
         };
-        Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.empty());
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
         assertThat(channel.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
 
         assertThat(requests).singleElement().satisfies(request -> {
@@ -176,9 +180,8 @@ class DeadlineAdvertisementChannelTest {
             requests.add(request);
             return Futures.immediateCancelledFuture();
         };
-        Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(true));
-        assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
-                .isCancelled();
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, true);
+        assertThat(channel.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
 
         assertThat(requests).singleElement().satisfies(request -> {
             assertThat(request.headerParams().get("Expect-Within")).containsExactly("60.000");
@@ -195,9 +198,8 @@ class DeadlineAdvertisementChannelTest {
             requests.add(request);
             return Futures.immediateCancelledFuture();
         };
-        Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout, Optional.of(false));
-        assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
-                .isCancelled();
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, false);
+        assertThat(channel.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
 
         assertThat(requests).singleElement().satisfies(request -> {
             assertThat(request.headerParams().get("Expect-Within")).containsExactly("60.000");

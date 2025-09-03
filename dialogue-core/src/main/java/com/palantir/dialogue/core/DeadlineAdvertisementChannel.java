@@ -26,23 +26,30 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
-import java.util.Optional;
 
 final class DeadlineAdvertisementChannel implements Channel {
 
     private final Channel delegate;
     private final Duration readTimeout;
-    private final Optional<Boolean> enforcementEnabled;
+    private final Deadlines.Enforcement enforcement;
 
-    DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, Optional<Boolean> enforcementEnabled) {
+    static DeadlineAdvertisementChannel create(Channel delegate, Duration readTimeout) {
+        return new DeadlineAdvertisementChannel(delegate, readTimeout, Deadlines.Enforcement.DEFER);
+    }
+
+    static DeadlineAdvertisementChannel create(Channel delegate, Duration readTimeout, boolean enforcementEnabled) {
+        return new DeadlineAdvertisementChannel(delegate, readTimeout, enforcementEnabled ? Deadlines.Enforcement.ENFORCE : Deadlines.Enforcement.DISABLE);
+    }
+
+    private DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, Deadlines.Enforcement enforcement) {
         this.delegate = delegate;
-        this.enforcementEnabled = enforcementEnabled;
         // a readTimeout of zero effectively means "no timeout", but we don't want to put 0 on the wire,
         // so set a very large value instead
         // this matches the behavior in ApacheHttpClientChannels
         // see:
         // https://github.com/palantir/dialogue/blob/develop/dialogue-apache-hc5-client/src/main/java/com/palantir/dialogue/hc5/ApacheHttpClientChannels.java#L641-L648
         this.readTimeout = readTimeout.isNegative() || readTimeout.isZero() ? Duration.ofDays(1) : readTimeout;
+        this.enforcement = enforcement;
     }
 
     @Override
@@ -51,11 +58,13 @@ final class DeadlineAdvertisementChannel implements Channel {
         try {
             Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE);
             // TODO(blaub) ideally this should be pushed down into deadlines-java
-            if (enforcementEnabled.isPresent()) {
-                RequestBuilderEncodingAdapter.INSTANCE.setHeader(
+            switch (enforcement) {
+                case ENFORCE, DISABLE -> RequestBuilderEncodingAdapter.INSTANCE.setHeader(
                         requestBuilder,
                         DeadlinesHttpHeaders.EXPECT_WITHIN_ENFORCED,
-                        enforcementEnabled.get() ? "true" : "false");
+                        enforcement == Deadlines.Enforcement.ENFORCE ? "true" : "false");
+                default -> {
+                }
             }
         } catch (DeadlineExpiredException e) {
             return Futures.immediateFailedFuture(e);
