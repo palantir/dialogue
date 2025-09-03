@@ -88,7 +88,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
     public static final class Builder {
         private final ImmutableConfig.Builder builder = ImmutableConfig.builder();
 
-        private Builder() {}
+        private Builder() {
+        }
 
         /**
          * {@link Safe} loggable name to identify this channel for instrumentation and debugging. While this value
@@ -250,8 +251,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = HostMetricsChannel.create(cf, channel, targetUri.uri());
                 channel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
-                channel = new DeadlineAdvertisementChannel(
-                        channel, cf.clientConf().readTimeout(), cf.deadlineEnforcementEnabled());
+                if (cf.deadlineEnforcementEnabled().isPresent()) {
+                    channel = DeadlineAdvertisementChannel.create(channel, cf.clientConf().readTimeout(), cf.deadlineEnforcementEnabled().get());
+                } else {
+                    channel = DeadlineAdvertisementChannel.create(channel, cf.clientConf().readTimeout());
+                }
 
                 ChannelState channelState = state.get(targetUri);
                 Preconditions.checkNotNull(channelState, "no ChannelState exists for this TargetUri");
