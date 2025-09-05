@@ -171,17 +171,7 @@ enum DefaultClients implements Clients {
     private static RemoteException createRemoteExceptionWithReflection(RemoteException remoteException) {
         try {
             Class<?> clazz = remoteException.getClass();
-            boolean foundSerializableErrorProviderInterface = false;
-            // Check if remoteException implements SerializableErrorProvider
-            for (Class<?> classInterface : clazz.getInterfaces()) {
-                if (classInterface != SerializableErrorProvider.class) {
-                    continue;
-                }
-                // Found the interface, now we can proceed to find the constructor
-                foundSerializableErrorProviderInterface = true;
-                break;
-            }
-            if (!foundSerializableErrorProviderInterface) {
+            if (!(remoteException instanceof SerializableErrorProvider)) {
                 log.warn("RemoteException subclass does not implement SerializableErrorProvider");
                 return newRemoteException(remoteException);
             }

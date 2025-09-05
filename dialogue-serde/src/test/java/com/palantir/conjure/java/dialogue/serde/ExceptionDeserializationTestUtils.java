@@ -21,10 +21,10 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
-import com.palantir.conjure.java.api.errors.CheckedServiceException;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
+import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
 import com.palantir.dialogue.TypeMarker;
@@ -94,7 +94,8 @@ final class ExceptionDeserializationTestUtils {
     }
 
     @Generated("by conjure-java")
-    static final class TestErrorException extends RemoteException {
+    static final class TestErrorException extends RemoteException
+            implements SerializableErrorProvider<TestErrorParameters> {
         private final TestErrorSerializableError error;
 
         // Constructor needs to be public so that the exception can be created via reflection
@@ -104,7 +105,8 @@ final class ExceptionDeserializationTestUtils {
             this.error = error;
         }
 
-        TestErrorSerializableError error() {
+        @Override
+        public TestErrorSerializableError error() {
             return error;
         }
     }
@@ -169,15 +171,6 @@ final class ExceptionDeserializationTestUtils {
             @JsonProperty("errorName") String errorName,
             @JsonProperty("errorInstanceId") String errorInstanceId,
             @JsonProperty("parameters") Map<String, Object> parameters) {
-
-        static ConjureError fromCheckedServiceException(CheckedServiceException exception) {
-            Map<String, Object> parameters = getParametersFromArgs(exception.getArgs());
-            return new ConjureError(
-                    exception.getErrorType().code().name(),
-                    exception.getErrorType().name(),
-                    exception.getErrorInstanceId(),
-                    parameters);
-        }
 
         static ConjureError fromServiceException(ServiceException exception) {
             Map<String, Object> parameters = new HashMap<>();

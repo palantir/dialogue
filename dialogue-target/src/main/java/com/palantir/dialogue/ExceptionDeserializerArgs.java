@@ -19,6 +19,7 @@ package com.palantir.dialogue;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.logsafe.Preconditions;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
@@ -96,8 +97,8 @@ public final class ExceptionDeserializerArgs<T> {
          * @param exceptionType the type marker for the exception. It is expected that the exception type implements a
          * constructor that takes the error type as the first parameter, and an integer status code as the second.
          */
-        public <U extends AbstractSerializableError<?>, V extends RemoteException> Builder<T> exception(
-                String errorName, TypeMarker<U> errorType, TypeMarker<V> exceptionType) {
+        public <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
+                Builder<T> exception(String errorName, TypeMarker<U> errorType, TypeMarker<V> exceptionType) {
             checkNotBuilt();
             this.errorNameToExceptionTypeMarkers.put(
                     Preconditions.checkNotNull(errorName, "error name must be non-null"),
@@ -128,6 +129,5 @@ public final class ExceptionDeserializerArgs<T> {
     }
 
     public record ErrorExceptionPair<U extends AbstractSerializableError<?>, V extends RemoteException>(
-            TypeMarker<U> errorType, TypeMarker<V> exceptionType) {
-    }
+            TypeMarker<U> errorType, TypeMarker<V> exceptionType) {}
 }
