@@ -1,8 +1,10 @@
+# Excavator auto-updates this file. Please contribute improvements to the central template.
+
 version: 1
 merge:
-  whitelist:
+  trigger:
     labels: ["merge when ready"]
-  blacklist:
+  ignore:
     labels: ["do not merge"]
   method: squash
   options:
@@ -11,5 +13,5 @@ merge:
       message_delimiter: ==COMMIT_MSG==
   delete_after_merge: true
 update:
-  whitelist:
+  trigger:
     labels: ["update me"]
