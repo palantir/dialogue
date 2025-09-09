@@ -25,6 +25,7 @@ import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.Deadlines;
 import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.deadlines.Deadlines.RequestDecodingAdapter;
+import com.palantir.deadlines.DeadlinesHttpHeaders;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -136,13 +137,9 @@ class DeadlineAdvertisementChannelTest {
 
             Request inboundRequest =
                     Request.builder().putHeaderParams("Expect-Within", "0").build();
-            // TODO(blaub): this is bad... when the parsed state says ENFORCE, but the channel for outbound requests
-            // from this client is constructed with DISABLE, which one do we respect? i think it should be DISABLE
-            // but this will require changes to the deadlines library and the API for encodeToRequest()
             Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
 
-            // TODO(blaub): wat? enforcement??
-            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, false);
+            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, true);
             ListenableFuture<Response> response =
                     channel.execute(TestEndpoint.GET, Request.builder().build());
             assertThat(response).isDone();
@@ -150,6 +147,30 @@ class DeadlineAdvertisementChannelTest {
                     .isThrownBy(response::get)
                     .withCauseInstanceOf(DeadlineExpiredException.class);
             assertThat(requests).isEmpty();
+        }
+    }
+
+    @Test
+    void expired_deadline_respects_client_enforcement_strategy() throws ExecutionException, InterruptedException {
+        try (CloseableTracer tracer = CloseableTracer.startSpan("test")) {
+            Duration readTimeout = Duration.ofSeconds(10);
+            List<Request> requests = new ArrayList<>();
+            Channel delegate = (_endpoint, request) -> {
+                requests.add(request);
+                return Futures.immediateCancelledFuture();
+            };
+
+            Request inboundRequest =
+                    Request.builder().putHeaderParams("Expect-Within", "0").build();
+            Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
+
+            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, false);
+            assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
+                    .isCancelled();
+            assertThat(requests).singleElement().satisfies(request -> {
+                assertThat(request.headerParams().asMap())
+                        .containsEntry(DeadlinesHttpHeaders.EXPECT_WITHIN_ENFORCED, List.of("false"));
+            });
         }
     }
 

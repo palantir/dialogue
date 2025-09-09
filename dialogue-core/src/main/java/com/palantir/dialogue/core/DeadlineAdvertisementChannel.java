@@ -20,7 +20,6 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.Deadlines;
-import com.palantir.deadlines.DeadlinesHttpHeaders;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -38,7 +37,10 @@ final class DeadlineAdvertisementChannel implements Channel {
     }
 
     static DeadlineAdvertisementChannel create(Channel delegate, Duration readTimeout, boolean enforcementEnabled) {
-        return new DeadlineAdvertisementChannel(delegate, readTimeout, enforcementEnabled ? Deadlines.Enforcement.ENFORCE : Deadlines.Enforcement.DISABLE);
+        return new DeadlineAdvertisementChannel(
+                delegate,
+                readTimeout,
+                enforcementEnabled ? Deadlines.Enforcement.ENFORCE : Deadlines.Enforcement.DISABLE);
     }
 
     private DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, Deadlines.Enforcement enforcement) {
@@ -56,16 +58,7 @@ final class DeadlineAdvertisementChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Request.Builder requestBuilder = Request.builder().from(request);
         try {
-            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE);
-            // TODO(blaub) ideally this should be pushed down into deadlines-java
-            switch (enforcement) {
-                case ENFORCE, DISABLE -> RequestBuilderEncodingAdapter.INSTANCE.setHeader(
-                        requestBuilder,
-                        DeadlinesHttpHeaders.EXPECT_WITHIN_ENFORCED,
-                        enforcement == Deadlines.Enforcement.ENFORCE ? "true" : "false");
-                default -> {
-                }
-            }
+            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE, enforcement);
         } catch (DeadlineExpiredException e) {
             return Futures.immediateFailedFuture(e);
         }
