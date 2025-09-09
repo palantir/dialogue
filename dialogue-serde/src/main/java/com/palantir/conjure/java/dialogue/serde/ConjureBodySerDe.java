@@ -81,9 +81,12 @@ final class ConjureBodySerDe implements BodySerDe {
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
         this.defaultEncoding = encodings.get(0).encoding();
         this.binaryInputStreamDeserializer = deserializerFor(
-                DeserializerType.STANDARD, emptyContainerDeserializer, BinaryEncoding.MARKER, Collections.emptyMap());
+                DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
+                emptyContainerDeserializer,
+                BinaryEncoding.MARKER,
+                Collections.emptyMap());
         this.optionalBinaryInputStreamDeserializer = deserializerFor(
-                DeserializerType.STANDARD,
+                DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
                 emptyContainerDeserializer,
                 BinaryEncoding.OPTIONAL_MARKER,
                 Collections.emptyMap());
