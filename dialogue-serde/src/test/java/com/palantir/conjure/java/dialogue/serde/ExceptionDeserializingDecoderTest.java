@@ -112,6 +112,48 @@ final class ExceptionDeserializingDecoderTest {
         }
     }
 
+    @Test
+    public void testThatErrorWithMessageInsteadOfErrorNameIsDeserializedToRemoteException() {
+        // For legacy servers that do not follow the Conjure spec and throw errors with a "message" field instead of an
+        // "errorName" field, this test verifies that we are still able to deserialize the error to a RemoteException.
+        String responseBody =
+                // language=JSON
+                """
+    {
+        "message": "Conjure:TestError",
+        "errorCode":"INVALID_ARGUMENT",
+        "errorInstanceId":"f8795ac5-59cf-4760-92e5-f566ce7978b0",
+        "parameters":{"stringArg":"foo","complexArg":"ComplexArg[foo=1, bar=bar]"}
+    }
+    """;
+
+        TestResponse response = TestResponse.withBody(responseBody)
+                .contentType("application/json")
+                .code(500);
+        BodySerDe bodySerDe = conjureBodySerDe("application/json", "text/plain");
+        ExceptionDeserializerArgs<String> exceptionDeserializerArgs =
+                ExceptionDeserializationTestUtils.createStringDeserializerArgs();
+        // When
+        try {
+            bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
+        } catch (RemoteException e) {
+            assertThat(e).isNotInstanceOf(TestErrorException.class);
+
+            SerializableError serializableError = e.getError();
+            assertThat(serializableError.errorCode())
+                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE
+                            .code()
+                            .name());
+            assertThat(serializableError.errorName())
+                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name());
+            // assertThat(serializableError.errorInstanceId()).isEqualTo(expectedError.getErrorInstanceId());
+            assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
+            assertThat(serializableError.parameters().get("complexArg")).isEqualTo("ComplexArg[foo=1, bar=bar]");
+            assertThat(e.getSuppressed()).allSatisfy(throwable -> assertThat(throwable.getMessage())
+                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
+        }
+    }
+
     /**
      * This test validates that when a server sends an error that the client has not specified in the mapping from error
      * name -> exception, the deserializer falls back to throwing a RemoteException.
