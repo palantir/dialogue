@@ -21,6 +21,8 @@ import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.logsafe.Preconditions;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
@@ -128,6 +130,22 @@ public final class ExceptionDeserializerArgs<T> {
         return errorNameToExceptionTypeMarkers;
     }
 
-    public record ErrorExceptionPair<U extends AbstractSerializableError<?>, V extends RemoteException>(
-            TypeMarker<U> errorType, TypeMarker<V> exceptionType) {}
+    /**
+     * This record is used in the implementation of Dialogue's error decoder. This should not be used by clients. It
+     * is public to allow usage in the implementation in the com.palantir.conjure.java.dialogue.serde package.
+     **/
+    public record ErrorExceptionPair<
+            U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>(
+            TypeMarker<U> errorType, TypeMarker<V> exceptionType) {
+        @SuppressWarnings("unchecked")
+        public static <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
+                V getExceptionFromSerializableError(U error, TypeMarker<V> exceptionType, int code)
+                        throws InvocationTargetException, InstantiationException, IllegalAccessException,
+                                NoSuchMethodException, ClassNotFoundException {
+            Class<V> exceptionClass =
+                    (Class<V>) Class.forName(exceptionType.getType().getTypeName());
+            Constructor<V> exceptionConstructor = exceptionClass.getConstructor(error.getClass(), int.class);
+            return exceptionConstructor.newInstance(error, code);
+        }
+    }
 }

@@ -65,7 +65,6 @@ allprojects {
     version rootProject.version
 
     repositories {
-	mavenLocal()
         mavenCentral() { metadataSources { mavenPom(); ignoreGradleMetadataRedirection() } }
     }
     configurations.all {

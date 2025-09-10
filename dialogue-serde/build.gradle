@@ -23,7 +23,6 @@ dependencies {
     implementation 'com.palantir.safe-logging:logger'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.github.ben-manes.caffeine:caffeine'
-    implementation 'org.jetbrains:annotations'
 
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-example')

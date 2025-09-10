@@ -17,6 +17,7 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -29,6 +30,7 @@ import com.palantir.conjure.java.api.errors.QosReasons;
 import com.palantir.conjure.java.api.errors.QosReasons.QosResponseDecodingAdapter;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
+import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer;
 import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
@@ -44,8 +46,6 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -54,7 +54,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -172,7 +171,8 @@ final class ExceptionDeserializingErrorDecoder {
                 // AbstractSerializableError is an abstract class.
                 AbstractSerializableError<?> error =
                         deserializerExceptionPair.deserializer().deserialize(new ByteArrayInputStream(body));
-                return deserializerExceptionPair.getExceptionFromSerializableError(error, code);
+                return ErrorExceptionPair.getExceptionFromSerializableError(
+                        error, deserializerExceptionPair.exceptionType(), code);
             } catch (Exception e) {
                 // If we're unable to deserialize the error as JSON, throw a RemoteException.
                 log.error("Failed to deserialize error response as exception", SafeArg.of("errorName", errorName), e);
@@ -273,22 +273,12 @@ final class ExceptionDeserializingErrorDecoder {
 
     record NamedError(@JsonProperty("errorName") String errorName) {}
 
-    private record DeserializerExceptionPair<U extends AbstractSerializableError<?>, V extends RemoteException>(
-            Encoding.Deserializer<U> deserializer, TypeMarker<V> exceptionType) {
-        @SuppressWarnings("unchecked")
-        public V getExceptionFromSerializableError(AbstractSerializableError<?> error, int code)
-                throws InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchMethodException,
-                        ClassNotFoundException {
-            Class<? extends RemoteException> exceptionClass = (Class<? extends RemoteException>)
-                    Class.forName(exceptionType.getType().getTypeName());
-            Constructor<? extends RemoteException> exceptionConstructor =
-                    exceptionClass.getConstructor(error.getClass(), int.class);
-            return (V) exceptionConstructor.newInstance(error, code);
-        }
-    }
+    private record DeserializerExceptionPair<
+            U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>(
+            Encoding.Deserializer<U> deserializer, TypeMarker<V> exceptionType) {}
 
     // Purely to provide Java type inference information.
-    private static <U extends AbstractSerializableError<?>, V extends RemoteException>
+    private static <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
             DeserializerExceptionPair<U, V> createDeserializerForException(
                     Encoding encoding, ErrorExceptionPair<U, V> pair) {
         return new DeserializerExceptionPair<>(encoding.deserializer(pair.errorType()), pair.exceptionType());

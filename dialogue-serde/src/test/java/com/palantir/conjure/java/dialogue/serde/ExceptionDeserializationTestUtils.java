@@ -94,7 +94,7 @@ final class ExceptionDeserializationTestUtils {
     }
 
     @Generated("by conjure-java")
-    static final class TestErrorException extends RemoteException
+    public static final class TestErrorException extends RemoteException
             implements SerializableErrorProvider<TestErrorParameters> {
         private final TestErrorSerializableError error;
 
