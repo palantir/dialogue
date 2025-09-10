@@ -27,7 +27,6 @@ import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
-import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
@@ -46,10 +45,8 @@ import java.io.OutputStream;
 import java.lang.reflect.Type;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -84,12 +81,12 @@ final class ConjureBodySerDe implements BodySerDe {
                 DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
                 emptyContainerDeserializer,
                 BinaryEncoding.MARKER,
-                Collections.emptyMap());
+                ExceptionDeserializingErrorDecoder.withoutExceptions());
         this.optionalBinaryInputStreamDeserializer = deserializerFor(
                 DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
                 emptyContainerDeserializer,
                 BinaryEncoding.OPTIONAL_MARKER,
-                Collections.emptyMap());
+                ExceptionDeserializingErrorDecoder.withoutExceptions());
         this.emptyBodyDeserializer = new EmptyBodyDeserializer(ExceptionDeserializingErrorDecoder.withoutExceptions());
         // Class unloading: Not supported, Jackson keeps strong references to the types
         // it sees: https://github.com/FasterXML/jackson-databind/issues/489
@@ -100,7 +97,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         DeserializerType.STANDARD,
                         emptyContainerDeserializer,
                         TypeMarker.of(type),
-                        Collections.emptyMap()));
+                        ExceptionDeserializingErrorDecoder.withoutExceptions()));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
@@ -110,7 +107,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         key.type(),
                         emptyContainerDeserializer,
                         key.args().returnType(),
-                        key.args().errorNameToExceptionTypeMarkers()));
+                        new ExceptionDeserializingErrorDecoder(key.args().errorNameToExceptionTypeMarkers())));
     }
 
     @SuppressWarnings("unchecked")
@@ -118,9 +115,7 @@ final class ConjureBodySerDe implements BodySerDe {
             DeserializerType type,
             EmptyContainerDeserializer emptyContainerDeserializer,
             TypeMarker<T> returnType,
-            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers) {
-        ExceptionDeserializingErrorDecoder errorDecoder =
-                new ExceptionDeserializingErrorDecoder(errorNameToExceptionTypeMarkers);
+            ExceptionDeserializingErrorDecoder errorDecoder) {
         return switch (type) {
             case STANDARD ->
                 new EncodingDeserializerRegistry<>(
