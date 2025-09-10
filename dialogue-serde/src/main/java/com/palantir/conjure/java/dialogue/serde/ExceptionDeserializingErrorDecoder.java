@@ -158,6 +158,8 @@ final class ExceptionDeserializingErrorDecoder {
         try {
             String errorName = extractErrorName(body);
             if (errorName == null) {
+                // Per the Conjure spec, errorName is required. We fall back to creating a RemoteException to handle
+                // legacy errors that used a "message" field instead of "errorName".
                 return createRemoteException(body, code);
             }
             DeserializerExceptionPair<?, ?> deserializerExceptionPair =
