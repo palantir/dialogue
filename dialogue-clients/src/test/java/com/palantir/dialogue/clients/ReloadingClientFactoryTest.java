@@ -110,8 +110,7 @@ class ReloadingClientFactoryTest {
 
         // Get the original runtime
         ConjureRuntime originalRuntime = params.runtime();
-        assertThat(originalRuntime.bodySerDe().errorParameterFormat())
-                .isEqualTo(Optional.empty());
+        assertThat(originalRuntime.bodySerDe().errorParameterFormat()).isEqualTo(Optional.empty());
 
         // Set the error parameter format to JSON
         ReloadingFactory modifiedFactory =
