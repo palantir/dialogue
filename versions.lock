@@ -44,13 +44,13 @@ com.palantir.conjure.java.api:service-config:2.65.0 (2 constraints: 5a1910dd)
 
 com.palantir.conjure.java.api:ssl-config:2.65.0 (4 constraints: 023fec9f)
 
-com.palantir.conjure.java.runtime:client-config:8.24.0 (1 constraints: 4005633b)
+com.palantir.conjure.java.runtime:client-config:8.24.0 (1 constraints: 73066453)
 
 com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.24.0 (1 constraints: 841cc4a4)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.24.0 (2 constraints: 6016310f)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.24.0 (2 constraints: 9317f561)
 
-com.palantir.conjure.java.runtime:keystores:8.24.0 (2 constraints: 5f1974dd)
+com.palantir.conjure.java.runtime:keystores:8.24.0 (2 constraints: 921adf39)
 
 com.palantir.deadlines:deadlines:0.15.0 (1 constraints: 3805323b)
 

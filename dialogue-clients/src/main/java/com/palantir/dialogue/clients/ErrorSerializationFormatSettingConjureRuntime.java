@@ -22,7 +22,7 @@ import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Deserializer;
-import com.palantir.dialogue.DeserializerArgs;
+import com.palantir.dialogue.ExceptionDeserializerArgs;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Serializer;
@@ -67,7 +67,7 @@ final class ErrorSerializationFormatSettingConjureRuntime implements ConjureRunt
         }
 
         @Override
-        public Optional<ConjureErrorParameterFormat> errorParameterDeserializationFormat() {
+        public Optional<ConjureErrorParameterFormat> errorParameterFormat() {
             return errorParameterDeserializationFormat;
         }
 
@@ -82,8 +82,8 @@ final class ErrorSerializationFormatSettingConjureRuntime implements ConjureRunt
         }
 
         @Override
-        public <T> Deserializer<T> deserializer(DeserializerArgs<T> deserializerArgs) {
-            return delegate.deserializer(deserializerArgs);
+        public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
+            return delegate.deserializer(exceptionDeserializerArgs);
         }
 
         @Override
@@ -92,13 +92,19 @@ final class ErrorSerializationFormatSettingConjureRuntime implements ConjureRunt
         }
 
         @Override
+        public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
+            return delegate.emptyBodyDeserializer(exceptionDeserializerArgs);
+        }
+
+        @Override
         public Deserializer<InputStream> inputStreamDeserializer() {
             return delegate.inputStreamDeserializer();
         }
 
         @Override
-        public <T> Deserializer<T> inputStreamDeserializer(DeserializerArgs<T> deserializerArgs) {
-            return delegate.inputStreamDeserializer(deserializerArgs);
+        public Deserializer<InputStream> inputStreamDeserializer(
+                ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
+            return delegate.inputStreamDeserializer(exceptionDeserializerArgs);
         }
 
         @Override
@@ -107,8 +113,9 @@ final class ErrorSerializationFormatSettingConjureRuntime implements ConjureRunt
         }
 
         @Override
-        public <T> Deserializer<T> optionalInputStreamDeserializer(DeserializerArgs<T> deserializerArgs) {
-            return delegate.optionalInputStreamDeserializer(deserializerArgs);
+        public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
+                ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
+            return delegate.optionalInputStreamDeserializer(exceptionDeserializerArgs);
         }
 
         @Override
