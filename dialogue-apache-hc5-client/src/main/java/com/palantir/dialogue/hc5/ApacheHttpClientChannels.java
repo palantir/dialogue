@@ -468,6 +468,7 @@ public final class ApacheHttpClientChannels {
             return this;
         }
 
+        @SuppressWarnings("for-rollout:deprecation")
         public CloseableClient build() {
             ClientConfiguration conf =
                     Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is required");
@@ -540,6 +541,7 @@ public final class ApacheHttpClientChannels {
                     new InstrumentedPoolingHttpClientConnectionManager(
                             internalConnectionManager, conf.taggedMetricRegistry(), name);
 
+            @SuppressWarnings("for-rollout:deprecation")
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
                             .setConnectTimeout(connectTimeout)

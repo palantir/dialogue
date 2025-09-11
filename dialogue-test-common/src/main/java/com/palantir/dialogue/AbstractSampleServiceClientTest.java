@@ -152,6 +152,7 @@ public abstract class AbstractSampleServiceClientTest {
         assertThat(asyncClient.voidToVoid().get()).isNull();
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     @Timeout(2)
     public void testBlocking_throwsOnConnectError() throws Exception {
