@@ -155,7 +155,8 @@ public final class ExceptionDeserializerArgs<T> {
                         "Failed to find constructor for exception which has an AbstractSerializableError as the first "
                                 + "argument and an integer http status code as the second argument",
                         e,
-                        SafeArg.of("exceptionType", exceptionType));
+                        SafeArg.of("exceptionType", exceptionType),
+                        SafeArg.of("error", error.getClass().getSimpleName()));
             }
         }
     }
