@@ -362,3 +362,11 @@ acceptedBreaks:
       new: "method com.palantir.dialogue.Deserializer<java.util.Optional<java.io.InputStream>>\
         \ com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.util.Optional<java.io.InputStream>>)"
       justification: "Adding methods to support deserialization of errors as exceptions"
+  "6.9.0":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method T com.palantir.conjure.java.clients.ConjureClients.WithClientOptions<T>::withConjureErrorParameterSerializationFormat(com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat)\
+        \ @ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory"
+      justification: "A method was added to WithClientOptions to support setting the\
+        \ error parameter format. The DialogueClients.ReloadingFactory interface extends\
+        \ WithClientOptions."
