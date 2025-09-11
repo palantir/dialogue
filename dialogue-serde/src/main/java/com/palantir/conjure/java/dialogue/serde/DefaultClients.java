@@ -172,7 +172,9 @@ enum DefaultClients implements Clients {
         try {
             Class<?> clazz = remoteException.getClass();
             if (!(remoteException instanceof SerializableErrorProvider)) {
-                log.warn("RemoteException subclass does not implement SerializableErrorProvider");
+                log.warn(
+                        "RemoteException subclass does not implement SerializableErrorProvider",
+                        SafeArg.of("remoteExceptionClass", clazz.getSimpleName()));
                 return newRemoteException(remoteException);
             }
 
@@ -194,12 +196,17 @@ enum DefaultClients implements Clients {
                 return (RemoteException)
                         constructor.newInstance(abstractSerializableError, remoteException.getStatus());
             }
-            log.warn("Did not find a constructor on "
-                    + "RemoteException subclass with parameters (AbstractSerializableError, int)");
+            log.warn(
+                    "Did not find a constructor on "
+                            + "RemoteException subclass with parameters (AbstractSerializableError, int)",
+                    SafeArg.of("remoteExceptionClass", clazz.getSimpleName()));
         } catch (Exception e) {
-            log.warn("Failed to create new RemoteException with reflection, falling back to base type", e);
+            log.warn(
+                    "Failed to create new RemoteException with reflection, falling back to base type",
+                    SafeArg.of(
+                            "remoteExceptionClass", remoteException.getClass().getSimpleName()),
+                    e);
         }
-
         return newRemoteException(remoteException);
     }
 

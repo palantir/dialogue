@@ -21,6 +21,8 @@ import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
@@ -140,12 +142,21 @@ public final class ExceptionDeserializerArgs<T> {
         @SuppressWarnings("unchecked")
         public static <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
                 V getExceptionFromSerializableError(U error, TypeMarker<V> exceptionType, int code)
-                        throws InvocationTargetException, InstantiationException, IllegalAccessException,
-                                NoSuchMethodException, ClassNotFoundException {
-            Class<V> exceptionClass =
-                    (Class<V>) Class.forName(exceptionType.getType().getTypeName());
-            Constructor<V> exceptionConstructor = exceptionClass.getConstructor(error.getClass(), int.class);
-            return exceptionConstructor.newInstance(error, code);
+                        throws InvocationTargetException, InstantiationException, IllegalAccessException {
+            // RemoteExceptions constructible from a serializable error MUST have a constructor that takes such an error
+            // as the first argument and an integer http status code as the second argument.
+            try {
+                Class<V> exceptionClass =
+                        (Class<V>) Class.forName(exceptionType.getType().getTypeName());
+                Constructor<V> exceptionConstructor = exceptionClass.getConstructor(error.getClass(), int.class);
+                return exceptionConstructor.newInstance(error, code);
+            } catch (ClassNotFoundException | NoSuchMethodException e) {
+                throw new SafeRuntimeException(
+                        "Failed to find constructor for exception which has an AbstractSerializableError as the first "
+                                + "argument and an integer http status code as the second argument",
+                        e,
+                        SafeArg.of("exceptionType", exceptionType));
+            }
         }
     }
 }
