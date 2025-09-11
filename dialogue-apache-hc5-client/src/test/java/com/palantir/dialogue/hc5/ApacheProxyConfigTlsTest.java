@@ -20,6 +20,7 @@ import com.palantir.dialogue.AbstractProxyConfigTlsTest;
 import com.palantir.dialogue.Channel;
 
 public final class ApacheProxyConfigTlsTest extends AbstractProxyConfigTlsTest {
+    @SuppressWarnings("for-rollout:deprecation")
     @Override
     protected Channel create(ClientConfiguration config) {
         return ApacheHttpClientChannels.create(config);

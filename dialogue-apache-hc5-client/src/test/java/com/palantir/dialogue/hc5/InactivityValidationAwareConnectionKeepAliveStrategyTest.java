@@ -42,11 +42,13 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
     @Mock
     private PoolingHttpClientConnectionManager manager;
 
+    @SuppressWarnings("for-rollout:deprecation")
     @BeforeEach
     void beforeEach() {
         when(manager.getValidateAfterInactivity()).thenReturn(INITIAL_TIMEOUT);
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     void testNoKeepAliveHeader() {
         InactivityValidationAwareConnectionKeepAliveStrategy strategy =
@@ -57,6 +59,7 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
         verify(manager).setValidateAfterInactivity(eq(INITIAL_TIMEOUT));
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     void testKeepAliveHeaderWithTimeout() {
         InactivityValidationAwareConnectionKeepAliveStrategy strategy =
@@ -69,6 +72,7 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
         verify(manager).setValidateAfterInactivity(eq(expected));
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     void testKeepAliveHeaderWithTimeoutAndMax() {
         InactivityValidationAwareConnectionKeepAliveStrategy strategy =
@@ -81,6 +85,7 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
         verify(manager).setValidateAfterInactivity(eq(expected));
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     void testKeepAliveHeaderWithTimeoutIgnoredNon2xx() {
         InactivityValidationAwareConnectionKeepAliveStrategy strategy =
@@ -92,6 +97,7 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
         verify(manager, never()).setValidateAfterInactivity(any());
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     void testKeepAliveHeaderWithoutTimeout() {
         InactivityValidationAwareConnectionKeepAliveStrategy strategy =
@@ -103,6 +109,7 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
         verify(manager).setValidateAfterInactivity(eq(INITIAL_TIMEOUT));
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     void testKeepAliveHeaderWithZeroTimeout() {
         InactivityValidationAwareConnectionKeepAliveStrategy strategy =
@@ -114,6 +121,7 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
         verify(manager).setValidateAfterInactivity(eq(INITIAL_TIMEOUT));
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     void testKeepAliveHeaderWithNegativeTimeout() {
         InactivityValidationAwareConnectionKeepAliveStrategy strategy =
