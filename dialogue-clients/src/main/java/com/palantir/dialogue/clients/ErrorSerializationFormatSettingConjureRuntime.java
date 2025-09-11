@@ -58,17 +58,17 @@ final class ErrorSerializationFormatSettingConjureRuntime implements ConjureRunt
 
     private static final class ErrorParameterSerializationFormatSettingBodySerDe implements BodySerDe {
         private final BodySerDe delegate;
-        private final Optional<ConjureErrorParameterFormat> errorParameterDeserializationFormat;
+        private final Optional<ConjureErrorParameterFormat> errorParameterFormat;
 
         ErrorParameterSerializationFormatSettingBodySerDe(
-                BodySerDe delegate, ConjureErrorParameterFormat errorParameterDeserializationFormat) {
+                BodySerDe delegate, ConjureErrorParameterFormat errorParameterFormat) {
             this.delegate = delegate;
-            this.errorParameterDeserializationFormat = Optional.of(errorParameterDeserializationFormat);
+            this.errorParameterFormat = Optional.of(errorParameterFormat);
         }
 
         @Override
         public Optional<ConjureErrorParameterFormat> errorParameterFormat() {
-            return errorParameterDeserializationFormat;
+            return errorParameterFormat;
         }
 
         @Override

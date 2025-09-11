@@ -110,7 +110,7 @@ class ReloadingClientFactoryTest {
 
         // Get the original runtime
         ConjureRuntime originalRuntime = params.runtime();
-        assertThat(originalRuntime.bodySerDe().errorParameterDeserializationFormat())
+        assertThat(originalRuntime.bodySerDe().errorParameterFormat())
                 .isEqualTo(Optional.empty());
 
         // Set the error parameter format to JSON
@@ -120,7 +120,7 @@ class ReloadingClientFactoryTest {
         // Call get
         RuntimeCapturingService service = modifiedFactory.get(RuntimeCapturingService.class, "foo");
 
-        assertThat(service.runtime().bodySerDe().errorParameterDeserializationFormat())
+        assertThat(service.runtime().bodySerDe().errorParameterFormat())
                 .contains(ConjureErrorParameterFormat.JSON_FORMAT);
     }
 
