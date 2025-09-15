@@ -1,10 +1,10 @@
 # Run ./gradlew writeVersionsLocks to regenerate this file. Blank lines are to minimize merge conflicts.
 
-com.fasterxml.jackson.core:jackson-annotations:2.19.2 (9 constraints: c09bee3f)
+com.fasterxml.jackson.core:jackson-annotations:2.19.2 (9 constraints: c59bfd3f)
 
 com.fasterxml.jackson.core:jackson-core:2.19.2 (11 constraints: 96e58b0e)
 
-com.fasterxml.jackson.core:jackson-databind:2.19.2 (15 constraints: 9c31f0d5)
+com.fasterxml.jackson.core:jackson-databind:2.19.2 (15 constraints: a131ffd5)
 
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.19.2 (1 constraints: 841cada4)
 
@@ -64,35 +64,35 @@ com.palantir.refreshable:refreshable:2.7.0 (2 constraints: f5180bb3)
 
 com.palantir.ri:resource-identifier:2.11.0 (2 constraints: 511589d9)
 
-com.palantir.safe-logging:logger:3.9.0 (14 constraints: d4de6d8d)
+com.palantir.safe-logging:logger:3.9.0 (14 constraints: d9de9b91)
 
 com.palantir.safe-logging:logger-slf4j:3.9.0 (1 constraints: 070e6e42)
 
 com.palantir.safe-logging:logger-spi:3.9.0 (2 constraints: 1d1e0c7c)
 
-com.palantir.safe-logging:preconditions:3.9.0 (20 constraints: 95436687)
+com.palantir.safe-logging:preconditions:3.9.0 (20 constraints: 9a437a8c)
 
 com.palantir.safe-logging:safe-logging:3.9.0 (19 constraints: 2135dd09)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.3.0 (1 constraints: 0505f435)
 
-com.palantir.tokens:auth-tokens:3.18.0 (3 constraints: 2628868e)
+com.palantir.tokens:auth-tokens:3.19.0 (3 constraints: 2728ee8e)
 
 com.palantir.tracing:tracing:6.28.0 (3 constraints: b924eafd)
 
 com.palantir.tracing:tracing-api:6.28.0 (2 constraints: 19124b19)
 
-com.palantir.tritium:tritium-api:0.107.0 (2 constraints: 911f15f4)
+com.palantir.tritium:tritium-api:0.108.0 (2 constraints: 931f4af4)
 
-com.palantir.tritium:tritium-caffeine:0.107.0 (1 constraints: 6a059d40)
+com.palantir.tritium:tritium-caffeine:0.108.0 (1 constraints: 6b05a040)
 
-com.palantir.tritium:tritium-core:0.107.0 (1 constraints: 7010acb2)
+com.palantir.tritium:tritium-core:0.108.0 (1 constraints: 7110afb2)
 
-com.palantir.tritium:tritium-ids:0.107.0 (1 constraints: f80f86a6)
+com.palantir.tritium:tritium-ids:0.108.0 (1 constraints: f80f86a6)
 
-com.palantir.tritium:tritium-metrics:0.107.0 (3 constraints: 8f241009)
+com.palantir.tritium:tritium-metrics:0.108.0 (3 constraints: 91247109)
 
-com.palantir.tritium:tritium-registry:0.107.0 (6 constraints: ee65d248)
+com.palantir.tritium:tritium-registry:0.108.0 (6 constraints: f1651d4a)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
@@ -128,7 +128,7 @@ org.jspecify:jspecify:1.0.0 (10 constraints: a8939764)
 
 org.mpierce.metrics.reservoir:hdrhistogram-metrics-reservoir:1.1.3 (1 constraints: 0d10f991)
 
-org.slf4j:slf4j-api:2.0.17 (9 constraints: ac91e923)
+org.slf4j:slf4j-api:2.0.17 (9 constraints: a591a01a)
 
 org.wildfly.common:wildfly-common:1.5.4.Final (2 constraints: 741cfbf1)
 
