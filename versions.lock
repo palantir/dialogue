@@ -208,11 +208,11 @@ org.assertj:assertj-guava:3.3.0 (1 constraints: 08050336)
 
 org.awaitility:awaitility:4.3.0 (1 constraints: 09050836)
 
-org.bouncycastle:bcpkix-jdk18on:1.81 (1 constraints: de040031)
+org.bouncycastle:bcpkix-jdk18on:1.82 (1 constraints: df040131)
 
-org.bouncycastle:bcprov-jdk18on:1.81 (1 constraints: d80e108e)
+org.bouncycastle:bcprov-jdk18on:1.82 (1 constraints: 600d6d29)
 
-org.bouncycastle:bcutil-jdk18on:1.81 (1 constraints: d60ebf8d)
+org.bouncycastle:bcutil-jdk18on:1.82 (1 constraints: 5e0d2a29)
 
 org.hamcrest:hamcrest:3.0 (3 constraints: f41d9170)
 
