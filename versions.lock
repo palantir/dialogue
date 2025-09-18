@@ -174,7 +174,7 @@ io.undertow:undertow-core:2.2.37.Final (1 constraints: 58074c61)
 
 junit:junit:4.13.2 (4 constraints: 90418c36)
 
-net.bytebuddy:byte-buddy:1.17.6 (2 constraints: c716ff4f)
+net.bytebuddy:byte-buddy:1.17.7 (2 constraints: 9e161a3f)
 
 net.bytebuddy:byte-buddy-agent:1.17.6 (1 constraints: 490b4dde)
 
@@ -202,7 +202,7 @@ org.apache.pdfbox:pdfbox:2.0.17 (1 constraints: b40c5915)
 
 org.apiguardian:apiguardian-api:1.1.2 (7 constraints: 677be455)
 
-org.assertj:assertj-core:3.27.4 (3 constraints: 5d258c4f)
+org.assertj:assertj-core:3.27.5 (3 constraints: 5e25e94f)
 
 org.assertj:assertj-guava:3.3.0 (1 constraints: 08050336)
 
