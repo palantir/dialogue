@@ -24,10 +24,8 @@ com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.7.1 (19 constraints: f52e0765)
+com.google.errorprone:error_prone_annotations:2.7.1 (19 constraints: ef2e645a)
 
-com.google.errorprone:error_prone_annotations:2.7.1 (19 constraints: c72e74bd)
-com.google.errorprone:error_prone_annotations:2.7.1 (19 constraints: c62effbb)
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
 com.google.guava:guava:33.5.0-jre (18 constraints: 3740a80a)
@@ -54,12 +52,8 @@ com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.24.0 (2 c
 
 com.palantir.conjure.java.runtime:keystores:8.24.0 (2 constraints: 5f1974dd)
 
-com.palantir.deadlines:deadlines:0.15.0 (1 constraints: 3805323b)
-
-com.palantir.deadlines:deadlines:0.15.0-26-g83607ee (1 constraints: 3308598b)
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.24.0 (2 constraints: 6016310f)
-com.palantir.conjure.java.runtime:keystores:8.24.0 (2 constraints: 5f1974dd)
 com.palantir.deadlines:deadlines:0.16.0 (1 constraints: 3905353b)
+
 com.palantir.goethe:goethe:0.16.0 (1 constraints: 3905353b)
 
 com.palantir.javapoet:javapoet:0.7.0 (2 constraints: cf109cd1)
@@ -84,7 +78,7 @@ com.palantir.safethreadlocalrandom:safe-thread-local-random:0.3.0 (1 constraints
 
 com.palantir.tokens:auth-tokens:3.19.0 (3 constraints: 2828278f)
 
-com.palantir.tracing:tracing:6.28.0 (3 constraints: b924eafd)
+com.palantir.tracing:tracing:6.28.0 (3 constraints: bd24bafe)
 
 com.palantir.tracing:tracing-api:6.28.0 (2 constraints: 19124b19)
 
@@ -96,25 +90,14 @@ com.palantir.tritium:tritium-core:0.109.0 (1 constraints: 7210b2b2)
 
 com.palantir.tritium:tritium-ids:0.109.0 (1 constraints: f80f86a6)
 
-com.palantir.tritium:tritium-metrics:0.109.0 (3 constraints: 9324d209)
+com.palantir.tritium:tritium-metrics:0.109.0 (3 constraints: 9a24370b)
 
-com.palantir.tritium:tritium-registry:0.109.0 (6 constraints: f465684b)
+com.palantir.tritium:tritium-registry:0.109.0 (6 constraints: fb65164e)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
-io.dropwizard.metrics:metrics-core:4.2.37 (6 constraints: a961edac)
+io.dropwizard.metrics:metrics-core:4.2.37 (6 constraints: ad6121af)
 
-com.palantir.tokens:auth-tokens:3.18.0 (3 constraints: 2628868e)
-com.palantir.tracing:tracing:6.28.0 (3 constraints: bc245cfe)
-com.palantir.tracing:tracing-api:6.28.0 (2 constraints: 18122219)
-com.palantir.tritium:tritium-api:0.109.0 (2 constraints: 951f7ff4)
-com.palantir.tritium:tritium-caffeine:0.109.0 (1 constraints: 67059440)
-com.palantir.tritium:tritium-core:0.109.0 (1 constraints: 7210b2b2)
-com.palantir.tritium:tritium-ids:0.109.0 (1 constraints: f80f86a6)
-com.palantir.tritium:tritium-metrics:0.109.0 (3 constraints: 95246109)
-com.palantir.tritium:tritium-registry:0.109.0 (6 constraints: f665a848)
-com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
-io.dropwizard.metrics:metrics-core:4.2.37 (6 constraints: aa6112ac)
 javax.annotation:javax.annotation-api:1.3.2 (1 constraints: 0805fb35)
 
 joda-time:joda-time:2.12.7 (1 constraints: 2f16b1f1)
@@ -125,8 +108,6 @@ org.apache.httpcomponents.core5:httpcore5:5.3.5 (3 constraints: a82a5bab)
 
 org.apache.httpcomponents.core5:httpcore5-h2:5.3.5 (1 constraints: 3f130d3c)
 
-org.apache.httpcomponents.core5:httpcore5:5.3.4 (3 constraints: a62aeeaa)
-org.apache.httpcomponents.core5:httpcore5-h2:5.3.4 (1 constraints: 3f130d3c)
 org.derive4j:derive4j-annotation:1.1.1 (1 constraints: 0505f435)
 
 org.eclipse.collections:eclipse-collections:13.0.0 (1 constraints: 1c1091a9)
@@ -169,7 +150,6 @@ com.palantir.safe-logging:preconditions-assertj:3.9.0 (1 constraints: 0e051536)
 
 com.palantir.tracing:tracing-test-utils:6.28.0 (1 constraints: 4205633b)
 
-com.palantir.tracing:tracing-test-utils:6.28.0 (1 constraints: 4105603b)
 com.spotify.dataenum:dataenum:1.4.1 (1 constraints: e9105ac1)
 
 com.squareup.okhttp3:mockwebserver:5.1.0 (1 constraints: 08050736)
@@ -234,10 +214,6 @@ org.bouncycastle:bcprov-jdk18on:1.82 (1 constraints: 600d6d29)
 
 org.bouncycastle:bcutil-jdk18on:1.82 (1 constraints: 5e0d2a29)
 
-org.bouncycastle:bcpkix-jdk18on:1.81 (1 constraints: de040031)
-org.bouncycastle:bcprov-jdk18on:1.81 (1 constraints: d80e108e)
-org.bouncycastle:bcutil-jdk18on:1.81 (1 constraints: d60ebf8d)
-org.checkerframework:checker-qual:3.26.0 (2 constraints: dc1c041b)
 org.hamcrest:hamcrest:3.0 (3 constraints: f41d9170)
 
 org.hamcrest:hamcrest-core:3.0 (3 constraints: 2f17a237)
