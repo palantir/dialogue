@@ -379,7 +379,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public ReloadingFactory withConjureErrorParameterSerializationFormat(ConjureErrorParameterFormat format) {
+    public ReloadingFactory withConjureErrorParameterFormat(ConjureErrorParameterFormat format) {
         return new ReloadingClientFactory(
                 params.withRuntime(new ErrorSerializationFormatSettingConjureRuntime(params.runtime(), format)), cache);
     }

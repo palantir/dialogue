@@ -38,7 +38,6 @@ import com.palantir.dialogue.clients.ReloadingClientFactory.LiveReloadingChannel
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.refreshable.Refreshable;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -110,17 +109,21 @@ class ReloadingClientFactoryTest {
 
         // Get the original runtime
         ConjureRuntime originalRuntime = params.runtime();
-        assertThat(originalRuntime.bodySerDe().errorParameterFormat()).isEqualTo(Optional.empty());
+        assertThat(originalRuntime.bodySerDe().errorParameterFormat()).isEmpty();
 
         // Set the error parameter format to JSON
         ReloadingFactory modifiedFactory =
-                factory.withConjureErrorParameterSerializationFormat(ConjureErrorParameterFormat.JSON_FORMAT);
+                factory.withConjureErrorParameterFormat(ConjureErrorParameterFormat.JSON_FORMAT);
 
         // Call get
         RuntimeCapturingService service = modifiedFactory.get(RuntimeCapturingService.class, "foo");
 
         assertThat(service.runtime().bodySerDe().errorParameterFormat())
                 .contains(ConjureErrorParameterFormat.JSON_FORMAT);
+
+        // Verify that the original runtime is unchanged
+        RuntimeCapturingService originalService = factory.get(RuntimeCapturingService.class, "foo");
+        assertThat(originalService.runtime().bodySerDe().errorParameterFormat()).isEmpty();
     }
 
     @DialogueService(RuntimeCapturingService.Factory.class)

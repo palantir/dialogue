@@ -261,7 +261,7 @@ class DialogueClientsTest {
         }
 
         @Override
-        public Alternative withConjureErrorParameterSerializationFormat(ConjureErrorParameterFormat _format) {
+        public Alternative withConjureErrorParameterFormat(ConjureErrorParameterFormat _format) {
             return this;
         }
 
