@@ -53,7 +53,6 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         @Nullable Permit maybePermit = limiter.acquire(limitEnforcement);
         if (maybePermit != null) {
-            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit;
             logPermitAcquired();
 
             // This is a trade-off to solve an edge case where the first request on this channel could get
@@ -64,12 +63,12 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(
                     endpoint,
                     request,
-                    permit.isOnlyInFlight() ? LimitEnforcement.DANGEROUS_BYPASS_LIMITS : limitEnforcement);
+                    maybePermit.isOnlyInFlight() ? LimitEnforcement.DANGEROUS_BYPASS_LIMITS : limitEnforcement);
             if (result.isPresent()) {
-                DialogueFutures.addDirectCallback(result.get(), permit);
+                DialogueFutures.addDirectCallback(result.get(), maybePermit);
                 return result;
             } else {
-                permit.dropped();
+                maybePermit.dropped();
                 return Optional.empty();
             }
         } else {
