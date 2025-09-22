@@ -109,6 +109,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             ClassicHttpRequest httpRequest = createRequest(baseUrl, endpoint, request);
             HttpClientContext context = HttpClientContext.create();
             resolvedHost.ifPresent(inetAddress -> DialogueRoutePlanner.set(context, inetAddress));
+            @SuppressWarnings("for-rollout:deprecation")
             CloseableHttpResponse httpClientResponse = client.apacheClient().execute(httpRequest, context);
             // Defensively ensure that resources are closed if failures occur within this block,
             // for example HttpClientResponse allocation may throw an OutOfMemoryError.

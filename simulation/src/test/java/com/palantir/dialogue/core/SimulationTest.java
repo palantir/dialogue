@@ -104,6 +104,7 @@ import org.slf4j.LoggerFactory;
 final class SimulationTest {
     private static final Logger log = LoggerFactory.getLogger(SimulationTest.class);
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Inherited
     @Retention(RetentionPolicy.RUNTIME)
     @EnumSource(Strategy.class)
@@ -749,6 +750,7 @@ final class SimulationTest {
         log.warn("after() ({} ms)", after.elapsed(TimeUnit.MILLISECONDS));
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @BeforeEach
     public void before() {
         // purely a perf-optimization

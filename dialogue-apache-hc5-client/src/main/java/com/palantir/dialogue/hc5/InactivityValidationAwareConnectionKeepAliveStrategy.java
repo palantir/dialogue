@@ -56,6 +56,7 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
      */
     private final AtomicReference<TimeValue> currentValidationInterval;
 
+    @SuppressWarnings("for-rollout:deprecation")
     InactivityValidationAwareConnectionKeepAliveStrategy(
             PoolingHttpClientConnectionManager connectionManager, String clientName) {
         this.connectionManager = connectionManager;
@@ -92,6 +93,7 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
         return requestConfig.getConnectionKeepAlive();
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     private void updateInactivityValidationInterval(int statusCode, TimeValue newInterval) {
         // Only update values based on 2xx responses
         if (statusCode / 100 == 2) {

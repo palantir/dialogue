@@ -26,6 +26,7 @@ import com.google.common.net.HttpHeaders;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.ExceptionDeserializerArgs;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
@@ -42,6 +43,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Type;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -60,6 +62,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<Void> emptyBodyDeserializer;
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
+    private final LoadingCache<ExceptionDeserializerCacheKey<?>, Deserializer<?>> exceptionDeserializers;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -68,31 +71,63 @@ final class ConjureBodySerDe implements BodySerDe {
      */
     ConjureBodySerDe(
             List<WeightedEncoding> rawEncodings,
-            ErrorDecoder errorDecoder,
             EmptyContainerDeserializer emptyContainerDeserializer,
             CaffeineSpec cacheSpec) {
         List<WeightedEncoding> encodings = decorateEncodings(rawEncodings);
         this.encodingsSortedByWeight = sortByWeight(encodings);
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
         this.defaultEncoding = encodings.get(0).encoding();
-        this.binaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
-                ImmutableList.of(BinaryEncoding.INSTANCE),
-                errorDecoder,
+        this.binaryInputStreamDeserializer = deserializerFor(
+                DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
                 emptyContainerDeserializer,
-                BinaryEncoding.MARKER);
-        this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
-                ImmutableList.of(BinaryEncoding.INSTANCE),
-                errorDecoder,
+                BinaryEncoding.MARKER,
+                ExceptionDeserializingErrorDecoder.withoutExceptions());
+        this.optionalBinaryInputStreamDeserializer = deserializerFor(
+                DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
                 emptyContainerDeserializer,
-                BinaryEncoding.OPTIONAL_MARKER);
-        this.emptyBodyDeserializer = new EmptyBodyDeserializer(errorDecoder);
+                BinaryEncoding.OPTIONAL_MARKER,
+                ExceptionDeserializingErrorDecoder.withoutExceptions());
+        this.emptyBodyDeserializer = new EmptyBodyDeserializer(ExceptionDeserializingErrorDecoder.withoutExceptions());
         // Class unloading: Not supported, Jackson keeps strong references to the types
         // it sees: https://github.com/FasterXML/jackson-databind/issues/489
         this.serializers = Caffeine.from(cacheSpec)
                 .build(type -> new EncodingSerializerRegistry<>(defaultEncoding, TypeMarker.of(type)));
         this.deserializers = Caffeine.from(cacheSpec)
-                .build(type -> new EncodingDeserializerRegistry<>(
-                        encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, TypeMarker.of(type)));
+                .build(type -> deserializerFor(
+                        DeserializerType.STANDARD,
+                        emptyContainerDeserializer,
+                        TypeMarker.of(type),
+                        ExceptionDeserializingErrorDecoder.withoutExceptions()));
+        // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
+        this.exceptionDeserializers = Caffeine.newBuilder()
+                .weakValues()
+                .expireAfterAccess(Duration.ofMinutes(1))
+                .maximumSize(1_000)
+                .build(key -> deserializerFor(
+                        key.type(),
+                        emptyContainerDeserializer,
+                        key.args().returnType(),
+                        new ExceptionDeserializingErrorDecoder(key.args().errorNameToExceptionTypeMarkers())));
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> Deserializer<T> deserializerFor(
+            DeserializerType type,
+            EmptyContainerDeserializer emptyContainerDeserializer,
+            TypeMarker<T> returnType,
+            ExceptionDeserializingErrorDecoder errorDecoder) {
+        return switch (type) {
+            case STANDARD ->
+                new EncodingDeserializerRegistry<>(
+                        encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, returnType);
+            case EMPTY_BODY -> (Deserializer<T>) new EmptyBodyDeserializer(errorDecoder);
+            case INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM ->
+                new EncodingDeserializerRegistry<>(
+                        ImmutableList.of(BinaryEncoding.INSTANCE),
+                        errorDecoder,
+                        emptyContainerDeserializer,
+                        returnType);
+        };
     }
 
     private static List<WeightedEncoding> decorateEncodings(List<WeightedEncoding> input) {
@@ -124,8 +159,22 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
+        return (Deserializer<T>) exceptionDeserializers.get(
+                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.STANDARD));
+    }
+
+    @Override
     public Deserializer<Void> emptyBodyDeserializer() {
         return emptyBodyDeserializer;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
+        return (Deserializer<Void>) exceptionDeserializers.get(
+                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.EMPTY_BODY));
     }
 
     @Override
@@ -134,8 +183,24 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public Deserializer<InputStream> inputStreamDeserializer(
+            ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
+        return (Deserializer<InputStream>) exceptionDeserializers.get(ExceptionDeserializerCacheKey.of(
+                exceptionDeserializerArgs, DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
+    }
+
+    @Override
     public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer() {
         return optionalBinaryInputStreamDeserializer;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
+            ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
+        return (Deserializer<Optional<InputStream>>) exceptionDeserializers.get(ExceptionDeserializerCacheKey.of(
+                exceptionDeserializerArgs, DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
     }
 
     @Override
@@ -221,14 +286,14 @@ final class ConjureBodySerDe implements BodySerDe {
 
         private static final SafeLogger log = SafeLoggerFactory.get(EncodingDeserializerRegistry.class);
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
-        private final ErrorDecoder errorDecoder;
+        private final ExceptionDeserializingErrorDecoder errorDecoder;
         private final Optional<String> acceptValue;
         private final Supplier<Optional<T>> emptyInstance;
         private final TypeMarker<T> token;
 
         EncodingDeserializerRegistry(
                 List<Encoding> encodings,
-                ErrorDecoder errorDecoder,
+                ExceptionDeserializingErrorDecoder errorDecoder,
                 EmptyContainerDeserializer empty,
                 TypeMarker<T> token) {
             this.encodings = encodings.stream()
@@ -338,9 +403,9 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     private static final class EmptyBodyDeserializer implements Deserializer<Void> {
-        private final ErrorDecoder errorDecoder;
+        private final ExceptionDeserializingErrorDecoder errorDecoder;
 
-        EmptyBodyDeserializer(ErrorDecoder errorDecoder) {
+        EmptyBodyDeserializer(ExceptionDeserializingErrorDecoder errorDecoder) {
             this.errorDecoder = errorDecoder;
         }
 
@@ -364,6 +429,23 @@ final class ConjureBodySerDe implements BodySerDe {
         @Override
         public String toString() {
             return "EmptyBodyDeserializer{}";
+        }
+    }
+
+    private enum DeserializerType {
+        STANDARD,
+        EMPTY_BODY,
+        INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
+    }
+
+    private record ExceptionDeserializerCacheKey<T>(ExceptionDeserializerArgs<T> args, DeserializerType type) {
+        ExceptionDeserializerCacheKey {
+            Preconditions.checkNotNull(args, "args must be non-null");
+            Preconditions.checkNotNull(type, "type must be non-null");
+        }
+
+        static <T> ExceptionDeserializerCacheKey<T> of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
+            return new ExceptionDeserializerCacheKey<>(args, type);
         }
     }
 }

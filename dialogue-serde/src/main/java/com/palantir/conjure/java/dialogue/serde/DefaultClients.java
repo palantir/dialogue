@@ -20,7 +20,9 @@ import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
@@ -42,6 +44,7 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.jspecify.annotations.Nullable;
@@ -121,7 +124,15 @@ enum DefaultClients implements Clients {
             // TODO(jellis): can consider propagating other relevant exceptions (eg: HttpConnectTimeoutException)
             // see HttpClientImpl#send(HttpRequest req, BodyHandler<T> responseHandler)
             if (cause instanceof RemoteException remoteException) {
-                throw newRemoteException(remoteException);
+                if (cause.getClass() == RemoteException.class) {
+                    throw newRemoteException(remoteException);
+                } else {
+                    // This is a user-defined subclass of RemoteException, so we want to preserve the type. But we also
+                    // want to propagate the current stacktrace. Another (arguably better) option is to add a suppressed
+                    // RuntimeException. In order to preserve backwards compatibility for clients that may inspect the
+                    // cause of a remote exception, we take this approach.
+                    throw newCustomRemoteException(remoteException);
+                }
             }
 
             if (cause instanceof UnknownRemoteException unknownRemoteException) {
@@ -149,6 +160,54 @@ enum DefaultClients implements Clients {
         RemoteException newException = new RemoteException(remoteException.getError(), remoteException.getStatus());
         newException.initCause(remoteException);
         return newException;
+    }
+
+    private static RemoteException newCustomRemoteException(RemoteException remoteException) {
+        RemoteException newException = createRemoteExceptionWithReflection(remoteException);
+        newException.initCause(remoteException);
+        return newException;
+    }
+
+    private static RemoteException createRemoteExceptionWithReflection(RemoteException remoteException) {
+        try {
+            Class<?> clazz = remoteException.getClass();
+            if (!(remoteException instanceof SerializableErrorProvider)) {
+                log.warn(
+                        "RemoteException subclass does not implement SerializableErrorProvider",
+                        SafeArg.of("remoteExceptionClass", clazz.getSimpleName()));
+                return newRemoteException(remoteException);
+            }
+
+            // Iterate through the constructors and find one that takes (AbstractSerializableError, int)
+            for (Constructor<?> constructor : clazz.getConstructors()) {
+                if (constructor.getParameterCount() != 2) {
+                    continue;
+                }
+                if (!AbstractSerializableError.class.isAssignableFrom(
+                        constructor.getParameterTypes()[0])) {
+                    continue;
+                }
+                if (constructor.getParameterTypes()[1] != int.class) {
+                    continue;
+                }
+                // Found a matching constructor, use it to create a new instance
+                AbstractSerializableError<?> abstractSerializableError =
+                        (AbstractSerializableError<?>) clazz.getMethod("error").invoke(remoteException);
+                return (RemoteException)
+                        constructor.newInstance(abstractSerializableError, remoteException.getStatus());
+            }
+            log.warn(
+                    "Did not find a constructor on "
+                            + "RemoteException subclass with parameters (AbstractSerializableError, int)",
+                    SafeArg.of("remoteExceptionClass", clazz.getSimpleName()));
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to create new RemoteException with reflection, falling back to base type",
+                    SafeArg.of(
+                            "remoteExceptionClass", remoteException.getClass().getSimpleName()),
+                    e);
+        }
+        return newRemoteException(remoteException);
     }
 
     private static UnknownRemoteException newUnknownRemoteException(UnknownRemoteException cause) {

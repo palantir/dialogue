@@ -55,11 +55,13 @@ import org.junit.jupiter.api.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Override
     protected Channel createChannel(ClientConfiguration config) {
         return ApacheHttpClientChannels.create(config);
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     public void close_doesnt_fail_inflight_requests() throws Exception {
         ClientConfiguration conf = TestConfigurations.create("http://foo");
