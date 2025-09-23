@@ -365,7 +365,7 @@ acceptedBreaks:
   "6.9.0":
     com.palantir.dialogue:dialogue-clients:
     - code: "java.method.addedToInterface"
-      new: "method T com.palantir.conjure.java.clients.ConjureClients.WithClientOptions<T>::withConjureErrorParameterSerializationFormat(com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat)\
+      new: "method T com.palantir.conjure.java.clients.ConjureClients.WithClientOptions<T>::withConjureErrorParameterFormat(com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat)\
         \ @ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory"
       justification: "A method was added to WithClientOptions to support setting the\
         \ error parameter format. The DialogueClients.ReloadingFactory interface extends\
