@@ -26,6 +26,7 @@ dependencies {
     implementation 'com.palantir.tritium:tritium-registry'
     implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'io.dropwizard.metrics:metrics-core'
+    implementation 'com.palantir.conjure.java.api:errors'
 
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'

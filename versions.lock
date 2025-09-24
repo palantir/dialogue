@@ -28,7 +28,7 @@ com.google.errorprone:error_prone_annotations:2.7.1 (19 constraints: f52e0765)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.5.0-jre (18 constraints: 3740a80a)
+com.google.guava:guava:33.5.0-jre (18 constraints: 224035e9)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -36,21 +36,21 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.4.0 (1 constraints: 08050136)
 
-com.palantir.conjure.java:conjure-lib:8.56.0 (2 constraints: 36245b7b)
+com.palantir.conjure.java:conjure-lib:8.56.0 (2 constraints: 3924647b)
 
-com.palantir.conjure.java.api:errors:2.65.0 (2 constraints: 631570db)
+com.palantir.conjure.java.api:errors:2.65.0 (3 constraints: 81298615)
 
-com.palantir.conjure.java.api:service-config:2.65.0 (2 constraints: 5a1910dd)
+com.palantir.conjure.java.api:service-config:2.65.0 (2 constraints: 5d1919dd)
 
-com.palantir.conjure.java.api:ssl-config:2.65.0 (4 constraints: 023fec9f)
+com.palantir.conjure.java.api:ssl-config:2.65.0 (4 constraints: 083f9da0)
 
-com.palantir.conjure.java.runtime:client-config:8.24.0 (1 constraints: 4005633b)
+com.palantir.conjure.java.runtime:client-config:8.25.0 (1 constraints: 4105663b)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.24.0 (1 constraints: 841cc4a4)
+com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.25.0 (1 constraints: 851cc7a4)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.24.0 (2 constraints: 6016310f)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.25.0 (2 constraints: 6116650f)
 
-com.palantir.conjure.java.runtime:keystores:8.24.0 (2 constraints: 5f1974dd)
+com.palantir.conjure.java.runtime:keystores:8.25.0 (2 constraints: 6119b3dd)
 
 com.palantir.deadlines:deadlines:0.15.0 (1 constraints: 3805323b)
 
@@ -92,11 +92,11 @@ com.palantir.tritium:tritium-ids:0.109.0 (1 constraints: f80f86a6)
 
 com.palantir.tritium:tritium-metrics:0.109.0 (3 constraints: 9324d209)
 
-com.palantir.tritium:tritium-registry:0.109.0 (6 constraints: f465684b)
+com.palantir.tritium:tritium-registry:0.109.0 (6 constraints: fe657552)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
-io.dropwizard.metrics:metrics-core:4.2.37 (6 constraints: a961edac)
+io.dropwizard.metrics:metrics-core:4.2.37 (6 constraints: ad61c9af)
 
 javax.annotation:javax.annotation-api:1.3.2 (1 constraints: 0805fb35)
 
