@@ -161,7 +161,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
             try {
                 return delegate.isDataAvailable(timeout);
             } finally {
-                Tracer.fastCompleteSpan(ImmutableMap.of("timeout", String.valueOf(timeout)));
+                Tracer.fastCompleteSpan();
             }
         } else {
             return delegate.isDataAvailable(timeout);
