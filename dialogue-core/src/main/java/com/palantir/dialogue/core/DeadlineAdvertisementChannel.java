@@ -41,7 +41,6 @@ final class DeadlineAdvertisementChannel implements Channel {
         this.readTimeout = readTimeout.isNegative() || readTimeout.isZero() ? Duration.ofDays(1) : readTimeout;
     }
 
-    @SuppressWarnings("for-rollout:deprecation")
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Request.Builder requestBuilder = Request.builder().from(request);
