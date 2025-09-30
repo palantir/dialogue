@@ -230,21 +230,21 @@ org.jmock:jmock:2.13.1 (1 constraints: 3905393b)
 
 org.jmock:jmock-testjar:2.13.1 (1 constraints: a707a672)
 
-org.junit.jupiter:junit-jupiter:5.13.4 (1 constraints: 7e074077)
+org.junit.jupiter:junit-jupiter:5.14.0 (1 constraints: 7b072777)
 
-org.junit.jupiter:junit-jupiter-api:5.13.4 (6 constraints: 82599828)
+org.junit.jupiter:junit-jupiter-api:5.14.0 (6 constraints: 73592920)
 
-org.junit.jupiter:junit-jupiter-engine:5.13.4 (1 constraints: 3a0e0a4a)
+org.junit.jupiter:junit-jupiter-engine:5.14.0 (1 constraints: 370e094a)
 
-org.junit.jupiter:junit-jupiter-migrationsupport:5.13.4 (1 constraints: 3f054e3b)
+org.junit.jupiter:junit-jupiter-migrationsupport:5.14.0 (1 constraints: 3c054d3b)
 
-org.junit.jupiter:junit-jupiter-params:5.13.4 (2 constraints: 7813555c)
+org.junit.jupiter:junit-jupiter-params:5.14.0 (2 constraints: 7213d85b)
 
-org.junit.platform:junit-platform-commons:1.13.4 (2 constraints: 39219184)
+org.junit.platform:junit-platform-commons:1.14.0 (2 constraints: 3321f983)
 
-org.junit.platform:junit-platform-engine:1.13.4 (2 constraints: 5123de45)
+org.junit.platform:junit-platform-engine:1.14.0 (2 constraints: 4b234045)
 
-org.junit.platform:junit-platform-launcher:1.13.4 (1 constraints: 3b05363b)
+org.junit.platform:junit-platform-launcher:1.14.0 (1 constraints: 3805353b)
 
 org.knowm.xchart:xchart:3.6.1 (1 constraints: 0c050d36)
 
