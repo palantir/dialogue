@@ -40,6 +40,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.tracing.Tracer;
 import com.palantir.tracing.api.TraceHttpHeaders;
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -383,28 +384,53 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             client = null;
             // Avoid attempting to close a response that has already been closed.
             if (clientSnapshot != null) {
-                try {
-                    // Check if the response has been fully drained. If not, we close the connection rather than
-                    // potentially reading massive data unnecessarily.
-                    if (hasSubstantialRemainingData(response)) {
-                        ExecRuntime runtime = HttpClientExecRuntimeAttributeInterceptor.get(context);
-                        if (runtime != null) {
-                            runtime.discardEndpoint();
-                            // Constructing the new metrics component in the unexpected case is more efficient than
-                            // creating the meter for hundreds of services which never hit this case.
-                            DialogueClientMetrics.of(
-                                            clientSnapshot.clientConfiguration().taggedMetricRegistry())
-                                    .connectionClosedPartiallyConsumedResponse(clientSnapshot.name())
-                                    .mark();
-                            // Do not call response.close which internally attempts to drain the response
-                            // because the underlying resources have already been closed.
-                            return;
-                        }
+                if (log.isDebugEnabled()) {
+                    Tracer.fastStartSpan("Dialogue Response.close");
+                    try {
+                        doClose(clientSnapshot);
+                    } finally {
+                        Tracer.fastCompleteSpan();
                     }
-                    response.close();
-                } catch (IOException | RuntimeException e) {
-                    log.warn("Failed to close response", e);
+                } else {
+                    doClose(clientSnapshot);
                 }
+            }
+        }
+
+        private void doClose(ApacheHttpClientChannels.CloseableClient clientSnapshot) {
+            try {
+                // Check if the response has been fully drained. If not, we close the connection rather than
+                // potentially reading massive data unnecessarily.
+                boolean hasRemainingData;
+                if (log.isDebugEnabled()) {
+                    Tracer.fastStartSpan("Dialogue Response.checkRemaining");
+                    try {
+                        hasRemainingData = hasSubstantialRemainingData(response);
+                    } finally {
+                        Tracer.fastCompleteSpan();
+                    }
+                } else {
+                    hasRemainingData = hasSubstantialRemainingData(response);
+                }
+
+                if (hasRemainingData) {
+                    ExecRuntime runtime = HttpClientExecRuntimeAttributeInterceptor.get(context);
+                    if (runtime != null) {
+                        runtime.discardEndpoint();
+                        // Constructing the new metrics component in the unexpected case is more efficient than
+                        // creating the meter for hundreds of services which never hit this case.
+                        DialogueClientMetrics.of(
+                                        clientSnapshot.clientConfiguration().taggedMetricRegistry())
+                                .connectionClosedPartiallyConsumedResponse(clientSnapshot.name())
+                                .mark();
+                        // Do not call response.close which internally attempts to drain the response
+                        // because the underlying resources have already been closed.
+                        return;
+                    }
+                }
+                response.close();
+            } catch (IOException | RuntimeException e) {
+                log.warn("Failed to close response", e);
             }
         }
 
