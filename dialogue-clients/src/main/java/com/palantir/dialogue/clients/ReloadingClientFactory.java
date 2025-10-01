@@ -136,6 +136,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             return true;
         }
 
+        @Value.Default
+        default Enforcement deadlineEnforcement() {
+            return Enforcement.DEFER;
+        }
+
         Optional<ExecutorService> blockingExecutor();
     }
 

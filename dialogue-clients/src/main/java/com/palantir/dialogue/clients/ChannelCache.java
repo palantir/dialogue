@@ -174,7 +174,7 @@ final class ChannelCache {
                             dnsResolutionResults.resolvedHosts(),
                             channelCacheRequest.taggedMetrics()));
         }
-        DialogueChannel.Builder dialogueBuilder = DialogueChannel.builder()
+        return DialogueChannel.builder()
                 .channelName(channelCacheRequest.channelName())
                 .clientConfiguration(ClientConfiguration.builder()
                         .from(apacheClient.conf())
@@ -184,12 +184,9 @@ final class ChannelCache {
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client()))
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
-                        .findAny());
-
-        // Add deadline enforcement if specified in the params
-        channelCacheRequest.deadlineEnforcement().ifPresent(dialogueBuilder::deadlineEnforcement);
-
-        return dialogueBuilder.build();
+                        .findAny())
+                .deadlineEnforcement(channelCacheRequest.deadlineEnforcement())
+                .build();
     }
 
     @VisibleForTesting
@@ -281,7 +278,7 @@ final class ChannelCache {
 
         boolean dnsNodeDiscovery();
 
-        Optional<Enforcement> deadlineEnforcement();
+        Enforcement deadlineEnforcement();
     }
 
     @Unsafe
