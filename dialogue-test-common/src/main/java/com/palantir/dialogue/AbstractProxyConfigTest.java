@@ -37,6 +37,7 @@ import org.junit.Rule;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 
+@SuppressWarnings("for-rollout:removal")
 @EnableRuleMigrationSupport
 public abstract class AbstractProxyConfigTest {
 
