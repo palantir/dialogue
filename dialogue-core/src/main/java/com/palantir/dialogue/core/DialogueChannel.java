@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -144,8 +145,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
-        public Builder deadlineEnforcement(Optional<Boolean> enforcementEnabled) {
-            builder.deadlineEnforcementEnabled(enforcementEnabled);
+        public Builder deadlineEnforcement(Optional<Boolean> deadlineEnforcement) {
+            Enforcement enforcement = deadlineEnforcement
+                    .map(enforce -> enforce ? Enforcement.ENFORCE : Enforcement.DISABLE)
+                    .orElse(Enforcement.DEFER);
+            builder.deadlineEnforcement(enforcement);
             return this;
         }
 
@@ -250,15 +254,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = HostMetricsChannel.create(cf, channel, targetUri.uri());
                 channel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
-                if (cf.deadlineEnforcementEnabled().isPresent()) {
-                    channel = DeadlineAdvertisementChannel.create(
-                            channel,
-                            cf.clientConf().readTimeout(),
-                            cf.deadlineEnforcementEnabled().get());
-                } else {
-                    channel = DeadlineAdvertisementChannel.create(
-                            channel, cf.clientConf().readTimeout());
-                }
+                channel = DeadlineAdvertisementChannel.create(
+                        channel, cf.clientConf().readTimeout(), cf.deadlineEnforcement());
 
                 ChannelState channelState = state.get(targetUri);
                 Preconditions.checkNotNull(channelState, "no ChannelState exists for this TargetUri");

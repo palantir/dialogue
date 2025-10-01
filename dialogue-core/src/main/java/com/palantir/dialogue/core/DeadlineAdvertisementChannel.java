@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.Deadlines;
+import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -36,11 +37,8 @@ final class DeadlineAdvertisementChannel implements Channel {
         return new DeadlineAdvertisementChannel(delegate, readTimeout, Deadlines.Enforcement.DEFER);
     }
 
-    static DeadlineAdvertisementChannel create(Channel delegate, Duration readTimeout, boolean enforcementEnabled) {
-        return new DeadlineAdvertisementChannel(
-                delegate,
-                readTimeout,
-                enforcementEnabled ? Deadlines.Enforcement.ENFORCE : Deadlines.Enforcement.DISABLE);
+    static DeadlineAdvertisementChannel create(Channel delegate, Duration readTimeout, Enforcement enforcement) {
+        return new DeadlineAdvertisementChannel(delegate, readTimeout, enforcement);
     }
 
     private DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, Deadlines.Enforcement enforcement) {
