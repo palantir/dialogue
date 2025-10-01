@@ -212,7 +212,7 @@ public final class DialogueClients {
         /**
          * Factory for creating clients with specific deadline enforcement overrides applied.
          */
-        DeadlineEnforcementFactory withDeadlineEnforcement(String serviceName, boolean enforceDeadlines);
+        DeadlineEnforcementFactory withDeadlineEnforcement(boolean enforce);
     }
 
     public interface DeadlineEnforcementFactory {

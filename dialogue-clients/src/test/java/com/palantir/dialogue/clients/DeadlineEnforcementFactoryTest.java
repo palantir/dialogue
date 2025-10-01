@@ -31,7 +31,7 @@ public final class DeadlineEnforcementFactoryTest {
         ServicesConfigBlock servicesConfig = ServicesConfigBlock.builder().build();
         ReloadingFactory dialogueFactory = DialogueClients.create(Refreshable.only(servicesConfig));
 
-        DeadlineEnforcementFactory enforcementFactory = dialogueFactory.withDeadlineEnforcement("test-service", true);
+        DeadlineEnforcementFactory enforcementFactory = dialogueFactory.withDeadlineEnforcement(true);
 
         assertThat(enforcementFactory).isNotNull();
     }
@@ -41,10 +41,10 @@ public final class DeadlineEnforcementFactoryTest {
         ServicesConfigBlock servicesConfig = ServicesConfigBlock.builder().build();
         ReloadingFactory dialogueFactory = DialogueClients.create(Refreshable.only(servicesConfig));
 
-        DeadlineEnforcementFactory withDeadlines = dialogueFactory.withDeadlineEnforcement("test-service", true);
-        DeadlineEnforcementFactory withoutDeadlines = dialogueFactory.withDeadlineEnforcement("test-service", false);
+        DeadlineEnforcementFactory withDeadlines = dialogueFactory.withDeadlineEnforcement(true);
+        DeadlineEnforcementFactory withoutDeadlines = dialogueFactory.withDeadlineEnforcement(false);
 
         assertThat(withDeadlines).isNotEqualTo(withoutDeadlines);
-        // assertThat(withDeadlines.gegst(...)).isNotEqualTo(withDeadlines.get(...));
+        // assertThat(withDeadlines.get(...)).isNotEqualTo(withDeadlines.get(...));
     }
 }

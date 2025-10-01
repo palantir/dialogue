@@ -314,8 +314,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public DeadlineEnforcementFactory withDeadlineEnforcement(String _serviceName, boolean enforceDeadlines) {
-        return new DeadlineEnforcementFactoryImpl(this, enforceDeadlines);
+    public DeadlineEnforcementFactory withDeadlineEnforcement(boolean enforce) {
+        return new DeadlineEnforcementFactoryImpl(this, enforce);
     }
 
     @Override
@@ -600,14 +600,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
     }
 
-    private static final class DeadlineEnforcementFactoryImpl implements DeadlineEnforcementFactory {
-        private final ReloadingClientFactory delegate;
-        private final boolean enforceDeadlines;
-
-        DeadlineEnforcementFactoryImpl(ReloadingClientFactory delegate, boolean enforceDeadlines) {
-            this.delegate = delegate;
-            this.enforceDeadlines = enforceDeadlines;
-        }
+    private record DeadlineEnforcementFactoryImpl(ReloadingClientFactory delegate, boolean enforce)
+            implements DeadlineEnforcementFactory {
 
         @Override
         public <T> T get(Class<T> serviceClass, String serviceName) {
@@ -617,17 +611,16 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         private Channel getDeadlineEnforcedChannel(String serviceName) {
-            Enforcement enforcement = enforceDeadlines ? Enforcement.ENFORCE : Enforcement.DISABLE;
-            ImmutableReloadingParams paramsWithEnforcement = ImmutableReloadingParams.builder()
-                    .from(delegate.params)
-                    .deadlineEnforcement(enforcement)
-                    .build();
+            Enforcement enforcement = enforce ? Enforcement.ENFORCE : Enforcement.DISABLE;
 
-            ReloadingClientFactory factoryWithEnforcement =
-                    new ReloadingClientFactory(paramsWithEnforcement, delegate.cache);
+            ReloadingClientFactory factory = new ReloadingClientFactory(
+                    ImmutableReloadingParams.builder()
+                            .from(delegate.params)
+                            .deadlineEnforcement(enforcement)
+                            .build(),
+                    delegate.cache);
 
-            // Now we can reuse the existing getChannel method!
-            return factoryWithEnforcement.getChannel(serviceName);
+            return factory.getChannel(serviceName);
         }
     }
 }
