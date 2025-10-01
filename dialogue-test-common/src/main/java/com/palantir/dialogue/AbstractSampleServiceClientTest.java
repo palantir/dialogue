@@ -46,6 +46,7 @@ import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 
 // CHECKSTYLE:ON
 
+@SuppressWarnings("for-rollout:removal")
 @EnableRuleMigrationSupport
 public abstract class AbstractSampleServiceClientTest {
 

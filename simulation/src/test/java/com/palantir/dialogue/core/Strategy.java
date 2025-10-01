@@ -70,6 +70,7 @@ public enum Strategy {
                 .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS);
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     private Channel refreshingChannel(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(
                 channelSupplier, channels -> dialogueChannelWithDefaults(sim, channels));

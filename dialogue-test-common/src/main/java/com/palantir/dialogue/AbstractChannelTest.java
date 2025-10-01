@@ -51,7 +51,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 
 // CHECKSTYLE:ON
-@SuppressWarnings({"checkstyle:avoidstaticimport", "checkstyle:VisibilityModifier", "FutureReturnValueIgnored"})
+@SuppressWarnings({
+    "checkstyle:avoidstaticimport",
+    "checkstyle:VisibilityModifier",
+    "FutureReturnValueIgnored",
+    "for-rollout:removal"
+})
 @EnableRuleMigrationSupport
 public abstract class AbstractChannelTest {
 

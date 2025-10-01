@@ -68,6 +68,7 @@ public final class RefreshingChannelFactoryTest {
                             .build())
             .build();
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Mock
     private RefreshingChannelFactory.ChannelFactory channelFactory;
 
@@ -87,9 +88,13 @@ public final class RefreshingChannelFactoryTest {
     private Channel channel2;
 
     private AtomicReference<ServicesConfigBlock> conf = new AtomicReference<>(ServicesConfigBlock.empty());
+
+    @SuppressWarnings("for-rollout:deprecation")
     private RefreshingChannelFactory clientFactory;
+
     private Channel channelA;
 
+    @SuppressWarnings("for-rollout:deprecation")
     @BeforeEach
     public void before() {
         lenient().when(channelFactory.create(matchesConf(URI_1))).thenReturn(channel1);
