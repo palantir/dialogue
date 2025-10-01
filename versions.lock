@@ -28,7 +28,7 @@ com.google.errorprone:error_prone_annotations:2.7.1 (19 constraints: ef2e645a)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.5.0-jre (18 constraints: 224035e9)
+com.google.guava:guava:33.5.0-jre (18 constraints: ff3f15db)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -82,17 +82,17 @@ com.palantir.tracing:tracing:6.28.0 (3 constraints: bd24bafe)
 
 com.palantir.tracing:tracing-api:6.28.0 (2 constraints: 19124b19)
 
-com.palantir.tritium:tritium-api:0.109.0 (2 constraints: 951f7ff4)
+com.palantir.tritium:tritium-api:0.110.0 (2 constraints: 851fd9f2)
 
-com.palantir.tritium:tritium-caffeine:0.109.0 (1 constraints: 6c05a340)
+com.palantir.tritium:tritium-caffeine:0.110.0 (1 constraints: 64058c40)
 
-com.palantir.tritium:tritium-core:0.109.0 (1 constraints: 7210b2b2)
+com.palantir.tritium:tritium-core:0.110.0 (1 constraints: 6a109bb2)
 
-com.palantir.tritium:tritium-ids:0.109.0 (1 constraints: f80f86a6)
+com.palantir.tritium:tritium-ids:0.110.0 (1 constraints: f80f86a6)
 
-com.palantir.tritium:tritium-metrics:0.109.0 (3 constraints: 9a24370b)
+com.palantir.tritium:tritium-metrics:0.110.0 (3 constraints: 8a243108)
 
-com.palantir.tritium:tritium-registry:0.109.0 (6 constraints: 05662355)
+com.palantir.tritium:tritium-registry:0.110.0 (6 constraints: ed65ce4a)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
