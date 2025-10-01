@@ -172,11 +172,8 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
     public boolean isStale() throws IOException {
         if (log.isDebugEnabled()) {
             Tracer.fastStartSpan("Dialogue ConnectionValidation.isStale");
-            long startNanos = System.nanoTime();
             try {
-                boolean stale = delegate.isStale();
-                long durationNanos = System.nanoTime() - startNanos;
-                return stale;
+                return delegate.isStale();
             } finally {
                 Tracer.fastCompleteSpan();
             }
