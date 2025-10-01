@@ -21,6 +21,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.TargetUri;
@@ -137,6 +138,7 @@ final class ChannelCache {
                 .dnsResolver(reloadingParams.dnsResolver())
                 .dnsRefreshInterval(reloadingParams.dnsRefreshInterval())
                 .dnsNodeDiscovery(overrideHostIndex.isEmpty() && reloadingParams.dnsNodeDiscovery())
+                .deadlineEnforcement(reloadingParams.deadlineEnforcement())
                 .build());
     }
 
@@ -172,7 +174,7 @@ final class ChannelCache {
                             dnsResolutionResults.resolvedHosts(),
                             channelCacheRequest.taggedMetrics()));
         }
-        return DialogueChannel.builder()
+        DialogueChannel.Builder dialogueBuilder = DialogueChannel.builder()
                 .channelName(channelCacheRequest.channelName())
                 .clientConfiguration(ClientConfiguration.builder()
                         .from(apacheClient.conf())
@@ -182,8 +184,12 @@ final class ChannelCache {
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client()))
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
-                        .findAny())
-                .build();
+                        .findAny());
+
+        // Add deadline enforcement if specified in the params
+        channelCacheRequest.deadlineEnforcement().ifPresent(dialogueBuilder::deadlineEnforcement);
+
+        return dialogueBuilder.build();
     }
 
     @VisibleForTesting
@@ -274,6 +280,8 @@ final class ChannelCache {
         Duration dnsRefreshInterval();
 
         boolean dnsNodeDiscovery();
+
+        Optional<Enforcement> deadlineEnforcement();
     }
 
     @Unsafe

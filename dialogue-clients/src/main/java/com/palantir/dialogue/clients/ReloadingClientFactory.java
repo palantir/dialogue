@@ -30,6 +30,7 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.ConjureRuntime;
@@ -313,7 +314,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public DeadlineEnforcementFactory withDeadlineEnforcement(String serviceName, boolean enforceDeadlines) {
+    public DeadlineEnforcementFactory withDeadlineEnforcement(String _serviceName, boolean enforceDeadlines) {
         return new DeadlineEnforcementFactoryImpl(this, enforceDeadlines);
     }
 
@@ -616,7 +617,17 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         private Channel getDeadlineEnforcedChannel(String serviceName) {
-            return delegate.getChannel(serviceName); // TODO(kkak): Figure out how to set enforcement config
+            Enforcement enforcement = enforceDeadlines ? Enforcement.ENFORCE : Enforcement.DISABLE;
+            ImmutableReloadingParams paramsWithEnforcement = ImmutableReloadingParams.builder()
+                    .from(delegate.params)
+                    .deadlineEnforcement(enforcement)
+                    .build();
+
+            ReloadingClientFactory factoryWithEnforcement =
+                    new ReloadingClientFactory(paramsWithEnforcement, delegate.cache);
+
+            // Now we can reuse the existing getChannel method!
+            return factoryWithEnforcement.getChannel(serviceName);
         }
     }
 }
