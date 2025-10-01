@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
+import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.logsafe.DoNotLog;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -78,6 +79,11 @@ interface Config {
     }
 
     OptionalInt overrideSingleHostIndex();
+
+    @Value.Default
+    default Enforcement clientDeadlineEnforcement() {
+        return Enforcement.DEFER;
+    }
 
     @Value.Check
     default void check() {

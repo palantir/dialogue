@@ -39,6 +39,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.ChannelCache.OverrideHostIndex;
+import com.palantir.dialogue.clients.DialogueClients.DeadlineEnforcementFactory;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
@@ -309,6 +310,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 };
             }
         };
+    }
+
+    @Override
+    public DeadlineEnforcementFactory withDeadlineEnforcement(String serviceName, boolean enforceDeadlines) {
+        return new DeadlineEnforcementFactoryImpl(this, enforceDeadlines);
     }
 
     @Override
@@ -590,6 +596,27 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Override
         public String toString() {
             return "LazilyMappedRefreshable{" + delegate + '}';
+        }
+    }
+
+    private static final class DeadlineEnforcementFactoryImpl implements DeadlineEnforcementFactory {
+        private final ReloadingClientFactory delegate;
+        private final boolean enforceDeadlines;
+
+        DeadlineEnforcementFactoryImpl(ReloadingClientFactory delegate, boolean enforceDeadlines) {
+            this.delegate = delegate;
+            this.enforceDeadlines = enforceDeadlines;
+        }
+
+        @Override
+        public <T> T get(Class<T> serviceClass, String serviceName) {
+            Channel channel = getDeadlineEnforcedChannel(serviceName);
+            ConjureRuntime runtime = delegate.params.runtime();
+            return Reflection.callStaticFactoryMethod(serviceClass, channel, runtime);
+        }
+
+        private Channel getDeadlineEnforcedChannel(String serviceName) {
+            return delegate.getChannel(serviceName); // TODO(kkak): Figure out how to set enforcement config
         }
     }
 }

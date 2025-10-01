@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -141,6 +142,14 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        /**
+         * Sets client-side deadline enforcement state.
+         */
+        public Builder deadlineEnforcement(Enforcement value) {
+            builder.clientDeadlineEnforcement(value);
+            return this;
+        }
+
         @VisibleForTesting
         Builder random(Random value) {
             builder.random(value);
@@ -242,8 +251,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = HostMetricsChannel.create(cf, channel, targetUri.uri());
                 channel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
-                channel = new DeadlineAdvertisementChannel(
-                        channel, cf.clientConf().readTimeout());
+                channel = DeadlineAdvertisementChannel.create(
+                        channel, cf.clientConf().readTimeout(), cf.clientDeadlineEnforcement());
 
                 ChannelState channelState = state.get(targetUri);
                 Preconditions.checkNotNull(channelState, "no ChannelState exists for this TargetUri");

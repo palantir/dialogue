@@ -208,6 +208,18 @@ public final class DialogueClients {
         StickyChannelFactory2 getStickyChannels2(String serviceName);
 
         PerHostClientFactory perHost(String serviceName);
+
+        /**
+         * Factory for creating clients with specific deadline enforcement overrides applied.
+         */
+        DeadlineEnforcementFactory withDeadlineEnforcement(String serviceName, boolean enforceDeadlines);
+    }
+
+    public interface DeadlineEnforcementFactory {
+        /**
+         * Creates a client with the desired deadline enforcement applied.
+         */
+        <T> T get(Class<T> serviceClass, String serviceName);
     }
 
     private DialogueClients() {}

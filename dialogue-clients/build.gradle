@@ -19,6 +19,7 @@ dependencies {
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.conjure.java.runtime:keystores'
     implementation 'com.palantir.conjure.java.api:ssl-config'
+    implementation 'com.palantir.deadlines:deadlines'
     implementation 'com.palantir.safe-logging:logger'
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
