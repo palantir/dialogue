@@ -18,33 +18,99 @@ package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients.DeadlineEnforcementFactory;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.refreshable.Refreshable;
+import java.lang.reflect.Field;
 import org.junit.jupiter.api.Test;
 
 public final class DeadlineEnforcementFactoryTest {
 
+    private static final ServicesConfigBlock scb = ServicesConfigBlock.builder()
+            .defaultSecurity(TestConfigurations.SSL_CONFIG)
+            .putServices(
+                    "test-service",
+                    PartialServiceConfiguration.builder()
+                            .addUris("https://127.0.0.1/test-service")
+                            .build())
+            .build();
+
     @Test
-    public void testDeadlineEnforcementFactoryCreation() {
-        ServicesConfigBlock servicesConfig = ServicesConfigBlock.builder().build();
-        ReloadingFactory dialogueFactory = DialogueClients.create(Refreshable.only(servicesConfig));
+    void clients_with_different_deadline_enforcement_settings_have_different_channels() throws Exception {
+        ReloadingFactory factoryDefault =
+                DialogueClients.create(Refreshable.only(scb)).withUserAgent(TestConfigurations.AGENT);
 
-        DeadlineEnforcementFactory enforcementFactory = dialogueFactory.withDeadlineEnforcement(true);
+        DeadlineEnforcementFactory factoryWithEnforcement = DialogueClients.create(Refreshable.only(scb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withDeadlineEnforcement(true);
+        DeadlineEnforcementFactory factoryWithEnforcementDisabled = factoryDefault.withDeadlineEnforcement(false);
 
-        assertThat(enforcementFactory).isNotNull();
+        Channel channelWithoutEnforcement = factoryDefault.getChannel("test-service");
+        Channel channelWithEnforcement =
+                getChannelFromDeadlineEnforcementFactory(factoryWithEnforcement, "test-service");
+        Channel channelWithEnforcementDisabled =
+                getChannelFromDeadlineEnforcementFactory(factoryWithEnforcementDisabled, "test-service");
+
+        assertThat(channelWithoutEnforcement).isNotSameAs(channelWithEnforcement);
+        assertThat(channelWithoutEnforcement).isNotSameAs(channelWithEnforcementDisabled);
+        assertThat(channelWithEnforcement).isNotSameAs(channelWithEnforcementDisabled);
     }
 
     @Test
-    public void testDifferentEnforcementStrategies() {
-        ServicesConfigBlock servicesConfig = ServicesConfigBlock.builder().build();
-        ReloadingFactory dialogueFactory = DialogueClients.create(Refreshable.only(servicesConfig));
+    void multiple_channels_from_same_factory_with_deadline_enforcement_work_correctly() throws Exception {
+        ReloadingFactory factory =
+                DialogueClients.create(Refreshable.only(scb)).withUserAgent(TestConfigurations.AGENT);
+        DeadlineEnforcementFactory factoryWithEnforcement = factory.withDeadlineEnforcement(true);
 
-        DeadlineEnforcementFactory withDeadlines = dialogueFactory.withDeadlineEnforcement(true);
-        DeadlineEnforcementFactory withoutDeadlines = dialogueFactory.withDeadlineEnforcement(false);
+        ChannelCache cache = getCacheFromFactory(factory);
 
-        assertThat(withDeadlines).isNotEqualTo(withoutDeadlines);
-        // assertThat(withDeadlines.get(...)).isNotEqualTo(withDeadlines.get(...));
+        Channel channel1 = getChannelFromDeadlineEnforcementFactory(factoryWithEnforcement, "test-service");
+        Channel channel2 = getChannelFromDeadlineEnforcementFactory(factoryWithEnforcement, "test-service");
+
+        assertThat(channel1).isNotNull();
+        assertThat(channel2).isNotNull();
+        assertThat(getCacheSize(cache)).isEqualTo(1);
+    }
+
+    // Reflection hackery below
+    private ChannelCache getCacheFromFactory(ReloadingFactory factory) throws Exception {
+        Field cacheField = factory.getClass().getDeclaredField("cache");
+        cacheField.setAccessible(true);
+        return (ChannelCache) cacheField.get(factory);
+    }
+
+    private long getCacheSize(ChannelCache cache) throws Exception {
+        Field channelCacheField = cache.getClass().getDeclaredField("channelCache");
+        channelCacheField.setAccessible(true);
+        LoadingCache<?, ?> channelCache = (LoadingCache<?, ?>) channelCacheField.get(cache);
+        return channelCache.estimatedSize();
+    }
+
+    private Channel getChannelFromDeadlineEnforcementFactory(DeadlineEnforcementFactory factory, String serviceName)
+            throws Exception {
+        Field delegateField = factory.getClass().getDeclaredField("delegate");
+        delegateField.setAccessible(true);
+        ReloadingFactory delegate = (ReloadingFactory) delegateField.get(factory);
+
+        java.lang.reflect.Method getInternalDialogueChannelMethod =
+                delegate.getClass().getDeclaredMethod("getInternalDialogueChannel", String.class);
+        getInternalDialogueChannelMethod.setAccessible(true);
+        Refreshable<?> refreshableChannel =
+                (Refreshable<?>) getInternalDialogueChannelMethod.invoke(delegate, serviceName);
+        Object internalChannel = refreshableChannel.get();
+
+        Field enforceField = factory.getClass().getDeclaredField("enforce");
+        enforceField.setAccessible(true);
+        boolean enforce = (Boolean) enforceField.get(factory);
+
+        return (endpoint, request) -> {
+            request.attachments().put(com.palantir.dialogue.RequestAttachmentKey.create(Boolean.class), enforce);
+            return ((Channel) internalChannel).execute(endpoint, request);
+        };
     }
 }
