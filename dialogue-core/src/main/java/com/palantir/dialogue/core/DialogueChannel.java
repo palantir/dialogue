@@ -123,7 +123,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
          * @deprecated prefer {@link #factory(DialogueChannelFactory)}
          */
         @Deprecated
-        public Builder channelFactory(@SuppressWarnings("for-rollout:deprecation") ChannelFactory value) {
+        public Builder channelFactory(ChannelFactory value) {
             return factory(DialogueChannelFactory.from(value));
         }
 
