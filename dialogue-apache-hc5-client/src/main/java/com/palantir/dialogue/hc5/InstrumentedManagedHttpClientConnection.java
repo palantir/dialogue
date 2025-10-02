@@ -108,7 +108,16 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void sendRequestHeader(ClassicHttpRequest request) throws HttpException, IOException {
-        delegate.sendRequestHeader(request);
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue Connection.sendRequestHeader");
+            try {
+                delegate.sendRequestHeader(request);
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            delegate.sendRequestHeader(request);
+        }
     }
 
     @Override
@@ -118,7 +127,16 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void sendRequestEntity(ClassicHttpRequest request) throws HttpException, IOException {
-        delegate.sendRequestEntity(request);
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue Connection.sendRequestEntity");
+            try {
+                delegate.sendRequestEntity(request);
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            delegate.sendRequestEntity(request);
+        }
     }
 
     @Override
@@ -151,7 +169,16 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void receiveResponseEntity(ClassicHttpResponse response) throws HttpException, IOException {
-        delegate.receiveResponseEntity(response);
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue Connection.receiveResponseEntity");
+            try {
+                delegate.receiveResponseEntity(response);
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            delegate.receiveResponseEntity(response);
+        }
     }
 
     @Override
