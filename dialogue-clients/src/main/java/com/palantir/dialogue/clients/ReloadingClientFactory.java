@@ -30,7 +30,6 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
-import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.ConjureRuntime;
@@ -38,6 +37,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.ChannelCache.OverrideHostIndex;
 import com.palantir.dialogue.clients.DialogueClients.DeadlineEnforcementFactory;
@@ -134,11 +134,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Value.Default
         default boolean dnsNodeDiscovery() {
             return true;
-        }
-
-        @Value.Default
-        default Enforcement deadlineEnforcement() {
-            return Enforcement.DEFER;
         }
 
         Optional<ExecutorService> blockingExecutor();
@@ -616,16 +611,17 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         private Channel getDeadlineEnforcedChannel(String serviceName) {
-            Enforcement enforcement = enforce ? Enforcement.ENFORCE : Enforcement.DISABLE;
+            Channel internalDialogueChannel =
+                    delegate.getInternalDialogueChannel(serviceName).get();
 
-            ReloadingClientFactory factory = new ReloadingClientFactory(
-                    ImmutableReloadingParams.builder()
-                            .from(delegate.params)
-                            .deadlineEnforcement(enforcement)
-                            .build(),
-                    delegate.cache);
+            Channel deadlineEnforcingChannel = (endpoint, request) -> {
+                request.attachments().put(RequestAttachmentKey.create(Boolean.class), enforce);
+                return internalDialogueChannel.execute(endpoint, request);
+            };
 
-            return factory.getChannel(serviceName);
+            return new LiveReloadingChannel(
+                    Refreshable.only(deadlineEnforcingChannel),
+                    delegate.params.runtime().clients());
         }
     }
 }

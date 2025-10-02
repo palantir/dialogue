@@ -21,7 +21,6 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.TargetUri;
@@ -138,7 +137,6 @@ final class ChannelCache {
                 .dnsResolver(reloadingParams.dnsResolver())
                 .dnsRefreshInterval(reloadingParams.dnsRefreshInterval())
                 .dnsNodeDiscovery(overrideHostIndex.isEmpty() && reloadingParams.dnsNodeDiscovery())
-                .deadlineEnforcement(reloadingParams.deadlineEnforcement())
                 .build());
     }
 
@@ -185,7 +183,6 @@ final class ChannelCache {
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
                         .findAny())
-                .deadlineEnforcement(channelCacheRequest.deadlineEnforcement())
                 .build();
     }
 
@@ -277,8 +274,6 @@ final class ChannelCache {
         Duration dnsRefreshInterval();
 
         boolean dnsNodeDiscovery();
-
-        Enforcement deadlineEnforcement();
     }
 
     @Unsafe
