@@ -165,6 +165,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        public Builder acceptJsonErrorDeserialization(boolean value) {
+            builder.acceptJsonErrorDeserialization(value);
+            return this;
+        }
+
         @CheckReturnValue
         public DialogueChannel build() {
             Config cf = builder.build();
@@ -244,6 +249,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
                 channel = new DeadlineAdvertisementChannel(
                         channel, cf.clientConf().readTimeout());
+                channel = new AcceptJsonErrorDeserializationChannel(channel, cf.acceptJsonErrorDeserialization());
 
                 ChannelState channelState = state.get(targetUri);
                 Preconditions.checkNotNull(channelState, "no ChannelState exists for this TargetUri");
