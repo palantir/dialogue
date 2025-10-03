@@ -1,4 +1,5 @@
-com.fasterxml.jackson.*:* = 2.19.2
+com.fasterxml.jackson.*:* = 3.0.0-SNAPSHOT
+com.fasterxml.jackson.core:jackson-annotations = 3.0-rc6-SNAPSHOT
 com.google.code.findbugs:jsr305 = 3.0.2
 com.google.guava:guava = 33.5.0-jre
 com.google.testing.compile:compile-testing = 0.23.0
