@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -33,17 +34,24 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import org.jspecify.annotations.Nullable;
 
-final class StickyEndpointChannels2 implements Supplier<Channel> {
+final class StickyEndpointChannels2 implements StickyEndpointChannelsFactory {
 
-    private final Supplier<EndpointChannelFactory> delegate;
+    private final Supplier<Channel> queueOverrideSupplier;
+    private final Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache;
+    private final EndpointChannelFactory delegate;
 
-    StickyEndpointChannels2(Supplier<EndpointChannelFactory> endpointChannelFactory) {
-        this.delegate = endpointChannelFactory;
+    StickyEndpointChannels2(
+            Supplier<Channel> queueOverrideSupplier,
+            Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache,
+            EndpointChannelFactory delegate) {
+        this.queueOverrideSupplier = queueOverrideSupplier;
+        this.stickyEndpointChannelsCache = stickyEndpointChannelsCache;
+        this.delegate = delegate;
     }
 
     @Override
-    public Channel get() {
-        return new StickyChannel2(delegate.get());
+    public Channel stickyChannel() {
+        return new StickyChannel2(queueOverrideSupplier, delegate, stickyEndpointChannelsCache);
     }
 
     @Override
@@ -51,10 +59,10 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         return "StickyEndpointChannels2{" + delegate + "}";
     }
 
-    static Supplier<Channel> create(Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
+    static StickyEndpointChannelsFactory create(
+            Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
         Supplier<Channel> queueOverrideSupplier = new QueueOverrideSupplier(cf, nodeSelectionChannel);
-        return new StickyEndpointChannels2(
-                new StickyEndpointChannels2EndpointFactorySupplier(queueOverrideSupplier, delegate));
+        return new StickyEndpointChannels2(queueOverrideSupplier, cf.stickyEndpointChannelCache(), delegate);
     }
 
     private static final class QueueOverrideSupplier implements Supplier<Channel> {
@@ -81,53 +89,35 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         }
     }
 
-    private static final class StickyEndpointChannels2EndpointFactorySupplier
-            implements Supplier<EndpointChannelFactory> {
+    private static final class StickyChannel2 implements Channel {
 
-        private final Supplier<Channel> queueOverrideSupplier;
+        private final Channel queueOverride;
         private final EndpointChannelFactory delegate;
-
-        StickyEndpointChannels2EndpointFactorySupplier(
-                Supplier<Channel> queueOverrideSupplier, EndpointChannelFactory delegate) {
-            this.queueOverrideSupplier = queueOverrideSupplier;
-            this.delegate = delegate;
-        }
-
-        @Override
-        public EndpointChannelFactory get() {
-            Channel queueOverride = queueOverrideSupplier.get();
-            return endpoint -> {
-                EndpointChannel endpointChannel = delegate.endpoint(endpoint);
-                return (EndpointChannel) request -> {
-                    QueueAttachments.setQueueOverride(request, queueOverride);
-                    return endpointChannel.execute(request);
-                };
-            };
-        }
-    }
-
-    private static final class StickyChannel2 implements EndpointChannelFactory, Channel {
-
-        private final EndpointChannelFactory channelFactory;
+        private final Cache<Endpoint, EndpointChannel> cache;
         private final StickyRouter router = new StickyRouter();
 
-        private StickyChannel2(EndpointChannelFactory channelFactory) {
-            this.channelFactory = channelFactory;
-        }
-
-        @Override
-        public EndpointChannel endpoint(Endpoint endpoint) {
-            return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint));
+        private StickyChannel2(
+                Supplier<Channel> queueOverrideSupplier,
+                EndpointChannelFactory delegate,
+                Cache<Endpoint, EndpointChannel> cache) {
+            this.queueOverride = queueOverrideSupplier.get();
+            this.delegate = delegate;
+            this.cache = cache;
         }
 
         @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-            return endpoint(endpoint).execute(request);
+            EndpointChannel cachedEndpoint = cache.get(endpoint, delegate::endpoint);
+            EndpointChannel endpointWithQueueOverride = innerRequest -> {
+                QueueAttachments.setQueueOverride(innerRequest, queueOverride);
+                return cachedEndpoint.execute(innerRequest);
+            };
+            return router.execute(request, endpointWithQueueOverride);
         }
 
         @Override
         public String toString() {
-            return "Sticky{" + channelFactory + '}';
+            return "Sticky{" + delegate + '}';
         }
     }
 
@@ -238,26 +228,6 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                 Consumer<Request> stickyTarget, Request request, EndpointChannel endpointChannel) {
             stickyTarget.accept(request);
             return endpointChannel.execute(request);
-        }
-    }
-
-    private static final class StickyEndpointChannel implements EndpointChannel {
-        private final StickyRouter stickyRouter;
-        private final EndpointChannel delegate;
-
-        StickyEndpointChannel(StickyRouter stickyRouter, EndpointChannel delegate) {
-            this.stickyRouter = stickyRouter;
-            this.delegate = delegate;
-        }
-
-        @Override
-        public ListenableFuture<Response> execute(Request request) {
-            return stickyRouter.execute(request, delegate);
-        }
-
-        @Override
-        public String toString() {
-            return "StickyEndpointChannel{delegate=" + delegate + '}';
         }
     }
 }

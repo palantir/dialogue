@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
@@ -31,6 +32,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.DialogueChannelFactory.ChannelArgs;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -46,18 +48,18 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
-public final class DialogueChannel implements Channel, EndpointChannelFactory {
+public final class DialogueChannel implements Channel, EndpointChannelFactory, StickyEndpointChannelsFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueChannel.class);
     private final EndpointChannelFactory delegate;
     private final Config cf;
-    private final Supplier<Channel> stickyChannelSupplier;
+    private final StickyEndpointChannelsFactory stickyEndpointChannelsFactory;
 
-    private DialogueChannel(Config cf, EndpointChannelFactory delegate, Supplier<Channel> stickyChannelSupplier) {
+    private DialogueChannel(
+            Config cf, EndpointChannelFactory delegate, StickyEndpointChannelsFactory stickyEndpointChannelsFactory) {
         this.cf = cf;
         this.delegate = delegate;
-        this.stickyChannelSupplier = stickyChannelSupplier;
+        this.stickyEndpointChannelsFactory = stickyEndpointChannelsFactory;
     }
 
     @Override
@@ -70,8 +72,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         return delegate.endpoint(endpoint);
     }
 
-    public Supplier<Channel> stickyChannels() {
-        return stickyChannelSupplier;
+    @Override
+    public Channel stickyChannel() {
+        return stickyEndpointChannelsFactory.stickyChannel();
     }
 
     public static Builder builder() {
@@ -165,6 +168,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        public Builder stickyEndpointChannelsCache(Cache<Endpoint, EndpointChannel> value) {
+            builder.stickyEndpointChannelCache(value);
+            return this;
+        }
+
         @CheckReturnValue
         public DialogueChannel build() {
             Config cf = builder.build();
@@ -211,8 +219,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
             EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
-
-            Supplier<Channel> stickyChannelSupplier =
+            StickyEndpointChannelsFactory stickyEndpointChannelsFactory =
                     StickyEndpointChannels2.create(cf, stickyValidationChannel, channelFactory);
 
             Meter createMeter = clientMetrics
@@ -222,7 +229,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .build();
             createMeter.mark();
 
-            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
+            return new DialogueChannel(cf, channelFactory, stickyEndpointChannelsFactory);
         }
 
         private static ImmutableList<LimitedChannel> createHostChannels(
@@ -233,7 +240,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         cf.overrideSingleHostIndex().orElse(uriIndex);
                 TargetUri targetUri = targetUris.get(uriIndex);
                 Channel channel = cf.channelFactory()
-                        .create(DialogueChannelFactory.ChannelArgs.builder()
+                        .create(ChannelArgs.builder()
                                 .uri(targetUri.uri())
                                 .uriIndexForInstrumentation(uriIndexForInstrumentation)
                                 .resolvedAddress(targetUri.resolvedAddress())

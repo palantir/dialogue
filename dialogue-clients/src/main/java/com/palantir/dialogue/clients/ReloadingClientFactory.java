@@ -48,6 +48,7 @@ import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.StickyEndpointChannels;
+import com.palantir.dialogue.core.StickyEndpointChannelsFactory;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
@@ -285,7 +286,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return new StickyChannelFactory2() {
             @Override
             public Channel getStickyChannel() {
-                return internalDialogueChannel.get().stickyChannels().get();
+                return internalDialogueChannel.get().stickyChannel();
             }
 
             @Override
@@ -486,8 +487,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Override
-        public Supplier<Channel> stickyChannels() {
-            return () -> this;
+        public Channel stickyChannel() {
+            return this;
         }
 
         @Override
@@ -497,9 +498,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     /* Abstracts away DialogueChannel so that we can handle no-service/no-uri case in #getInternalDialogueChannel. */
-    private interface InternalDialogueChannel extends Channel, EndpointChannelFactory {
-        Supplier<Channel> stickyChannels();
-    }
+    private interface InternalDialogueChannel extends Channel, EndpointChannelFactory, StickyEndpointChannelsFactory {}
 
     private static final class InternalDialogueChannelFromDialogueChannel implements InternalDialogueChannel {
 
@@ -520,8 +519,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Override
-        public Supplier<Channel> stickyChannels() {
-            return dialogueChannel.stickyChannels();
+        public Channel stickyChannel() {
+            return dialogueChannel.stickyChannel();
         }
     }
 
