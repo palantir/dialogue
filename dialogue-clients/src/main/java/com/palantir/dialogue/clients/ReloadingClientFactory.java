@@ -37,7 +37,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.ChannelCache.OverrideHostIndex;
 import com.palantir.dialogue.clients.DialogueClients.DeadlineEnforcementFactory;
@@ -48,6 +47,7 @@ import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.dialogue.core.DialogueRequestAttachments;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
@@ -615,7 +615,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     delegate.getInternalDialogueChannel(serviceName).get();
 
             Channel deadlineEnforcingChannel = (endpoint, request) -> {
-                request.attachments().put(RequestAttachmentKey.create(Boolean.class), enforce);
+                request.attachments().put(DialogueRequestAttachments.DEADLINE_ENFORCEMENT, enforce);
                 return internalDialogueChannel.execute(endpoint, request);
             };
 

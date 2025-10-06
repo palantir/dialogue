@@ -24,7 +24,6 @@ import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
 
@@ -61,7 +60,7 @@ final class DeadlineAdvertisementChannel implements Channel {
 
     private Enforcement getEnforcementFromAttachments(Request request) {
         Boolean clientEnforcement =
-                request.attachments().getOrDefault(RequestAttachmentKey.create(Boolean.class), null);
+                request.attachments().getOrDefault(DialogueRequestAttachments.DEADLINE_ENFORCEMENT, null);
         if (clientEnforcement == null) {
             return Enforcement.DEFER;
         }
