@@ -21,7 +21,9 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.dialogue.core.DeadlineEnforcement;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.DialogueChannelFactory;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
@@ -137,6 +139,7 @@ final class ChannelCache {
                 .dnsResolver(reloadingParams.dnsResolver())
                 .dnsRefreshInterval(reloadingParams.dnsRefreshInterval())
                 .dnsNodeDiscovery(overrideHostIndex.isEmpty() && reloadingParams.dnsNodeDiscovery())
+                .enforceDeadlines(reloadingParams.enforceDeadlines())
                 .build());
     }
 
@@ -172,6 +175,7 @@ final class ChannelCache {
                             dnsResolutionResults.resolvedHosts(),
                             channelCacheRequest.taggedMetrics()));
         }
+        DialogueChannelFactory factory = args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client());
         return DialogueChannel.builder()
                 .channelName(channelCacheRequest.channelName())
                 .clientConfiguration(ClientConfiguration.builder()
@@ -179,7 +183,8 @@ final class ChannelCache {
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
                 .uris(targets)
-                .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client()))
+                .factory(DeadlineEnforcement.createDialogueChannelFactoryWithDeadlineEnforcement(
+                        channelCacheRequest.enforceDeadlines(), factory))
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
                         .findAny())
@@ -274,6 +279,8 @@ final class ChannelCache {
         Duration dnsRefreshInterval();
 
         boolean dnsNodeDiscovery();
+
+        Optional<Boolean> enforceDeadlines();
     }
 
     @Unsafe

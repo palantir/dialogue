@@ -43,10 +43,12 @@ final class DeadlineAdvertisementChannel implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        Deadlines.Enforcement enforcement = DeadlineEnforcement.getDeadlineEnforcement(request)
+                .map(value -> value ? Deadlines.Enforcement.ENFORCE : Deadlines.Enforcement.DISABLE)
+                .orElse(Deadlines.Enforcement.DEFER);
         Request.Builder requestBuilder = Request.builder().from(request);
         try {
-            Deadlines.encodeToRequest(
-                    readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE, Deadlines.Enforcement.DEFER);
+            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE, enforcement);
         } catch (DeadlineExpiredException e) {
             return Futures.immediateFailedFuture(e);
         }

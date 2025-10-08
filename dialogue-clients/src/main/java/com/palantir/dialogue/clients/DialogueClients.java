@@ -208,6 +208,8 @@ public final class DialogueClients {
         StickyChannelFactory2 getStickyChannels2(String serviceName);
 
         PerHostClientFactory perHost(String serviceName);
+
+        ReloadingFactory withDeadlineEnforcement(boolean enforced);
     }
 
     private DialogueClients() {}

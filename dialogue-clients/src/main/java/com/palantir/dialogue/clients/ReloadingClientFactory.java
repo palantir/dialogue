@@ -45,7 +45,9 @@ import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
+import com.palantir.dialogue.core.DeadlineEnforcement;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.DialogueChannelFactory;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.dialogue.core.TargetUri;
@@ -88,6 +90,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .dnsResolver(params.dnsResolver());
         params.blockingExecutor().ifPresent(clientBuilder::executor);
         ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
+        DialogueChannelFactory factory = args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient);
         return DialogueChannel.builder()
                 .channelName(channelName)
                 .clientConfiguration(clientConf)
@@ -104,7 +107,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 dnsResult.config().proxy(),
                                 dnsResult.resolvedHosts(),
                                 params.taggedMetrics())))
-                .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
+                .factory(DeadlineEnforcement.createDialogueChannelFactoryWithDeadlineEnforcement(
+                        params.enforceDeadlines(), factory))
                 .build();
     }
 
@@ -136,6 +140,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         Optional<ExecutorService> blockingExecutor();
+
+        Optional<Boolean> enforceDeadlines();
     }
 
     @Override
@@ -397,6 +403,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public ReloadingFactory withDnsNodeDiscovery(boolean dnsNodeDiscovery) {
         return new ReloadingClientFactory(params.withDnsNodeDiscovery(dnsNodeDiscovery), cache);
+    }
+
+    @Override
+    public ReloadingFactory withDeadlineEnforcement(boolean enforced) {
+        return new ReloadingClientFactory(params.withEnforceDeadlines(enforced), cache);
     }
 
     @Override

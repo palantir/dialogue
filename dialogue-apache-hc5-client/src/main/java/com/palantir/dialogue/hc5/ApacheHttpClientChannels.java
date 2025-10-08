@@ -124,6 +124,8 @@ public final class ApacheHttpClientChannels {
         return DialogueChannel.builder()
                 .channelName(channelName)
                 .clientConfiguration(conf)
+                // this is a legacy codepath; creating clients with optional deadline enforcement
+                // is only supported via dialogue-clients' ReloadingClientFactory
                 .factory(args -> createSingleUri(args, client))
                 .build();
     }
