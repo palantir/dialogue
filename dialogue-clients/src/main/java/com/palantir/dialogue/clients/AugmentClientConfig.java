@@ -55,8 +55,6 @@ interface AugmentClientConfig {
 
     Optional<ClientConfiguration.RetryOnTimeout> retryOnTimeout();
 
-    Optional<Boolean> deadlineEnforcement();
-
     Optional<Provider> securityProvider();
 
     /**

@@ -275,6 +275,8 @@ final class ChannelCache {
         Duration dnsRefreshInterval();
 
         boolean dnsNodeDiscovery();
+
+        Optional<Boolean> deadlineEnforcement();
     }
 
     @Unsafe

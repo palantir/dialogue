@@ -136,6 +136,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         Optional<ExecutorService> blockingExecutor();
+
+        Optional<Boolean> deadlineEnforcement();
     }
 
     @Override
