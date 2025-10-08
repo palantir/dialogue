@@ -34,6 +34,8 @@ dependencies {
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-serde')
     testImplementation project(':dialogue-example:dialogue-example-dialogue')
+    testImplementation 'com.palantir.deadlines:deadlines'
+    testImplementation 'com.palantir.tracing:tracing'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation 'org.assertj:assertj-core'

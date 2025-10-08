@@ -26,6 +26,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.refreshable.Refreshable;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
@@ -78,6 +79,11 @@ interface Config {
     }
 
     OptionalInt overrideSingleHostIndex();
+
+    @Value.Default
+    default Optional<Boolean> deadlineEnforcement() {
+        return Optional.empty();
+    }
 
     @Value.Check
     default void check() {

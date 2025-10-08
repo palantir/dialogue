@@ -202,6 +202,12 @@ public final class DialogueClients {
         /** Feature flag to opt into or out of the default dns-based node discovery behavior. */
         ReloadingFactory withDnsNodeDiscovery(boolean dnsNodeDiscovery);
 
+        /**
+         * Configures whether deadline enforcement should be enforced or disabled for outbound requests.
+         * The default factory will use a "defer" enforcement strategy.
+         */
+        ReloadingFactory withDeadlineEnforcement(boolean deadlineEnforcementEnabled);
+
         StickyChannelFactory getStickyChannels(String serviceName);
 
         @Beta
