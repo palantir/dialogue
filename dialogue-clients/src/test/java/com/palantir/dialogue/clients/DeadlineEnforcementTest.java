@@ -17,15 +17,24 @@
 package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.deadlines.DeadlineExpiredException;
+import com.palantir.deadlines.Deadlines;
+import com.palantir.deadlines.Deadlines.RequestDecodingAdapter;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
+import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.tracing.CloseableTracer;
 import java.lang.reflect.Field;
+import java.util.Map;
+import java.util.Optional;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 class DeadlineEnforcementTest {
@@ -71,6 +80,39 @@ class DeadlineEnforcementTest {
         assertThat(channel1).isNotNull();
         assertThat(channel2).isNotNull();
         assertThat(getCacheSize(cache)).isEqualTo(1);
+    }
+
+    @Test
+    void client_throws_when_deadline_expired() throws Exception {
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withDeadlineEnforcement(true);
+
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "test-service");
+        try (CloseableTracer ignored = CloseableTracer.startSpan("test")) {
+            Map<String, String> inboundRequest = Map.of("Expect-Within", "0");
+            Deadlines.parseFromRequest(
+                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.DEFER);
+
+            assertThatThrownBy(() -> {
+                        client.voidToVoid();
+                    })
+                    .isInstanceOf(DeadlineExpiredException.class);
+        }
+    }
+
+    private enum DummyRequestDecoder implements RequestDecodingAdapter<Map<String, String>> {
+        INSTANCE;
+
+        @Override
+        public Optional<String> getFirstHeader(Map<String, String> _headers, String _headerName) {
+            throw new IllegalStateException("not implemented");
+        }
+
+        @Override
+        public @Nullable String maybeFirstHeader(Map<String, String> headers, String headerName) {
+            return headers.get(headerName);
+        }
     }
 
     // Reflection hackery below
