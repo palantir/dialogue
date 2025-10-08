@@ -19,14 +19,21 @@ package com.palantir.dialogue.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.DialogueService;
+import com.palantir.dialogue.DialogueServiceFactory;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
+import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.ReloadingClientFactory.LiveReloadingChannel;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
@@ -44,9 +51,11 @@ class ReloadingClientFactoryTest {
 
     interface Foo extends Channel, EndpointChannelFactory {}
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Mock(lenient = true)
     Foo channel;
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Mock(lenient = true)
     EndpointChannel endpointChannel;
 
@@ -90,5 +99,47 @@ class ReloadingClientFactoryTest {
 
         // ensure we use the bind method
         verify(channel, atLeastOnce()).endpoint(any());
+    }
+
+    @Test
+    void withConjureErrorParameterSerializationFormat_wraps_runtime_with_specified_format() {
+        ChannelCache mockCache = mock(ChannelCache.class);
+        ImmutableReloadingParams params = ImmutableReloadingParams.builder()
+                .scb(Refreshable.only(ServicesConfigBlock.builder().build()))
+                .build();
+        ReloadingClientFactory factory = new ReloadingClientFactory(params, mockCache);
+
+        // Get the original runtime
+        ConjureRuntime originalRuntime = params.runtime();
+        assertThat(originalRuntime.bodySerDe().errorParameterFormat()).isEmpty();
+
+        // Set the error parameter format to JSON
+        ReloadingFactory modifiedFactory =
+                factory.withConjureErrorParameterFormat(ConjureErrorParameterFormat.JSON_FORMAT);
+
+        // Call get
+        RuntimeCapturingService service = modifiedFactory.get(RuntimeCapturingService.class, "foo");
+
+        assertThat(service.runtime().bodySerDe().errorParameterFormat())
+                .contains(ConjureErrorParameterFormat.JSON_FORMAT);
+
+        // Verify that the original runtime is unchanged
+        RuntimeCapturingService originalService = factory.get(RuntimeCapturingService.class, "foo");
+        assertThat(originalService.runtime().bodySerDe().errorParameterFormat()).isEmpty();
+    }
+
+    @DialogueService(RuntimeCapturingService.Factory.class)
+    private record RuntimeCapturingService(ConjureRuntime runtime) {
+        static RuntimeCapturingService of(ConjureRuntime runtime) {
+            return new RuntimeCapturingService(runtime);
+        }
+
+        public static final class Factory implements DialogueServiceFactory<RuntimeCapturingService> {
+            @Override
+            public RuntimeCapturingService create(
+                    EndpointChannelFactory _endpointChannelFactory, ConjureRuntime conjureRuntime) {
+                return RuntimeCapturingService.of(conjureRuntime);
+            }
+        }
     }
 }

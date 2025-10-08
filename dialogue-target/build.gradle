@@ -13,6 +13,7 @@ dependencies {
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.palantir.conjure.java.api:errors'
 
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.assertj:assertj-guava'

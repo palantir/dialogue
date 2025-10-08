@@ -69,6 +69,12 @@ public interface BodySerDe {
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);
 
+    /**
+     * Specifies the expected error parameter format for deserialization. This field is used in code generation, where
+     * client interfaces can specify a header sent to servers requesting an error be serialized in the selected format.
+     * Clients should not assume that servers will always respect this header, and should be able to handle errors that
+     * are serialized in any format the server provides.
+     * */
     default Optional<ConjureErrorParameterFormat> errorParameterFormat() {
         return Optional.empty();
     }

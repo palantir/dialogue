@@ -56,7 +56,9 @@ final class ExceptionDeserializationTestUtils {
     }
 
     @Generated("by conjure-java")
-    record ComplexArg(@JsonProperty("foo") @Safe int foo, @JsonProperty("bar") @Unsafe String bar) {}
+    record ComplexArg(
+            @JsonProperty("foo") @Safe int foo,
+            @JsonProperty("bar") @Unsafe String bar) {}
 
     @Generated("by conjure-java")
     record TestErrorParameters(

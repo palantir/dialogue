@@ -55,7 +55,6 @@ import org.junit.jupiter.api.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
-    @SuppressWarnings("for-rollout:deprecation")
     @Override
     protected Channel createChannel(ClientConfiguration config) {
         return ApacheHttpClientChannels.create(config);
