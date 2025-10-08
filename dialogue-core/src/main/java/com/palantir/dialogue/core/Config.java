@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
-import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.logsafe.DoNotLog;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -27,6 +26,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.refreshable.Refreshable;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
@@ -81,8 +81,8 @@ interface Config {
     OptionalInt overrideSingleHostIndex();
 
     @Value.Default
-    default Enforcement deadlineEnforcement() {
-        return Enforcement.DEFER;
+    default Optional<Boolean> deadlineEnforcement() {
+        return Optional.empty();
     }
 
     @Value.Check

@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -146,10 +145,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         public Builder deadlineEnforcement(Optional<Boolean> deadlineEnforcement) {
-            Enforcement enforcement = deadlineEnforcement
-                    .map(enforce -> enforce ? Enforcement.ENFORCE : Enforcement.DISABLE)
-                    .orElse(Enforcement.DEFER);
-            builder.deadlineEnforcement(enforcement);
+            builder.deadlineEnforcement(deadlineEnforcement);
             return this;
         }
 

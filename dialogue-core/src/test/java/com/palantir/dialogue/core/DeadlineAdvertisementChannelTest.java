@@ -140,7 +140,7 @@ class DeadlineAdvertisementChannelTest {
                     Request.builder().putHeaderParams("Expect-Within", "0").build();
             Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
 
-            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, Enforcement.ENFORCE);
+            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, Optional.of(true));
             ListenableFuture<Response> response =
                     channel.execute(TestEndpoint.GET, Request.builder().build());
             assertThat(response).isDone();
@@ -165,7 +165,7 @@ class DeadlineAdvertisementChannelTest {
                     Request.builder().putHeaderParams("Expect-Within", "0").build();
             Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
 
-            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, Enforcement.DISABLE);
+            Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, Optional.of(false));
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
                     .isCancelled();
             assertThat(requests).singleElement().satisfies(request -> {
@@ -202,7 +202,7 @@ class DeadlineAdvertisementChannelTest {
             requests.add(request);
             return Futures.immediateCancelledFuture();
         };
-        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, Enforcement.ENFORCE);
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, Optional.of(true));
         assertThat(channel.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
 
         assertThat(requests).singleElement().satisfies(request -> {
@@ -220,7 +220,7 @@ class DeadlineAdvertisementChannelTest {
             requests.add(request);
             return Futures.immediateCancelledFuture();
         };
-        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, Enforcement.DISABLE);
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, Optional.of(false));
         assertThat(channel.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
 
         assertThat(requests).singleElement().satisfies(request -> {
