@@ -26,6 +26,7 @@ import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.Deadlines;
 import com.palantir.deadlines.Deadlines.RequestDecodingAdapter;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.DialogueException;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.example.SampleServiceBlocking;
@@ -83,7 +84,7 @@ class DeadlineEnforcementTest {
     }
 
     @Test
-    void client_throws_when_deadline_expired() throws Exception {
+    void client_throws_when_deadline_expired() {
         ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
                 .withUserAgent(TestConfigurations.AGENT)
                 .withDeadlineEnforcement(true);
@@ -94,10 +95,69 @@ class DeadlineEnforcementTest {
             Deadlines.parseFromRequest(
                     Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.DEFER);
 
-            assertThatThrownBy(() -> {
-                        client.voidToVoid();
-                    })
-                    .isInstanceOf(DeadlineExpiredException.class);
+            assertThatThrownBy(client::voidToVoid).isInstanceOf(DeadlineExpiredException.class);
+        }
+    }
+
+    @Test
+    void client_does_not_throw_when_enforcement_disabled() {
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withDeadlineEnforcement(false);
+
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "test-service");
+        try (CloseableTracer ignored = CloseableTracer.startSpan("test")) {
+            Map<String, String> inboundRequest = Map.of("Expect-Within", "0");
+            Deadlines.parseFromRequest(
+                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.DEFER);
+
+            // will throw "DialogueException: Network transport failure", but this comes from a channel
+            // further down than DeadlineAdvertisementChannel, so this is sufficient to verify that
+            // we did not throw even though the deadline had expired
+            assertThatThrownBy(client::voidToVoid)
+                    .isInstanceOf(DialogueException.class)
+                    .hasMessageContaining("Network transport failure");
+        }
+    }
+
+    @Test
+    void client_cannot_override_enforcement_when_already_disabled() {
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withDeadlineEnforcement(true);
+
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "test-service");
+        try (CloseableTracer ignored = CloseableTracer.startSpan("test")) {
+            Map<String, String> inboundRequest = Map.of("Expect-Within", "0");
+            // simulates a scenario where tracing state has already explicitly disabled enforcement
+            // in this case, constructed dialogue clients cannot override the disabled state, even if enforcement
+            // is explicitly requested
+            Deadlines.parseFromRequest(
+                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.DISABLE);
+
+            assertThatThrownBy(client::voidToVoid)
+                    .isInstanceOf(DialogueException.class)
+                    .hasMessageContaining("Network transport failure");
+        }
+    }
+
+    @Test
+    void client_can_disable_when_already_enforced() {
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withDeadlineEnforcement(false);
+
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "test-service");
+        try (CloseableTracer ignored = CloseableTracer.startSpan("test")) {
+            Map<String, String> inboundRequest = Map.of("Expect-Within", "0");
+            // simulates a scenario where tracing state has already explicitly enabled enforcement
+            // in this case, constructed dialogue clients are still allowed to opt-out by disabling enforcement
+            Deadlines.parseFromRequest(
+                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.ENFORCE);
+
+            assertThatThrownBy(client::voidToVoid)
+                    .isInstanceOf(DialogueException.class)
+                    .hasMessageContaining("Network transport failure");
         }
     }
 

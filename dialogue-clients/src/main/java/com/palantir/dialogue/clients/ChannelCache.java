@@ -137,6 +137,7 @@ final class ChannelCache {
                 .dnsResolver(reloadingParams.dnsResolver())
                 .dnsRefreshInterval(reloadingParams.dnsRefreshInterval())
                 .dnsNodeDiscovery(overrideHostIndex.isEmpty() && reloadingParams.dnsNodeDiscovery())
+                .deadlineEnforcement(reloadingParams.deadlineEnforcement())
                 .build());
     }
 
