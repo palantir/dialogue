@@ -152,17 +152,17 @@ com.palantir.tracing:tracing-test-utils:6.28.0 (1 constraints: 4205633b)
 
 com.spotify.dataenum:dataenum:1.4.1 (1 constraints: e9105ac1)
 
-com.squareup.okhttp3:mockwebserver:5.2.0 (1 constraints: 09050a36)
+com.squareup.okhttp3:mockwebserver:5.2.1 (1 constraints: 0a050b36)
 
-com.squareup.okhttp3:mockwebserver3:5.2.0 (1 constraints: 360f3e6d)
+com.squareup.okhttp3:mockwebserver3:5.2.1 (1 constraints: 370f3f6d)
 
-com.squareup.okhttp3:okhttp:5.2.0 (1 constraints: 3a053f3b)
+com.squareup.okhttp3:okhttp:5.2.1 (1 constraints: 3a053f3b)
 
-com.squareup.okhttp3:okhttp-jvm:5.2.0 (2 constraints: 9e1e5b87)
+com.squareup.okhttp3:okhttp-jvm:5.2.1 (2 constraints: a01e8987)
 
-com.squareup.okio:okio:3.16.0 (1 constraints: 840cca09)
+com.squareup.okio:okio:3.16.1 (1 constraints: 850ccb09)
 
-com.squareup.okio:okio-jvm:3.16.0 (2 constraints: 7e18b6ca)
+com.squareup.okio:okio-jvm:3.16.1 (2 constraints: 8018d8ca)
 
 commons-logging:commons-logging:1.2 (2 constraints: 8215ead1)
 
@@ -224,7 +224,7 @@ org.jboss.xnio:xnio-api:3.8.16.Final (2 constraints: d71a2474)
 
 org.jboss.xnio:xnio-nio:3.8.16.Final (1 constraints: f80dc53d)
 
-org.jetbrains.kotlin:kotlin-stdlib:2.2.20 (5 constraints: 3845dd47)
+org.jetbrains.kotlin:kotlin-stdlib:2.2.20 (5 constraints: 6a45498d)
 
 org.jmock:jmock:2.13.1 (1 constraints: 3905393b)
 
