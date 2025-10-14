@@ -119,13 +119,13 @@ final class ExceptionDeserializingDecoderTest {
         String responseBody =
                 // language=JSON
                 """
-    {
-        "message": "Conjure:TestError",
-        "errorCode":"INVALID_ARGUMENT",
-        "errorInstanceId":"f8795ac5-59cf-4760-92e5-f566ce7978b0",
-        "parameters":{"stringArg":"foo","complexArg":"ComplexArg[foo=1, bar=bar]"}
-    }
-    """;
+                {
+                    "message": "Conjure:TestError",
+                    "errorCode":"INVALID_ARGUMENT",
+                    "errorInstanceId":"f8795ac5-59cf-4760-92e5-f566ce7978b0",
+                    "parameters":{"stringArg":"foo","complexArg":"ComplexArg[foo=1, bar=bar]"}
+                }
+                """;
 
         TestResponse response = TestResponse.withBody(responseBody)
                 .contentType("application/json")
@@ -167,8 +167,8 @@ final class ExceptionDeserializingDecoderTest {
 
         // The server is sending the JSON representation of ComplexArg over the wire.
         String expectedJsonComplexArg = """
-            "complexArg":{"foo":1,"bar":"bar"}
-        """.strip();
+                "complexArg":{"foo":1,"bar":"bar"}
+            """.strip();
         assertThat(responseBody).contains(expectedJsonComplexArg);
 
         TestResponse response = TestResponse.withBody(responseBody)
@@ -212,8 +212,8 @@ final class ExceptionDeserializingDecoderTest {
 
         // The server is sending the JSON representation of ComplexArg over the wire.
         String expectedJsonComplexArg = """
-            "complexArg":{"foo":1,"bar":"bar"}
-        """.strip();
+                "complexArg":{"foo":1,"bar":"bar"}
+            """.strip();
         assertThat(responseBody).contains(expectedJsonComplexArg);
 
         TestResponse response = TestResponse.withBody(responseBody)
@@ -256,8 +256,8 @@ final class ExceptionDeserializingDecoderTest {
 
         // The server is sending the JSON representation of ComplexArg over the wire.
         String expectedJsonComplexArg = """
-            "complexArg":{"foo":1,"bar":"bar"}
-        """.strip();
+                "complexArg":{"foo":1,"bar":"bar"}
+            """.strip();
         assertThat(responseBody).contains(expectedJsonComplexArg);
 
         TestResponse response = TestResponse.withBody(responseBody)
@@ -320,8 +320,8 @@ final class ExceptionDeserializingDecoderTest {
 
         // The server is sending the JSON representation of ComplexArg over the wire.
         String expectedJsonComplexArg = """
-            "complexArg":{"foo":1,"bar":"bar"}
-        """.strip();
+                "complexArg":{"foo":1,"bar":"bar"}
+            """.strip();
         assertThat(responseBody).contains(expectedJsonComplexArg);
 
         TestResponse response = TestResponse.withBody(responseBody)
