@@ -26,6 +26,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Timer;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
@@ -48,6 +49,7 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.refreshable.Refreshable;
@@ -66,9 +68,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.assertj.core.data.Percentage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -355,6 +359,125 @@ public final class DialogueChannelTest {
         ListenableFuture<Response> future = channel.execute(endpoint, request);
         assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeUnknownHostException.class);
         assertThat(retries.getCount()).isEqualTo(maxRetries);
+    }
+
+    @Test
+    void client_response_timer_includes_retries() throws ExecutionException, InterruptedException {
+        String channelName = "my-channel";
+        int maxRetries = 2;
+        int sleepPerAttemptMillis = 300;
+
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(metrics);
+        Meter retries = dialogueClientMetrics
+                .requestRetry()
+                .channelName(channelName)
+                .reason("SafeIoException")
+                .build();
+
+        ClientMetrics clientMetrics = ClientMetrics.of(metrics);
+        Timer responseTimer = clientMetrics
+                .response()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .endpoint(endpoint.endpointName())
+                .status("success")
+                .build();
+
+        AtomicInteger channelInteractions = new AtomicInteger();
+        channel = DialogueChannel.builder()
+                .channelName(channelName)
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .taggedMetricRegistry(metrics)
+                        .maxNumRetries(maxRetries)
+                        .backoffSlotSize(Duration.ZERO)
+                        .build())
+                .factory(_args -> (_endpoint, _currentRequest) -> {
+                    int interactions = channelInteractions.incrementAndGet();
+                    if (interactions > maxRetries) {
+                        return Futures.immediateFuture(new TestResponse()
+                                .code(204)
+                                .withHeader("Interactions", Integer.toString(interactions)));
+                    }
+                    return Futures.submit(
+                            () -> {
+                                Thread.sleep(sleepPerAttemptMillis);
+                                throw new SafeIoException("FAILED");
+                            },
+                            Executors.newSingleThreadExecutor());
+                })
+                .build();
+
+        ListenableFuture<Response> future =
+                channel.execute(endpoint, Request.builder().build());
+        assertThat(future.get()).isInstanceOf(TestResponse.class);
+        assertThat(future.get().getFirstHeader("Interactions")).hasValue(String.valueOf(maxRetries + 1));
+
+        assertThat(retries.getCount()).isEqualTo(maxRetries);
+        assertThat(responseTimer.getCount()).isEqualTo(1);
+        assertThat(responseTimer.getSnapshot().get95thPercentile())
+                .isCloseTo(((double) sleepPerAttemptMillis) * maxRetries * 1_000_000, Percentage.withPercentage(20.0));
+    }
+
+    @Test
+    void client_response_timer_includes_queued_time() throws ExecutionException, InterruptedException {
+        String channelName = "my-channel";
+        int sleepPerAttemptMillis = 1000;
+
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(metrics);
+        Timer queuedTime = dialogueClientMetrics.requestQueuedTime(channelName);
+
+        ClientMetrics clientMetrics = ClientMetrics.of(metrics);
+        Timer responseTimer = clientMetrics
+                .response()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .endpoint(endpoint.endpointName())
+                .status("success")
+                .build();
+        AtomicInteger channelInteractions = new AtomicInteger();
+        channel = DialogueChannel.builder()
+                .channelName(channelName)
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .taggedMetricRegistry(metrics)
+                        .build())
+                .factory(_args -> (_endpoint, _currentRequest) -> {
+                    int interactions = channelInteractions.incrementAndGet();
+                    return Futures.submit(
+                            () -> {
+                                Thread.sleep(sleepPerAttemptMillis);
+                                return new TestResponse()
+                                        .code(204)
+                                        .withHeader("Interactions", Integer.toString(interactions));
+                            },
+                            Executors.newSingleThreadExecutor());
+                })
+                .build();
+
+        // Fill the concurrency limiter
+        int initialConcurrencyLimit = 20;
+        for (int i = 0; i < initialConcurrencyLimit; i++) {
+            ListenableFuture<Response> running = channel.execute(endpoint, request);
+            assertThat(running).isNotDone();
+        }
+
+        ListenableFuture<Response> futureQueued = channel.execute(endpoint, request);
+
+        assertThat(futureQueued.get()).isInstanceOf(TestResponse.class);
+        assertThat(futureQueued.get().getFirstHeader("Interactions")).hasValue("21");
+
+        // One request will have been queued, for roughly the time it takes to respond
+        assertThat(queuedTime.getCount()).isEqualTo(1);
+        assertThat(queuedTime.getSnapshot().get95thPercentile())
+                .isCloseTo((double) sleepPerAttemptMillis * 1_000_000, Percentage.withPercentage(20.0));
+
+        // We'll however see the response timer include the queued time, and account for twice the response time
+        assertThat(responseTimer.getCount()).isEqualTo(21);
+        assertThat(responseTimer.getSnapshot().get99thPercentile())
+                .isCloseTo(((double) sleepPerAttemptMillis) * 2 * 1_000_000, Percentage.withPercentage(20.0));
     }
 
     @Test
