@@ -414,6 +414,7 @@ public final class DialogueChannelTest {
         assertThat(future.get()).isInstanceOf(TestResponse.class);
         assertThat(future.get().getFirstHeader("Interactions")).hasValue(String.valueOf(maxRetries + 1));
 
+        // The request is retried twice, and thus the timer should include the time taken for all attempts.
         assertThat(retries.getCount()).isEqualTo(maxRetries);
         assertThat(responseTimer.getCount()).isEqualTo(1);
         assertThat(responseTimer.getSnapshot().get95thPercentile())
@@ -423,7 +424,7 @@ public final class DialogueChannelTest {
     @Test
     void client_response_timer_includes_queued_time() throws ExecutionException, InterruptedException {
         String channelName = "my-channel";
-        int sleepPerAttemptMillis = 1000;
+        int sleepPerAttemptMillis = 300;
 
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
         DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(metrics);
