@@ -120,7 +120,7 @@ org.immutables:value:2.11.6 (2 constraints: 051577c2)
 
 org.jboss.logging:jboss-logging:3.4.1.Final (3 constraints: f03036d7)
 
-org.jboss.threads:jboss-threads:3.5.0.Final (3 constraints: b52a2fe5)
+org.jboss.threads:jboss-threads:3.5.1.Final (3 constraints: ba2a18e6)
 
 org.jetbrains:annotations:26.0.2 (4 constraints: 1635b13a)
 
@@ -170,7 +170,7 @@ de.erichseifert.vectorgraphics2d:VectorGraphics2D:0.13 (1 constraints: 8c0a80bb)
 
 de.rototor.pdfbox:graphics2d:0.25 (1 constraints: 8f0a84bb)
 
-io.undertow:undertow-core:2.2.37.Final (1 constraints: 58074c61)
+io.undertow:undertow-core:2.2.38.Final (1 constraints: 59075361)
 
 junit:junit:4.13.2 (4 constraints: 90418c36)
 
