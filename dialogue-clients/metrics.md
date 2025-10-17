@@ -81,7 +81,9 @@ Dialogue URI parsing metrics.
 
 ### client
 General client metrics produced by dialogue. These metrics are meant to be applicable to all conjure clients without being implementation-specific.
-- `client.response` tagged `channel-name`, `service-name`, `endpoint`, `status` (timer): Request time split by status and endpoint. Possible status values are:
+- `client.response` tagged `channel-name`, `service-name`, `endpoint`, `status` (timer): Request time split by status and endpoint (measured as the time taken by the dialogue client method call,
+including retries, as well as queued time).
+Possible status values are:
 * success: 2xx requests, always excludes time spent reading the response body.
 * failure:
   - QoS failures (429, 308, 503)

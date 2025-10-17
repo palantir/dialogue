@@ -10,7 +10,9 @@ namespaces:
         type: timer
         tags: [channel-name, service-name, endpoint, status]
         docs: |
-          Request time split by status and endpoint. Possible status values are:
+          Request time split by status and endpoint (measured as the time taken by the dialogue client method call,
+          including retries, as well as queued time).
+          Possible status values are:
           * success: 2xx requests, always excludes time spent reading the response body.
           * failure:
             - QoS failures (429, 308, 503)
