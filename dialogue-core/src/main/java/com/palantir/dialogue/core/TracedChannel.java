@@ -70,16 +70,16 @@ final class TracedChannel implements EndpointChannel {
     private ListenableFuture<Response> executeSampled(Request request) {
         DetachedSpan span = DetachedSpan.start(operationName);
         try (CloseableSpan ignored = span.attach()) {
-            return DialogueFutures.transform(delegate.execute(request),
-                    response -> wrapWithTracing(response, span, responseTranslator));
+            return DialogueFutures.transform(
+                    delegate.execute(request), response -> wrapWithTracing(response, span, responseTranslator));
         } catch (Throwable t) {
             span.complete(throwableTranslator, t);
             throw t;
         }
     }
 
-    private static Response wrapWithTracing(Response input, DetachedSpan span,
-                                            TagTranslator<Response> responseTranslator) {
+    private static Response wrapWithTracing(
+            Response input, DetachedSpan span, TagTranslator<Response> responseTranslator) {
         return new TracedResponse(input, span, responseTranslator);
     }
 
@@ -88,37 +88,37 @@ final class TracedChannel implements EndpointChannel {
         return "TracedChannel{operationName=" + operationName + ", delegate=" + delegate + '}';
     }
 
-    private record TracedResponse(Response delegate, DetachedSpan span,
-                                  TagTranslator<Response> responseTranslator) implements Response {
+    private record TracedResponse(Response delegate, DetachedSpan span, TagTranslator<Response> responseTranslator)
+            implements Response {
 
         @Override
-            public InputStream body() {
-                return delegate.body();
-            }
-
-            @Override
-            public int code() {
-                return delegate.code();
-            }
-
-            @Override
-            public ListMultimap<String, String> headers() {
-                return delegate.headers();
-            }
-
-            @Override
-            public Optional<String> getFirstHeader(String header) {
-                return delegate.getFirstHeader(header);
-            }
-
-            @Override
-            public ResponseAttachments attachments() {
-                return delegate.attachments();
-            }
-
-            @Override
-            public void close() {
-                span.complete(responseTranslator, this);
-            }
+        public InputStream body() {
+            return delegate.body();
         }
+
+        @Override
+        public int code() {
+            return delegate.code();
+        }
+
+        @Override
+        public ListMultimap<String, String> headers() {
+            return delegate.headers();
+        }
+
+        @Override
+        public Optional<String> getFirstHeader(String header) {
+            return delegate.getFirstHeader(header);
+        }
+
+        @Override
+        public ResponseAttachments attachments() {
+            return delegate.attachments();
+        }
+
+        @Override
+        public void close() {
+            span.complete(responseTranslator, this);
+        }
+    }
 }
