@@ -179,6 +179,19 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void close(CloseMode closeMode) {
+        if (closeMode == CloseMode.IMMEDIATE) {
+            // When the connection is being closed in IMMEDIATE mode, we want to avoid any blocking read calls.
+            // In particular, SSLSocketImpl's close method tries to read any remaining data from the input stream
+            //   to complete the SSL/TLS closure handshake. By setting a very short socket timeout,
+            //   we ensure that any read operations will time out almost immediately, allowing for a prompt closure
+            //   of the connection without unnecessary delays.
+            // See also https://github.com/apache/httpcomponents-core/pull/573 which proposes to do the same
+            //   in the downstream BHttpConnectionBase.close method.
+            // We use ONE_MILLISECOND here instead of ZERO because 0 is interpreted as an infinite timeout.
+            // Note that this should not be a problem once we upgrade http-client to 5.4+, but is still a good default
+            //   to have.
+            setSocketTimeout(Timeout.ONE_MILLISECOND);
+        }
         delegate.close(closeMode);
     }
 
