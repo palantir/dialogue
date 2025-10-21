@@ -394,31 +394,6 @@ public final class ApacheHttpClientChannels {
 
     public static final class ClientBuilder {
 
-        // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
-        // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
-        // as clients attempt to use them.
-        // Note that pooled idle connections use an infinite socket timeout so there is no reason to scale
-        // this value with configured timeouts.
-        private static final Timeout IDLE_CONNECTION_TIMEOUT = Timeout.ofSeconds(50);
-
-        // Increased from two seconds to four seconds because we have strong support for retries
-        // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
-        // are possible when the target closes connections prior to this timeout, and can be safely retried.
-        // Ideally this value would be larger for RPC, however some servers use relatively low defaults:
-        // apache httpd versions 1.3 and 2.0: 15 seconds:
-        // https://httpd.apache.org/docs/2.0/mod/core.html#keepalivetimeout
-        // apache httpd version 2.2 and above: 5 seconds
-        // https://httpd.apache.org/docs/2.2/mod/core.html#keepalivetimeout
-        // nodejs http server: 5 seconds
-        // https://nodejs.org/api/http.html#http_server_keepalivetimeout
-        // nginx: 75 seconds (good)
-        // https://nginx.org/en/docs/http/ngx_http_core_module.html#keepalive_timeout
-        // dropwizard: 30 seconds (see idleTimeout in the linked docs)
-        // https://www.dropwizard.io/en/latest/manual/configuration.html#Connectors
-        // wc: 60 seconds (internal)
-        private static final TimeValue CONNECTION_INACTIVITY_CHECK = TimeValue.ofMilliseconds(
-                Integer.getInteger("dialogue.experimental.inactivity.check.threshold.millis", 4_000));
-
         @Nullable
         private ClientConfiguration clientConfiguration;
 
@@ -531,7 +506,9 @@ public final class ApacheHttpClientChannels {
                     // Doesn't appear to do anything in this release
                     .setSocksProxyAddress(socksProxyAddress)
                     .build());
-            internalConnectionManager.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK);
+            DialogueConnectionConfigResolver connectionConfigResolver =
+                    new DialogueConnectionConfigResolver(connectTimeout, socketTimeout);
+            internalConnectionManager.setConnectionConfigResolver(connectionConfigResolver);
             internalConnectionManager.setMaxTotal(Integer.MAX_VALUE);
             internalConnectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
 
@@ -554,13 +531,14 @@ public final class ApacheHttpClientChannels {
                             .setRedirectsEnabled(false)
                             .setAuthenticationEnabled(conf.proxyCredentials().isPresent())
                             .setExpectContinueEnabled(false)
-                            .setConnectionKeepAlive(IDLE_CONNECTION_TIMEOUT)
+                            .setConnectionKeepAlive(
+                                    InactivityValidationAwareConnectionKeepAliveStrategy.IDLE_CONNECTION_TIMEOUT)
                             .build())
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
                     .setConnectionManagerShared(true)
                     .setKeepAliveStrategy(
-                            new InactivityValidationAwareConnectionKeepAliveStrategy(internalConnectionManager, name))
+                            new InactivityValidationAwareConnectionKeepAliveStrategy(connectionConfigResolver, name))
                     .setConnectionManager(connectionManager)
                     .setRoutePlanner(new DialogueRoutePlanner(conf.proxy()))
                     .disableAutomaticRetries()
