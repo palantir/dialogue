@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hc.client5.http.ConnectionKeepAliveStrategy;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.HeaderElement;
 import org.apache.hc.core5.http.HeaderElements;
@@ -32,28 +33,20 @@ import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.message.MessageSupport;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.util.TimeValue;
-import org.apache.hc.core5.util.Timeout;
 
 /**
  * An {@link ConnectionKeepAliveStrategy} implementation based on the
  * {@link org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy} which
- * updates {@code org.apache.hc.client5.http.config.ConnectionConfig#getValidateAfterInactivity()}
- * based on server {@code Keep-Alive} response headers to avoid unnecessary checks when the server
- * advertises a persistent connection timeout.
+ * updates {@link PoolingHttpClientConnectionManager#setValidateAfterInactivity(TimeValue)}
+ * based on server {@code Keep-Alive} response headers to avoid unnecessary checks when
+ * the server advertises a persistent connection timeout.
  */
 final class InactivityValidationAwareConnectionKeepAliveStrategy implements ConnectionKeepAliveStrategy {
     private static final SafeLogger log =
             SafeLoggerFactory.get(InactivityValidationAwareConnectionKeepAliveStrategy.class);
     private static final String TIMEOUT_ELEMENT = "timeout";
 
-    // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
-    // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
-    // as clients attempt to use them.
-    // Note that pooled idle connections use an infinite socket timeout so there is no reason to scale
-    // this value with configured timeouts.
-    static final Timeout IDLE_CONNECTION_TIMEOUT = Timeout.ofSeconds(50);
-
-    private final DialogueConnectionConfigResolver configResolver;
+    private final PoolingHttpClientConnectionManager connectionManager;
     private final String clientName;
     private final TimeValue defaultValidateAfterInactivity;
     private final RateLimiter loggingRateLimiter = RateLimiter.create(2);
@@ -65,12 +58,12 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
 
     @SuppressWarnings("for-rollout:deprecation")
     InactivityValidationAwareConnectionKeepAliveStrategy(
-            DialogueConnectionConfigResolver configResolver, String clientName) {
-        this.configResolver = configResolver;
+            PoolingHttpClientConnectionManager connectionManager, String clientName) {
+        this.connectionManager = connectionManager;
         this.clientName = clientName;
         // Store the initial inactivity interval to restore if responses re received without
         // keep-alive headers.
-        this.defaultValidateAfterInactivity = configResolver.getValidateAfterInactivity();
+        this.defaultValidateAfterInactivity = connectionManager.getValidateAfterInactivity();
         this.currentValidationInterval = new AtomicReference<>(defaultValidateAfterInactivity);
     }
 
@@ -94,12 +87,10 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
                 }
             }
         }
-        HttpClientContext clientContext = HttpClientContext.castOrCreate(context);
-        updateInactivityValidationInterval(response.getCode(), defaultValidateAfterInactivity);
+        @SuppressWarnings("for-rollout:deprecation")
+        HttpClientContext clientContext = HttpClientContext.adapt(context);
         RequestConfig requestConfig = clientContext.getRequestConfig();
-        if (requestConfig == null) {
-            return IDLE_CONNECTION_TIMEOUT;
-        }
+        updateInactivityValidationInterval(response.getCode(), defaultValidateAfterInactivity);
         return requestConfig.getConnectionKeepAlive();
     }
 
@@ -121,7 +112,7 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
             }
             // Simple volatile write, no need to protect this in the getAndSet check. The getAndSet may race this call
             // so it's best to completely decouple the two.
-            configResolver.setValidateAfterInactivity(newInterval);
+            connectionManager.setValidateAfterInactivity(newInterval);
         }
     }
 }
