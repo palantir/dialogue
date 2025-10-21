@@ -33,7 +33,7 @@ buildscript {
         classpath 'com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.6.0'
         classpath 'com.palantir.metricschema:gradle-metric-schema:0.33.0'
         classpath 'com.palantir.suppressible-error-prone:gradle-suppressible-error-prone:2.22.0'
-        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.62.0'
+        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.63.0'
         classpath 'org.unbroken-dome.gradle-plugins:gradle-testsets-plugin:4.1.0'
     }
 }
