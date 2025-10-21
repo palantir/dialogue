@@ -37,6 +37,7 @@ import org.apache.hc.core5.util.Timeout;
  *     overridden to add timing metrics around {@link Socket#connect(SocketAddress, int)}</li>
  * </ol>
  */
+@SuppressWarnings("for-rollout:deprecation")
 final class InstrumentedSslConnectionSocketFactory extends SSLConnectionSocketFactory {
     private final Supplier<Socket> rawSocketCreator;
 

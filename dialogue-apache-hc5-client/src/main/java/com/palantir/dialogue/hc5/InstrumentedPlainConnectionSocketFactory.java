@@ -27,6 +27,7 @@ import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.util.TimeValue;
 
+@SuppressWarnings("for-rollout:deprecation")
 final class InstrumentedPlainConnectionSocketFactory extends PlainConnectionSocketFactory {
 
     private final Supplier<Socket> simpleSocketCreator;

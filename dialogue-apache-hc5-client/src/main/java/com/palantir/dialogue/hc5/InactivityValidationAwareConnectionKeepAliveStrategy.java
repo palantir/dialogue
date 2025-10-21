@@ -87,6 +87,7 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
                 }
             }
         }
+        @SuppressWarnings("for-rollout:deprecation")
         HttpClientContext clientContext = HttpClientContext.adapt(context);
         RequestConfig requestConfig = clientContext.getRequestConfig();
         updateInactivityValidationInterval(response.getCode(), defaultValidateAfterInactivity);

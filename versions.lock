@@ -102,11 +102,11 @@ javax.annotation:javax.annotation-api:1.3.2 (1 constraints: 0805fb35)
 
 joda-time:joda-time:2.12.7 (1 constraints: 2f16b1f1)
 
-org.apache.httpcomponents.client5:httpclient5:5.3.1 (1 constraints: 0b050e36)
+org.apache.httpcomponents.client5:httpclient5:5.4.4 (1 constraints: 0f051436)
 
-org.apache.httpcomponents.core5:httpcore5:5.3.6 (3 constraints: aa2ac8ab)
+org.apache.httpcomponents.core5:httpcore5:5.3.6 (3 constraints: ab2a00ac)
 
-org.apache.httpcomponents.core5:httpcore5-h2:5.3.6 (1 constraints: 3f130d3c)
+org.apache.httpcomponents.core5:httpcore5-h2:5.3.6 (1 constraints: 4013103c)
 
 org.derive4j:derive4j-annotation:1.1.1 (1 constraints: 0505f435)
 
