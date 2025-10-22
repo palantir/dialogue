@@ -14,7 +14,6 @@ dependencies {
     implementation 'com.palantir.tracing:tracing-api'
     implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'com.palantir.tracing:tracing'
-    implementation 'com.google.code.findbugs:jsr305'
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.conjure.java.api:service-config'
     implementation 'com.palantir.safe-logging:safe-logging'
