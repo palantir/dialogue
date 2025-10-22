@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.Proxy;
+import java.net.Socket;
 import java.net.URI;
 import java.net.URL;
 import java.time.Duration;
@@ -78,7 +79,8 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.io.DetachedSocketFactory;
+import org.apache.hc.client5.http.io.HttpClientConnectionOperator;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.http.config.RegistryBuilder;
@@ -441,7 +443,6 @@ public final class ApacheHttpClientChannels {
             return this;
         }
 
-        @SuppressWarnings("for-rollout:deprecation")
         public CloseableClient build() {
             ClientConfiguration conf =
                     Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is required");
@@ -459,13 +460,13 @@ public final class ApacheHttpClientChannels {
 
             InetSocketAddress socksProxyAddress = getSocksProxyAddress(conf);
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
-            //            Supplier<Socket> simpleSocketCreator = socksProxyAddress == null
-            //                    ? () -> new Socket(Proxy.NO_PROXY)
-            //                    : () -> new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
+            // TODO(aldexis): replace this by just relying on the provided proxy set in setDefaultConfig below
+            DetachedSocketFactory simpleSocketCreator = socksProxyAddress == null
+                    ? proxy -> new Socket(proxy == null ? Proxy.NO_PROXY : proxy)
+                    : _proxy -> new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
 
-            // TODO(aldexis): Bring back (and test) connection metrics
-            //            ConnectInstrumentation connectInstrumentation =
-            //                    new ConnectInstrumentation(conf.taggedMetricRegistry(), name);
+            ConnectInstrumentation connectInstrumentation =
+                    new ConnectInstrumentation(conf.taggedMetricRegistry(), name);
 
             SSLSocketFactory instrumentedSocketFactory =
                     MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name);
@@ -475,59 +476,26 @@ public final class ApacheHttpClientChannels {
                     supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory, name),
                     new InstrumentedHostnameVerifier(new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry()));
 
-            PoolingHttpClientConnectionManager internalConnectionManager =
-                    PoolingHttpClientConnectionManagerBuilder.create()
-                            .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX)
-                            .setConnPoolPolicy(PoolReusePolicy.LIFO)
-                            .setDnsResolver(new InstrumentedDnsResolver(
-                                    SystemDefaultDnsResolver.INSTANCE, dnsResolver, name, conf.taggedMetricRegistry()))
-                            .setConnectionFactory(new InstrumentedManagedHttpConnectionFactory(
-                                    ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name))
-                            .setTlsSocketStrategy(tlsStrategy)
-                            // TODO(aldexis): test time-to-live has no maximum
-                            .build();
-            //            PoolingHttpClientConnectionManager internalConnectionManager = new
-            // PoolingHttpClientConnectionManager(
-            //                    RegistryBuilder.<ConnectionSocketFactory>create()
-            //                            .register(
-            //                                    URIScheme.HTTP.id,
-            //                                    new InstrumentedPlainConnectionSocketFactory(
-            //                                            simpleSocketCreator, connectInstrumentation))
-            //                            .register(
-            //                                    URIScheme.HTTPS.id,
-            //                                    new InstrumentedSslConnectionSocketFactory(
-            //                                            connectInstrumentation,
-            //                                            MetricRegistries.instrument(
-            //                                                    conf.taggedMetricRegistry(), rawSocketFactory, name),
-            //                                            TlsProtocols.get(),
-            //                                            supportedCipherSuites(
-            //                                                    CipherSuites.allCipherSuites(), rawSocketFactory,
-            // name),
-            //                                            new InstrumentedHostnameVerifier(
-            //                                                    new DefaultHostnameVerifier(), name,
-            // conf.taggedMetricRegistry()),
-            //                                            simpleSocketCreator))
-            //                            .build(),
-            //                    PoolConcurrencyPolicy.LAX,
-            //                    // Allow unnecessary connections to time out reducing system load.
-            //                    PoolReusePolicy.LIFO,
-            //                    // No maximum time to live
-            //                    TimeValue.NEG_ONE_MILLISECOND,
-            //                    null,
-            //                    new InstrumentedDnsResolver(
-            //                            SystemDefaultDnsResolver.INSTANCE, dnsResolver, name,
-            // conf.taggedMetricRegistry()),
-            //                    new InstrumentedManagedHttpConnectionFactory(
-            //                            ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(),
-            // name));
+            InstrumentedDnsResolver instrumentedDnsResolver = new InstrumentedDnsResolver(
+                    SystemDefaultDnsResolver.INSTANCE, dnsResolver, name, conf.taggedMetricRegistry());
+            HttpClientConnectionOperator operator = new DialogueHttpClientConnectionOperator(
+                    simpleSocketCreator, instrumentedDnsResolver, tlsStrategy, connectInstrumentation);
+
+            PoolingHttpClientConnectionManager internalConnectionManager = new PoolingHttpClientConnectionManager(
+                    operator,
+                    PoolConcurrencyPolicy.LAX,
+                    // Allow unnecessary connections to time out reducing system load.
+                    PoolReusePolicy.LIFO,
+                    // No maximum time to live
+                    TimeValue.NEG_ONE_MILLISECOND,
+                    new InstrumentedManagedHttpConnectionFactory(
+                            ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name));
             internalConnectionManager.setDefaultSocketConfig(SocketConfig.custom()
                     .setSoKeepAlive(true)
                     // The default socket configuration socket timeout only applies prior to request execution.
                     // By using a more specific timeout here, we bound the handshake in addition to the
                     // socket.connect call.
                     .setSoTimeout(handshakeTimeout)
-                    // TODO(aldexis): verify this is used when creating the socket in
-                    //   DefaultHttpClientConnectionOperator
                     .setSocksProxyAddress(socksProxyAddress)
                     .build());
             DialogueConnectionConfigResolver connectionConfigResolver =
@@ -542,10 +510,8 @@ public final class ApacheHttpClientChannels {
                     new InstrumentedPoolingHttpClientConnectionManager(
                             internalConnectionManager, conf.taggedMetricRegistry(), name);
 
-            @SuppressWarnings("for-rollout:deprecation")
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
-                            .setConnectTimeout(connectTimeout)
                             // Don't allow clients to block forever waiting on a connection to become available
                             .setConnectionRequestTimeout(connectTimeout)
                             // The response timeout is used as the socket timeout for the duration of
