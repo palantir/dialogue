@@ -52,9 +52,9 @@ import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 
 // CHECKSTYLE:ON
 @SuppressWarnings({
-    "checkstyle:avoidstaticimport",
-    "checkstyle:VisibilityModifier",
     "FutureReturnValueIgnored",
+    "checkstyle:VisibilityModifier",
+    "checkstyle:avoidstaticimport",
     "for-rollout:removal"
 })
 @EnableRuleMigrationSupport
