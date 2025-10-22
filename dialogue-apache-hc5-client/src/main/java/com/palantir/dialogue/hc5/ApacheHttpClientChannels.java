@@ -478,7 +478,7 @@ public final class ApacheHttpClientChannels {
 
             InstrumentedDnsResolver instrumentedDnsResolver = new InstrumentedDnsResolver(
                     SystemDefaultDnsResolver.INSTANCE, dnsResolver, name, conf.taggedMetricRegistry());
-            HttpClientConnectionOperator operator = new DialogueHttpClientConnectionOperator(
+            HttpClientConnectionOperator operator = new InstrumentedHttpClientConnectionOperator(
                     simpleSocketCreator, instrumentedDnsResolver, tlsStrategy, connectInstrumentation);
 
             PoolingHttpClientConnectionManager internalConnectionManager = new PoolingHttpClientConnectionManager(

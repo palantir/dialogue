@@ -26,13 +26,13 @@ import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.protocol.HttpContext;
 
-final class DialogueHttpClientConnectionOperator extends DefaultHttpClientConnectionOperator {
+final class InstrumentedHttpClientConnectionOperator extends DefaultHttpClientConnectionOperator {
 
     private static final String CONNECT_BEGAN_ATTRIBUTE = "onBeforeSocketConnectNanoTime";
 
     private final ConnectInstrumentation connectInstrumentation;
 
-    DialogueHttpClientConnectionOperator(
+    InstrumentedHttpClientConnectionOperator(
             DetachedSocketFactory detachedSocketFactory,
             DnsResolver dnsResolver,
             TlsSocketStrategy tlsSocketStrategy,
@@ -55,11 +55,11 @@ final class DialogueHttpClientConnectionOperator extends DefaultHttpClientConnec
 
     @Override
     protected void onAfterSocketConnect(HttpContext httpContext, HttpHost endpointHost) {
-        super.onAfterSocketConnect(httpContext, endpointHost);
         Object value = httpContext.getAttribute(CONNECT_BEGAN_ATTRIBUTE);
         if (value instanceof Long) {
             long duration = System.nanoTime() - (long) value;
             connectInstrumentation.timer(true, httpContext).update(duration, TimeUnit.NANOSECONDS);
         }
+        super.onAfterSocketConnect(httpContext, endpointHost);
     }
 }
