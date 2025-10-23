@@ -72,6 +72,7 @@ import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.apache.hc.client5.http.auth.StandardAuthScheme;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.config.TlsConfig;
 import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
 import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -470,10 +471,16 @@ public final class ApacheHttpClientChannels {
 
             SSLSocketFactory instrumentedSocketFactory =
                     MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name);
+            TlsConfig tlsConfig = TlsConfig.custom()
+                    .setHandshakeTimeout(handshakeTimeout)
+                    .setSupportedProtocols(TlsProtocols.get())
+                    .setSupportedCipherSuites(
+                            supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory, name))
+                    .build();
             TlsSocketStrategy tlsStrategy = new DialogueTlsSocketStrategy(
                     instrumentedSocketFactory,
-                    TlsProtocols.get(),
-                    supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory, name),
+                    tlsConfig.getSupportedProtocols(),
+                    tlsConfig.getSupportedCipherSuites(),
                     new InstrumentedHostnameVerifier(new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry()));
 
             InstrumentedDnsResolver instrumentedDnsResolver = new InstrumentedDnsResolver(
@@ -492,12 +499,9 @@ public final class ApacheHttpClientChannels {
                             ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name));
             internalConnectionManager.setDefaultSocketConfig(SocketConfig.custom()
                     .setSoKeepAlive(true)
-                    // The default socket configuration socket timeout only applies prior to request execution.
-                    // By using a more specific timeout here, we bound the handshake in addition to the
-                    // socket.connect call.
-                    .setSoTimeout(handshakeTimeout)
                     .setSocksProxyAddress(socksProxyAddress)
                     .build());
+            internalConnectionManager.setDefaultTlsConfig(tlsConfig);
             DialogueConnectionConfigResolver connectionConfigResolver =
                     new DialogueConnectionConfigResolver(connectTimeout, socketTimeout);
             internalConnectionManager.setConnectionConfigResolver(connectionConfigResolver);
