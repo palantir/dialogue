@@ -103,6 +103,7 @@ final class DialogueTlsSocketStrategy implements TlsSocketStrategy {
                     UnsafeArg.of("target", target),
                     UnsafeArg.of("soTimeout", upgradedSocket.getSoTimeout()),
                     UnsafeArg.of("durationNanos", durationNanos)));
+            throw e;
         }
         verifySession(target, upgradedSocket.getSession(), hostnameVerifier);
     }
