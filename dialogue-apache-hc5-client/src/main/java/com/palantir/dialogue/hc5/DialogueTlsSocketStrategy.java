@@ -17,6 +17,8 @@
 package com.palantir.dialogue.hc5;
 
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.net.Socket;
 import java.security.cert.Certificate;
@@ -91,7 +93,17 @@ final class DialogueTlsSocketStrategy implements TlsSocketStrategy {
             }
         }
 
-        upgradedSocket.startHandshake();
+        long startTime = System.nanoTime();
+        try {
+            upgradedSocket.startHandshake();
+        } catch (IOException e) {
+            long durationNanos = System.nanoTime() - startTime;
+            e.addSuppressed(new SafeRuntimeException(
+                    "Failed to handshake with target",
+                    UnsafeArg.of("target", target),
+                    UnsafeArg.of("soTimeout", upgradedSocket.getSoTimeout()),
+                    UnsafeArg.of("durationNanos", durationNanos)));
+        }
         verifySession(target, upgradedSocket.getSession(), hostnameVerifier);
     }
 
