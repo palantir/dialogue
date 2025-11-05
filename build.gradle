@@ -23,7 +23,7 @@ buildscript {
     dependencies {
         classpath 'com.palantir.jakartapackagealignment:jakarta-package-alignment:0.6.0'
         classpath 'com.palantir.gradle.jdks:gradle-jdks:0.69.0'
-        classpath 'com.palantir.gradle.jdkslatest:gradle-jdks-latest:0.23.0'
+        classpath 'com.palantir.gradle.jdkslatest:gradle-jdks-latest:0.24.0'
         classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.26.0'
         classpath 'com.palantir.gradle.failure-reports:gradle-failure-reports:1.17.0'
         classpath 'org.revapi:gradle-revapi:1.8.0'
@@ -69,12 +69,6 @@ allprojects {
     }
     configurations.all {
         resolutionStrategy.preferProjectModules()
-        resolutionStrategy.eachDependency { details ->
-            if (details.requested.group == 'com.google.errorprone' && details.requested.name == 'error_prone_annotations') {
-                details.useTarget group: 'com.google.errorprone', name: 'error_prone_annotations', version: '2.7.1'
-                details.because "The error_prone_annotations dependency must be low to avoid forcing consumers to use newer releases"
-            }
-        }
     }
 }
 
