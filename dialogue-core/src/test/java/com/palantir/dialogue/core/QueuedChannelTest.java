@@ -19,7 +19,9 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -547,5 +549,65 @@ public class QueuedChannelTest {
                 .withMessageContaining("A request which explicitly bypassed rate limits failed to execute"));
 
         assertThat(instrumentation.requestsQueued().getCount()).isZero();
+    }
+
+    @Test
+    public void testInFlightRequestsDontGetTimedOut() throws Exception {
+        List<Optional<SettableFuture<Response>>> settableResponses = new CopyOnWriteArrayList<>();
+        LimitedChannel delegateChannel = (_endpoint, _request, limitEnforcement) -> {
+            Optional<SettableFuture<Response>> result = Optional.empty();
+            if (!limitEnforcement.enforceLimits()) {
+                result = Optional.of(SettableFuture.create());
+            }
+            settableResponses.add(result);
+            return result.map(item -> item);
+        };
+        QueuedChannelInstrumentation instrumentation = QueuedChannel.channelInstrumentation(
+                DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "channel");
+        QueuedChannel queued = new QueuedChannel(delegateChannel, "channel", "queue-type", instrumentation, 100_000);
+
+        assertThat(settableResponses).isEmpty();
+
+        // First request goes in-flight (bypasses limits when inFlight=0)
+        Optional<ListenableFuture<Response>> firstRequest =
+                queued.maybeExecute(TestEndpoint.GET, Request.builder().build());
+        assertThat(firstRequest).hasValueSatisfying(item -> assertThat(item).isNotDone());
+        assertThat(settableResponses).hasSize(1);
+        assertThat(settableResponses.get(0)).isPresent();
+
+        // 2 requests are queued
+        Optional<ListenableFuture<Response>> secondRequest =
+                queued.maybeExecute(TestEndpoint.GET, Request.builder().build());
+        Optional<ListenableFuture<Response>> thirdRequest =
+                queued.maybeExecute(TestEndpoint.GET, Request.builder().build());
+        assertThat(secondRequest).hasValueSatisfying(item -> assertThat(item).isNotDone());
+        assertThat(thirdRequest).hasValueSatisfying(item -> assertThat(item).isNotDone());
+        assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(2);
+
+        ListenableFuture<?> handledFuture = Futures.catchingAsync(
+                firstRequest.get(),
+                Exception.class,
+                _ex -> Futures.immediateFuture(null),
+                MoreExecutors.directExecutor());
+
+        // call with 0 timeout.
+        assertThatThrownBy(() -> handledFuture.get(0, TimeUnit.MILLISECONDS))
+                .isInstanceOf(java.util.concurrent.TimeoutException.class);
+
+        // Adding this causes the assert immediately below to fail: the future is actually cancelled.
+        // handledFuture.cancel(true);
+
+        // inflight is not done
+        assertThat(firstRequest.get()).isNotDone();
+        // 2 queued requests remain queued
+        assertThat(secondRequest.get()).isNotDone();
+        assertThat(thirdRequest.get()).isNotDone();
+        assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(2);
+
+        queued.schedule();
+
+        assertThat(firstRequest.get()).isNotDone();
+        // Queue Channel does not have a timeout
+        assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(2);
     }
 }
