@@ -28,7 +28,7 @@ com.google.errorprone:error_prone_annotations:2.41.0 (19 constraints: ef2e645a)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.5.0-jre (18 constraints: ff3f15db)
+com.google.guava:guava:33.5.0-jre (18 constraints: f83f41d4)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -36,7 +36,7 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.4.0 (1 constraints: 08050136)
 
-com.palantir.conjure.java:conjure-lib:8.60.0 (2 constraints: 3424cb79)
+com.palantir.conjure.java:conjure-lib:8.62.0 (2 constraints: 36246f7a)
 
 com.palantir.conjure.java.api:errors:2.65.0 (3 constraints: 81298615)
 
@@ -48,7 +48,7 @@ com.palantir.conjure.java.runtime:client-config:8.25.0 (1 constraints: 4105663b)
 
 com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.25.0 (1 constraints: 851cc7a4)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.25.0 (2 constraints: 6116650f)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.25.0 (2 constraints: 6216680f)
 
 com.palantir.conjure.java.runtime:keystores:8.25.0 (2 constraints: 6119b3dd)
 
@@ -56,7 +56,7 @@ com.palantir.deadlines:deadlines:0.16.0 (1 constraints: 3905353b)
 
 com.palantir.goethe:goethe:0.17.0 (1 constraints: 3a05383b)
 
-com.palantir.javapoet:javapoet:0.7.0 (2 constraints: cf109cd1)
+com.palantir.javapoet:javapoet:0.8.0 (2 constraints: d010c2d1)
 
 com.palantir.nylon:nylon-threads:0.4.0 (1 constraints: 0c10fa91)
 
@@ -78,21 +78,21 @@ com.palantir.safethreadlocalrandom:safe-thread-local-random:0.3.0 (1 constraints
 
 com.palantir.tokens:auth-tokens:3.20.0 (3 constraints: 1828218a)
 
-com.palantir.tracing:tracing:6.28.0 (3 constraints: bd24bafe)
+com.palantir.tracing:tracing:6.29.0 (3 constraints: bf241bff)
 
-com.palantir.tracing:tracing-api:6.28.0 (2 constraints: 19124b19)
+com.palantir.tracing:tracing-api:6.29.0 (2 constraints: 1b127719)
 
-com.palantir.tritium:tritium-api:0.111.0 (2 constraints: 871f0ef3)
+com.palantir.tritium:tritium-api:0.115.0 (2 constraints: 8f1fe2f3)
 
-com.palantir.tritium:tritium-caffeine:0.111.0 (1 constraints: 65058f40)
+com.palantir.tritium:tritium-caffeine:0.115.0 (1 constraints: 69059b40)
 
-com.palantir.tritium:tritium-core:0.111.0 (1 constraints: 6b109eb2)
+com.palantir.tritium:tritium-core:0.115.0 (1 constraints: 6f10aab2)
 
-com.palantir.tritium:tritium-ids:0.111.0 (1 constraints: f80f86a6)
+com.palantir.tritium:tritium-ids:0.115.0 (1 constraints: f80f86a6)
 
-com.palantir.tritium:tritium-metrics:0.111.0 (3 constraints: 8c249208)
+com.palantir.tritium:tritium-metrics:0.115.0 (3 constraints: 9424160a)
 
-com.palantir.tritium:tritium-registry:0.111.0 (6 constraints: f065194c)
+com.palantir.tritium:tritium-registry:0.115.0 (6 constraints: fc654551)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
@@ -116,7 +116,7 @@ org.eclipse.collections:eclipse-collections-api:13.0.0 (2 constraints: fa22df26)
 
 org.hdrhistogram:HdrHistogram:2.2.2 (1 constraints: 0e100092)
 
-org.immutables:value:2.11.6 (2 constraints: 051577c2)
+org.immutables:value:2.11.7 (2 constraints: 0615a6c2)
 
 org.jboss.logging:jboss-logging:3.4.1.Final (3 constraints: f03036d7)
 
@@ -124,7 +124,7 @@ org.jboss.threads:jboss-threads:3.5.1.Final (3 constraints: ba2a18e6)
 
 org.jetbrains:annotations:26.0.2 (4 constraints: 1635b13a)
 
-org.jspecify:jspecify:1.0.0 (17 constraints: 080fb9b5)
+org.jspecify:jspecify:1.0.0 (16 constraints: e8f92ff0)
 
 org.mpierce.metrics.reservoir:hdrhistogram-metrics-reservoir:1.1.3 (1 constraints: 0d10f991)
 
@@ -148,21 +148,21 @@ com.google.truth:truth:1.4.5 (1 constraints: 1d1219fb)
 
 com.palantir.safe-logging:preconditions-assertj:3.9.0 (1 constraints: 0e051536)
 
-com.palantir.tracing:tracing-test-utils:6.28.0 (1 constraints: 4205633b)
+com.palantir.tracing:tracing-test-utils:6.29.0 (1 constraints: 4305663b)
 
 com.spotify.dataenum:dataenum:1.4.1 (1 constraints: e9105ac1)
 
-com.squareup.okhttp3:mockwebserver:5.3.0 (1 constraints: 0a050d36)
+com.squareup.okhttp3:mockwebserver3:5.3.2 (1 constraints: f81162fe)
 
-com.squareup.okhttp3:mockwebserver3:5.3.0 (1 constraints: 370f416d)
+com.squareup.okhttp3:mockwebserver3-junit5:5.3.2 (1 constraints: 0c050f36)
 
-com.squareup.okhttp3:okhttp:5.3.0 (1 constraints: 3a053f3b)
+com.squareup.okhttp3:okhttp:5.3.2 (1 constraints: 3a053f3b)
 
-com.squareup.okhttp3:okhttp-jvm:5.3.0 (2 constraints: a01e8d87)
+com.squareup.okhttp3:okhttp-jvm:5.3.2 (2 constraints: 6321c88d)
 
-com.squareup.okio:okio:3.16.2 (1 constraints: 860ccc09)
+com.squareup.okio:okio:3.16.4 (1 constraints: 880cce09)
 
-com.squareup.okio:okio-jvm:3.16.2 (2 constraints: 8218faca)
+com.squareup.okio:okio-jvm:3.16.4 (2 constraints: 86183ecb)
 
 commons-logging:commons-logging:1.2 (2 constraints: 8215ead1)
 
@@ -172,7 +172,7 @@ de.rototor.pdfbox:graphics2d:0.25 (1 constraints: 8f0a84bb)
 
 io.undertow:undertow-core:2.2.38.Final (1 constraints: 59075361)
 
-junit:junit:4.13.2 (4 constraints: 90418c36)
+junit:junit:4.13.2 (2 constraints: de1ce71a)
 
 net.bytebuddy:byte-buddy:1.17.7 (2 constraints: 9f161b3f)
 
@@ -184,7 +184,7 @@ net.sf.jopt-simple:jopt-simple:5.0.4 (1 constraints: be0ad6cc)
 
 org.apache-extras.beanshell:bsh:2.0b6 (1 constraints: ac07626b)
 
-org.apache.commons:commons-lang3:3.19.0 (1 constraints: 3f05503b)
+org.apache.commons:commons-lang3:3.20.0 (1 constraints: 3705393b)
 
 org.apache.commons:commons-math3:3.6.1 (1 constraints: bf0adbcc)
 
@@ -200,7 +200,7 @@ org.apache.pdfbox:fontbox:2.0.17 (1 constraints: 180b71d8)
 
 org.apache.pdfbox:pdfbox:2.0.17 (1 constraints: b40c5915)
 
-org.apiguardian:apiguardian-api:1.1.2 (7 constraints: 677be455)
+org.apiguardian:apiguardian-api:1.1.2 (6 constraints: 5366ce6e)
 
 org.assertj:assertj-core:3.27.6 (3 constraints: 5f254650)
 
@@ -224,27 +224,25 @@ org.jboss.xnio:xnio-api:3.8.16.Final (2 constraints: d71a2474)
 
 org.jboss.xnio:xnio-nio:3.8.16.Final (1 constraints: f80dc53d)
 
-org.jetbrains.kotlin:kotlin-stdlib:2.2.21 (5 constraints: 6e45cf8e)
+org.jetbrains.kotlin:kotlin-stdlib:2.2.21 (5 constraints: 2d48f8d1)
 
 org.jmock:jmock:2.13.1 (1 constraints: 3905393b)
 
 org.jmock:jmock-testjar:2.13.1 (1 constraints: a707a672)
 
-org.junit.jupiter:junit-jupiter:6.0.0 (1 constraints: 47070770)
+org.junit.jupiter:junit-jupiter:6.0.1 (1 constraints: 48070970)
 
-org.junit.jupiter:junit-jupiter-api:6.0.0 (6 constraints: 6f5809cf)
+org.junit.jupiter:junit-jupiter-api:6.0.1 (6 constraints: 8755568f)
 
-org.junit.jupiter:junit-jupiter-engine:6.0.0 (1 constraints: 030eca3b)
+org.junit.jupiter:junit-jupiter-engine:6.0.1 (1 constraints: 040ecb3b)
 
-org.junit.jupiter:junit-jupiter-migrationsupport:6.0.0 (1 constraints: 08050936)
+org.junit.jupiter:junit-jupiter-params:6.0.1 (2 constraints: 0c13243b)
 
-org.junit.jupiter:junit-jupiter-params:6.0.0 (2 constraints: 0a13fa3a)
+org.junit.platform:junit-platform-commons:6.0.1 (2 constraints: d520474a)
 
-org.junit.platform:junit-platform-commons:6.0.0 (2 constraints: d320144a)
+org.junit.platform:junit-platform-engine:6.0.1 (2 constraints: ed22dc07)
 
-org.junit.platform:junit-platform-engine:6.0.0 (2 constraints: eb22a707)
-
-org.junit.platform:junit-platform-launcher:6.0.0 (1 constraints: 08050936)
+org.junit.platform:junit-platform-launcher:6.0.1 (1 constraints: 09050a36)
 
 org.knowm.xchart:xchart:3.6.1 (1 constraints: 0c050d36)
 
