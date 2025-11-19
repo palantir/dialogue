@@ -50,7 +50,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
-import okhttp3.mockwebserver.RecordedRequest;
+import mockwebserver3.RecordedRequest;
 import org.junit.jupiter.api.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
@@ -280,8 +280,10 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
             channel.execute(endpoint, request);
             RecordedRequest recordedRequest = server.takeRequest();
             assertThat(recordedRequest.getMethod()).isEqualTo("POST");
-            assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_LENGTH)).isEqualTo(Long.toString(value));
-            assertThat(recordedRequest.getHeader(HttpHeaders.TRANSFER_ENCODING)).isNull();
+            assertThat(recordedRequest.getHeaders().get(HttpHeaders.CONTENT_LENGTH))
+                    .isEqualTo(Long.toString(value));
+            assertThat(recordedRequest.getHeaders().get(HttpHeaders.TRANSFER_ENCODING))
+                    .isNull();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

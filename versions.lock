@@ -18,13 +18,13 @@ com.fasterxml.jackson.datatype:jackson-datatype-joda:2.20.0 (1 constraints: 841c
 
 com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.20.0 (1 constraints: 841cada4)
 
-com.github.ben-manes.caffeine:caffeine:3.2.3 (3 constraints: 0128d133)
+com.github.ben-manes.caffeine:caffeine:3.2.2 (3 constraints: 00286e33)
 
 com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.43.0 (19 constraints: f22e1864)
+com.google.errorprone:error_prone_annotations:2.41.0 (19 constraints: ef2e645a)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
@@ -124,7 +124,7 @@ org.jboss.threads:jboss-threads:3.5.1.Final (3 constraints: ba2a18e6)
 
 org.jetbrains:annotations:26.0.2 (4 constraints: 1635b13a)
 
-org.jspecify:jspecify:1.0.0 (17 constraints: 080fb9b5)
+org.jspecify:jspecify:1.0.0 (16 constraints: e8f92ff0)
 
 org.mpierce.metrics.reservoir:hdrhistogram-metrics-reservoir:1.1.3 (1 constraints: 0d10f991)
 
@@ -152,13 +152,13 @@ com.palantir.tracing:tracing-test-utils:6.29.0 (1 constraints: 4305663b)
 
 com.spotify.dataenum:dataenum:1.4.1 (1 constraints: e9105ac1)
 
-com.squareup.okhttp3:mockwebserver:5.3.2 (1 constraints: 0c050f36)
+com.squareup.okhttp3:mockwebserver3:5.3.2 (1 constraints: f81162fe)
 
-com.squareup.okhttp3:mockwebserver3:5.3.2 (1 constraints: 390f436d)
+com.squareup.okhttp3:mockwebserver3-junit5:5.3.2 (1 constraints: 0c050f36)
 
 com.squareup.okhttp3:okhttp:5.3.2 (1 constraints: 3a053f3b)
 
-com.squareup.okhttp3:okhttp-jvm:5.3.2 (2 constraints: a41ee987)
+com.squareup.okhttp3:okhttp-jvm:5.3.2 (2 constraints: 6321c88d)
 
 com.squareup.okio:okio:3.16.4 (1 constraints: 880cce09)
 
@@ -172,7 +172,7 @@ de.rototor.pdfbox:graphics2d:0.25 (1 constraints: 8f0a84bb)
 
 io.undertow:undertow-core:2.2.38.Final (1 constraints: 59075361)
 
-junit:junit:4.13.2 (4 constraints: 90418c36)
+junit:junit:4.13.2 (2 constraints: de1ce71a)
 
 net.bytebuddy:byte-buddy:1.17.7 (2 constraints: 9f161b3f)
 
@@ -200,7 +200,7 @@ org.apache.pdfbox:fontbox:2.0.17 (1 constraints: 180b71d8)
 
 org.apache.pdfbox:pdfbox:2.0.17 (1 constraints: b40c5915)
 
-org.apiguardian:apiguardian-api:1.1.2 (7 constraints: 677be455)
+org.apiguardian:apiguardian-api:1.1.2 (6 constraints: 5366ce6e)
 
 org.assertj:assertj-core:3.27.6 (3 constraints: 5f254650)
 
@@ -224,7 +224,7 @@ org.jboss.xnio:xnio-api:3.8.16.Final (2 constraints: d71a2474)
 
 org.jboss.xnio:xnio-nio:3.8.16.Final (1 constraints: f80dc53d)
 
-org.jetbrains.kotlin:kotlin-stdlib:2.2.21 (5 constraints: 6e45cf8e)
+org.jetbrains.kotlin:kotlin-stdlib:2.2.21 (5 constraints: 2d48f8d1)
 
 org.jmock:jmock:2.13.1 (1 constraints: 3905393b)
 
@@ -232,11 +232,9 @@ org.jmock:jmock-testjar:2.13.1 (1 constraints: a707a672)
 
 org.junit.jupiter:junit-jupiter:6.0.1 (1 constraints: 48070970)
 
-org.junit.jupiter:junit-jupiter-api:6.0.1 (6 constraints: 7458d2d1)
+org.junit.jupiter:junit-jupiter-api:6.0.1 (6 constraints: 8755568f)
 
 org.junit.jupiter:junit-jupiter-engine:6.0.1 (1 constraints: 040ecb3b)
-
-org.junit.jupiter:junit-jupiter-migrationsupport:6.0.1 (1 constraints: 09050a36)
 
 org.junit.jupiter:junit-jupiter-params:6.0.1 (2 constraints: 0c13243b)
 
