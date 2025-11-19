@@ -99,7 +99,8 @@ public abstract class AbstractProxyConfigTest {
     public void testAuthenticatedProxy() throws Exception {
         proxyServer.enqueue(new MockResponse.Builder()
                 .addHeader("Proxy-Authenticate", "Basic realm=test")
-                .code(407).build()); // indicates authenticated proxy
+                .code(407)
+                .build()); // indicates authenticated proxy
         proxyServer.enqueue(new MockResponse.Builder().body("proxyServer").build());
 
         ClientConfiguration proxiedConfig = ClientConfiguration.builder()
