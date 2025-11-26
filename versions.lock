@@ -1,22 +1,22 @@
 # Run ./gradlew writeVersionsLocks to regenerate this file. Blank lines are to minimize merge conflicts.
 
-com.fasterxml.jackson.core:jackson-annotations:2.20 (9 constraints: ed98c7be)
+com.fasterxml.jackson.core:jackson-annotations:2.20 (9 constraints: 85985da5)
 
-com.fasterxml.jackson.core:jackson-core:2.20.0 (11 constraints: 32e55685)
+com.fasterxml.jackson.core:jackson-core:2.20.0 (11 constraints: 28e53d85)
 
-com.fasterxml.jackson.core:jackson-databind:2.20.0 (15 constraints: 3d312907)
+com.fasterxml.jackson.core:jackson-databind:2.20.0 (15 constraints: 1f31d1fa)
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.20.0 (1 constraints: 841cada4)
+com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.20.0 (1 constraints: 7a1c94a4)
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.20.0 (1 constraints: 841cada4)
+com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.20.0 (1 constraints: 7a1c94a4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-guava:2.20.0 (1 constraints: 841cada4)
+com.fasterxml.jackson.datatype:jackson-datatype-guava:2.20.0 (1 constraints: 7a1c94a4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.20.0 (1 constraints: 841cada4)
+com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.20.0 (1 constraints: 7a1c94a4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-joda:2.20.0 (1 constraints: 841cada4)
+com.fasterxml.jackson.datatype:jackson-datatype-joda:2.20.0 (1 constraints: 7a1c94a4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.20.0 (1 constraints: 841cada4)
+com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.20.0 (1 constraints: 7a1c94a4)
 
 com.github.ben-manes.caffeine:caffeine:3.2.2 (3 constraints: 00286e33)
 
@@ -24,7 +24,7 @@ com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.41.0 (19 constraints: ef2e645a)
+com.google.errorprone:error_prone_annotations:2.41.0 (19 constraints: a32f3a84)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
@@ -36,7 +36,7 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.4.0 (1 constraints: 08050136)
 
-com.palantir.conjure.java:conjure-lib:8.62.0 (2 constraints: 36246f7a)
+com.palantir.conjure.java:conjure-lib:8.64.0 (2 constraints: 35240b7b)
 
 com.palantir.conjure.java.api:errors:2.65.0 (3 constraints: 81298615)
 
@@ -44,13 +44,13 @@ com.palantir.conjure.java.api:service-config:2.65.0 (2 constraints: 5d1919dd)
 
 com.palantir.conjure.java.api:ssl-config:2.65.0 (4 constraints: 083f9da0)
 
-com.palantir.conjure.java.runtime:client-config:8.25.0 (1 constraints: 4105663b)
+com.palantir.conjure.java.runtime:client-config:8.27.0 (1 constraints: 43056c3b)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.25.0 (1 constraints: 851cc7a4)
+com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.27.0 (1 constraints: 871ccda4)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.25.0 (2 constraints: 6216680f)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.27.0 (2 constraints: 6416d00f)
 
-com.palantir.conjure.java.runtime:keystores:8.25.0 (2 constraints: 6119b3dd)
+com.palantir.conjure.java.runtime:keystores:8.27.0 (2 constraints: 651931de)
 
 com.palantir.deadlines:deadlines:0.16.0 (1 constraints: 3905353b)
 
@@ -92,7 +92,7 @@ com.palantir.tritium:tritium-ids:0.115.0 (1 constraints: f80f86a6)
 
 com.palantir.tritium:tritium-metrics:0.115.0 (3 constraints: 9424160a)
 
-com.palantir.tritium:tritium-registry:0.115.0 (6 constraints: fc654551)
+com.palantir.tritium:tritium-registry:0.115.0 (6 constraints: f6650c4d)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
@@ -208,11 +208,11 @@ org.assertj:assertj-guava:3.3.0 (1 constraints: 08050336)
 
 org.awaitility:awaitility:4.3.0 (1 constraints: 09050836)
 
-org.bouncycastle:bcpkix-jdk18on:1.82 (1 constraints: df040131)
+org.bouncycastle:bcpkix-jdk18on:1.83 (1 constraints: e0040231)
 
-org.bouncycastle:bcprov-jdk18on:1.82 (1 constraints: 600d6d29)
+org.bouncycastle:bcprov-jdk18on:1.83 (1 constraints: 610d6e29)
 
-org.bouncycastle:bcutil-jdk18on:1.82 (1 constraints: 5e0d2a29)
+org.bouncycastle:bcutil-jdk18on:1.83 (1 constraints: 5f0d2b29)
 
 org.hamcrest:hamcrest:3.0 (3 constraints: f41d9170)
 
