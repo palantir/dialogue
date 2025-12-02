@@ -84,17 +84,21 @@ subprojects {
             errorprone 'com.uber.nullaway:nullaway'
         }
 
-        tasks.withType(JavaCompile).configureEach {
+        tasks.withType(JavaCompile).configureEach(task -> {
             if (name.toLowerCase().contains("test")) {
                 options.errorprone.disable('NullAway')
             } else {
                 options.errorprone.option('NullAway:AnnotatedPackages', 'com.palantir,com.google.common')
                 options.errorprone.option('NullAway:CheckOptionalEmptiness', 'true')
-                options.errorprone.option('NullAway:JSpecifyMode', 'true')
+                // As of NullAway 0.12.11, JSpecify annotations require Java 22+
+                // https://github.com/uber/NullAway/wiki/JSpecify-Support#supported-jdk-versions
+                if (task.getJavaVersion() >= JavaVersion.VERSION_22) {
+                    options.errorprone.option('NullAway:JSpecifyMode', 'true')
+                }
             }
             // This project is performance sensitive
             options.errorprone.disable('PreferJavaTimeOverload')
-        }
+        })
     })
 
     tasks.check.dependsOn checkImplicitDependencies, checkUnusedDependencies
