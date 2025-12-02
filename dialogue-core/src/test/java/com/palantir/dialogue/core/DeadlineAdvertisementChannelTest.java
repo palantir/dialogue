@@ -237,7 +237,7 @@ class DeadlineAdvertisementChannelTest {
                 new TestResponse().code(400).withHeader(DeadlinesHttpHeaders.DEADLINE_EXPIRED_REASON, "external");
 
         Channel delegate = (_endpoint, _request) -> Futures.immediateFuture(deadlineResponse);
-        Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout);
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
 
         ListenableFuture<Response> response =
                 channel.execute(TestEndpoint.GET, Request.builder().build());
@@ -254,7 +254,7 @@ class DeadlineAdvertisementChannelTest {
                 new TestResponse().code(500).withHeader(DeadlinesHttpHeaders.DEADLINE_EXPIRED_REASON, "internal");
 
         Channel delegate = (_endpoint, _request) -> Futures.immediateFuture(deadlineResponse);
-        Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout);
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
 
         ListenableFuture<Response> response =
                 channel.execute(TestEndpoint.GET, Request.builder().build());
@@ -270,7 +270,7 @@ class DeadlineAdvertisementChannelTest {
         TestResponse normalResponse = new TestResponse().code(200);
 
         Channel delegate = (_endpoint, _request) -> Futures.immediateFuture(normalResponse);
-        Channel channel = new DeadlineAdvertisementChannel(delegate, readTimeout);
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
 
         ListenableFuture<Response> response =
                 channel.execute(TestEndpoint.GET, Request.builder().build());
