@@ -30,6 +30,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.tracing.CloseableTracer;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -227,6 +228,53 @@ class DeadlineAdvertisementChannelTest {
             assertThat(request.headerParams().get("Expect-Within")).containsExactly("60.000");
             assertThat(request.headerParams().get("Expect-Within-Enforced")).containsExactly("false");
         });
+    }
+
+    @Test
+    void parses_external_deadline_expired_from_response() {
+        Duration readTimeout = Duration.ofSeconds(1);
+        TestResponse deadlineResponse =
+                new TestResponse().code(400).withHeader(DeadlinesHttpHeaders.DEADLINE_EXPIRED_REASON, "external");
+
+        Channel delegate = (_endpoint, _request) -> Futures.immediateFuture(deadlineResponse);
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
+
+        ListenableFuture<Response> response =
+                channel.execute(TestEndpoint.GET, Request.builder().build());
+        assertThat(response).isDone();
+        assertThatExceptionOfType(ExecutionException.class)
+                .isThrownBy(response::get)
+                .withCauseInstanceOf(DeadlineExpiredException.External.class);
+    }
+
+    @Test
+    void parses_internal_deadline_expired_from_response() {
+        Duration readTimeout = Duration.ofSeconds(1);
+        TestResponse deadlineResponse =
+                new TestResponse().code(500).withHeader(DeadlinesHttpHeaders.DEADLINE_EXPIRED_REASON, "internal");
+
+        Channel delegate = (_endpoint, _request) -> Futures.immediateFuture(deadlineResponse);
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
+
+        ListenableFuture<Response> response =
+                channel.execute(TestEndpoint.GET, Request.builder().build());
+        assertThat(response).isDone();
+        assertThatExceptionOfType(ExecutionException.class)
+                .isThrownBy(response::get)
+                .withCauseInstanceOf(DeadlineExpiredException.Internal.class);
+    }
+
+    @Test
+    void ignores_response_without_deadline_header() {
+        Duration readTimeout = Duration.ofSeconds(1);
+        TestResponse normalResponse = new TestResponse().code(200);
+
+        Channel delegate = (_endpoint, _request) -> Futures.immediateFuture(normalResponse);
+        Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
+
+        ListenableFuture<Response> response =
+                channel.execute(TestEndpoint.GET, Request.builder().build());
+        assertThat(response).succeedsWithin(Duration.ofSeconds(1)).isSameAs(normalResponse);
     }
 
     private enum Decoder implements RequestDecodingAdapter<Request> {

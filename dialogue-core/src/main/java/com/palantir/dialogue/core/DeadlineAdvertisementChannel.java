@@ -19,14 +19,17 @@ package com.palantir.dialogue.core;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.deadlines.DeadlineExpiredException;
+import com.palantir.deadlines.DeadlineExpiredReasons;
 import com.palantir.deadlines.Deadlines;
 import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import java.time.Duration;
 import java.util.Optional;
+import javax.annotation.Nullable;
 
 final class DeadlineAdvertisementChannel implements Channel {
 
@@ -65,7 +68,15 @@ final class DeadlineAdvertisementChannel implements Channel {
         } catch (DeadlineExpiredException e) {
             return Futures.immediateFailedFuture(e);
         }
-        return delegate.execute(endpoint, requestBuilder.build());
+
+        return DialogueFutures.transformAsync(delegate.execute(endpoint, requestBuilder.build()), response -> {
+            DeadlineExpiredException deadlineException =
+                    DeadlineExpiredReasons.maybeParseFromResponse(response, ResponseDecodingAdapter.INSTANCE);
+            if (deadlineException != null) {
+                return Futures.immediateFailedFuture(deadlineException);
+            }
+            return Futures.immediateFuture(response);
+        });
     }
 
     private enum RequestBuilderEncodingAdapter implements Deadlines.RequestEncodingAdapter<Request.Builder> {
@@ -74,6 +85,20 @@ final class DeadlineAdvertisementChannel implements Channel {
         @Override
         public void setHeader(Request.Builder builder, String headerName, String headerValue) {
             builder.putHeaderParams(headerName, headerValue);
+        }
+    }
+
+    private enum ResponseDecodingAdapter implements DeadlineExpiredReasons.ResponseDecodingAdapter<Response> {
+        INSTANCE;
+
+        @Override
+        public @Nullable String maybeFirstHeader(Response response, String headerName) {
+            return response.getFirstHeader(headerName).orElse(null);
+        }
+
+        @Override
+        public int getStatus(Response response) {
+            return response.code();
         }
     }
 }
