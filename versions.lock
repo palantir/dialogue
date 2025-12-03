@@ -36,21 +36,21 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.4.0 (1 constraints: 08050136)
 
-com.palantir.conjure.java:conjure-lib:8.64.0 (2 constraints: 35240b7b)
+com.palantir.conjure.java:conjure-lib:8.65.0 (2 constraints: 3924667b)
 
-com.palantir.conjure.java.api:errors:2.66.0 (3 constraints: 8229f115)
+com.palantir.conjure.java.api:errors:2.67.0 (3 constraints: 84295f16)
 
-com.palantir.conjure.java.api:service-config:2.66.0 (2 constraints: 5e1955dd)
+com.palantir.conjure.java.api:service-config:2.67.0 (2 constraints: 601994dd)
 
-com.palantir.conjure.java.api:ssl-config:2.66.0 (4 constraints: 0a3fb5a1)
+com.palantir.conjure.java.api:ssl-config:2.67.0 (4 constraints: 0e3f08a3)
 
-com.palantir.conjure.java.runtime:client-config:8.27.0 (1 constraints: 43056c3b)
+com.palantir.conjure.java.runtime:client-config:8.28.0 (1 constraints: 44056f3b)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.27.0 (1 constraints: 871ccda4)
+com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.28.0 (1 constraints: 881cd0a4)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.27.0 (2 constraints: 6416d00f)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.28.0 (2 constraints: 65160410)
 
-com.palantir.conjure.java.runtime:keystores:8.27.0 (2 constraints: 651931de)
+com.palantir.conjure.java.runtime:keystores:8.28.0 (2 constraints: 671970de)
 
 com.palantir.deadlines:deadlines:0.16.0 (1 constraints: 3905353b)
 
@@ -92,7 +92,7 @@ com.palantir.tritium:tritium-ids:0.117.0 (1 constraints: fc0f93a6)
 
 com.palantir.tritium:tritium-metrics:0.117.0 (3 constraints: 9824d80a)
 
-com.palantir.tritium:tritium-registry:0.117.0 (6 constraints: fc65a24f)
+com.palantir.tritium:tritium-registry:0.117.0 (6 constraints: 00667452)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
