@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.type.TypeMirror;
 
 public final class ServiceImplementationGenerator {
 
@@ -76,7 +77,7 @@ public final class ServiceImplementationGenerator {
         serviceDefinition.endpoints().forEach(endpoint -> {
             endpoint.arguments().stream()
                     .flatMap(arg -> ParameterTypes.caseOf(arg.paramType())
-                            .body((serializer, serializerFieldName) ->
+                            .body((serializer, _serializerMirror, serializerFieldName) ->
                                     Optional.of(serializer(arg, serializer, serializerFieldName)))
                             .header((_headerName, maybeEncoder) ->
                                     maybeEncoder.map(ServiceImplementationGenerator::encoder))
@@ -211,7 +212,8 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock body(TypeName _serializerFactory, String serializerFieldName) {
+            public CodeBlock body(
+                    TypeName _serializerFactory, TypeMirror _serializerTypeMirror, String serializerFieldName) {
                 return CodeBlock.of(
                         "$L.body($L.serialize($L));",
                         REQUEST,
