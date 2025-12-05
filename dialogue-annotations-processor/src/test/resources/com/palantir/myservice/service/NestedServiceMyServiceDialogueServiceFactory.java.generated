@@ -33,7 +33,7 @@ public final class NestedServiceMyServiceDialogueServiceFactory
             private final EndpointChannel getChannel = endpointChannelFactory.endpoint(Endpoints.get);
 
             private final Deserializer<String> getDeserializer = new ErrorHandlingDeserializerFactory<>(
-                            new Json(), new ConjureErrorDecoder())
+                            new Json(runtime.bodySerDe()), new ConjureErrorDecoder())
                     .deserializerFor(new TypeMarker<String>() {});
 
             @Override

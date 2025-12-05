@@ -69,6 +69,7 @@ public final class ReturnTypesResolver {
                         .orElseGet(() -> context.getTypeName(ConjureErrorDecoder.class)))
                 .deserializerFieldName(InstanceVariables.joinCamelCase(endpointName.get(), "Deserializer"))
                 .asyncInnerType(maybeListenableFutureInnerType.map(TypeName::get))
+                .deserializerFactoryType(maybeAcceptDeserializerFactory)
                 .build());
     }
 

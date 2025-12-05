@@ -19,6 +19,7 @@ package com.palantir.myservice.service;
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
 import com.google.common.io.ByteStreams;
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.StdDeserializer;
 import com.palantir.logsafe.Preconditions;
@@ -32,6 +33,9 @@ import java.util.List;
  * Deserializes a string out of CSV like: {@code "mystring,<value>"}, cause why not.
  */
 public final class CustomStringDeserializer extends StdDeserializer<String> {
+    CustomStringDeserializer(ConjureRuntime _runtime) {
+        super("text/csv");
+    }
 
     private static final Splitter SPLITTER = Splitter.on(',').omitEmptyStrings().trimResults();
 

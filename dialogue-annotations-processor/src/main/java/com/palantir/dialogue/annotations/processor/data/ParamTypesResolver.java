@@ -116,12 +116,14 @@ public final class ParamTypesResolver {
 
         // TODO(12345): More validation of values.
 
+        // TODO(PM): how does this work?
         AnnotationReflector annotationReflector = ImmutableAnnotationReflector.of(
                 Preconditions.checkNotNull(Iterables.getOnlyElement(paramAnnotationMirrors), "paramAnnotationMirrors"));
         if (annotationReflector.isAnnotation(Request.Body.class)) {
             // default annotation param values are not available at annotation processing time
             String serializerName = InstanceVariables.joinCamelCase(endpointName.get(), "Serializer");
             Optional<TypeMirror> customSerializer = annotationReflector.getValueFieldMaybe(TypeMirror.class);
+            // TODO(PM): serializerType is selected here. Can be custom serializer class or JSON.class.
             TypeMirror serializer = customSerializer.orElseGet(() -> context.getTypeMirror(Json.class));
             if (context.isAssignable(variableElement.asType(), BinaryRequestBody.class)
                     && context.isSameTypes(serializer, Json.class)) {

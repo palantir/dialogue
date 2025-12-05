@@ -18,14 +18,18 @@ package com.palantir.dialogue.annotations.processor.data;
 
 import com.palantir.javapoet.TypeName;
 import java.util.Optional;
+import javax.lang.model.type.TypeMirror;
 import org.immutables.value.Value;
 
 @Value.Immutable
 @StagedBuilder
+// TODO(pm): is this actually used outside dialogue or just public to use in a diff package?
 public interface ReturnType {
     TypeName returnType();
 
     TypeName deserializerFactory();
+
+    Optional<TypeMirror> deserializerFactoryType();
 
     TypeName errorDecoder();
 

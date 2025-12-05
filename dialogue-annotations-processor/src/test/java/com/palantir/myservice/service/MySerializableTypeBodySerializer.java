@@ -18,6 +18,7 @@ package com.palantir.myservice.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
@@ -26,6 +27,8 @@ import com.palantir.dialogue.annotations.StdSerializer;
 import org.jspecify.annotations.NonNull;
 
 public final class MySerializableTypeBodySerializer extends StdSerializer<MySerializableType> {
+
+    MySerializableTypeBodySerializer(ConjureRuntime _runtime) {}
 
     private static final Serializer<MySerializableType> SERIALIZER = new Json(
                     new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT))

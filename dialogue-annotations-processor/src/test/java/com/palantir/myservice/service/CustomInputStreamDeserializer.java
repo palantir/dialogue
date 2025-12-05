@@ -16,6 +16,7 @@
 
 package com.palantir.myservice.service;
 
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.StdDeserializer;
 import java.io.InputStream;
@@ -24,6 +25,10 @@ import org.jspecify.annotations.NonNull;
 public final class CustomInputStreamDeserializer extends StdDeserializer<InputStream> {
 
     public CustomInputStreamDeserializer() {
+        super("application/octet-stream");
+    }
+
+    public CustomInputStreamDeserializer(ConjureRuntime _runtime) {
         super("application/octet-stream");
     }
 
