@@ -16,8 +16,6 @@
 
 package com.palantir.dialogue.annotations.processor.generate;
 
-import com.google.auto.common.MoreTypes;
-import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -26,8 +24,6 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
-import com.palantir.dialogue.annotations.InputStreamDeserializer;
-import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.ArgumentType;
@@ -55,12 +51,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeMirror;
 
 public final class ServiceImplementationGenerator {
 
@@ -85,8 +76,8 @@ public final class ServiceImplementationGenerator {
         serviceDefinition.endpoints().forEach(endpoint -> {
             endpoint.arguments().stream()
                     .flatMap(arg -> ParameterTypes.caseOf(arg.paramType())
-                            .body((serializer, serializerTypeMirror, serializerFieldName) ->
-                                    Optional.of(serializer(arg, serializer, serializerTypeMirror, serializerFieldName)))
+                            .body((serializerFactory, serializerFieldName) ->
+                                    Optional.of(serializer(arg, serializerFactory, serializerFieldName)))
                             .header((_headerName, maybeEncoder) ->
                                     maybeEncoder.map(ServiceImplementationGenerator::encoder))
                             .headerMap(encoder -> Optional.of(encoder(encoder)))
@@ -163,10 +154,7 @@ public final class ServiceImplementationGenerator {
     }
 
     private static FieldSpec serializer(
-            ArgumentDefinition argumentDefinition,
-            TypeName serializerType,
-            TypeMirror serializerTypeMirror,
-            String serializerFieldName) {
+            ArgumentDefinition argumentDefinition, CodeBlock serializerFactory, String serializerFieldName) {
         TypeName className = ArgumentTypes.caseOf(argumentDefinition.argType())
                 .primitive((typeName, _parameterSerializerMethodName) -> typeName)
                 .list((typeName, _parameterSerializerMethodName) -> typeName)
@@ -177,90 +165,38 @@ public final class ServiceImplementationGenerator {
                         "Unsupported argument type for serializer", SafeArg.of("type", argumentDefinition.argType())));
         ParameterizedTypeName deserializerType = ParameterizedTypeName.get(ClassName.get(Serializer.class), className);
 
-        CodeBlock realSerializer;
-        // If it's JSON, just pass in the runtime.bodySerDe(). If it's custom, check if there's a ctor taking
-        // Runtime and pass that in.
-        if (serializerType.equals(ClassName.get(Json.class))) {
-            realSerializer = CodeBlock.of(
-                    "new $T(runtime.bodySerDe()).serializerFor(new $T<$T>() {})",
-                    serializerType,
-                    TypeMarker.class,
-                    className);
-        } else {
-            // serializerType must point to a custom serializer
-            // reflectively check if serializerType has a ctor that takes a ConjureRuntime
-            realSerializer = findConstructorWithConjureRuntimeParameter(serializerTypeMirror)
-                    .map(_element -> CodeBlock.of(
-                            "new $T(runtime).serializerFor(new $T<$T>() {})",
-                            serializerType,
-                            TypeMarker.class,
-                            className))
-                    .orElseGet(() -> CodeBlock.of(
-                            "new $T().serializerFor(new $T<$T>() {})", serializerType, TypeMarker.class, className));
-        }
         return FieldSpec.builder(deserializerType, serializerFieldName)
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                // TODO(pm): what are the possible values for SerializerType here? JSON and something custom?
-                .initializer(realSerializer)
+                .initializer(CodeBlock.of(
+                        "$L.serializerFor(new $T<$T>() {})", serializerFactory, TypeMarker.class, className))
                 .build();
     }
 
     private Optional<FieldSpec> deserializer(ReturnType type) {
         TypeName fullReturnType = type.returnType().box();
-        TypeName deserializerFactoryType = type.deserializerFactory();
         TypeName errorDecoderType = type.errorDecoder();
         TypeName innerType = type.asyncInnerType().map(TypeName::box).orElse(fullReturnType);
+
         ParameterizedTypeName deserializerType =
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
-
-        // When the return type deserializer is Json or InputStreamDeserializer, pass in runtime.BodySerDe. When it's
-        // custom, maybe pass in runtime.
-
-        CodeBlock deserializerFactoryWithArgs;
-        if (deserializerFactoryType.equals(ClassName.get(Json.class))
-                || deserializerFactoryType.equals(ClassName.get(InputStreamDeserializer.class))) {
-            deserializerFactoryWithArgs = CodeBlock.of("$T(runtime.bodySerDe())", deserializerFactoryType);
-        } else if (type.deserializerFactoryType().isEmpty()) {
-            deserializerFactoryWithArgs = CodeBlock.of("$T()", deserializerFactoryType);
-        } else {
-            TypeMirror deserializerFactoryTypeMirror =
-                    type.deserializerFactoryType().get();
-            deserializerFactoryWithArgs = findConstructorWithConjureRuntimeParameter(deserializerFactoryTypeMirror)
-                    .map(_element -> CodeBlock.of("$T(runtime)", deserializerFactoryType))
-                    .orElseGet(() -> CodeBlock.of("$T()", deserializerFactoryType));
-        }
         CodeBlock realDeserializer = CodeBlock.of(
                 "new $T<>(new $L, new $T()).deserializerFor(new $T<$T>() {})",
                 ErrorHandlingDeserializerFactory.class,
-                deserializerFactoryWithArgs,
+                type.deserializerFactory(),
                 errorDecoderType,
                 TypeMarker.class,
                 innerType);
-        // TODO(pm): unrelated by why construct this if it's unused potentially.
+
         CodeBlock voidDeserializer = CodeBlock.of(
                 "new $T($L.bodySerDe().emptyBodyDeserializer(), new $T())",
                 ErrorHandlingVoidDeserializer.class,
                 serviceDefinition.conjureRuntimeArgName(),
                 errorDecoderType);
+
         return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer(type.isVoid() ? voidDeserializer : realDeserializer)
                 .build());
-    }
-
-    private static Optional<ExecutableElement> findConstructorWithConjureRuntimeParameter(TypeMirror typeMirror) {
-        // TOOD(pm): nit: Should we also use Instantiables.instantiate here? It'd allow devs to write deserializers
-        // as enum singletons.
-        DeclaredType declaredType = MoreTypes.asDeclared(typeMirror);
-        TypeElement typeElement = (TypeElement) declaredType.asElement();
-        return typeElement.getEnclosedElements().stream()
-                .filter(element -> element.getKind() == ElementKind.CONSTRUCTOR)
-                .map(ExecutableElement.class::cast)
-                .filter(element -> !element.getModifiers().contains(Modifier.PRIVATE)
-                        && element.getParameters().size() == 1
-                        && TypeName.get(element.getParameters().get(0).asType())
-                                .equals(ClassName.get(ConjureRuntime.class)))
-                .findAny();
     }
 
     private static FieldSpec encoder(ParameterEncoderType type) {
@@ -278,8 +214,7 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock body(
-                    TypeName _serializerFactory, TypeMirror _serializerTypeMirror, String serializerFieldName) {
+            public CodeBlock body(CodeBlock _serializerFactory, String serializerFieldName) {
                 return CodeBlock.of(
                         "$L.body($L.serialize($L));",
                         REQUEST,
