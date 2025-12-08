@@ -31,6 +31,17 @@ import javax.lang.model.type.TypeMirror;
 public final class Types {
     private Types() {}
 
+    /**
+     * Finds a public or protected constructor that accepts a single {@link ConjureRuntime} parameter.
+     * <p>
+     * criteria:
+     * <ul>
+     *   <li>The ctor must not be private</li>
+     *   <li>The ctor must have exactly one parameter of type {@link ConjureRuntime}</li>
+     * </ul>
+     * <p>
+     * If no matching constructor is found, the caller should fall back to using a no-argument constructor.
+     */
     public static Optional<ExecutableElement> findConstructorWithConjureRuntimeParameter(TypeMirror typeMirror) {
         DeclaredType declaredType = MoreTypes.asDeclared(typeMirror);
         TypeElement typeElement = (TypeElement) declaredType.asElement();

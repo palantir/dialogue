@@ -30,10 +30,21 @@ import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
+import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.conjure.java.lib.SafeLong;
+import com.palantir.dialogue.BinaryRequestBody;
+import com.palantir.dialogue.BodySerDe;
+import com.palantir.dialogue.Clients;
+import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.ExceptionDeserializerArgs;
 import com.palantir.dialogue.HttpMethod;
+import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TestConfigurations;
+import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.ContentBody;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -84,6 +95,8 @@ public final class MyServiceIntegrationTest {
 
     private MyService myServiceDialogue;
 
+    private ServiceConfiguration config;
+
     @BeforeEach
     public void beforeEach() {
         undertow = Undertow.builder()
@@ -94,7 +107,7 @@ public final class MyServiceIntegrationTest {
                 .build();
         undertow.start();
 
-        ServiceConfiguration config = ServiceConfiguration.builder()
+        config = ServiceConfiguration.builder()
                 .addUris(getUri(undertow))
                 .security(TestConfigurations.SSL_CONFIG)
                 .readTimeout(Duration.ofSeconds(1))
@@ -531,6 +544,122 @@ public final class MyServiceIntegrationTest {
                 p.print(body);
             }
         }
+    }
+
+    // In this test:
+    // - The server returns "456l"
+    // - The custom deserializer delegates to the custom ConjureRuntime.bodySerDe to get a deserializer for a SafeLong.
+    //   - The deserializer returned by bodySerDe will always return "123l".
+    // - The custom deserializer then prepends "CUSTOM-" to the value and returns "CUSTOM-123l"
+    @Test
+    public void testCustomRuntimeDeserializer() {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            exchange.assertPath("/custom-runtime-deserializer");
+            exchange.assertAccept().isEqualTo("application/json");
+            exchange.assertContentType().isNull();
+            exchange.assertNoBody();
+
+            exchange.exchange.setStatusCode(200);
+            exchange.setContentType("application/json");
+            exchange.writeStringBody("456l");
+        };
+        DefaultConjureRuntime defaultConjureRuntime =
+                DefaultConjureRuntime.builder().build();
+        // Create a custom ConjureRuntime instance
+        ConjureRuntime customRuntime = new ConjureRuntime() {
+            @Override
+            public BodySerDe bodySerDe() {
+                return new BodySerDe() {
+                    @Override
+                    public <T> Serializer<T> serializer(TypeMarker<T> type) {
+                        return defaultConjureRuntime.bodySerDe().serializer(type);
+                    }
+
+                    @Override
+                    public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
+                        if (type.getType() == SafeLong.class) {
+                            return new Deserializer<>() {
+                                @Override
+                                public T deserialize(Response _response) {
+                                    return (T) SafeLong.of(123L);
+                                }
+
+                                @Override
+                                public Optional<String> accepts() {
+                                    return Optional.empty();
+                                }
+                            };
+                        } else {
+                            return defaultConjureRuntime.bodySerDe().deserializer(type);
+                        }
+                    }
+
+                    @Override
+                    public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
+                        return defaultConjureRuntime.bodySerDe().deserializer(exceptionDeserializerArgs);
+                    }
+
+                    @Override
+                    public Deserializer<Void> emptyBodyDeserializer() {
+                        return defaultConjureRuntime.bodySerDe().emptyBodyDeserializer();
+                    }
+
+                    @Override
+                    public Deserializer<Void> emptyBodyDeserializer(
+                            ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
+                        return defaultConjureRuntime.bodySerDe().deserializer(exceptionDeserializerArgs);
+                    }
+
+                    @Override
+                    public Deserializer<InputStream> inputStreamDeserializer() {
+                        return defaultConjureRuntime.bodySerDe().inputStreamDeserializer();
+                    }
+
+                    @Override
+                    public Deserializer<InputStream> inputStreamDeserializer(
+                            ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
+                        return defaultConjureRuntime.bodySerDe().deserializer(exceptionDeserializerArgs);
+                    }
+
+                    @Override
+                    public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer() {
+                        return defaultConjureRuntime.bodySerDe().optionalInputStreamDeserializer();
+                    }
+
+                    @Override
+                    public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
+                            ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
+                        return defaultConjureRuntime.bodySerDe().deserializer(exceptionDeserializerArgs);
+                    }
+
+                    @Override
+                    public RequestBody serialize(BinaryRequestBody value) {
+                        return defaultConjureRuntime.bodySerDe().serialize(value);
+                    }
+                };
+            }
+
+            @Override
+            public PlainSerDe plainSerDe() {
+                return defaultConjureRuntime.plainSerDe();
+            }
+
+            @Override
+            public Clients clients() {
+                return defaultConjureRuntime.clients();
+            }
+        };
+
+        DialogueClients.ReloadingFactory factory = DialogueClients.create(Refreshable.only(ServicesConfigBlock.empty()))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withRuntime(customRuntime);
+
+        MyService myServiceWithCustomRuntime = factory.getNonReloading(MyService.class, config);
+
+        MySerializableType result = myServiceWithCustomRuntime.customRuntimeDeserializer();
+
+        assertThat(result.value()).isEqualTo("CUSTOM-123");
     }
 
     private static String getUri(Undertow undertow) {

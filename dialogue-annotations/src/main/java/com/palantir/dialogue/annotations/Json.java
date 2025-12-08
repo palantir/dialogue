@@ -39,8 +39,6 @@ import org.jspecify.annotations.Nullable;
  */
 public final class Json implements DeserializerFactory<Object>, SerializerFactory<Object> {
 
-    // NOTE(pm): Should we store the ConjureRuntime instead of the BodySerDe? No. This class definitely does not need
-    // ConjureRuntime.Clients.
     private final BodySerDe bodySerDe;
 
     public Json() {

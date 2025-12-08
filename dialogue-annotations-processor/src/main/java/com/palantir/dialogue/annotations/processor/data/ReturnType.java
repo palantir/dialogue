@@ -23,7 +23,6 @@ import org.immutables.value.Value;
 
 @Value.Immutable
 @StagedBuilder
-// TODO(pm): is this actually used outside dialogue or just public to use in a diff package?
 public interface ReturnType {
     TypeName returnType();
 

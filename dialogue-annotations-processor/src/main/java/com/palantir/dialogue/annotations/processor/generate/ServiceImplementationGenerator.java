@@ -176,23 +176,20 @@ public final class ServiceImplementationGenerator {
         TypeName fullReturnType = type.returnType().box();
         TypeName errorDecoderType = type.errorDecoder();
         TypeName innerType = type.asyncInnerType().map(TypeName::box).orElse(fullReturnType);
-
         ParameterizedTypeName deserializerType =
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
         CodeBlock realDeserializer = CodeBlock.of(
-                "new $T<>(new $L, new $T()).deserializerFor(new $T<$T>() {})",
+                "new $T<>($L, new $T()).deserializerFor(new $T<$T>() {})",
                 ErrorHandlingDeserializerFactory.class,
                 type.deserializerFactory(),
                 errorDecoderType,
                 TypeMarker.class,
                 innerType);
-
         CodeBlock voidDeserializer = CodeBlock.of(
                 "new $T($L.bodySerDe().emptyBodyDeserializer(), new $T())",
                 ErrorHandlingVoidDeserializer.class,
                 serviceDefinition.conjureRuntimeArgName(),
                 errorDecoderType);
-
         return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer(type.isVoid() ? voidDeserializer : realDeserializer)

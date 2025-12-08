@@ -57,8 +57,8 @@ public final class ReturnTypesResolver {
                 .map(typeMirror -> {
                     TypeName typeName = TypeName.get(typeMirror);
                     return Types.findConstructorWithConjureRuntimeParameter(typeMirror)
-                            .map(_element -> CodeBlock.of("$T(runtime)", typeName))
-                            .orElseGet(() -> CodeBlock.of("$T()", typeName));
+                            .map(_element -> CodeBlock.of("new $T(runtime)", typeName))
+                            .orElseGet(() -> CodeBlock.of("new $T()", typeName));
                 })
                 .or(() -> orDefaultDeserializerFactory(
                         hasMustBeClosed, element, returnType, maybeListenableFutureInnerType));
@@ -90,16 +90,16 @@ public final class ReturnTypesResolver {
                 context.reportError("When returning raw Response, remember to add @MustBeClosed annotation", element);
                 return Optional.empty();
             }
-            return Optional.of(CodeBlock.of("$T()", context.getTypeName(ResponseDeserializer.class)));
+            return Optional.of(CodeBlock.of("new $T()", context.getTypeName(ResponseDeserializer.class)));
         } else if (isInputStreamType(returnType)) {
             if (!hasMustBeClosed) {
                 context.reportError("When returning InputStream, remember to add @MustBeClosed annotation", element);
                 return Optional.empty();
             }
             return Optional.of(
-                    CodeBlock.of("$T(runtime.bodySerDe())", context.getTypeName(InputStreamDeserializer.class)));
+                    CodeBlock.of("new $T(runtime.bodySerDe())", context.getTypeName(InputStreamDeserializer.class)));
         }
-        return Optional.of(CodeBlock.of("$T(runtime.bodySerDe())", context.getTypeName(Json.class)));
+        return Optional.of(CodeBlock.of("new $T(runtime.bodySerDe())", context.getTypeName(Json.class)));
     }
 
     private boolean isResponseType(TypeMirror type) {
