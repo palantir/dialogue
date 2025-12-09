@@ -28,6 +28,7 @@ import org.jspecify.annotations.NonNull;
 
 public final class MySerializableTypeBodySerializer extends StdSerializer<MySerializableType> {
 
+    // Constructors for custom serializers and deserializers should not throw checked exceptions.
     MySerializableTypeBodySerializer(ConjureRuntime _runtime) {}
 
     private static final Serializer<MySerializableType> SERIALIZER = new Json(
