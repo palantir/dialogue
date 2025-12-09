@@ -42,7 +42,8 @@ public final class Types {
      * <p>
      * If no matching constructor is found, the caller should fall back to using a no-argument constructor.
      */
-    public static Optional<ExecutableElement> findConstructorWithConjureRuntimeParameter(TypeMirror typeMirror) {
+    public static Optional<ExecutableElement> findConstructorWithConjureRuntimeParameter(
+            ResolverContext context, TypeMirror typeMirror) {
         DeclaredType declaredType = MoreTypes.asDeclared(typeMirror);
         TypeElement typeElement = (TypeElement) declaredType.asElement();
         return typeElement.getEnclosedElements().stream()
@@ -50,8 +51,13 @@ public final class Types {
                 .map(ExecutableElement.class::cast)
                 .filter(element -> !element.getModifiers().contains(Modifier.PRIVATE)
                         && element.getParameters().size() == 1
+                        && element.getThrownTypes().stream().allMatch(t -> isRuntimeException(context, t))
                         && TypeName.get(element.getParameters().get(0).asType())
                                 .equals(ClassName.get(ConjureRuntime.class)))
                 .findAny();
+    }
+
+    private static boolean isRuntimeException(ResolverContext context, TypeMirror typeMirror) {
+        return context.isAssignable(typeMirror, RuntimeException.class);
     }
 }

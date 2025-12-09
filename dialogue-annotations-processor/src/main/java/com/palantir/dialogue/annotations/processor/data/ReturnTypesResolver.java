@@ -56,7 +56,7 @@ public final class ReturnTypesResolver {
         Optional<CodeBlock> maybeDeserializerFactory = maybeAcceptDeserializerFactory
                 .map(typeMirror -> {
                     TypeName typeName = TypeName.get(typeMirror);
-                    return Types.findConstructorWithConjureRuntimeParameter(typeMirror)
+                    return Types.findConstructorWithConjureRuntimeParameter(context, typeMirror)
                             .map(_element -> CodeBlock.of("new $T(runtime)", typeName))
                             .orElseGet(() -> CodeBlock.of("new $T()", typeName));
                 })
