@@ -21,33 +21,43 @@ import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
-import com.palantir.dialogue.annotations.StdDeserializer;
+import com.palantir.dialogue.annotations.DeserializerFactory;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import java.util.Optional;
 import javax.annotation.Nullable;
 
-public final class CustomRuntimeAwareDeserializer extends StdDeserializer<MySerializableType> {
-
-    private @Nullable final ConjureRuntime runtime;
+public final class CustomRuntimeAwareDeserializer
+        implements DeserializerFactory<MySerializableType>, Deserializer<MySerializableType> {
+    private @Nullable final Deserializer<SafeLong> safeLongDeserializer;
 
     public CustomRuntimeAwareDeserializer(ConjureRuntime runtime) {
-        super("application/json");
-        this.runtime = runtime;
+        this.safeLongDeserializer = runtime.bodySerDe().deserializer(new TypeMarker<>() {});
     }
 
     // This constructor should not be used by the generated code. It should detect the one above, and use that instead.
     public CustomRuntimeAwareDeserializer() {
-        super("application/json");
-        runtime = null;
+        this.safeLongDeserializer = null;
+    }
+
+    @Override
+    public <T extends MySerializableType> Deserializer<T> deserializerFor(TypeMarker<T> type) {
+        Preconditions.checkArgument(type.getType().equals(MySerializableType.class), "Wrong type");
+        return (Deserializer<T>) this;
     }
 
     @Override
     public MySerializableType deserialize(Response response) {
-        if (runtime == null) {
+        if (safeLongDeserializer == null) {
             throw new SafeIllegalStateException(
                     "Wrong constructor for CustomRuntimeAwareDeserializer used in generated code.");
         }
-        Deserializer<SafeLong> deserializer = runtime.bodySerDe().deserializer(new TypeMarker<>() {});
-        SafeLong longValue = deserializer.deserialize(response);
+        SafeLong longValue = safeLongDeserializer.deserialize(response);
         return ImmutableMySerializableType.of("CUSTOM-" + longValue);
+    }
+
+    @Override
+    public Optional<String> accepts() {
+        return Optional.of("application/json");
     }
 }
