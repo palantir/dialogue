@@ -48,6 +48,9 @@ public interface MyService {
     @Request(method = HttpMethod.GET, path = "/greeting", accept = CustomStringDeserializer.class)
     ListenableFuture<String> getGreetingAsync();
 
+    @Request(method = HttpMethod.GET, path = "/custom", accept = MySerializableTypeDeserializerFactory.class)
+    MySerializableType custom();
+
     @MustBeClosed
     @Request(method = HttpMethod.GET, path = "/input-stream")
     InputStream inputStream();
@@ -97,7 +100,7 @@ public interface MyService {
             // JSON should be easiest (default?).
             // By changing this to MySpecialJson.class you can have
             // it's own object mapper; this is same as BodySerDe in dialogue
-            @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
+            @Request.Body(MySerializableTypeSerializerFactory.class) MySerializableType body);
 
     @Request(method = HttpMethod.GET, path = "/multiparams")
     void multiParams(
@@ -119,9 +122,6 @@ public interface MyService {
     void multipleStringPathSegmentsUsingCustomEncoder(
             @Request.PathParam(listEncoder = MyCustomPathSegmentEncoder.class) String pathSegments);
 
-    @Request(
-            method = HttpMethod.GET,
-            path = "/custom-runtime-deserializer",
-            accept = CustomRuntimeAwareDeserializer.class)
-    MySerializableType customRuntimeDeserializer();
+    @Request(method = HttpMethod.GET, path = "/generic-deserializer", accept = MyBodyTypeDeserializerFactory.class)
+    MyBodyType<String> genericDeserializer();
 }

@@ -49,6 +49,9 @@ public interface MyService {
     @Request(method = HttpMethod.GET, path = "/greeting", accept = CustomStringDeserializer.class)
     ListenableFuture<String> getGreetingAsync();
 
+    @Request(method = HttpMethod.GET, path = "/custom", accept = MySerializableTypeDeserializerFactory.class)
+    MySerializableType custom();
+
     @MustBeClosed
     @Request(method = HttpMethod.GET, path = "/input-stream")
     InputStream inputStream();
@@ -102,7 +105,7 @@ public interface MyService {
             @Request.Header(value = "h11", encoder = MyCustomStringParamEncoder.class) Optional<String> header11,
             @Request.Header("h12") List<MyAliasType> header12,
             @Request.HeaderMap Multimap<String, String> headerMap,
-            @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
+            @Request.Body(MySerializableTypeSerializerFactory.class) MySerializableType body);
 
     @Deprecated
     @Request(method = HttpMethod.GET, path = "/deprecated")
