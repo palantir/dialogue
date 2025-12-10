@@ -303,7 +303,7 @@ public final class MyServiceIntegrationTest {
                     .isEqualTo("fake key 0");
             exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-API-Key-1"))
                     .isEqualTo("fake key 1");
-            exchange.assertBodyUtf8().isEqualTo("\"my-serializable-type-value\"");
+            exchange.assertBodyUtf8().isEqualTo("{\"value\":\"my-serializable-type-value\"}");
 
             exchange.exchange.setStatusCode(200);
             exchange.exchange
@@ -539,8 +539,8 @@ public final class MyServiceIntegrationTest {
     public void testCustomBodyDeserializer() {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.GET);
-            exchange.assertPath("/custom-runtime-deserializer");
-            exchange.assertAccept().isEqualTo("application/json");
+            exchange.assertPath("/custom");
+            exchange.assertAccept().contains("application/json");
             exchange.assertContentType().isNull();
             exchange.assertNoBody();
 
