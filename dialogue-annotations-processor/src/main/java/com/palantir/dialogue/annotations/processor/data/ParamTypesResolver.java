@@ -133,7 +133,7 @@ public final class ParamTypesResolver {
             }
             CodeBlock serializerFactory;
             if (customSerializer.isEmpty()) {
-                serializerFactory = CodeBlock.of("new $T(runtime.bodySerDe())", serializerType);
+                serializerFactory = CodeBlock.of("new $T(runtime)", serializerType);
             } else {
                 serializerFactory = Types.findConstructorWithConjureRuntimeParameter(context, serializer)
                         .map(_element -> CodeBlock.of("new $T(runtime)", serializerType))

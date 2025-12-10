@@ -96,10 +96,9 @@ public final class ReturnTypesResolver {
                 context.reportError("When returning InputStream, remember to add @MustBeClosed annotation", element);
                 return Optional.empty();
             }
-            return Optional.of(
-                    CodeBlock.of("new $T(runtime.bodySerDe())", context.getTypeName(InputStreamDeserializer.class)));
+            return Optional.of(CodeBlock.of("new $T(runtime)", context.getTypeName(InputStreamDeserializer.class)));
         }
-        return Optional.of(CodeBlock.of("new $T(runtime.bodySerDe())", context.getTypeName(Json.class)));
+        return Optional.of(CodeBlock.of("new $T(runtime)", context.getTypeName(Json.class)));
     }
 
     private boolean isResponseType(TypeMirror type) {

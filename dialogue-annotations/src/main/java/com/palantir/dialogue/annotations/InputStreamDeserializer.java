@@ -17,6 +17,7 @@
 package com.palantir.dialogue.annotations;
 
 import com.palantir.dialogue.BodySerDe;
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Response;
 import java.io.InputStream;
 
@@ -26,6 +27,10 @@ public final class InputStreamDeserializer extends StdDeserializer<InputStream> 
 
     public InputStreamDeserializer() {
         this(BodySerDeSingleton.DEFAULT_BODY_SERDE);
+    }
+
+    public InputStreamDeserializer(ConjureRuntime conjureRuntime) {
+        this(conjureRuntime.bodySerDe());
     }
 
     public InputStreamDeserializer(BodySerDe bodySerDe) {
