@@ -124,4 +124,10 @@ public interface MyService {
             path = "/custom-runtime-deserializer",
             accept = CustomRuntimeAwareDeserializer.class)
     MySerializableType customRuntimeDeserializer();
+
+    @Request(
+            method = HttpMethod.GET,
+            path = "/generic-deserializer",
+            accept = MyBodyTypeDeserializerFactory.class)
+    MyBodyType<String> genericDeserializer();
 }

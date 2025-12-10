@@ -662,6 +662,17 @@ public final class MyServiceIntegrationTest {
         assertThat(result.value()).isEqualTo("CUSTOM-123");
     }
 
+    @Test
+    public void testGenericDeserializer() {
+        undertowHandler = exchange -> {
+            exchange.exchange.setStatusCode(299);
+            exchange.setContentType("application/json");
+            exchange.writeStringBody("\"Hello\"");
+        };
+
+        assertThat(myServiceDialogue.genericDeserializer()).isEqualTo(new MyBodyType<>(299, "Hello"));
+    }
+
     private static String getUri(Undertow undertow) {
         Undertow.ListenerInfo listenerInfo = Iterables.getOnlyElement(undertow.getListenerInfo());
         return String.format("%s:/%s", listenerInfo.getProtcol(), listenerInfo.getAddress());
