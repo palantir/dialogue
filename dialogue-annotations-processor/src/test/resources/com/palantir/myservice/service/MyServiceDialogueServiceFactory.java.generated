@@ -80,7 +80,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             private final Deserializer<InputStream> customInputStreamDeserializer =
                     new ErrorHandlingDeserializerFactory<>(
-                                    new CustomInputStreamDeserializer(runtime), new ConjureErrorDecoder())
+                                    new CustomInputStreamDeserializer(), new ConjureErrorDecoder())
                             .deserializerFor(new TypeMarker<InputStream>() {});
 
             private final EndpointChannel customRequestChannel =
