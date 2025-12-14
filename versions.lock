@@ -104,9 +104,9 @@ joda-time:joda-time:2.12.7 (1 constraints: 2f16b1f1)
 
 org.apache.httpcomponents.client5:httpclient5:5.5.1 (1 constraints: 0d051436)
 
-org.apache.httpcomponents.core5:httpcore5:5.3.6 (3 constraints: ad2a6cac)
+org.apache.httpcomponents.core5:httpcore5:5.4 (3 constraints: e729c524)
 
-org.apache.httpcomponents.core5:httpcore5-h2:5.3.6 (1 constraints: 4213123c)
+org.apache.httpcomponents.core5:httpcore5-h2:5.4 (1 constraints: 4213123c)
 
 org.derive4j:derive4j-annotation:1.1.1 (1 constraints: 0505f435)
 
