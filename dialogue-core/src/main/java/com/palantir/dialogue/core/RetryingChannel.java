@@ -278,10 +278,10 @@ final class RetryingChannel implements EndpointChannel {
             return headers;
         }
 
-        @Override
-        public Optional<String> getFirstHeader(String header) {
-            return delegate.getFirstHeader(header);
-        }
+//        @Override
+//        public Optional<String> getFirstHeader(String header) {
+//            return delegate.getFirstHeader(header);
+//        }
 
         @Override
         public ResponseAttachments attachments() {
