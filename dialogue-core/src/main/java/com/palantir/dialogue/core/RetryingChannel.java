@@ -257,7 +257,6 @@ final class RetryingChannel implements EndpointChannel {
                 if (qosReason.retryHint().isPresent()) {
                     if (qosReason.retryHint().get().equals(RetryHint.DO_NOT_RETRY)) {
                         // nothing to do, caller will not retry
-                        // TODO(blaub): but does this bubble up to witchcraft and make its way back to remote callers?
                         return delegate.headers();
                     }
                 }
@@ -278,10 +277,12 @@ final class RetryingChannel implements EndpointChannel {
             return headers;
         }
 
-//        @Override
-//        public Optional<String> getFirstHeader(String header) {
-//            return delegate.getFirstHeader(header);
-//        }
+        // do call delegate's getFirstHeader, we must rely on the behavior of the default implementation in the
+        // interface definition, which calls headers() first
+        //        @Override
+        //        public Optional<String> getFirstHeader(String header) {
+        //            return delegate.getFirstHeader(header);
+        //        }
 
         @Override
         public ResponseAttachments attachments() {
