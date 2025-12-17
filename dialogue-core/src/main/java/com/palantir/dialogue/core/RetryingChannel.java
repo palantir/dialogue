@@ -382,7 +382,7 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {
-            boolean canRetryRequest = requestCanBeRetried();
+            boolean canRetryRequest = requestCanBeRetried() && !DialogueRetries.isRetriesExhausted(response);
             if (canRetryRequest && isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse.get());
             }
