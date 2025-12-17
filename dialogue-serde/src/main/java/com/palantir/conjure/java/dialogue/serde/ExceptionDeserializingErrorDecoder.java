@@ -33,8 +33,10 @@ import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer;
+import com.palantir.dialogue.DialogueRetries;
 import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeArg;
@@ -102,6 +104,9 @@ final class ExceptionDeserializingErrorDecoder {
         }
         RuntimeException result = decodeInternal(response);
         result.addSuppressed(diagnostic(response));
+        if (DialogueRetries.isRetriesExhausted(response)) {
+            result = new RetriesExhaustedException(result);
+        }
         return result;
     }
 

@@ -19,8 +19,6 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.MultimapBuilder;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -28,18 +26,14 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.palantir.conjure.java.api.errors.QosReason;
-import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
-import com.palantir.conjure.java.api.errors.QosReasons;
-import com.palantir.conjure.java.api.errors.QosReasons.QosResponseEncodingAdapter;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.dialogue.DialogueRetries;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -53,7 +47,6 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
@@ -219,81 +212,128 @@ final class RetryingChannel implements EndpointChannel {
             sink.tag(target, "channel", data.channelName());
         }
     }
-
-    private enum UnretryableResponseQosEncodingAdapter
-            implements QosResponseEncodingAdapter<ListMultimap<String, String>> {
-        INSTANCE;
-
-        @Override
-        public void setHeader(ListMultimap<String, String> map, String headerName, String headerValue) {
-            map.put(headerName, headerValue);
-        }
-    }
-
-    private static final class UnretryableResponse implements Response {
-        private final Response delegate;
-
-        UnretryableResponse(Response delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public InputStream body() {
-            return delegate.body();
-        }
-
-        @Override
-        public int code() {
-            return delegate.code();
-        }
-
-        @Override
-        public ListMultimap<String, String> headers() {
-            // TODO(blaub): inject "Retry-Hint: Do-Not-Retry"
-            // things get sketchy here...
-            if (Responses.isQosStatus(delegate)) {
-                // check for existing qos-retry-hint header
-                QosReason qosReason = DialogueQosReasonDecoder.parse(delegate);
-                if (qosReason.retryHint().isPresent()) {
-                    if (qosReason.retryHint().get().equals(RetryHint.DO_NOT_RETRY)) {
-                        // nothing to do, caller will not retry
-                        return delegate.headers();
-                    }
-                }
-            }
-
-            // we didn't find an existing qos-retry-hint header, so add one now...
-            ListMultimap<String, String> headers = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
-                    .arrayListValues(1)
-                    .build(delegate.headers());
-            // generate a phony QosReason, just to get the header encoding
-            QosReason exhaustedRetriesReason = QosReason.builder()
-                    .reason("dialogue-retries-exhausted")
-                    .retryHint(RetryHint.DO_NOT_RETRY)
-                    .build();
-            QosReasons.encodeToResponse(
-                    exhaustedRetriesReason, headers, UnretryableResponseQosEncodingAdapter.INSTANCE);
-
-            return headers;
-        }
-
-        // do call delegate's getFirstHeader, we must rely on the behavior of the default implementation in the
-        // interface definition, which calls headers() first
-        //        @Override
-        //        public Optional<String> getFirstHeader(String header) {
-        //            return delegate.getFirstHeader(header);
-        //        }
-
-        @Override
-        public ResponseAttachments attachments() {
-            return delegate.attachments();
-        }
-
-        @Override
-        public void close() {
-            delegate.close();
-        }
-    }
+//
+//    private enum UnretryableResponseQosEncodingAdapter
+//            implements QosResponseEncodingAdapter<ListMultimap<String, String>> {
+//        INSTANCE;
+//
+//        @Override
+//        public void setHeader(ListMultimap<String, String> map, String headerName, String headerValue) {
+//            map.put(headerName, headerValue);
+//        }
+//    }
+//
+//    private enum RetriesExhaustedResponseEncodingAdapter
+//            implements DialogueRetriesResponseEncodingAdapter<ListMultimap<String, String>> {
+//        INSTANCE;
+//
+//        @Override
+//        public void setHeader(ListMultimap<String, String> headers, String headerName, String headerValue) {
+//            headers.put(headerName, headerValue);
+//        }
+//    }
+//
+//    private static final class RetriesExhaustedResponse implements Response {
+//        private final Response delegate;
+//
+//        RetriesExhaustedResponse(Response delegate) {
+//            this.delegate = delegate;
+//        }
+//
+//        @Override
+//        public InputStream body() {
+//            return delegate.body();
+//        }
+//
+//        @Override
+//        public int code() {
+//            return delegate.code();
+//        }
+//
+//        @Override
+//        public ListMultimap<String, String> headers() {
+//            ListMultimap<String, String> headers = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+//                    .arrayListValues(1)
+//                    .build(delegate.headers());
+//            DialogueRetries.encodeToResponse(true, headers, RetriesExhaustedResponseEncodingAdapter.INSTANCE);
+//            return headers;
+//        }
+//
+//        @Override
+//        public ResponseAttachments attachments() {
+//            return delegate.attachments();
+//        }
+//
+//        @Override
+//        public void close() {
+//            delegate.close();
+//        }
+//    }
+//
+//    private static final class UnretryableResponse implements Response {
+//        private final Response delegate;
+//
+//        UnretryableResponse(Response delegate) {
+//            this.delegate = delegate;
+//        }
+//
+//        @Override
+//        public InputStream body() {
+//            return delegate.body();
+//        }
+//
+//        @Override
+//        public int code() {
+//            return delegate.code();
+//        }
+//
+//        @Override
+//        public ListMultimap<String, String> headers() {
+//            // TODO(blaub): inject "Retry-Hint: Do-Not-Retry"
+//            // things get sketchy here...
+//            if (Responses.isQosStatus(delegate)) {
+//                // check for existing qos-retry-hint header
+//                QosReason qosReason = DialogueQosReasonDecoder.parse(delegate);
+//                if (qosReason.retryHint().isPresent()) {
+//                    if (qosReason.retryHint().get().equals(RetryHint.DO_NOT_RETRY)) {
+//                        // nothing to do, caller will not retry
+//                        return delegate.headers();
+//                    }
+//                }
+//            }
+//
+//            // we didn't find an existing qos-retry-hint header, so add one now...
+//            ListMultimap<String, String> headers = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+//                    .arrayListValues(1)
+//                    .build(delegate.headers());
+//            // generate a phony QosReason, just to get the header encoding
+//            QosReason exhaustedRetriesReason = QosReason.builder()
+//                    .reason("dialogue-retries-exhausted")
+//                    .retryHint(RetryHint.DO_NOT_RETRY)
+//                    .build();
+//            QosReasons.encodeToResponse(
+//                    exhaustedRetriesReason, headers, UnretryableResponseQosEncodingAdapter.INSTANCE);
+//
+//            return headers;
+//        }
+//
+//        // do call delegate's getFirstHeader, we must rely on the behavior of the default implementation in the
+//        // interface definition, which calls headers() first
+//        //        @Override
+//        //        public Optional<String> getFirstHeader(String header) {
+//        //            return delegate.getFirstHeader(header);
+//        //        }
+//
+//        @Override
+//        public ResponseAttachments attachments() {
+//            return delegate.attachments();
+//        }
+//
+//        @Override
+//        public void close() {
+//            delegate.close();
+//        }
+//    }
 
     private final class RetryingCallback {
         private final Endpoint endpoint;
@@ -402,7 +442,8 @@ final class RetryingChannel implements EndpointChannel {
             infoLogRetriesExhausted(response);
             // not closing response because ConjureBodySerde will need to deserialize it
             // TODO(blaub): hackity hack...
-            return Futures.immediateFuture(new UnretryableResponse(response));
+            DialogueRetries.setRetriesExhausted(response);
+            return Futures.immediateFuture(response);
         }
 
         @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
