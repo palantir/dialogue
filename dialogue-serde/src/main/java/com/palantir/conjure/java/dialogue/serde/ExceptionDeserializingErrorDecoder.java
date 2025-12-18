@@ -143,7 +143,7 @@ final class ExceptionDeserializingErrorDecoder {
         try (InputStream bodyStream = response.body()) {
             body = bodyStream.readAllBytes();
         } catch (NullPointerException | IOException e) {
-            UnknownRemoteException exception = new UnknownRemoteException(code, "<unreadable>");
+            UnknownRemoteException exception = new UnknownRemoteException(code, "<unparseable>");
             exception.initCause(e);
             return exception;
         }
