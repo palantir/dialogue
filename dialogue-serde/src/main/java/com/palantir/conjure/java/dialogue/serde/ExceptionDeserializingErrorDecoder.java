@@ -76,18 +76,18 @@ final class ExceptionDeserializingErrorDecoder {
             JSON_ENCODING.deserializer(new TypeMarker<>() {});
 
     private final Map<String, DeserializerExceptionPair<?, ?>> errorNameToExceptionDeserializerMap;
-    private final boolean expectRichErrors;
+    private final boolean expectJsonErrors;
 
     static ExceptionDeserializingErrorDecoder withoutExceptions() {
         return new ExceptionDeserializingErrorDecoder(Collections.emptyMap(), false);
     }
 
     ExceptionDeserializingErrorDecoder(
-            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap, boolean expectRichErrors) {
+            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap, boolean expectJsonErrors) {
         this.errorNameToExceptionDeserializerMap = ImmutableMap.copyOf(Maps.transformValues(
                 errorNameToExceptionTypeMap,
                 errorExceptionPair -> createDeserializerForException(JSON_ENCODING, errorExceptionPair)));
-        this.expectRichErrors = expectRichErrors;
+        this.expectJsonErrors = expectJsonErrors;
     }
 
     boolean isError(Response response) {
@@ -197,7 +197,7 @@ final class ExceptionDeserializingErrorDecoder {
                     error, deserializerExceptionPair.exceptionType(), code);
         } catch (Exception e) {
             // If we're unable to deserialize the error as JSON, throw a RemoteException.
-            if (expectRichErrors) {
+            if (expectJsonErrors) {
                 log.error(
                         "Failed to deserialize error response as exception - falling back to RemoteException",
                         SafeArg.of("errorName", errorName),
