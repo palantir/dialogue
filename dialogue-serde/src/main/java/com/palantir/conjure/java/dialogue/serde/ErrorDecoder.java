@@ -18,7 +18,6 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.dialogue.Response;
-import java.util.Collections;
 
 /**
  * Extracts and returns a {@link RemoteException} from an {@link Response}.
@@ -30,7 +29,7 @@ public enum ErrorDecoder {
     INSTANCE;
 
     private static final ExceptionDeserializingErrorDecoder EXCEPTION_DESERIALIZING_ERROR_DECODER =
-            new ExceptionDeserializingErrorDecoder(Collections.emptyMap());
+            ExceptionDeserializingErrorDecoder.withoutExceptions();
 
     public boolean isError(Response response) {
         return EXCEPTION_DESERIALIZING_ERROR_DECODER.isError(response);

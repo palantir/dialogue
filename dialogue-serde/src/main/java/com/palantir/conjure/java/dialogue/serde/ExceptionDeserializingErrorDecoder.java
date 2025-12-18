@@ -74,22 +74,20 @@ final class ExceptionDeserializingErrorDecoder {
             JSON_ENCODING.deserializer(new TypeMarker<>() {});
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(new TypeMarker<>() {});
+
     private final Map<String, DeserializerExceptionPair<?, ?>> errorNameToExceptionDeserializerMap;
+    private final boolean expectRichErrors;
 
     static ExceptionDeserializingErrorDecoder withoutExceptions() {
-        return new ExceptionDeserializingErrorDecoder(Collections.emptyMap());
-    }
-
-    ExceptionDeserializingErrorDecoder(Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap) {
-        this(errorNameToExceptionTypeMap, Optional.empty());
+        return new ExceptionDeserializingErrorDecoder(Collections.emptyMap(), false);
     }
 
     ExceptionDeserializingErrorDecoder(
-            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap, Optional<Encoding> maybeJsonEncoding) {
+            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap, boolean expectRichErrors) {
         this.errorNameToExceptionDeserializerMap = ImmutableMap.copyOf(Maps.transformValues(
                 errorNameToExceptionTypeMap,
-                errorExceptionPair ->
-                        createDeserializerForException(maybeJsonEncoding.orElse(JSON_ENCODING), errorExceptionPair)));
+                errorExceptionPair -> createDeserializerForException(JSON_ENCODING, errorExceptionPair)));
+        this.expectRichErrors = expectRichErrors;
     }
 
     boolean isError(Response response) {
@@ -145,46 +143,72 @@ final class ExceptionDeserializingErrorDecoder {
         try (InputStream bodyStream = response.body()) {
             body = bodyStream.readAllBytes();
         } catch (NullPointerException | IOException e) {
-            UnknownRemoteException exception = new UnknownRemoteException(code, "<unparseable>");
+            UnknownRemoteException exception = new UnknownRemoteException(code, "<unreadable>");
             exception.initCause(e);
             return exception;
         }
 
+        if (log.isDebugEnabled()) {
+            log.debug("Read error response body", UnsafeArg.of("body", new String(body, StandardCharsets.UTF_8)));
+        }
+
         Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
         if (contentType.isEmpty() || !Encodings.matchesContentType(JSON_ENCODING.getContentType(), contentType.get())) {
-            return new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
+            String stringBody = new String(body, StandardCharsets.UTF_8);
+            log.debug(
+                    "Error response body had missing or non-JSON content-type, cannot deserialize error",
+                    UnsafeArg.of("contentType", contentType.orElse("<missing>")),
+                    UnsafeArg.of("body", stringBody));
+            return new UnknownRemoteException(code, stringBody);
         }
 
         try {
-            String errorName = extractErrorName(body);
-            if (errorName == null) {
-                // Per the Conjure spec, errorName is required. We fall back to creating a RemoteException to handle
-                // legacy errors that used a "message" field instead of "errorName".
-                return createRemoteException(body, code);
-            }
-            DeserializerExceptionPair<?, ?> deserializerExceptionPair =
-                    errorNameToExceptionDeserializerMap.get(errorName);
-            if (deserializerExceptionPair == null) {
-                return createRemoteException(body, code);
-            }
-            // Attempt to deserialize the error using the deserializer for the specific exception type.
-            try {
-                // The concrete error type is a subtype of AbstractSerializableError<?> at runtime.
-                // AbstractSerializableError is an abstract class.
-                AbstractSerializableError<?> error =
-                        deserializerExceptionPair.deserializer().deserialize(new ByteArrayInputStream(body));
-                return ErrorExceptionPair.getExceptionFromSerializableError(
-                        error, deserializerExceptionPair.exceptionType(), code);
-            } catch (Exception e) {
-                // If we're unable to deserialize the error as JSON, throw a RemoteException.
-                log.error("Failed to deserialize error response as exception", SafeArg.of("errorName", errorName), e);
-                return createRemoteException(body, code);
-            }
+            return jsonExceptionFromBody(body, code);
         } catch (Exception e) {
             UnknownRemoteException unknownRemoteException =
                     new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
             unknownRemoteException.initCause(e);
             return unknownRemoteException;
+        }
+    }
+
+    private RuntimeException jsonExceptionFromBody(byte[] body, int code) throws IOException {
+        String errorName = extractErrorName(body);
+        if (errorName == null) {
+            // Per the Conjure spec, errorName is required. We fall back to creating a RemoteException to handle
+            // legacy errors that used a "message" field instead of "errorName".
+            log.debug("Could not find errorName field in error response body - falling back to RemoteException");
+            return createRemoteException(body, code);
+        }
+        DeserializerExceptionPair<?, ?> deserializerExceptionPair = errorNameToExceptionDeserializerMap.get(errorName);
+        if (deserializerExceptionPair == null) {
+            log.debug(
+                    "No deserializer found for error name - falling back to RemoteException",
+                    SafeArg.of("errorName", errorName));
+            return createRemoteException(body, code);
+        }
+        // Attempt to deserialize the error using the deserializer for the specific exception type.
+        try {
+            // The concrete error type is a subtype of AbstractSerializableError<?> at runtime.
+            // AbstractSerializableError is an abstract class.
+            AbstractSerializableError<?> error =
+                    deserializerExceptionPair.deserializer().deserialize(new ByteArrayInputStream(body));
+            return ErrorExceptionPair.getExceptionFromSerializableError(
+                    error, deserializerExceptionPair.exceptionType(), code);
+        } catch (Exception e) {
+            // If we're unable to deserialize the error as JSON, throw a RemoteException.
+            if (expectRichErrors) {
+                log.error(
+                        "Failed to deserialize error response as exception - falling back to RemoteException",
+                        SafeArg.of("errorName", errorName),
+                        e);
+            } else if (log.isDebugEnabled()) {
+                log.debug(
+                        "Failed to deserialize error response as exception - falling back to RemoteException",
+                        SafeArg.of("errorName", errorName),
+                        e);
+            }
+            return createRemoteException(body, code);
         }
     }
 

@@ -107,7 +107,9 @@ final class ConjureBodySerDe implements BodySerDe {
                         key.type(),
                         emptyContainerDeserializer,
                         key.args().returnType(),
-                        new ExceptionDeserializingErrorDecoder(key.args().errorNameToExceptionTypeMarkers())));
+                        new ExceptionDeserializingErrorDecoder(
+                                key.args().errorNameToExceptionTypeMarkers(),
+                                errorParameterFormat().isPresent())));
     }
 
     @SuppressWarnings("unchecked")
