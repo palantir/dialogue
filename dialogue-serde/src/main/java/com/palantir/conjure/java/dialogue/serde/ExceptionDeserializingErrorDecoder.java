@@ -155,10 +155,12 @@ final class ExceptionDeserializingErrorDecoder {
         Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
         if (contentType.isEmpty() || !Encodings.matchesContentType(JSON_ENCODING.getContentType(), contentType.get())) {
             String stringBody = new String(body, StandardCharsets.UTF_8);
-            log.debug(
-                    "Error response body had missing or non-JSON content-type, cannot deserialize error",
-                    UnsafeArg.of("contentType", contentType.orElse("<missing>")),
-                    UnsafeArg.of("body", stringBody));
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Error response body had missing or non-JSON content-type, cannot deserialize error",
+                        UnsafeArg.of("contentType", contentType.orElse("<missing>")),
+                        UnsafeArg.of("body", stringBody));
+            }
             return new UnknownRemoteException(code, stringBody);
         }
 
@@ -182,9 +184,11 @@ final class ExceptionDeserializingErrorDecoder {
         }
         DeserializerExceptionPair<?, ?> deserializerExceptionPair = errorNameToExceptionDeserializerMap.get(errorName);
         if (deserializerExceptionPair == null) {
-            log.debug(
-                    "No deserializer found for error name - falling back to RemoteException",
-                    SafeArg.of("errorName", errorName));
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "No deserializer found for error name - falling back to RemoteException",
+                        SafeArg.of("errorName", errorName));
+            }
             return createRemoteException(body, code);
         }
         // Attempt to deserialize the error using the deserializer for the specific exception type.
