@@ -172,7 +172,7 @@ final class ExceptionDeserializingErrorDecoder {
         }
     }
 
-    private RuntimeException jsonExceptionFromBody(byte[] body, int code) throws IOException {
+    private RemoteException jsonExceptionFromBody(byte[] body, int code) throws IOException {
         String errorName = extractErrorName(body);
         if (errorName == null) {
             // Per the Conjure spec, errorName is required. We fall back to creating a RemoteException to handle
