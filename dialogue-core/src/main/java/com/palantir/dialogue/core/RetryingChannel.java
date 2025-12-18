@@ -260,6 +260,7 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {
+            // check for upstream dialogue retry exhaustion on the response; if true, we do not attempt further retries
             boolean canRetryRequest = requestCanBeRetried() && !DialogueRetries.isRetriesExhausted(response);
             if (canRetryRequest && isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse.get());
@@ -318,9 +319,10 @@ final class RetryingChannel implements EndpointChannel {
                 return scheduleRetry(meter, backoffNanos);
             }
             infoLogRetriesExhausted(response);
-            // not closing response because ConjureBodySerde will need to deserialize it
-            // TODO(blaub): hackity hack...
+            // indicate to receivers (such as ExceptionDeserializingErrorDecoder) that retries have been exhausted
+            // at this node
             DialogueRetries.setRetriesExhausted(response);
+            // not closing response because ConjureBodySerde will need to deserialize it
             return Futures.immediateFuture(response);
         }
 

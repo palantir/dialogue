@@ -26,7 +26,11 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import java.util.Optional;
 
-// a channel that detects if upstream dialogue retries were exhausted, and fails fast if so
+// a channel that detects if upstream dialogue retries were exhausted
+// this is indicated by a header added to the response. if present, we set a response attachment
+// indicating to downstream delegate channels that dialogue retries were exhausted somewhere further
+// upstream. this class doesn't alter retry behavior on its own, merely indicates to delegates that an upstream
+// dialogue client (on another service) exhausted its retries; see RetryingChannel for how this is interpreted
 final class RetriesExhaustedChannel implements EndpointChannel {
     private final EndpointChannel delegate;
 
@@ -40,7 +44,7 @@ final class RetriesExhaustedChannel implements EndpointChannel {
             boolean retriesExhausted =
                     DialogueRetries.parseFromResponse(response, RetriesExhaustedResponseDecodingAdapter.INSTANCE);
             if (retriesExhausted) {
-                // error-deserializing code and RetryingChannel looks for this
+                // ExceptionDeserializingErrorDecoder and RetryingChannel looks for this
                 DialogueRetries.setRetriesExhausted(response);
             }
             return Futures.immediateFuture(response);
