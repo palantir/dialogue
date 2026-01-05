@@ -148,13 +148,18 @@ final class ExceptionDeserializingErrorDecoder {
             return exception;
         }
 
+        String stringBody = null;
         if (log.isDebugEnabled()) {
-            log.debug("Read error response body", UnsafeArg.of("body", new String(body, StandardCharsets.UTF_8)));
+            stringBody = new String(body, StandardCharsets.UTF_8);
+            log.debug("Read error response body", UnsafeArg.of("body", stringBody));
         }
 
         Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
         if (contentType.isEmpty() || !Encodings.matchesContentType(JSON_ENCODING.getContentType(), contentType.get())) {
-            String stringBody = new String(body, StandardCharsets.UTF_8);
+            if (stringBody == null) {
+                // Only convert to string if we haven't already done so
+                stringBody = new String(body, StandardCharsets.UTF_8);
+            }
             if (log.isDebugEnabled()) {
                 log.debug(
                         "Error response body had missing or non-JSON content-type, cannot deserialize error",
@@ -167,8 +172,11 @@ final class ExceptionDeserializingErrorDecoder {
         try {
             return jsonExceptionFromBody(body, code);
         } catch (Exception e) {
-            UnknownRemoteException unknownRemoteException =
-                    new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
+            if (stringBody == null) {
+                // Only convert to string if we haven't already done so
+                stringBody = new String(body, StandardCharsets.UTF_8);
+            }
+            UnknownRemoteException unknownRemoteException = new UnknownRemoteException(code, stringBody);
             unknownRemoteException.initCause(e);
             return unknownRemoteException;
         }
