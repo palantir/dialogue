@@ -36,7 +36,7 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.4.0 (1 constraints: 08050136)
 
-com.palantir.conjure.java:conjure-lib:8.66.0 (2 constraints: 3a24b87b)
+com.palantir.conjure.java:conjure-lib:8.67.0 (2 constraints: 3b240a7c)
 
 com.palantir.conjure.java.api:errors:2.67.0 (3 constraints: 8629d716)
 
@@ -132,7 +132,7 @@ org.eclipse.collections:eclipse-collections-api:13.0.0 (2 constraints: fa22df26)
 
 org.hdrhistogram:HdrHistogram:2.2.2 (1 constraints: 0e100092)
 
-org.immutables:value:2.12.0 (2 constraints: 041592c1)
+org.immutables:value:2.12.1 (2 constraints: 0515c1c1)
 
 org.jboss.logging:jboss-logging:3.6.1.Final (7 constraints: c283b7cb)
 
