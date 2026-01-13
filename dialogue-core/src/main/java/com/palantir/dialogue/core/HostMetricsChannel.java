@@ -51,7 +51,6 @@ final class HostMetricsChannel implements Channel {
                         port);
     }
 
-    @SuppressWarnings("for-rollout:UnusedException")
     static Channel create(Config cf, Channel channel, String uri) {
         Optional<HostEventsSink> hostEventsSink = cf.clientConf().hostEventsSink();
         if (!hostEventsSink.isPresent()) {
