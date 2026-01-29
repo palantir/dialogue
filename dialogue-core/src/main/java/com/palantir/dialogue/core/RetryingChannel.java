@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
@@ -107,6 +109,10 @@ final class RetryingChannel implements EndpointChannel {
     private final Supplier<Meter> retryDueToServerError;
     private final Supplier<Meter> retryDueToQosResponse;
     private final Function<Throwable, Meter> retryDueToThrowable;
+    private final Supplier<Histogram> retryCountHistogram;
+    private final Supplier<Counter> exhaustedDueToServerError;
+    private final Supplier<Counter> exhaustedDueToQosResponse;
+    private final Function<Throwable, Counter> exhaustedDueToThrowable;
 
     static EndpointChannel create(Config cf, EndpointChannel channel, Endpoint endpoint) {
         ClientConfiguration clientConf = cf.clientConf();
@@ -185,6 +191,22 @@ final class RetryingChannel implements EndpointChannel {
                 .channelName(channelName)
                 .reason(throwable.getClass().getSimpleName())
                 .build();
+        this.retryCountHistogram = Suppliers.memoize(() -> dialogueClientMetrics.requestRetryCount(channelName));
+        this.exhaustedDueToServerError = Suppliers.memoize(() -> dialogueClientMetrics
+                .requestRetryExhausted()
+                .channelName(channelName)
+                .reason("serverError")
+                .build());
+        this.exhaustedDueToQosResponse = Suppliers.memoize(() -> dialogueClientMetrics
+                .requestRetryExhausted()
+                .channelName(channelName)
+                .reason("qosResponse")
+                .build());
+        this.exhaustedDueToThrowable = throwable -> dialogueClientMetrics
+                .requestRetryExhausted()
+                .channelName(channelName)
+                .reason(throwable.getClass().getSimpleName())
+                .build();
     }
 
     @Override
@@ -232,6 +254,7 @@ final class RetryingChannel implements EndpointChannel {
                     () -> {
                         if (failures > 0) {
                             span.complete(RetryingCallbackTranslator.INSTANCE, this);
+                            retryCountHistogram.get().update(failures);
                         }
                     },
                     DialogueFutures.safeDirectExecutor());
@@ -261,11 +284,13 @@ final class RetryingChannel implements EndpointChannel {
         private ListenableFuture<Response> handleHttpResponse(Response response) {
             boolean canRetryRequest = requestCanBeRetried();
             if (canRetryRequest && isRetryableQosStatus(response)) {
-                return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse.get());
+                return incrementFailuresAndMaybeRetry(
+                        response, qosThrowable, retryDueToQosResponse.get(), exhaustedDueToQosResponse.get());
             }
 
             if (canRetryRequest && Responses.isInternalServerError(response) && safeToRetry(endpoint.httpMethod())) {
-                return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError.get());
+                return incrementFailuresAndMaybeRetry(
+                        response, serverErrorThrowable, retryDueToServerError.get(), exhaustedDueToServerError.get());
             }
 
             return Futures.immediateFuture(response);
@@ -290,12 +315,18 @@ final class RetryingChannel implements EndpointChannel {
                                 clientSideThrowable);
                     }
                 }
+            } else {
+                // Retries exhausted due to throwable
+                exhaustedDueToThrowable.apply(clientSideThrowable).inc();
             }
             return Futures.immediateFailedFuture(clientSideThrowable);
         }
 
         private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
-                Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier, Meter meter) {
+                Response response,
+                BiFunction<Endpoint, Response, Throwable> failureSupplier,
+                Meter retryMeter,
+                Counter exhaustedCounter) {
             // We've made a request which has failed, so we apply a floor of a single failure if there are no
             // proxy upstream request attempts. Otherwise, if the proxy has reported upstream request attempts,
             // those are considered as well. When the proxy makes a single request, that is considered part of
@@ -314,8 +345,9 @@ final class RetryingChannel implements EndpointChannel {
                 Throwable throwableToLog = log.isTraceEnabled() ? failureSupplier.apply(endpoint, response) : null;
                 long backoffNanos = Responses.isRetryOther(response) ? 0 : getBackoffNanoseconds();
                 infoLogRetry(backoffNanos, OptionalInt.of(response.code()), throwableToLog);
-                return scheduleRetry(meter, backoffNanos);
+                return scheduleRetry(retryMeter, backoffNanos);
             }
+            exhaustedCounter.inc();
             infoLogRetriesExhausted(response);
             // not closing response because ConjureBodySerde will need to deserialize it
             return Futures.immediateFuture(response);
