@@ -37,7 +37,9 @@ namespaces:
       request.retry.count:
         type: histogram
         tags: [channel-name]
-        docs: Distribution of retry counts per request. Only recorded for requests that required at least one retry.
+        docs: |
+          Distribution of retry counts per request. Only recorded for requests that required at least one retry
+          and eventually received a response (not recorded for requests that fail with an exception).
       request.retry.exhausted:
         type: counter
         tags: [channel-name, reason]

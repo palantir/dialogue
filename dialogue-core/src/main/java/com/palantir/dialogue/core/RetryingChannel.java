@@ -250,14 +250,22 @@ final class RetryingChannel implements EndpointChannel {
 
         ListenableFuture<Response> execute() {
             ListenableFuture<Response> result = wrap(delegate.execute(request));
-            result.addListener(
-                    () -> {
-                        if (failures > 0) {
-                            span.complete(RetryingCallbackTranslator.INSTANCE, this);
-                            retryCountHistogram.get().update(failures);
-                        }
-                    },
-                    DialogueFutures.safeDirectExecutor());
+            DialogueFutures.addDirectCallback(result, new FutureCallback<>() {
+                @Override
+                public void onSuccess(@Nullable Response _response) {
+                    if (failures > 0) {
+                        span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
+                        retryCountHistogram.get().update(failures);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable _throwable) {
+                    if (failures > 0) {
+                        span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
+                    }
+                }
+            });
             return result;
         }
 
