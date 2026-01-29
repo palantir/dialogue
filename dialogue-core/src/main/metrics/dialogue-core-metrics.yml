@@ -34,6 +34,16 @@ namespaces:
         type: meter
         tags: [channel-name, reason]
         docs: Rate at which the RetryingChannel retries requests (across all endpoints).
+      request.retry.count:
+        type: histogram
+        tags: [channel-name]
+        docs: Distribution of retry counts per request. Only recorded for requests that required at least one retry.
+      request.retry.exhausted:
+        type: counter
+        tags: [channel-name, reason]
+        docs: |
+          Count of requests that exhaust all retry attempts without receiving a successful response. The reason is 
+          populated with the reason for which the last retry has failed.
       requests.queued:
         type: counter
         tags: [channel-name]
