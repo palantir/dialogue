@@ -35,6 +35,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryCount_Result;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -109,7 +110,8 @@ final class RetryingChannel implements EndpointChannel {
     private final Supplier<Meter> retryDueToServerError;
     private final Supplier<Meter> retryDueToQosResponse;
     private final Function<Throwable, Meter> retryDueToThrowable;
-    private final Supplier<Histogram> retryCountHistogram;
+    private final Supplier<Histogram> retryCountSuccessHistogram;
+    private final Supplier<Histogram> retryCountFailureHistogram;
     private final Supplier<Counter> exhaustedDueToServerError;
     private final Supplier<Counter> exhaustedDueToQosResponse;
     private final Function<Throwable, Counter> exhaustedDueToThrowable;
@@ -191,7 +193,16 @@ final class RetryingChannel implements EndpointChannel {
                 .channelName(channelName)
                 .reason(throwable.getClass().getSimpleName())
                 .build();
-        this.retryCountHistogram = Suppliers.memoize(() -> dialogueClientMetrics.requestRetryCount(channelName));
+        this.retryCountSuccessHistogram = Suppliers.memoize(() -> dialogueClientMetrics
+                .requestRetryCount()
+                .channelName(channelName)
+                .result(RequestRetryCount_Result.SUCCESS)
+                .build());
+        this.retryCountFailureHistogram = Suppliers.memoize(() -> dialogueClientMetrics
+                .requestRetryCount()
+                .channelName(channelName)
+                .result(RequestRetryCount_Result.FAILURE)
+                .build());
         this.exhaustedDueToServerError = Suppliers.memoize(() -> dialogueClientMetrics
                 .requestRetryExhausted()
                 .channelName(channelName)
@@ -255,7 +266,7 @@ final class RetryingChannel implements EndpointChannel {
                 public void onSuccess(@Nullable Response _response) {
                     if (failures > 0) {
                         span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
-                        retryCountHistogram.get().update(failures);
+                        retryCountSuccessHistogram.get().update(failures);
                     }
                 }
 
@@ -263,6 +274,7 @@ final class RetryingChannel implements EndpointChannel {
                 public void onFailure(Throwable _throwable) {
                     if (failures > 0) {
                         span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
+                        retryCountFailureHistogram.get().update(failures);
                     }
                 }
             });
