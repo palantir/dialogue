@@ -45,7 +45,7 @@ namespaces:
         docs: |
           Distribution of retry counts per request for requests that required at least one retry. The result tag of 
           "success" indicates that the request eventually received a response, while "failure" indicates that there was 
-          no response received from the server (e.g. the connection timed out).
+          no response received from the server (e.g. socket read timeout).
       request.retry.exhausted:
         type: counter
         tags: [channel-name, reason]
