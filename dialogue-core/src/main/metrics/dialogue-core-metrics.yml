@@ -34,12 +34,18 @@ namespaces:
         type: meter
         tags: [channel-name, reason]
         docs: Rate at which the RetryingChannel retries requests (across all endpoints).
+      # Note: endpoint is not added as a tag to the retry metrics below because we do not want to greatly increase
+      # the cardinality of tags: doing so adds load to the observability pipeline.
       request.retry.count:
         type: histogram
-        tags: [channel-name]
+        tags:
+          - name: channel-name
+          - name: result
+            values: [ success, failure ]
         docs: |
-          Distribution of retry counts per request. Only recorded for requests that required at least one retry
-          and eventually received a response (not recorded for requests that fail with an exception).
+          Distribution of retry counts per request for requests that required at least one retry. The result tag of 
+          "success" indicates that the request eventually received a response, while "failure" indicates that there was 
+          no response received from the server (e.g. the connection timed out).
       request.retry.exhausted:
         type: counter
         tags: [channel-name, reason]
