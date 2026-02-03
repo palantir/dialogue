@@ -102,7 +102,7 @@ Dialogue-specific metrics that are not necessarily applicable to other client im
 - `dialogue.client.request.retry` tagged `channel-name`, `reason` (meter): Rate at which the RetryingChannel retries requests (across all endpoints).
 - `dialogue.client.request.retry.count` (histogram): Distribution of retry counts per request for requests that required at least one retry. The result tag of 
 "success" indicates that the request eventually received a response, while "failure" indicates that there was 
-no response received from the server (e.g. the connection timed out).
+no response received from the server (e.g. socket read timeout).
 
   - `channel-name`
   - `result` values (`success`,`failure`)
