@@ -1,22 +1,22 @@
 # Run ./gradlew writeVersionsLocks to regenerate this file. Blank lines are to minimize merge conflicts.
 
-com.fasterxml.jackson.core:jackson-annotations:2.20 (9 constraints: 1f982f80)
+com.fasterxml.jackson.core:jackson-annotations:2.21 (9 constraints: 24980786)
 
-com.fasterxml.jackson.core:jackson-core:2.20.1 (11 constraints: 33e5e692)
+com.fasterxml.jackson.core:jackson-core:2.21.0 (11 constraints: 33e5f892)
 
-com.fasterxml.jackson.core:jackson-databind:2.20.1 (15 constraints: 1a3121fd)
+com.fasterxml.jackson.core:jackson-databind:2.21.0 (15 constraints: 1a3131fd)
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.20.1 (1 constraints: 7b1c95a4)
+com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.21.0 (1 constraints: 7b1c95a4)
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.20.1 (1 constraints: 7b1c95a4)
+com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.21.0 (1 constraints: 7b1c95a4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-guava:2.20.1 (1 constraints: 7b1c95a4)
+com.fasterxml.jackson.datatype:jackson-datatype-guava:2.21.0 (1 constraints: 7b1c95a4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.20.1 (1 constraints: 7b1c95a4)
+com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.21.0 (1 constraints: 7b1c95a4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-joda:2.20.1 (1 constraints: 7b1c95a4)
+com.fasterxml.jackson.datatype:jackson-datatype-joda:2.21.0 (1 constraints: 7b1c95a4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.20.1 (1 constraints: 7b1c95a4)
+com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.0 (1 constraints: 7b1c95a4)
 
 com.github.ben-manes.caffeine:caffeine:3.2.2 (3 constraints: 00286e33)
 
@@ -152,7 +152,7 @@ org.wildfly.common:wildfly-common:2.0.1 (2 constraints: 591adc48)
 
 [Test dependencies]
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.20.1 (1 constraints: 3705343b)
+com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.0 (1 constraints: 3705363b)
 
 com.google.auto.value:auto-value-annotations:1.11.0 (2 constraints: d01cd319)
 
