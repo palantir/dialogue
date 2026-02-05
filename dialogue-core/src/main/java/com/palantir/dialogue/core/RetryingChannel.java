@@ -287,21 +287,21 @@ final class RetryingChannel implements EndpointChannel {
             DialogueFutures.addDirectCallback(result, new FutureCallback<>() {
                 @Override
                 public void onSuccess(@Nullable Response response) {
+                    if (Responses.isSuccess(response)) {
+                        retryCountSuccessHistogram.get().update(failures);
+                    } else {
+                        retryCountFailureHistogram.get().update(failures);
+                    }
                     if (failures > 0) {
                         span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
-                        if (Responses.isSuccess(response)) {
-                            retryCountSuccessHistogram.get().update(failures);
-                        } else {
-                            retryCountFailureHistogram.get().update(failures);
-                        }
                     }
                 }
 
                 @Override
                 public void onFailure(Throwable _throwable) {
+                    retryCountFailureHistogram.get().update(failures);
                     if (failures > 0) {
                         span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
-                        retryCountFailureHistogram.get().update(failures);
                     }
                 }
             });
