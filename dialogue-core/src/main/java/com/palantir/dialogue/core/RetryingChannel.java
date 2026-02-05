@@ -157,6 +157,29 @@ final class RetryingChannel implements EndpointChannel {
                 () -> ThreadLocalRandom.current().nextDouble());
     }
 
+    @VisibleForTesting
+    RetryingChannel(
+            EndpointChannel delegate,
+            Endpoint endpoint,
+            String channelName,
+            TaggedMetricRegistry taggedMetricRegistry,
+            int maxRetries,
+            Duration backoffSlotSize,
+            ClientConfiguration.ServerQoS serverQoS,
+            ClientConfiguration.RetryOnTimeout retryOnTimeout) {
+        this(
+                delegate,
+                endpoint,
+                channelName,
+                taggedMetricRegistry,
+                maxRetries,
+                backoffSlotSize,
+                serverQoS,
+                retryOnTimeout,
+                sharedScheduler.get(),
+                () -> ThreadLocalRandom.current().nextDouble());
+    }
+
     private RetryingChannel(
             EndpointChannel delegate,
             Endpoint endpoint,
@@ -263,10 +286,14 @@ final class RetryingChannel implements EndpointChannel {
             ListenableFuture<Response> result = wrap(delegate.execute(request));
             DialogueFutures.addDirectCallback(result, new FutureCallback<>() {
                 @Override
-                public void onSuccess(@Nullable Response _response) {
+                public void onSuccess(@Nullable Response response) {
                     if (failures > 0) {
                         span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
-                        retryCountSuccessHistogram.get().update(failures);
+                        if (Responses.isSuccess(response)) {
+                            retryCountSuccessHistogram.get().update(failures);
+                        } else {
+                            retryCountFailureHistogram.get().update(failures);
+                        }
                     }
                 }
 

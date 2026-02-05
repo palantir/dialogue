@@ -40,8 +40,10 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TestResponseQosEncoder;
+import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryCount_Result;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.net.ConnectException;
@@ -852,6 +854,148 @@ public class RetryingChannelTest {
                 .hasRootCauseExactlyInstanceOf(SafeIoException.class)
                 .hasRootCauseMessage("FAILED");
         verify(channel, times(1)).execute(any());
+    }
+
+    @Test
+    public void retryCountSuccessHistogramUpdatedAfter429ThenSuccess() throws Exception {
+        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+
+        when(channel.execute(any()))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(200)));
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                registry,
+                4,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response.get().code()).isEqualTo(200);
+
+        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
+        assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(RequestRetryCount_Result.SUCCESS)
+                        .build()
+                        .getCount())
+                .as("Success histogram should be updated when request succeeds after 429 retry")
+                .isEqualTo(1);
+        assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(RequestRetryCount_Result.SUCCESS)
+                        .build()
+                        .getSnapshot()
+                        .getValues())
+                .as("Success histogram should record 2 failures (the 429s) before success")
+                .containsExactly(2L);
+        assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(RequestRetryCount_Result.FAILURE)
+                        .build()
+                        .getCount())
+                .as("Failure histogram should not be updated when request eventually succeeds")
+                .isEqualTo(0);
+    }
+
+    @Test
+    public void retryCountFailureHistogramUpdatedWhenRetriesExhaustedDueToException() {
+        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+
+        when(channel.execute(any())).thenReturn(FAILED);
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                registry,
+                4,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
+        verify(channel, times(5)).execute(REQUEST);
+
+        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
+        assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(RequestRetryCount_Result.FAILURE)
+                        .build()
+                        .getCount())
+                .as("Failure histogram should be updated when retries exhausted due to exception")
+                .isEqualTo(1);
+        assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(RequestRetryCount_Result.FAILURE)
+                        .build()
+                        .getSnapshot()
+                        .getValues())
+                .as("Failure histogram should record 5 failures (initial + 4 retries)")
+                .containsExactly(5L);
+        assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(RequestRetryCount_Result.SUCCESS)
+                        .build()
+                        .getCount())
+                .as("Success histogram should not be updated when request fails")
+                .isEqualTo(0);
+    }
+
+    @Test
+    public void retryCountFailureHistogramUpdatedWhenRetriesExhaustedDueTo429() throws Exception {
+        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+
+        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>)
+                _invocation -> Futures.immediateFuture(new TestResponse().code(429)));
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                registry,
+                4,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response.get().code()).isEqualTo(429);
+        verify(channel, times(5)).execute(REQUEST);
+
+        // Exhausted 429s are not successful responses, so they update the FAILURE histogram
+        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
+        assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(RequestRetryCount_Result.FAILURE)
+                        .build()
+                        .getCount())
+                .as("Failure histogram should be updated when retries exhausted due to 429")
+                .isEqualTo(1);
+        assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(RequestRetryCount_Result.FAILURE)
+                        .build()
+                        .getSnapshot()
+                        .getValues())
+                .as("Failure histogram should record 5 failures (initial + 4 retries)")
+                .containsExactly(5L);
+        assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(RequestRetryCount_Result.SUCCESS)
+                        .build()
+                        .getCount())
+                .as("Success histogram should not be updated when response is not successful")
+                .isEqualTo(0);
     }
 
     private static Response mockResponse(int status) {
