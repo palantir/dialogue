@@ -41,12 +41,12 @@ namespaces:
         tags:
           - name: channel-name
           - name: result
-            values: [ success, failure ]
+            values: [ success, failure, non-retryable ]
         docs: |
-          Distribution of retry counts per request for retryable requests. The result tag of "success" indicates that
-          the request eventually received a successful (2xx) response, while "failure" indicates that the request
-          ultimately completed with a non-successful response (e.g. 429, 503) or no response at all (e.g. socket
-          read timeout).
+          Distribution of retry counts per request for retryable requests. The result tag indicates the terminal
+          state: "success" means the request eventually received a successful (2xx) response, "non-retryable" means
+          the request received a non-retryable response (e.g. 4xx) before exhausting retries, and "failure" means
+          retries were exhausted due to retryable errors (e.g. 429, 503, socket read timeout).
       request.retry.exhausted:
         type: counter
         tags: [channel-name, reason]

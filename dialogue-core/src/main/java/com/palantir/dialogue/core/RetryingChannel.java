@@ -112,6 +112,7 @@ final class RetryingChannel implements EndpointChannel {
     private final Function<Throwable, Meter> retryDueToThrowable;
     private final Supplier<Histogram> retryCountSuccessHistogram;
     private final Supplier<Histogram> retryCountFailureHistogram;
+    private final Supplier<Histogram> retryCountNonRetryableHistogram;
     private final Supplier<Counter> exhaustedDueToServerError;
     private final Supplier<Counter> exhaustedDueToQosResponse;
     private final Function<Throwable, Counter> exhaustedDueToThrowable;
@@ -226,6 +227,11 @@ final class RetryingChannel implements EndpointChannel {
                 .channelName(channelName)
                 .result(RequestRetryCount_Result.FAILURE)
                 .build());
+        this.retryCountNonRetryableHistogram = Suppliers.memoize(() -> dialogueClientMetrics
+                .requestRetryCount()
+                .channelName(channelName)
+                .result(RequestRetryCount_Result.NON_RETRYABLE)
+                .build());
         this.exhaustedDueToServerError = Suppliers.memoize(() -> dialogueClientMetrics
                 .requestRetryExhausted()
                 .channelName(channelName)
@@ -291,18 +297,22 @@ final class RetryingChannel implements EndpointChannel {
                         span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
                         if (Responses.isSuccess(response)) {
                             retryCountSuccessHistogram.get().update(failures);
-                        } else {
+                        } else if (failures > maxRetries) {
                             retryCountFailureHistogram.get().update(failures);
+                        } else {
+                            retryCountNonRetryableHistogram.get().update(failures);
                         }
-                    } else if (requestCanBeRetried()) {
-                        // Only update the success metric if the request was retry-able.
+                    } else if (requestCanBeRetried() && Responses.isSuccess(response)) {
+                        // Only update the success metric if the request was retry-able and succeeded.
                         retryCountSuccessHistogram.get().update(failures);
                     }
                 }
 
                 @Override
                 public void onFailure(Throwable _throwable) {
-                    retryCountFailureHistogram.get().update(failures);
+                    if (requestCanBeRetried()) {
+                        retryCountFailureHistogram.get().update(failures);
+                    }
                     if (failures > 0) {
                         span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
                     }
