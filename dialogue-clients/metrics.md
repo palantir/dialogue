@@ -100,13 +100,13 @@ Instrumentation for BalancedChannel internals.
 Dialogue-specific metrics that are not necessarily applicable to other client implementations.
 - `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
 - `dialogue.client.request.retry` tagged `channel-name`, `reason` (meter): Rate at which the RetryingChannel retries requests (across all endpoints).
-- `dialogue.client.request.retry.count` (histogram): Distribution of retry counts per request for retryable requests. The result tag of "success" indicates that
-the request eventually received a successful (2xx) response, while "failure" indicates that the request
-ultimately completed with a non-successful response (e.g. 429, 503) or no response at all (e.g. socket
-read timeout).
+- `dialogue.client.request.retry.count` (histogram): Distribution of retry counts per request for retryable requests. The result tag indicates the terminal
+state: "success" means the request eventually received a successful (2xx) response, "non-retryable" means
+the request received a non-retryable response (e.g. 4xx) before exhausting retries, and "failure" means
+retries were exhausted due to retryable errors (e.g. 429, 503, socket read timeout).
 
   - `channel-name`
-  - `result` values (`success`,`failure`)
+  - `result` values (`success`,`failure`,`non-retryable`)
 - `dialogue.client.request.retry.exhausted` tagged `channel-name`, `reason` (counter): Count of requests that exhaust all retry attempts without receiving a successful response. The reason is 
 populated with the reason for which the last retry has failed.
 
