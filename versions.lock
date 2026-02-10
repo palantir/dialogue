@@ -1,10 +1,10 @@
 # Run ./gradlew writeVersionsLocks to regenerate this file. Blank lines are to minimize merge conflicts.
 
-com.fasterxml.jackson.core:jackson-annotations:2.21 (9 constraints: 27988386)
+com.fasterxml.jackson.core:jackson-annotations:2.21 (9 constraints: 28980987)
 
-com.fasterxml.jackson.core:jackson-core:2.21.0 (11 constraints: 33e5fa92)
+com.fasterxml.jackson.core:jackson-core:2.21.0 (11 constraints: 33e5fc92)
 
-com.fasterxml.jackson.core:jackson-databind:2.21.0 (15 constraints: 1a313dfd)
+com.fasterxml.jackson.core:jackson-databind:2.21.0 (15 constraints: 1a313ffd)
 
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.21.0 (1 constraints: 7b1c97a4)
 
@@ -36,9 +36,9 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.6.0 (1 constraints: 0a050736)
 
-com.palantir.conjure.java:conjure-lib:8.69.0 (2 constraints: 4124ba7c)
+com.palantir.conjure.java:conjure-lib:8.70.0 (2 constraints: 39242b7a)
 
-com.palantir.conjure.java.api:errors:2.69.0 (3 constraints: 8c29f217)
+com.palantir.conjure.java.api:errors:2.69.0 (3 constraints: 8d292e18)
 
 com.palantir.conjure.java.api:service-config:2.69.0 (2 constraints: 651915de)
 
@@ -62,7 +62,7 @@ com.palantir.nylon:nylon-threads:0.6.0 (1 constraints: 0e100092)
 
 com.palantir.refreshable:refreshable:2.9.0 (2 constraints: f91887b3)
 
-com.palantir.ri:resource-identifier:2.13.0 (2 constraints: 5415f0d9)
+com.palantir.ri:resource-identifier:2.13.0 (2 constraints: 5515f3d9)
 
 com.palantir.safe-logging:logger:3.11.0 (14 constraints: f1e00c28)
 
@@ -70,13 +70,13 @@ com.palantir.safe-logging:logger-slf4j:3.11.0 (1 constraints: 300e8a50)
 
 com.palantir.safe-logging:logger-spi:3.11.0 (2 constraints: 6f1e0ab0)
 
-com.palantir.safe-logging:preconditions:3.11.0 (20 constraints: a746e875)
+com.palantir.safe-logging:preconditions:3.11.0 (20 constraints: a8465479)
 
-com.palantir.safe-logging:safe-logging:3.11.0 (19 constraints: 05381a40)
+com.palantir.safe-logging:safe-logging:3.11.0 (19 constraints: 06385c43)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.5.0 (1 constraints: 0705fa35)
 
-com.palantir.tokens:auth-tokens:3.22.0 (3 constraints: 1528198b)
+com.palantir.tokens:auth-tokens:3.22.0 (3 constraints: 1628528b)
 
 com.palantir.tracing:tracing:6.31.0 (3 constraints: aa240bfb)
 
