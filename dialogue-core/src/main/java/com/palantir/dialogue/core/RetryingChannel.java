@@ -42,7 +42,6 @@ import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TagTranslator;
 import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.MetricRegistries;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
@@ -129,6 +128,7 @@ final class RetryingChannel implements EndpointChannel {
 
     @VisibleForTesting
     RetryingChannel(
+            TaggedMetricRegistry metrics,
             EndpointChannel delegate,
             Endpoint endpoint,
             String channelName,
@@ -140,7 +140,7 @@ final class RetryingChannel implements EndpointChannel {
                 delegate,
                 endpoint,
                 channelName,
-                new DefaultTaggedMetricRegistry(),
+                metrics,
                 maxRetries,
                 backoffSlotSize,
                 serverQoS,

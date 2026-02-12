@@ -42,6 +42,7 @@ import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TestResponseQosEncoder;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.net.ConnectException;
@@ -73,6 +74,7 @@ public class RetryingChannelTest {
         when(channel.execute(any())).thenReturn(SUCCESS);
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -90,6 +92,7 @@ public class RetryingChannelTest {
 
         // One retry allows an initial request (not a retry) and a single retry.
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -113,6 +116,7 @@ public class RetryingChannelTest {
 
         // One retry allows an initial request (not a retry) and a single retry.
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -139,6 +143,7 @@ public class RetryingChannelTest {
 
         // One retry allows an initial request (not a retry) and a single retry.
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -157,6 +162,7 @@ public class RetryingChannelTest {
         when(channel.execute(any())).thenReturn(FAILED);
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -177,6 +183,7 @@ public class RetryingChannelTest {
         long startTime = System.nanoTime();
         Duration backoffSlotSize = Duration.ofSeconds(10);
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -200,6 +207,7 @@ public class RetryingChannelTest {
                 _invocation -> Futures.immediateFuture(new TestResponse().code(429)));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -227,6 +235,7 @@ public class RetryingChannelTest {
         });
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -255,6 +264,7 @@ public class RetryingChannelTest {
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(stubResponse));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -276,6 +286,7 @@ public class RetryingChannelTest {
                 _invocation -> Futures.immediateFuture(new TestResponse().code(503)));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -303,6 +314,7 @@ public class RetryingChannelTest {
         });
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -331,6 +343,7 @@ public class RetryingChannelTest {
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(stubResponse));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -356,6 +369,7 @@ public class RetryingChannelTest {
         long startTime = System.nanoTime();
         Duration backoffSlotSize = Duration.ofSeconds(10);
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -382,6 +396,7 @@ public class RetryingChannelTest {
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -404,6 +419,7 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(308);
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -424,6 +440,7 @@ public class RetryingChannelTest {
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -444,6 +461,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.GET,
                 "my-channel",
@@ -464,6 +482,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.GET,
                 "my-channel",
@@ -484,6 +503,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.PUT,
                 "my-channel",
@@ -504,6 +524,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.DELETE,
                 "my-channel",
@@ -522,6 +543,7 @@ public class RetryingChannelTest {
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(new TestResponse().code(500)));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -542,6 +564,7 @@ public class RetryingChannelTest {
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -567,6 +590,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(eventualSuccess));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -593,6 +617,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(response3));
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -616,6 +641,7 @@ public class RetryingChannelTest {
         ListenableFuture<Response> delegateResult = SettableFuture.create();
         when(channel.execute(any())).thenReturn(delegateResult);
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -641,6 +667,7 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -661,6 +688,7 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -679,6 +707,7 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -697,6 +726,7 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -717,6 +747,7 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -735,6 +766,7 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -756,6 +788,7 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -774,6 +807,7 @@ public class RetryingChannelTest {
 
         // One retry allows an initial request (not a retry) and a single retry.
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
@@ -819,6 +853,7 @@ public class RetryingChannelTest {
         });
 
         EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
