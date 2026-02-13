@@ -1047,6 +1047,22 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void retryCountNonRetryableHistogramUpdatedWhenNonRetryableResponseAfterAlmostMaxRetries() throws Exception {
+        setupResponses(429, 429, 429, 429, 400);
+
+        EndpointChannel retryer = channel(4);
+
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response.get().code()).isEqualTo(400);
+        verify(channel, times(5)).execute(REQUEST);
+
+        verifyMetrics(
+                // We should update the non-retryable metric if we get a non-retryable response at the last retry
+                new ExpectedMetrics(RequestRetryCount_Result.NON_RETRYABLE, 4),
+                "non-retryable response after retryable 429");
+    }
+
+    @Test
     public void retryCountSuccessHistogramUpdatedForFirstTrySuccess() throws Exception {
         setupResponses(200);
 
