@@ -867,99 +867,6 @@ public class RetryingChannelTest {
         verify(channel, times(1)).execute(any());
     }
 
-    private EndpointChannel channel(int maxRetries) {
-        return new RetryingChannel(
-                channel,
-                TestEndpoint.POST,
-                "my-channel",
-                registry,
-                maxRetries,
-                Duration.ZERO,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                ClientConfiguration.RetryOnTimeout.DISABLED);
-    }
-
-    private void setupResponses(int... codes) {
-        OngoingStubbing<ListenableFuture<Response>> stubbing = when(channel.execute(any()));
-        for (int code : codes) {
-            stubbing = stubbing.thenAnswer(_invocation -> Futures.immediateFuture(new TestResponse().code(code)));
-        }
-    }
-
-    //    private void setupResponses(Response... responses) {
-    //        OngoingStubbing<ListenableFuture<Response>> stubbing = when(channel.execute(any()));
-    //        for (Supplier<Response> response : responses) {
-    //            stubbing = stubbing.thenAnswer(_invocation -> Futures.immediateFuture(response.get()));
-    //        }
-    //    }
-
-    private record ExpectedMetrics(
-            RequestRetryCount_Result resultState, long retryCount, Optional<String> exhaustedReason) {
-        ExpectedMetrics(RequestRetryCount_Result resultState, long retryCount) {
-            this(resultState, retryCount, Optional.empty());
-        }
-
-        ExpectedMetrics(RequestRetryCount_Result resultState, long retryCount, String exhaustedReason) {
-            this(resultState, retryCount, Optional.of(exhaustedReason));
-        }
-    }
-
-    private void verifyMetrics(ExpectedMetrics expected, String description) {
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(expected.resultState)
-                        .build()
-                        .getCount())
-                .as(expected.resultState + " histogram should be updated (" + description + ")")
-                .isEqualTo(1);
-        for (RequestRetryCount_Result result : RequestRetryCount_Result.values()) {
-            if (result != expected.resultState) {
-                assertThat(metrics.requestRetryCount()
-                                .channelName("my-channel")
-                                .result(result)
-                                .build()
-                                .getCount())
-                        .as(result + " histogram should not be updated (" + description + ")")
-                        .isEqualTo(0);
-            } else {
-                assertThat(metrics.requestRetryCount()
-                                .channelName("my-channel")
-                                .result(result)
-                                .build()
-                                .getSnapshot()
-                                .getValues())
-                        .as(expected.resultState + " histogram should record " + expected.retryCount + " retry ("
-                                + description + ")")
-                        .containsExactly(expected.retryCount);
-            }
-        }
-        if (expected.exhaustedReason.isPresent()) {
-            assertThat(metrics.requestRetryExhausted()
-                            .channelName("my-channel")
-                            .reason(expected.exhaustedReason.get())
-                            .build()
-                            .getCount())
-                    .as("Exhausted counter should be incremented with reason " + expected.exhaustedReason.get() + " ("
-                            + description + ")")
-                    .isEqualTo(1);
-        } else {
-            // Ideally we'd check we didn't increment the exhausted counter for any reason, but we don't really
-            //   have a way to query all possible reasons, so just check the predefined one and the exception reason
-            //   that we use in the tests.
-            for (String reason : List.of("qosResponse", "serverError", "SafeIoException")) {
-                assertThat(metrics.requestRetryExhausted()
-                                .channelName("my-channel")
-                                .reason(reason)
-                                .build()
-                                .getCount())
-                        .as("Exhausted counter should not be incremented with reason " + reason + " (" + description
-                                + ")")
-                        .isEqualTo(0);
-            }
-        }
-    }
-
     @Test
     public void retryCountSuccessHistogramUpdatedAfter429ThenSuccess() throws Exception {
         // 2 retries that return 429 before a successful response
@@ -1075,7 +982,7 @@ public class RetryingChannelTest {
     }
 
     @Test
-    public void retryCountNotUpdatedForNon2xxFirstTryResponse() throws Exception {
+    public void retryCountUpdatedForNon2xxFirstTryResponse() throws Exception {
         setupResponses(400);
 
         EndpointChannel retryer = channel(4);
@@ -1085,6 +992,92 @@ public class RetryingChannelTest {
         verify(channel, times(1)).execute(REQUEST);
 
         verifyMetrics(new ExpectedMetrics(RequestRetryCount_Result.NON_RETRYABLE, 0), "non-2xx first-try response");
+    }
+
+    private EndpointChannel channel(int maxRetries) {
+        return new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                registry,
+                maxRetries,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+    }
+
+    private void setupResponses(int... codes) {
+        OngoingStubbing<ListenableFuture<Response>> stubbing = when(channel.execute(any()));
+        for (int code : codes) {
+            stubbing = stubbing.thenAnswer(_invocation -> Futures.immediateFuture(new TestResponse().code(code)));
+        }
+    }
+
+    private record ExpectedMetrics(
+            RequestRetryCount_Result resultState, long retryCount, Optional<String> exhaustedReason) {
+        ExpectedMetrics(RequestRetryCount_Result resultState, long retryCount) {
+            this(resultState, retryCount, Optional.empty());
+        }
+
+        ExpectedMetrics(RequestRetryCount_Result resultState, long retryCount, String exhaustedReason) {
+            this(resultState, retryCount, Optional.of(exhaustedReason));
+        }
+    }
+
+    private void verifyMetrics(ExpectedMetrics expected, String description) {
+        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
+        assertThat(metrics.requestRetryCount()
+                .channelName("my-channel")
+                .result(expected.resultState)
+                .build()
+                .getCount())
+                .as(expected.resultState + " histogram should be updated (" + description + ")")
+                .isEqualTo(1);
+        for (RequestRetryCount_Result result : RequestRetryCount_Result.values()) {
+            if (result != expected.resultState) {
+                assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(result)
+                        .build()
+                        .getCount())
+                        .as(result + " histogram should not be updated (" + description + ")")
+                        .isEqualTo(0);
+            } else {
+                assertThat(metrics.requestRetryCount()
+                        .channelName("my-channel")
+                        .result(result)
+                        .build()
+                        .getSnapshot()
+                        .getValues())
+                        .as(expected.resultState + " histogram should record " + expected.retryCount + " retry ("
+                                + description + ")")
+                        .containsExactly(expected.retryCount);
+            }
+        }
+        if (expected.exhaustedReason.isPresent()) {
+            assertThat(metrics.requestRetryExhausted()
+                    .channelName("my-channel")
+                    .reason(expected.exhaustedReason.get())
+                    .build()
+                    .getCount())
+                    .as("Exhausted counter should be incremented with reason " + expected.exhaustedReason.get() + " ("
+                            + description + ")")
+                    .isEqualTo(1);
+        } else {
+            // Ideally we'd check we didn't increment the exhausted counter for any reason, but we don't really
+            //   have a way to query all possible reasons, so just check the predefined one and the exception reason
+            //   that we use in the tests.
+            for (String reason : List.of("qosResponse", "serverError", "SafeIoException")) {
+                assertThat(metrics.requestRetryExhausted()
+                        .channelName("my-channel")
+                        .reason(reason)
+                        .build()
+                        .getCount())
+                        .as("Exhausted counter should not be incremented with reason " + reason + " (" + description
+                                + ")")
+                        .isEqualTo(0);
+            }
+        }
     }
 
     private static Response mockResponse(int status) {
