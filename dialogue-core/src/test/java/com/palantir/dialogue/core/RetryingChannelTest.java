@@ -1027,28 +1027,28 @@ public class RetryingChannelTest {
     private void verifyMetrics(ExpectedMetrics expected, String description) {
         DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
         assertThat(metrics.requestRetryCount()
-                .channelName("my-channel")
-                .result(expected.resultState)
-                .build()
-                .getCount())
+                        .channelName("my-channel")
+                        .result(expected.resultState)
+                        .build()
+                        .getCount())
                 .as(expected.resultState + " histogram should be updated (" + description + ")")
                 .isEqualTo(1);
         for (RequestRetryCount_Result result : RequestRetryCount_Result.values()) {
             if (result != expected.resultState) {
                 assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(result)
-                        .build()
-                        .getCount())
+                                .channelName("my-channel")
+                                .result(result)
+                                .build()
+                                .getCount())
                         .as(result + " histogram should not be updated (" + description + ")")
                         .isEqualTo(0);
             } else {
                 assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(result)
-                        .build()
-                        .getSnapshot()
-                        .getValues())
+                                .channelName("my-channel")
+                                .result(result)
+                                .build()
+                                .getSnapshot()
+                                .getValues())
                         .as(expected.resultState + " histogram should record " + expected.retryCount + " retry ("
                                 + description + ")")
                         .containsExactly(expected.retryCount);
@@ -1056,10 +1056,10 @@ public class RetryingChannelTest {
         }
         if (expected.exhaustedReason.isPresent()) {
             assertThat(metrics.requestRetryExhausted()
-                    .channelName("my-channel")
-                    .reason(expected.exhaustedReason.get())
-                    .build()
-                    .getCount())
+                            .channelName("my-channel")
+                            .reason(expected.exhaustedReason.get())
+                            .build()
+                            .getCount())
                     .as("Exhausted counter should be incremented with reason " + expected.exhaustedReason.get() + " ("
                             + description + ")")
                     .isEqualTo(1);
@@ -1069,10 +1069,10 @@ public class RetryingChannelTest {
             //   that we use in the tests.
             for (String reason : List.of("qosResponse", "serverError", "SafeIoException")) {
                 assertThat(metrics.requestRetryExhausted()
-                        .channelName("my-channel")
-                        .reason(reason)
-                        .build()
-                        .getCount())
+                                .channelName("my-channel")
+                                .reason(reason)
+                                .build()
+                                .getCount())
                         .as("Exhausted counter should not be incremented with reason " + reason + " (" + description
                                 + ")")
                         .isEqualTo(0);
