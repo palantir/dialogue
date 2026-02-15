@@ -246,19 +246,19 @@ org.jmock:jmock:2.13.1 (1 constraints: 3905393b)
 
 org.jmock:jmock-testjar:2.13.1 (1 constraints: a707a672)
 
-org.junit.jupiter:junit-jupiter:6.0.2 (1 constraints: 49070b70)
+org.junit.jupiter:junit-jupiter:6.0.3 (1 constraints: 4a070d70)
 
-org.junit.jupiter:junit-jupiter-api:6.0.2 (6 constraints: 8b554d91)
+org.junit.jupiter:junit-jupiter-api:6.0.3 (6 constraints: 8f554493)
 
-org.junit.jupiter:junit-jupiter-engine:6.0.2 (1 constraints: 050ecc3b)
+org.junit.jupiter:junit-jupiter-engine:6.0.3 (1 constraints: 060ecd3b)
 
-org.junit.jupiter:junit-jupiter-params:6.0.2 (2 constraints: 0e134e3b)
+org.junit.jupiter:junit-jupiter-params:6.0.3 (2 constraints: 1013783b)
 
-org.junit.platform:junit-platform-commons:6.0.2 (2 constraints: d7207a4a)
+org.junit.platform:junit-platform-commons:6.0.3 (2 constraints: d920ad4a)
 
-org.junit.platform:junit-platform-engine:6.0.2 (2 constraints: ef221108)
+org.junit.platform:junit-platform-engine:6.0.3 (2 constraints: f1224608)
 
-org.junit.platform:junit-platform-launcher:6.0.2 (1 constraints: 0a050b36)
+org.junit.platform:junit-platform-launcher:6.0.3 (1 constraints: 0b050c36)
 
 org.knowm.xchart:xchart:3.6.1 (1 constraints: 0c050d36)
 
