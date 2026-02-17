@@ -73,6 +73,7 @@ final class DeadlineAdvertisementChannel implements Channel {
             DeadlineExpiredException deadlineException =
                     DeadlineExpiredReasons.maybeParseFromResponse(response, ResponseDecodingAdapter.INSTANCE);
             if (deadlineException != null) {
+                response.close();
                 return Futures.immediateFailedFuture(deadlineException);
             }
             return Futures.immediateFuture(response);
