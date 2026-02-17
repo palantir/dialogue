@@ -258,6 +258,7 @@ class DeadlineAdvertisementChannelTest {
 
         ListenableFuture<Response> response =
                 channel.execute(TestEndpoint.GET, Request.builder().build());
+        assertThat(deadlineResponse.isClosed()).isTrue();
         assertThat(response).isDone();
         assertThatExceptionOfType(ExecutionException.class)
                 .isThrownBy(response::get)
