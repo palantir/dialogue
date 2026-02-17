@@ -60,3 +60,5 @@ __init__.pyc
 
 # Gradle JDKs setup
 !gradle/*
+
+.claude/settings.local.json

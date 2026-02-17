@@ -26,6 +26,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.ErrorType;
+import com.palantir.conjure.java.api.errors.QosException;
+import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
@@ -35,6 +37,7 @@ import com.palantir.dialogue.DialogueException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import org.assertj.core.api.Assertions;
@@ -70,6 +73,62 @@ public class DefaultClientsBlockingTest {
                 .satisfies(exception -> {
                     assertThat(((UnknownRemoteException) exception).getBody()).isEqualTo("Nginx broke");
                 });
+    }
+
+    @Test
+    public void testQosExceptionThrottle() {
+        QosException qosException = QosException.throttle(QosReason.of("test-reason"));
+        ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(qosException);
+
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
+                .isInstanceOf(QosException.Throttle.class)
+                .isNotSameAs(qosException)
+                .hasCause(qosException)
+                .satisfies(exception ->
+                        assertThat(((QosException) exception).getReason()).isEqualTo(QosReason.of("test-reason")));
+    }
+
+    @Test
+    public void testQosExceptionThrottleWithRetryAfter() {
+        QosException qosException = QosException.throttle(QosReason.of("test-reason"), Duration.ofSeconds(30));
+        ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(qosException);
+
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
+                .isInstanceOf(QosException.Throttle.class)
+                .isNotSameAs(qosException)
+                .hasCause(qosException)
+                .satisfies(exception -> {
+                    QosException.Throttle throttle = (QosException.Throttle) exception;
+                    assertThat(throttle.getReason()).isEqualTo(QosReason.of("test-reason"));
+                    assertThat(throttle.getRetryAfter()).hasValue(Duration.ofSeconds(30));
+                });
+    }
+
+    @Test
+    public void testQosExceptionUnavailable() {
+        QosException qosException = QosException.unavailable(QosReason.of("test-unavailable"));
+        ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(qosException);
+
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
+                .isInstanceOf(QosException.Unavailable.class)
+                .isNotSameAs(qosException)
+                .hasCause(qosException)
+                .satisfies(exception ->
+                        assertThat(((QosException) exception).getReason()).isEqualTo(QosReason.of("test-unavailable")));
+    }
+
+    @Test
+    public void testQosExceptionStackTraceIncludesBlockCallSite() {
+        QosException qosException = QosException.throttle(QosReason.of("test-reason"));
+        // Clear the stack trace to simulate an exception created on a remote/async thread
+        qosException.setStackTrace(new StackTraceElement[0]);
+        ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(qosException);
+
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
+                .isInstanceOf(QosException.Throttle.class)
+                .satisfies(exception -> assertThat(exception.getStackTrace())
+                        .extracting(StackTraceElement::getMethodName)
+                        .contains("testQosExceptionStackTraceIncludesBlockCallSite"));
     }
 
     @Test

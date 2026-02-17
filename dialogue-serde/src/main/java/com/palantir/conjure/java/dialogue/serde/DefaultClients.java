@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
+import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
@@ -139,6 +140,10 @@ enum DefaultClients implements Clients {
                 throw newUnknownRemoteException(unknownRemoteException);
             }
 
+            if (cause instanceof QosException qosException) {
+                throw newQosException(qosException);
+            }
+
             // In this case we provide a suppressed exception to mark the site where the failure was rethrown
             // to avoid losing data while retaining the original failure information.
             if (cause instanceof RuntimeException runtimeException) {
@@ -213,6 +218,30 @@ enum DefaultClients implements Clients {
     private static UnknownRemoteException newUnknownRemoteException(UnknownRemoteException cause) {
         UnknownRemoteException newException = new UnknownRemoteException(cause.getStatus(), cause.getBody());
         newException.initCause(cause);
+        return newException;
+    }
+
+    // Re-create QosException so our current stacktrace is included, similar to RemoteException handling
+    private static QosException newQosException(QosException qosException) {
+        QosException newException = qosException.accept(new QosException.Visitor<>() {
+            @Override
+            public QosException visit(QosException.Throttle exception) {
+                return exception.getRetryAfter().isPresent()
+                        ? QosException.throttle(
+                                exception.getReason(), exception.getRetryAfter().get(), qosException)
+                        : QosException.throttle(exception.getReason(), qosException);
+            }
+
+            @Override
+            public QosException visit(QosException.RetryOther exception) {
+                return QosException.retryOther(exception.getReason(), exception.getRedirectTo(), qosException);
+            }
+
+            @Override
+            public QosException visit(QosException.Unavailable exception) {
+                return QosException.unavailable(exception.getReason(), qosException);
+            }
+        });
         return newException;
     }
 
