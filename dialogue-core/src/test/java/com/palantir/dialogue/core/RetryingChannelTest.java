@@ -44,20 +44,24 @@ import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryCount_Result
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
+import org.mockito.stubbing.OngoingStubbing;
 
 @ExtendWith(MockitoExtension.class)
 public class RetryingChannelTest {
@@ -69,6 +73,13 @@ public class RetryingChannelTest {
 
     @Mock
     private EndpointChannel channel;
+
+    private TaggedMetricRegistry registry;
+
+    @BeforeEach
+    public void before() {
+        registry = new DefaultTaggedMetricRegistry();
+    }
 
     @Test
     public void testNoFailures() throws ExecutionException, InterruptedException {
@@ -892,164 +903,53 @@ public class RetryingChannelTest {
 
     @Test
     public void retryCountSuccessHistogramUpdatedAfter429ThenSuccess() throws Exception {
-        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        // 2 retries that return 429 before a successful response
+        setupResponses(429, 429, 200);
 
-        when(channel.execute(any()))
-                .thenAnswer((Answer<ListenableFuture<Response>>)
-                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
-                .thenAnswer((Answer<ListenableFuture<Response>>)
-                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
-                .thenAnswer((Answer<ListenableFuture<Response>>)
-                        _invocation -> Futures.immediateFuture(new TestResponse().code(200)));
-
-        EndpointChannel retryer = new RetryingChannel(
-                channel,
-                TestEndpoint.POST,
-                "my-channel",
-                registry,
-                4,
-                Duration.ZERO,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                ClientConfiguration.RetryOnTimeout.DISABLED);
+        EndpointChannel retryer = channel(4);
 
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response.get().code()).isEqualTo(200);
+        verify(channel, times(3)).execute(REQUEST);
 
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.SUCCESS)
-                        .build()
-                        .getCount())
-                .as("Success histogram should be updated when request succeeds after 429 retry")
-                .isEqualTo(1);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.SUCCESS)
-                        .build()
-                        .getSnapshot()
-                        .getValues())
-                .as("Success histogram should record 2 failures (the 429s) before success")
-                .containsExactly(2L);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.FAILURE)
-                        .build()
-                        .getCount())
-                .as("Failure histogram should not be updated when request eventually succeeds")
-                .isEqualTo(0);
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.SUCCESS, 2),
+                "2 retries with request eventually succeeding after 429s");
     }
 
     @Test
     public void retryCountFailureHistogramUpdatedWhenRetriesExhaustedDueToException() {
-        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-
         when(channel.execute(any())).thenReturn(FAILED);
 
-        EndpointChannel retryer = new RetryingChannel(
-                channel,
-                TestEndpoint.POST,
-                "my-channel",
-                registry,
-                4,
-                Duration.ZERO,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                ClientConfiguration.RetryOnTimeout.DISABLED);
+        EndpointChannel retryer = channel(4);
 
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
         verify(channel, times(5)).execute(REQUEST);
 
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.FAILURE)
-                        .build()
-                        .getCount())
-                .as("Failure histogram should be updated when retries exhausted due to exception")
-                .isEqualTo(1);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.FAILURE)
-                        .build()
-                        .getSnapshot()
-                        .getValues())
-                .as("Failure histogram should record 5 failures (initial + 4 retries)")
-                .containsExactly(5L);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.SUCCESS)
-                        .build()
-                        .getCount())
-                .as("Success histogram should not be updated when request fails")
-                .isEqualTo(0);
-        assertThat(metrics.requestRetryExhausted()
-                        .channelName("my-channel")
-                        .reason("SafeIoException")
-                        .build()
-                        .getCount())
-                .as("Exhausted counter should be incremented when retries exhausted due to exception")
-                .isEqualTo(1);
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 5, "SafeIoException"),
+                "retries exhausted due to exception");
     }
 
     @Test
     public void retryCountFailureHistogramUpdatedWhenRetriesExhaustedDueTo429() throws Exception {
-        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        setupResponses(429);
 
-        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>)
-                _invocation -> Futures.immediateFuture(new TestResponse().code(429)));
-
-        EndpointChannel retryer = new RetryingChannel(
-                channel,
-                TestEndpoint.POST,
-                "my-channel",
-                registry,
-                4,
-                Duration.ZERO,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                ClientConfiguration.RetryOnTimeout.DISABLED);
+        EndpointChannel retryer = channel(4);
 
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response.get().code()).isEqualTo(429);
         verify(channel, times(5)).execute(REQUEST);
 
         // Exhausted 429s are not successful responses, so they update the FAILURE histogram
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.FAILURE)
-                        .build()
-                        .getCount())
-                .as("Failure histogram should be updated when retries exhausted due to 429")
-                .isEqualTo(1);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.FAILURE)
-                        .build()
-                        .getSnapshot()
-                        .getValues())
-                .as("Failure histogram should record 5 failures (initial + 4 retries)")
-                .containsExactly(5L);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.SUCCESS)
-                        .build()
-                        .getCount())
-                .as("Success histogram should not be updated when response is not successful")
-                .isEqualTo(0);
-        assertThat(metrics.requestRetryExhausted()
-                        .channelName("my-channel")
-                        .reason("qosResponse")
-                        .build()
-                        .getCount())
-                .as("Exhausted counter should be incremented when retries exhausted due to 429")
-                .isEqualTo(1);
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 5, "qosResponse"),
+                "retries exhausted due to 429 response");
     }
 
     @Test
     public void testIoExceptionFailuresThenQosResponseThenSuccess() throws Exception {
-        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-
         when(channel.execute(any()))
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException("connect timed out")))
                 .thenReturn(FAILED)
@@ -1058,15 +958,8 @@ public class RetryingChannelTest {
                 .thenAnswer((Answer<ListenableFuture<Response>>)
                         _invocation -> Futures.immediateFuture(new TestResponse().code(200)));
 
-        EndpointChannel retryer = new RetryingChannel(
-                channel,
-                TestEndpoint.POST,
-                "my-channel",
-                registry,
-                4,
-                Duration.ZERO,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                ClientConfiguration.RetryOnTimeout.DISABLED);
+        EndpointChannel retryer = channel(4);
+
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response).isDone();
         assertThat(response.get().code())
@@ -1074,175 +967,151 @@ public class RetryingChannelTest {
                 .isEqualTo(200);
         verify(channel, times(4)).execute(REQUEST);
 
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.SUCCESS)
-                        .build()
-                        .getCount())
-                .as("Success histogram should be updated when request eventually succeeds")
-                .isEqualTo(1);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.SUCCESS)
-                        .build()
-                        .getSnapshot()
-                        .getValues())
-                .as("Success histogram should record 3 failures (2 IOExceptions + 1 429) before success")
-                .containsExactly(3L);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.FAILURE)
-                        .build()
-                        .getCount())
-                .as("Failure histogram should not be updated when request eventually succeeds")
-                .isEqualTo(0);
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.SUCCESS, 3),
+                "2 IOExceptions and 1 retryable 429 before success");
     }
 
     @Test
     public void retryCountNonRetryableHistogramUpdatedWhenNonRetryableResponseAfterRetries() throws Exception {
-        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        setupResponses(429, 400);
 
-        when(channel.execute(any()))
-                .thenAnswer((Answer<ListenableFuture<Response>>)
-                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
-                .thenAnswer((Answer<ListenableFuture<Response>>)
-                        _invocation -> Futures.immediateFuture(new TestResponse().code(400)));
-
-        EndpointChannel retryer = new RetryingChannel(
-                channel,
-                TestEndpoint.POST,
-                "my-channel",
-                registry,
-                4,
-                Duration.ZERO,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                ClientConfiguration.RetryOnTimeout.DISABLED);
+        EndpointChannel retryer = channel(4);
 
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response.get().code()).isEqualTo(400);
         verify(channel, times(2)).execute(REQUEST);
 
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.NON_RETRYABLE)
-                        .build()
-                        .getCount())
-                .as("Non-retryable histogram should be updated when request ends with a non-retryable response")
-                .isEqualTo(1);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.NON_RETRYABLE)
-                        .build()
-                        .getSnapshot()
-                        .getValues())
-                .as("Non-retryable histogram should record 1 failure (the 429) before the non-retryable 400")
-                .containsExactly(1L);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.SUCCESS)
-                        .build()
-                        .getCount())
-                .as("Success histogram should not be updated for non-retryable responses")
-                .isEqualTo(0);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.FAILURE)
-                        .build()
-                        .getCount())
-                .as("Failure histogram should not be updated when retries were not exhausted")
-                .isEqualTo(0);
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.NON_RETRYABLE, 1),
+                "non-retryable response after retryable 429");
+    }
+
+    @Test
+    public void retryCountNonRetryableHistogramUpdatedWhenNonRetryableResponseAfterAlmostMaxRetries() throws Exception {
+        setupResponses(429, 429, 429, 429, 400);
+
+        EndpointChannel retryer = channel(4);
+
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response.get().code()).isEqualTo(400);
+        verify(channel, times(5)).execute(REQUEST);
+
+        verifyMetrics(
+                // We should update the non-retryable metric if we get a non-retryable response at the last retry
+                new ExpectedMetrics(RequestRetryCount_Result.NON_RETRYABLE, 4),
+                "non-retryable response after retryable 429");
     }
 
     @Test
     public void retryCountSuccessHistogramUpdatedForFirstTrySuccess() throws Exception {
-        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        setupResponses(200);
 
-        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>)
-                _invocation -> Futures.immediateFuture(new TestResponse().code(200)));
-
-        EndpointChannel retryer = new RetryingChannel(
-                channel,
-                TestEndpoint.POST,
-                "my-channel",
-                registry,
-                4,
-                Duration.ZERO,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                ClientConfiguration.RetryOnTimeout.DISABLED);
+        EndpointChannel retryer = channel(4);
 
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response.get().code()).isEqualTo(200);
 
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.SUCCESS)
-                        .build()
-                        .getCount())
-                .as("Success histogram should be updated for first-try success on retryable request")
-                .isEqualTo(1);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.SUCCESS)
-                        .build()
-                        .getSnapshot()
-                        .getValues())
-                .as("Success histogram should record 0 failures for first-try success")
-                .containsExactly(0L);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.FAILURE)
-                        .build()
-                        .getCount())
-                .as("Failure histogram should not be updated for first-try success")
-                .isEqualTo(0);
+        verifyMetrics(new ExpectedMetrics(RequestRetryCount_Result.SUCCESS, 0), "first-try success without retries");
     }
 
     @Test
-    public void retryCountNotUpdatedForNon2xxFirstTryResponse() throws Exception {
-        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+    public void retryCountUpdatedForNon2xxFirstTryResponse() throws Exception {
+        setupResponses(400);
 
-        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>)
-                _invocation -> Futures.immediateFuture(new TestResponse().code(400)));
-
-        EndpointChannel retryer = new RetryingChannel(
-                channel,
-                TestEndpoint.POST,
-                "my-channel",
-                registry,
-                4,
-                Duration.ZERO,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                ClientConfiguration.RetryOnTimeout.DISABLED);
+        EndpointChannel retryer = channel(4);
 
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response.get().code()).isEqualTo(400);
         verify(channel, times(1)).execute(REQUEST);
 
+        verifyMetrics(new ExpectedMetrics(RequestRetryCount_Result.NON_RETRYABLE, 0), "non-2xx first-try response");
+    }
+
+    private EndpointChannel channel(int maxRetries) {
+        return new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                registry,
+                maxRetries,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+    }
+
+    private void setupResponses(int... codes) {
+        OngoingStubbing<ListenableFuture<Response>> stubbing = when(channel.execute(any()));
+        for (int code : codes) {
+            stubbing = stubbing.thenAnswer(_invocation -> Futures.immediateFuture(new TestResponse().code(code)));
+        }
+    }
+
+    private record ExpectedMetrics(
+            RequestRetryCount_Result resultState, long retryCount, Optional<String> exhaustedReason) {
+        ExpectedMetrics(RequestRetryCount_Result resultState, long retryCount) {
+            this(resultState, retryCount, Optional.empty());
+        }
+
+        ExpectedMetrics(RequestRetryCount_Result resultState, long retryCount, String exhaustedReason) {
+            this(resultState, retryCount, Optional.of(exhaustedReason));
+        }
+    }
+
+    private void verifyMetrics(ExpectedMetrics expected, String description) {
         DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
         assertThat(metrics.requestRetryCount()
                         .channelName("my-channel")
-                        .result(RequestRetryCount_Result.SUCCESS)
+                        .result(expected.resultState)
                         .build()
                         .getCount())
-                .as("Success histogram should not be updated for non-2xx first-try response")
-                .isEqualTo(0);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.FAILURE)
-                        .build()
-                        .getCount())
-                .as("Failure histogram should not be updated for non-2xx first-try response")
-                .isEqualTo(0);
-        assertThat(metrics.requestRetryCount()
-                        .channelName("my-channel")
-                        .result(RequestRetryCount_Result.NON_RETRYABLE)
-                        .build()
-                        .getCount())
-                .as("Non-retryable histogram should not be updated for non-2xx first-try response")
-                .isEqualTo(0);
+                .as(expected.resultState + " histogram should be updated (" + description + ")")
+                .isEqualTo(1);
+        for (RequestRetryCount_Result result : RequestRetryCount_Result.values()) {
+            if (result != expected.resultState) {
+                assertThat(metrics.requestRetryCount()
+                                .channelName("my-channel")
+                                .result(result)
+                                .build()
+                                .getCount())
+                        .as(result + " histogram should not be updated (" + description + ")")
+                        .isEqualTo(0);
+            } else {
+                assertThat(metrics.requestRetryCount()
+                                .channelName("my-channel")
+                                .result(result)
+                                .build()
+                                .getSnapshot()
+                                .getValues())
+                        .as(expected.resultState + " histogram should record " + expected.retryCount + " retry ("
+                                + description + ")")
+                        .containsExactly(expected.retryCount);
+            }
+        }
+        if (expected.exhaustedReason.isPresent()) {
+            assertThat(metrics.requestRetryExhausted()
+                            .channelName("my-channel")
+                            .reason(expected.exhaustedReason.get())
+                            .build()
+                            .getCount())
+                    .as("Exhausted counter should be incremented with reason " + expected.exhaustedReason.get() + " ("
+                            + description + ")")
+                    .isEqualTo(1);
+        } else {
+            // Ideally we'd check we didn't increment the exhausted counter for any reason, but we don't really
+            //   have a way to query all possible reasons, so just check the predefined one and the exception reason
+            //   that we use in the tests.
+            for (String reason : List.of("qosResponse", "serverError", "SafeIoException")) {
+                assertThat(metrics.requestRetryExhausted()
+                                .channelName("my-channel")
+                                .reason(reason)
+                                .build()
+                                .getCount())
+                        .as("Exhausted counter should not be incremented with reason " + reason + " (" + description
+                                + ")")
+                        .isEqualTo(0);
+            }
+        }
     }
 
     private static Response mockResponse(int status) {
