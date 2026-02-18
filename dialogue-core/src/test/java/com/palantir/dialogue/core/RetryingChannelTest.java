@@ -1050,10 +1050,10 @@ public class RetryingChannelTest {
 
     private EndpointChannel channel(int maxRetries) {
         return new RetryingChannel(
+                registry,
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
-                registry,
                 maxRetries,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,

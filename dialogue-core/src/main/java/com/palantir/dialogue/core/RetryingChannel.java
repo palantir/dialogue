@@ -158,29 +158,6 @@ final class RetryingChannel implements EndpointChannel {
                 () -> ThreadLocalRandom.current().nextDouble());
     }
 
-    @VisibleForTesting
-    RetryingChannel(
-            EndpointChannel delegate,
-            Endpoint endpoint,
-            String channelName,
-            TaggedMetricRegistry taggedMetricRegistry,
-            int maxRetries,
-            Duration backoffSlotSize,
-            ClientConfiguration.ServerQoS serverQoS,
-            ClientConfiguration.RetryOnTimeout retryOnTimeout) {
-        this(
-                delegate,
-                endpoint,
-                channelName,
-                taggedMetricRegistry,
-                maxRetries,
-                backoffSlotSize,
-                serverQoS,
-                retryOnTimeout,
-                sharedScheduler.get(),
-                () -> ThreadLocalRandom.current().nextDouble());
-    }
-
     private RetryingChannel(
             EndpointChannel delegate,
             Endpoint endpoint,
