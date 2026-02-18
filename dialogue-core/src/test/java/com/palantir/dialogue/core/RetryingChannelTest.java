@@ -1016,6 +1016,26 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void nonRetryableRequestSuccessRecordedAsNonRetryable() throws Exception {
+        // Channel consumes the body and returns 200
+        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
+            Request request = invocation.getArgument(0);
+            request.body().get().writeTo(new ByteArrayOutputStream());
+            return Futures.immediateFuture(new TestResponse().code(200));
+        });
+
+        EndpointChannel retryer = channel(4);
+
+        ListenableFuture<Response> response = retryer.execute(requestWithNonRepeatableBody());
+        assertThat(response.get().code()).isEqualTo(200);
+        verify(channel, times(1)).execute(any());
+
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.NON_RETRYABLE, 0),
+                "non-retryable request success should not be counted in success histogram");
+    }
+
+    @Test
     public void retryCountUpdatedForNon2xxFirstTryResponse() throws Exception {
         setupResponses(400);
 
@@ -1112,6 +1132,28 @@ public class RetryingChannelTest {
                         .isEqualTo(0);
             }
         }
+    }
+
+    private static Request requestWithNonRepeatableBody() {
+        return Request.builder()
+                .body(new RequestBody() {
+                    @Override
+                    public void writeTo(OutputStream _output) {}
+
+                    @Override
+                    public String contentType() {
+                        return "application/octet-stream";
+                    }
+
+                    @Override
+                    public boolean repeatable() {
+                        return false;
+                    }
+
+                    @Override
+                    public void close() {}
+                })
+                .build();
     }
 
     private static Response mockResponse(int status) {

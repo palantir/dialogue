@@ -297,7 +297,7 @@ final class RetryingChannel implements EndpointChannel {
                         span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
                     }
 
-                    if (Responses.isSuccess(response)) {
+                    if (requestCanBeRetried() && Responses.isSuccess(response)) {
                         retryCountSuccessHistogram.get().update(failures);
                     } else if (failures > maxRetries) {
                         // Means we got a retryable failure response, but retries were exhausted
