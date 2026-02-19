@@ -26,7 +26,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.ErrorType;
-import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
@@ -39,7 +38,6 @@ import java.io.InputStream;
 import java.util.Map;
 import java.util.Optional;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 
 public class DefaultClientsBlockingTest {
@@ -57,14 +55,8 @@ public class DefaultClientsBlockingTest {
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(remoteException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
-                .isSameAs(remoteException)
-                .satisfies(exception -> {
-                    assertThat(exception.getSuppressed())
-                            .singleElement()
-                            .asInstanceOf(InstanceOfAssertFactories.throwable(SafeRuntimeException.class))
-                            .hasMessage("Rethrown by dialogue")
-                            .hasStackTraceContaining("DefaultClientsBlockingTest");
-                });
+                .isInstanceOf(RemoteException.class)
+                .hasFieldOrPropertyWithValue("status", ErrorType.INVALID_ARGUMENT.httpErrorCode());
     }
 
     @Test
@@ -73,29 +65,10 @@ public class DefaultClientsBlockingTest {
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(remoteException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
-                .isSameAs(remoteException)
+                .isInstanceOf(UnknownRemoteException.class)
+                .hasMessage("Response status: 502")
                 .satisfies(exception -> {
-                    assertThat(exception.getSuppressed())
-                            .singleElement()
-                            .asInstanceOf(InstanceOfAssertFactories.throwable(SafeRuntimeException.class))
-                            .hasMessage("Rethrown by dialogue")
-                            .hasStackTraceContaining("DefaultClientsBlockingTest");
-                });
-    }
-
-    @Test
-    public void testQosException() {
-        QosException qosException = QosException.unavailable();
-        ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(qosException);
-
-        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
-                .isSameAs(qosException)
-                .satisfies(exception -> {
-                    assertThat(exception.getSuppressed())
-                            .singleElement()
-                            .asInstanceOf(InstanceOfAssertFactories.throwable(SafeRuntimeException.class))
-                            .hasMessage("Rethrown by dialogue")
-                            .hasStackTraceContaining("DefaultClientsBlockingTest");
+                    assertThat(((UnknownRemoteException) exception).getBody()).isEqualTo("Nginx broke");
                 });
     }
 
@@ -106,13 +79,10 @@ public class DefaultClientsBlockingTest {
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isSameAs(runtimeException)
-                .satisfies(exception -> {
-                    assertThat(exception.getSuppressed())
-                            .singleElement()
-                            .asInstanceOf(InstanceOfAssertFactories.throwable(SafeRuntimeException.class))
-                            .hasMessage("Rethrown by dialogue")
-                            .hasStackTraceContaining("DefaultClientsBlockingTest");
-                });
+                .satisfies(exception -> assertThat(exception.getSuppressed()).hasSize(1))
+                .satisfies(exception -> assertThat(exception.getSuppressed()[0])
+                        .isInstanceOf(SafeRuntimeException.class)
+                        .hasMessage("Rethrown by dialogue"));
     }
 
     @Test
@@ -130,15 +100,7 @@ public class DefaultClientsBlockingTest {
         Error error = new Error();
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(error);
 
-        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
-                .isSameAs(error)
-                .satisfies(exception -> {
-                    assertThat(exception.getSuppressed())
-                            .singleElement()
-                            .asInstanceOf(InstanceOfAssertFactories.throwable(SafeRuntimeException.class))
-                            .hasMessage("Rethrown by dialogue")
-                            .hasStackTraceContaining("DefaultClientsBlockingTest");
-                });
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture)).isSameAs(error);
     }
 
     @Test
@@ -198,15 +160,15 @@ public class DefaultClientsBlockingTest {
                 ErrorType.INVALID_ARGUMENT.httpErrorCode());
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(customException);
 
-        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
-                .isSameAs(customException)
-                .satisfies(exception -> {
-                    assertThat(exception.getSuppressed())
-                            .singleElement()
-                            .asInstanceOf(InstanceOfAssertFactories.throwable(SafeRuntimeException.class))
-                            .hasMessage("Rethrown by dialogue")
-                            .hasStackTraceContaining("DefaultClientsBlockingTest");
-                });
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture)).satisfies(exception -> {
+            assertThat(exception).isInstanceOf(CustomRemoteException.class);
+            assertThat(exception).hasMessageContainingAll("Default:InvalidArgument", "{someField=myFieldValue}");
+            assertThat(exception).isInstanceOf(RemoteException.class);
+            assertThat(exception.getCause()).isInstanceOfSatisfying(CustomRemoteException.class, cause -> {
+                assertThat(cause).isNotNull();
+                assertThat(cause).hasMessageContainingAll("Default:InvalidArgument", "{someField=myFieldValue}");
+            });
+        });
     }
 
     public record MyParams(String someField) {}
