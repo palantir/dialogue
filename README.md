@@ -92,7 +92,7 @@ public ListenableFuture<Thing> getThing(
 
 ## Blocking or async
 
-Of the two generated interfaces `FooServiceBlocking` and `FooServiceAync`, the blocking version is usually appropriate for 98% of use-cases, and results in much simpler control flow and error-handling. The async version returns Guava [`ListenableFutures`](https://github.com/google/guava/wiki/ListenableFutureExplained), making it a lot more fiddly to use. `Futures.addCallback` and `FluentFuture` are your friends here.
+Of the two generated interfaces `FooServiceBlocking` and `FooServiceAsync`, the blocking version is usually appropriate for 98% of use-cases, and results in much simpler control flow and error-handling. The async version returns Guava [`ListenableFutures`](https://github.com/google/guava/wiki/ListenableFutureExplained), making it a lot more fiddly to use. `Futures.addCallback` and `FluentFuture` are your friends here.
 
 [dialogue-annotations-processor generated client bindings]: #dialogue-annotations-processor-generated-client-bindings
 
