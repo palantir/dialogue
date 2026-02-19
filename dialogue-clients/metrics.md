@@ -100,6 +100,17 @@ Instrumentation for BalancedChannel internals.
 Dialogue-specific metrics that are not necessarily applicable to other client implementations.
 - `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
 - `dialogue.client.request.retry` tagged `channel-name`, `reason` (meter): Rate at which the RetryingChannel retries requests (across all endpoints).
+- `dialogue.client.request.retry.count` (histogram): Distribution of failed attempt counts per request. The value recorded is the number of failed attempts
+before the terminal result. For "success", this equals the number of retries before a 2xx response.
+For "failure" (retries exhausted), this equals maxRetries + 1 since the final attempt also failed.
+For "non-retryable", this is the number of retryable failures before receiving a non-retryable response
+(e.g. 4xx), or 0 if the request itself was not retryable (e.g. non-repeatable body).
+
+  - `channel-name`
+  - `result` values (`success`,`failure`,`non-retryable`)
+- `dialogue.client.request.retry.exhausted` tagged `channel-name`, `reason` (counter): Count of requests that exhaust all retry attempts without receiving a successful response. The reason is
+populated with the reason for which the last retry has failed.
+
 - `dialogue.client.requests.queued` tagged `channel-name` (counter): Number of queued requests waiting to execute.
 - `dialogue.client.requests.endpoint.queued` tagged `channel-name`, `service-name`, `endpoint` (counter): Number of queued requests waiting to execute for a specific endpoint due to server QoS.
 - `dialogue.client.requests.sticky.queued` tagged `channel-name` (counter): Number of sticky queued requests waiting to try to be executed.
