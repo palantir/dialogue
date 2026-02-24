@@ -38,8 +38,11 @@ class RetryAdvertisementChannelTest {
         EndpointChannel channel = new RetryAdvertisementChannel(delegate);
         assertThat(channel.execute(Request.builder().build())).isCancelled();
 
-        assertThat(requests).singleElement().satisfies(request -> assertThat(request.headerParams())
-                .isEqualTo(ImmutableListMultimap.of(RetryAdvertisementChannel.CLIENT_CAN_RETRY_HEADER, "true")));
+        assertThat(requests)
+                .singleElement()
+                .satisfies(request -> assertThat(request.headerParams())
+                        .isEqualTo(
+                                ImmutableListMultimap.of(RetryAdvertisementChannel.CLIENT_CAN_RETRY_HEADER, "true")));
     }
 
     @Test

@@ -42,13 +42,15 @@ final class ChannelNames {
         // For settings with generic names ENABLED/DISABLED, prepend the field name so it's understandable.
         augment.maxNumRetries()
                 .ifPresent(value -> builder.append("-MAX_RETRIES_").append(value));
-        augment.clientQoS().ifPresent(value -> builder.append(
-                        value == ClientConfiguration.ClientQoS.ENABLED ? "-CLIENT_QOS_" : "-")
-                .append(value));
+        augment.clientQoS()
+                .ifPresent(
+                        value -> builder.append(value == ClientConfiguration.ClientQoS.ENABLED ? "-CLIENT_QOS_" : "-")
+                                .append(value));
         augment.serverQoS().ifPresent(value -> builder.append("-").append(value));
-        augment.retryOnTimeout().ifPresent(value -> builder.append(
-                        value == ClientConfiguration.RetryOnTimeout.DISABLED ? "-RETRY_ON_TIMEOUT_" : "-")
-                .append(value));
+        augment.retryOnTimeout()
+                .ifPresent(value -> builder.append(
+                                value == ClientConfiguration.RetryOnTimeout.DISABLED ? "-RETRY_ON_TIMEOUT_" : "-")
+                        .append(value));
         return builder.toString();
     }
 

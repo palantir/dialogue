@@ -170,8 +170,9 @@ public final class ErrorDecoderTest {
 
         RuntimeException result = decoder.decode(response);
         assertThat(result)
-                .isInstanceOfSatisfying(UnknownRemoteException.class, exception -> assertThat(exception.getStatus())
-                        .isEqualTo(308));
+                .isInstanceOfSatisfying(
+                        UnknownRemoteException.class,
+                        exception -> assertThat(exception.getStatus()).isEqualTo(308));
     }
 
     @Test
@@ -182,8 +183,9 @@ public final class ErrorDecoderTest {
 
         RuntimeException result = decoder.decode(response);
         assertThat(result)
-                .isInstanceOfSatisfying(UnknownRemoteException.class, exception -> assertThat(exception.getStatus())
-                        .isEqualTo(308));
+                .isInstanceOfSatisfying(
+                        UnknownRemoteException.class,
+                        exception -> assertThat(exception.getStatus()).isEqualTo(308));
     }
 
     @SuppressWarnings("for-rollout:deprecation")

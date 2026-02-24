@@ -74,25 +74,26 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                     channel.execute(TestEndpoint.POST, Request.builder().build());
             assertThatThrownBy(() -> Futures.getUnchecked(response))
                     .getCause()
-                    .isInstanceOfSatisfying(UnknownHostException.class, throwable -> assertThat(
-                                    throwable.getSuppressed()[0])
-                            .satisfies(diagnosticThrowable -> assertThat(diagnosticThrowable.getStackTrace())
-                                    .as("Diagnostic exception should have an empty stack trace")
-                                    .isEmpty())
-                            .isInstanceOfSatisfying(SafeLoggable.class, safeLoggable -> {
-                                assertThat(Lists.transform(safeLoggable.getArgs(), Arg::getName))
-                                        .as("Expected a diagnostic exception")
-                                        .containsExactlyInAnyOrder(
-                                                "durationMillis",
-                                                "connectTimeout",
-                                                "socketTimeout",
-                                                "clientName",
-                                                "serviceName",
-                                                "endpointName",
-                                                "requestTraceId",
-                                                "requestSpanId",
-                                                "hostIndex");
-                            }));
+                    .isInstanceOfSatisfying(
+                            UnknownHostException.class,
+                            throwable -> assertThat(throwable.getSuppressed()[0])
+                                    .satisfies(diagnosticThrowable -> assertThat(diagnosticThrowable.getStackTrace())
+                                            .as("Diagnostic exception should have an empty stack trace")
+                                            .isEmpty())
+                                    .isInstanceOfSatisfying(SafeLoggable.class, safeLoggable -> {
+                                        assertThat(Lists.transform(safeLoggable.getArgs(), Arg::getName))
+                                                .as("Expected a diagnostic exception")
+                                                .containsExactlyInAnyOrder(
+                                                        "durationMillis",
+                                                        "connectTimeout",
+                                                        "socketTimeout",
+                                                        "clientName",
+                                                        "serviceName",
+                                                        "endpointName",
+                                                        "requestTraceId",
+                                                        "requestSpanId",
+                                                        "hostIndex");
+                                    }));
         }
 
         ListenableFuture<Response> again =
