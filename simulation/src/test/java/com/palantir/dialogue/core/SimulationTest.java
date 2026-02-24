@@ -157,20 +157,26 @@ final class SimulationTest {
                 SimulationServer.builder()
                         .serverName("fast")
                         .simulation(simulation)
-                        .handler(getEndpoint, h -> h.respond200UntilCapacity(500, errorThreshold)
-                                .linearResponseTime(Duration.ofMillis(600), slowdownThreshold))
+                        .handler(
+                                getEndpoint,
+                                h -> h.respond200UntilCapacity(500, errorThreshold)
+                                        .linearResponseTime(Duration.ofMillis(600), slowdownThreshold))
                         .build(),
                 SimulationServer.builder()
                         .serverName("medium")
                         .simulation(simulation)
-                        .handler(getEndpoint, h -> h.respond200UntilCapacity(500, errorThreshold)
-                                .linearResponseTime(Duration.ofMillis(800), slowdownThreshold))
+                        .handler(
+                                getEndpoint,
+                                h -> h.respond200UntilCapacity(500, errorThreshold)
+                                        .linearResponseTime(Duration.ofMillis(800), slowdownThreshold))
                         .build(),
                 SimulationServer.builder()
                         .serverName("slightly_slow")
                         .simulation(simulation)
-                        .handler(getEndpoint, h -> h.respond200UntilCapacity(500, errorThreshold)
-                                .linearResponseTime(Duration.ofMillis(1000), slowdownThreshold))
+                        .handler(
+                                getEndpoint,
+                                h -> h.respond200UntilCapacity(500, errorThreshold)
+                                        .linearResponseTime(Duration.ofMillis(1000), slowdownThreshold))
                         .build());
 
         st = strategy;

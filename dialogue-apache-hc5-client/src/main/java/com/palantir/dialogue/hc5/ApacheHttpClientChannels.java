@@ -550,12 +550,13 @@ public final class ApacheHttpClientChannels {
                             HttpClientExecRuntimeAttributeInterceptor.INSTANCE)
                     .setDefaultAuthSchemeRegistry(
                             RegistryBuilder.<AuthSchemeFactory>create().build());
-            conf.proxyCredentials().ifPresent(credentials -> builder.setDefaultCredentialsProvider(
-                            new SingleCredentialsProvider(credentials))
-                    .setProxyAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
-                    .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeFactory>create()
-                            .register(StandardAuthScheme.BASIC, BasicSchemeFactory.INSTANCE)
-                            .build()));
+            conf.proxyCredentials()
+                    .ifPresent(credentials -> builder.setDefaultCredentialsProvider(
+                                    new SingleCredentialsProvider(credentials))
+                            .setProxyAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
+                            .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeFactory>create()
+                                    .register(StandardAuthScheme.BASIC, BasicSchemeFactory.INSTANCE)
+                                    .build()));
 
             CloseableHttpClient apacheClient = builder.build();
             ScheduledFuture<?> connectionEvictorFuture =

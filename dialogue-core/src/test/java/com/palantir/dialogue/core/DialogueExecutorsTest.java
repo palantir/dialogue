@@ -44,9 +44,10 @@ final class DialogueExecutorsTest {
             exec.schedule(Runnables.doNothing(), 1, TimeUnit.SECONDS).cancel(true);
             assertThat(countExecutorThreads()).isEqualTo(1);
 
-            Awaitility.waitAtMost(Duration.ofSeconds(1)).untilAsserted(() -> assertThat(countExecutorThreads())
-                    .as("Created threads should time out")
-                    .isEqualTo(0));
+            Awaitility.waitAtMost(Duration.ofSeconds(1))
+                    .untilAsserted(() -> assertThat(countExecutorThreads())
+                            .as("Created threads should time out")
+                            .isEqualTo(0));
 
             // Test scheduling beyond the timeout
             AtomicInteger counter = new AtomicInteger();
@@ -54,9 +55,10 @@ final class DialogueExecutorsTest {
             assertThat(countExecutorThreads()).isEqualTo(1);
             assertThat(scheduledFuture.get(1500, TimeUnit.MILLISECONDS)).isEqualTo(1);
 
-            Awaitility.waitAtMost(Duration.ofSeconds(1)).untilAsserted(() -> assertThat(countExecutorThreads())
-                    .as("Created threads should time out")
-                    .isEqualTo(0));
+            Awaitility.waitAtMost(Duration.ofSeconds(1))
+                    .untilAsserted(() -> assertThat(countExecutorThreads())
+                            .as("Created threads should time out")
+                            .isEqualTo(0));
         } finally {
             exec.shutdownNow();
             assertThat(exec.awaitTermination(1, TimeUnit.SECONDS))

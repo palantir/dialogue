@@ -136,8 +136,8 @@ public class DialogueClientsDnsIntegrationTest {
                 .build();
         undertow.start();
         try {
-            DialogueClients.ReloadingFactory factory = DialogueClients.create(
-                            Refreshable.only(ServicesConfigBlock.builder()
+            DialogueClients.ReloadingFactory factory = DialogueClients.create(Refreshable.only(
+                            ServicesConfigBlock.builder()
                                     .defaultSecurity(TestConfigurations.SSL_CONFIG)
                                     .putServices(
                                             service,
@@ -204,8 +204,8 @@ public class DialogueClientsDnsIntegrationTest {
                 .build();
         undertow.start();
         try {
-            DialogueClients.ReloadingFactory factory = DialogueClients.create(
-                            Refreshable.only(ServicesConfigBlock.builder()
+            DialogueClients.ReloadingFactory factory = DialogueClients.create(Refreshable.only(
+                            ServicesConfigBlock.builder()
                                     .defaultSecurity(TestConfigurations.SSL_CONFIG)
                                     .putServices(
                                             "foo",
@@ -364,8 +364,8 @@ public class DialogueClientsDnsIntegrationTest {
 
             // reassigned to null later so that the target may be garbage collected
             @SuppressWarnings("unused")
-            DialogueClients.ReloadingFactory factory = DialogueClients.create(
-                            Refreshable.only(ServicesConfigBlock.builder()
+            DialogueClients.ReloadingFactory factory = DialogueClients.create(Refreshable.only(
+                            ServicesConfigBlock.builder()
                                     .defaultSecurity(TestConfigurations.SSL_CONFIG)
                                     .putServices(
                                             "foo",

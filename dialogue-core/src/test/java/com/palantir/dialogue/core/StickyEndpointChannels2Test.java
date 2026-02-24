@@ -300,8 +300,8 @@ public final class StickyEndpointChannels2Test {
         }
 
         TestHarness expectAddStickyTokenRequest(Optional<Runnable> maybeAdditionalListener) {
-            when(endpointChannel.execute(Mockito.same(rawRequest)))
-                    .thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
+            when(endpointChannel.execute(Mockito.same(rawRequest))).thenAnswer((Answer<ListenableFuture<Response>>)
+                    invocation -> {
                         Request actualRequest = invocation.getArgument(0);
                         LimitedChannel stickyTarget = mock(LimitedChannel.class);
                         when(stickyTarget.maybeExecute(
@@ -322,8 +322,8 @@ public final class StickyEndpointChannels2Test {
 
         TestHarness expectStickyRequest(TestHarness responseTestHarness, int maxTimes) {
             AtomicInteger count = new AtomicInteger();
-            when(endpointChannel.execute(Mockito.same(rawRequest)))
-                    .thenAnswer((Answer<ListenableFuture<Response>>) _invocation -> {
+            when(endpointChannel.execute(Mockito.same(rawRequest))).thenAnswer((Answer<ListenableFuture<Response>>)
+                    _invocation -> {
                         assertThat(count.incrementAndGet()).isLessThanOrEqualTo(maxTimes);
                         assertThat(responseTestHarness.responseListenableFuture).isDone();
                         assertThat(Futures.getDone(responseTestHarness.responseListenableFuture)
