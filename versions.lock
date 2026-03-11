@@ -2,9 +2,9 @@
 
 com.fasterxml.jackson.core:jackson-annotations:2.21 (9 constraints: 28980987)
 
-com.fasterxml.jackson.core:jackson-core:2.21.1 (11 constraints: 3de556a0)
+com.fasterxml.jackson.core:jackson-core:2.21.1 (11 constraints: 3ee5a5a0)
 
-com.fasterxml.jackson.core:jackson-databind:2.21.1 (15 constraints: 2831f113)
+com.fasterxml.jackson.core:jackson-databind:2.21.1 (15 constraints: 29314c15)
 
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.21.1 (1 constraints: 7c1c98a4)
 
@@ -24,7 +24,7 @@ com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.43.0 (19 constraints: de2e4682)
+com.google.errorprone:error_prone_annotations:2.43.0 (19 constraints: e02e9687)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
@@ -36,9 +36,9 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.7.0 (1 constraints: 0b050a36)
 
-com.palantir.conjure.java:conjure-lib:8.70.0 (2 constraints: 3124147a)
+com.palantir.conjure.java:conjure-lib:8.71.0 (2 constraints: 3224667a)
 
-com.palantir.conjure.java.api:errors:2.70.0 (3 constraints: 8529d714)
+com.palantir.conjure.java.api:errors:2.70.0 (3 constraints: 7d29f812)
 
 com.palantir.conjure.java.api:service-config:2.70.0 (2 constraints: 5d1936dc)
 
@@ -62,7 +62,7 @@ com.palantir.nylon:nylon-threads:0.7.0 (1 constraints: 0f100392)
 
 com.palantir.refreshable:refreshable:2.10.0 (2 constraints: 211966c1)
 
-com.palantir.ri:resource-identifier:2.14.0 (2 constraints: 561525da)
+com.palantir.ri:resource-identifier:2.14.0 (2 constraints: 571528da)
 
 com.palantir.safe-logging:logger:3.12.0 (14 constraints: 27e1acdf)
 
@@ -70,13 +70,13 @@ com.palantir.safe-logging:logger-slf4j:3.12.0 (1 constraints: 310e8d50)
 
 com.palantir.safe-logging:logger-spi:3.12.0 (2 constraints: 711e40b0)
 
-com.palantir.safe-logging:preconditions:3.12.0 (20 constraints: e3468888)
+com.palantir.safe-logging:preconditions:3.12.0 (20 constraints: e446f58b)
 
-com.palantir.safe-logging:safe-logging:3.12.0 (19 constraints: 4038c13f)
+com.palantir.safe-logging:safe-logging:3.12.0 (19 constraints: 41380443)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.6.0 (1 constraints: 0805fd35)
 
-com.palantir.tokens:auth-tokens:3.23.0 (3 constraints: 1828bd8b)
+com.palantir.tokens:auth-tokens:3.23.0 (3 constraints: 1928f68b)
 
 com.palantir.tracing:tracing:6.32.0 (3 constraints: ad24a0fb)
 
