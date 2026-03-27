@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
@@ -44,7 +45,6 @@ import java.util.Deque;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -94,11 +94,9 @@ final class QueuedChannel implements Channel {
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger inFlight = new AtomicInteger();
 
-    // Queue timeout: if > 0, enqueued requests are failed after this duration
+    // Queue timeout: if > 0, enqueued requests are evicted when polled after this duration
     private final long queueTimeoutNanos;
-
-    @Nullable
-    private final ScheduledExecutorService scheduler;
+    private final Ticker ticker;
 
     QueuedChannel(
             LimitedChannel delegate,
@@ -106,7 +104,7 @@ final class QueuedChannel implements Channel {
             @Safe String queueType,
             QueuedChannelInstrumentation metrics,
             int maxQueueSize) {
-        this(delegate, channelName, queueType, metrics, maxQueueSize, 0, null);
+        this(delegate, channelName, queueType, metrics, maxQueueSize, 0, Ticker.systemTicker());
     }
 
     QueuedChannel(
@@ -116,7 +114,7 @@ final class QueuedChannel implements Channel {
             QueuedChannelInstrumentation metrics,
             int maxQueueSize,
             long queueTimeoutNanos,
-            @Nullable ScheduledExecutorService scheduler) {
+            Ticker ticker) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
         this.queueType = queueType;
@@ -124,7 +122,7 @@ final class QueuedChannel implements Channel {
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
         this.queueTimeoutNanos = queueTimeoutNanos;
-        this.scheduler = scheduler;
+        this.ticker = ticker;
         // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
         // zero interactions because they support both increment and decrement operations.
         this.queueSizeCounter = Suppliers.memoize(metrics::requestsQueued);
@@ -152,11 +150,10 @@ final class QueuedChannel implements Channel {
                         DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
                 cf.maxQueueSize(),
                 timeoutNanos,
-                timeoutNanos > 0 ? cf.scheduler() : null);
+                cf.ticker());
     }
 
     static QueuedChannel create(Config cf, Endpoint endpoint, LimitedChannel delegate) {
-        long timeoutNanos = cf.queueTimeout().map(Duration::toNanos).orElse(0L);
         return new QueuedChannel(
                 delegate,
                 cf.channelName(),
@@ -166,9 +163,7 @@ final class QueuedChannel implements Channel {
                         cf.channelName(),
                         endpoint.serviceName(),
                         endpoint.endpointName()),
-                cf.maxQueueSize(),
-                timeoutNanos,
-                timeoutNanos > 0 ? cf.scheduler() : null);
+                cf.maxQueueSize());
     }
 
     @Override
@@ -216,6 +211,7 @@ final class QueuedChannel implements Channel {
                 .response(SettableFuture.create())
                 .span(DetachedSpan.start("Dialogue-request-enqueued"))
                 .timer(queuedTime.time())
+                .enqueueNanos(ticker.read())
                 .build();
 
         if (!queuedCalls.offer(components)) {
@@ -231,33 +227,9 @@ final class QueuedChannel implements Channel {
                     SafeArg.of("channelName", channelName));
         }
 
-        scheduleQueueTimeout(components);
-
         schedule();
 
         return Optional.of(components.response());
-    }
-    // TODO(pm): Some tests: 1) timeout while request is in the queue, 2) timeout while request is polled from the
-    //   queue, but not yet complete, 3) timeout after the request completes
-    @SuppressWarnings("FutureReturnValueIgnored")
-    private void scheduleQueueTimeout(DeferredCall call) {
-        if (queueTimeoutNanos <= 0 || scheduler == null) {
-            return;
-        }
-        SettableFuture<Response> responseFuture = call.response();
-        scheduler.schedule(
-                () -> {
-                    // TODO(pm): should this be a special new exception that clients can call? What is the expectation
-                    //  from calling code here? Surely not just retrying.
-                    responseFuture.setException(new SafeRuntimeException(
-                            "Request queued for longer than queue timeout",
-                            SafeArg.of("channelName", channelName),
-                            SafeArg.of("queueTimeoutNanos", queueTimeoutNanos)));
-                    // TODO(pm): Let's add a callback here, log something and update a new metric to keep track of queue
-                    //  timeouts.
-                },
-                queueTimeoutNanos,
-                TimeUnit.NANOSECONDS);
     }
 
     private void onCompletion() {
@@ -314,7 +286,26 @@ final class QueuedChannel implements Channel {
             queueHead.timer().stop();
             return true;
         }
+        // Evict entries that have been queued longer than the timeout.
+        if (isExpired(queueHead)) {
+            decrementQueueSize();
+            queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
+            queueHead.timer().stop();
+            queueHead.response().setException(new SafeRuntimeException(
+                    "Request queued for longer than queue timeout",
+                    SafeArg.of("channelName", channelName),
+                    SafeArg.of("queueTimeoutNanos", queueTimeoutNanos)));
+            return true;
+        }
         return scheduleTaskFromQueue(queueHead);
+    }
+
+    private boolean isExpired(DeferredCall call) {
+        if (queueTimeoutNanos <= 0) {
+            return false;
+        }
+        long elapsedNanos = ticker.read() - call.enqueueNanos();
+        return elapsedNanos > queueTimeoutNanos;
     }
 
     private boolean scheduleTaskFromQueue(DeferredCall queueHead) {
@@ -472,6 +463,9 @@ final class QueuedChannel implements Channel {
         DetachedSpan span();
 
         Timer.Context timer();
+
+        /** Timestamp (from {@link Ticker#read()}) when this call was enqueued. */
+        long enqueueNanos();
 
         class Builder extends ImmutableDeferredCall.Builder {}
 

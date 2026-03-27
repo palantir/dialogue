@@ -440,23 +440,30 @@ class RequestFlowWalkthroughTest {
         }
         assertThat(outerQueue.getQueueSizeForTesting()).isEqualTo(5);
 
-        // Wait for the scheduled timeout to fire
+        // Lazy eviction: the entries are NOT proactively failed. They sit in the deque
+        // until scheduleNextTask polls them and checks the timestamp.
         Thread.sleep(queueTimeout.toMillis() + 100);
 
-        // All 5 queued futures should have been failed by the scheduled timeout task
+        // Futures are still not done — no one has checked them yet (lazy!)
         for (int i = 0; i < 5; i++) {
-            assertThat(queued[i]).as("Queued request %d should be done (timed out)", i).isDone();
+            assertThat(queued[i]).as("Queued request %d should NOT be done yet (lazy eviction)", i).isNotDone();
+        }
+
+        // Complete one wire request to trigger scheduleNextTask.
+        // scheduleNextTask will poll entries from the deque, check isExpired(), and evict them.
+        completeOne(HOST_A);
+
+        // Now the expired entries should have been discovered and failed
+        for (int i = 0; i < 5; i++) {
+            assertThat(queued[i]).as("Queued request %d should be done after drain", i).isDone();
             assertThat(queued[i])
                     .failsWithin(Duration.ZERO)
                     .withThrowableThat()
                     .withMessageContaining("queue timeout");
         }
 
-        // The deque entries are still present (not yet cleaned up).
-        // Complete one wire request to trigger scheduleNextTask, which will skip the isDone entries.
-        completeOne(HOST_A);
         assertThat(outerQueue.getQueueSizeForTesting())
-                .as("isDone check in scheduleNextTask should have cleaned up timed-out entries")
+                .as("All timed-out entries should be cleaned up")
                 .isEqualTo(0);
     }
 }
