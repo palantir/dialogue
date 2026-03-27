@@ -39,12 +39,14 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TagTranslator;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -94,18 +96,37 @@ final class QueuedChannel implements Channel {
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger inFlight = new AtomicInteger();
 
+    // Queue timeout: if > 0, enqueued requests are failed after this duration
+    private final long queueTimeoutNanos;
+
+    @Nullable
+    private final ScheduledExecutorService scheduler;
+
     QueuedChannel(
             LimitedChannel delegate,
             @Safe String channelName,
             @Safe String queueType,
             QueuedChannelInstrumentation instrumentation,
             int maxQueueSize) {
+        this(delegate, channelName, queueType, metrics, maxQueueSize, 0, null);
+    }
+
+    QueuedChannel(
+            LimitedChannel delegate,
+            @Safe String channelName,
+            @Safe String queueType,
+            QueuedChannelInstrumentation metrics,
+            int maxQueueSize,
+            long queueTimeoutNanos,
+            @Nullable ScheduledExecutorService scheduler) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
         this.queueType = queueType;
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
+        this.queueTimeoutNanos = queueTimeoutNanos;
+        this.scheduler = scheduler;
         // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
         // zero interactions because they support both increment and decrement operations.
         this.queueSizeCounter = Suppliers.memoize(instrumentation::requestsQueued);
@@ -129,16 +150,20 @@ final class QueuedChannel implements Channel {
     }
 
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
+        long timeoutNanos = cf.queueTimeout().map(Duration::toNanos).orElse(0L);
         return new QueuedChannel(
                 delegate,
                 cf.channelName(),
                 "channel",
                 channelInstrumentation(
                         DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
-                cf.maxQueueSize());
+                cf.maxQueueSize(),
+                timeoutNanos,
+                timeoutNanos > 0 ? cf.scheduler() : null);
     }
 
     static QueuedChannel create(Config cf, Endpoint endpoint, LimitedChannel delegate) {
+        long timeoutNanos = cf.queueTimeout().map(Duration::toNanos).orElse(0L);
         return new QueuedChannel(
                 delegate,
                 cf.channelName(),
@@ -148,7 +173,9 @@ final class QueuedChannel implements Channel {
                         cf.channelName(),
                         endpoint.serviceName(),
                         endpoint.endpointName()),
-                cf.maxQueueSize());
+                cf.maxQueueSize(),
+                timeoutNanos,
+                timeoutNanos > 0 ? cf.scheduler() : null);
     }
 
     @Override
@@ -211,9 +238,33 @@ final class QueuedChannel implements Channel {
                     SafeArg.of("channelName", channelName));
         }
 
+        scheduleQueueTimeout(components);
+
         schedule();
 
         return Optional.of(components.response());
+    }
+    // TODO(pm): Some tests: 1) timeout while request is in the queue, 2) timeout while request is polled from the
+    //   queue, but not yet complete, 3) timeout after the request completes
+    @SuppressWarnings("FutureReturnValueIgnored")
+    private void scheduleQueueTimeout(DeferredCall call) {
+        if (queueTimeoutNanos <= 0 || scheduler == null) {
+            return;
+        }
+        SettableFuture<Response> responseFuture = call.response();
+        scheduler.schedule(
+                () -> {
+                    // TODO(pm): should this be a special new exception that clients can call? What is the expectation
+                    //  from calling code here? Surely not just retrying.
+                    responseFuture.setException(new SafeRuntimeException(
+                            "Request queued for longer than queue timeout",
+                            SafeArg.of("channelName", channelName),
+                            SafeArg.of("queueTimeoutNanos", queueTimeoutNanos)));
+                    // TODO(pm): Let's add a callback here, log something and update a new metric to keep track of queue
+                    //  timeouts.
+                },
+                queueTimeoutNanos,
+                TimeUnit.NANOSECONDS);
     }
 
     private void onCompletion() {
@@ -364,6 +415,11 @@ final class QueuedChannel implements Channel {
                 SafeArg.of("channel", channelName),
                 SafeArg.of("service", endpoint.serviceName()),
                 SafeArg.of("endpoint", endpoint.endpointName()));
+    }
+
+    @VisibleForTesting
+    int getQueueSizeForTesting() {
+        return queueSizeEstimate.get();
     }
 
     @Override
