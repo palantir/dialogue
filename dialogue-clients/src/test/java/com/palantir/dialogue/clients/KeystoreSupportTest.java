@@ -18,6 +18,7 @@ package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.common.hash.HashCode;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.core.SslStoreMetadata;
@@ -46,9 +47,8 @@ class KeystoreSupportTest {
                 KeystoreSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
 
         SslStoreMetadata initial = refreshable.get();
-        String initialTrustHash = initial.trustStore().orElseThrow().sha256();
-        long initialTrustSize = initial.trustStore().orElseThrow().sizeBytes();
-        String initialKeyHash = initial.keyStore().orElseThrow().sha256();
+        HashCode initialTrustHash = initial.trustStore().hash();
+        long initialTrustSize = initial.trustStore().sizeBytes();
 
         // Corrupts the truststore for the sake of testing updates
         Files.write(trustStore, new byte[] {1, 0, 0, 0}, java.nio.file.StandardOpenOption.APPEND);
@@ -56,9 +56,8 @@ class KeystoreSupportTest {
         Awaitility.waitAtMost(Duration.ofSeconds(10)).untilAsserted(() -> {
             SslStoreMetadata updated = refreshable.get();
             assertThat(updated).isNotEqualTo(initial);
-            assertThat(updated.trustStore().orElseThrow().sha256()).isNotEqualTo(initialTrustHash);
-            assertThat(updated.trustStore().orElseThrow().sizeBytes()).isEqualTo(initialTrustSize + 4);
-            assertThat(updated.keyStore().orElseThrow().sha256()).isEqualTo(initialKeyHash);
+            assertThat(updated.trustStore().hash()).isNotEqualTo(initialTrustHash);
+            assertThat(updated.trustStore().sizeBytes()).isEqualTo(initialTrustSize + 4);
         });
     }
 }
