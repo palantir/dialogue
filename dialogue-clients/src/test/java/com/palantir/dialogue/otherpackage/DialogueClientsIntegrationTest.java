@@ -31,6 +31,7 @@ import com.palantir.conjure.java.api.config.service.HumanReadableDuration;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
@@ -38,6 +39,7 @@ import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.DialogueException;
 import com.palantir.dialogue.TestConfigurations;
+import com.palantir.dialogue.TestOnlyCertificates;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
@@ -53,6 +55,11 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.KeyStore;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,13 +76,16 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509TrustManager;
 import org.assertj.core.data.Percentage;
+import org.awaitility.Awaitility;
 import org.immutables.value.Value;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class DialogueClientsIntegrationTest {
     private static final String FOO_SERVICE = "foo";
@@ -167,6 +177,43 @@ public class DialogueClientsIntegrationTest {
 
         // Now that we're done, allow the server to respond and shutdown cleanly.
         requestDone.countDown();
+    }
+
+    @Test
+    void test_reloading_certs(@TempDir Path tempDir) throws Exception {
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+
+        Path trustStorePath = tempDir.resolve("trustStore.jks");
+        Path keyStorePath = tempDir.resolve("keyStore.jks");
+        Files.copy(TestConfigurations.SSL_CONFIG.keyStorePath().orElseThrow(), keyStorePath);
+        writeTrustStore(trustStorePath, TestOnlyCertificates.generate("different-hostname").certificate());
+
+        SslConfiguration dynamicSslConfiguration = SslConfiguration.of(trustStorePath, keyStorePath, "keystore");
+        ServicesConfigBlock dynamicScb = ServicesConfigBlock.builder()
+                .defaultSecurity(dynamicSslConfiguration)
+                .putServices("foo", foo1)
+                .build();
+
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(dynamicScb);
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
+        assertThatThrownBy(client::voidToVoid)
+                .isInstanceOf(DialogueException.class)
+                .hasCauseInstanceOf(SSLException.class);
+        assertThat(requestPaths).isEmpty();
+
+        Files.copy(TestConfigurations.SSL_CONFIG.trustStorePath(), trustStorePath, StandardCopyOption.REPLACE_EXISTING);
+
+        Awaitility.waitAtMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThatCode(client::voidToVoid)
+                .as("client should eventually pick up valid truststore and succeed")
+                .doesNotThrowAnyException());
+        assertThat(requestPaths).contains("/foo1/voidToVoid");
     }
 
     @Test
@@ -488,6 +535,15 @@ public class DialogueClientsIntegrationTest {
 
         @Value.Parameter
         String client();
+    }
+
+    private static void writeTrustStore(Path trustStorePath, X509Certificate certificate) throws Exception {
+        KeyStore trustStore = KeyStore.getInstance("JKS");
+        trustStore.load(null, new char[0]);
+        trustStore.setCertificateEntry("cert", certificate);
+        try (java.io.OutputStream outputStream = Files.newOutputStream(trustStorePath)) {
+            trustStore.store(outputStream, new char[0]);
+        }
     }
 
     private static String getUri(Undertow undertow) {
