@@ -90,10 +90,14 @@ final class KeystoreSupport {
 
         @Override
         public void run() {
-            // TODO(#100): Add in cheaper comparison
-            SslStoreMetadata updated = SslStoreMetadata.of(sslConfiguration);
-            if (!updated.equals(metadataRefreshable.get())) {
-                metadataRefreshable.update(updated);
+            try {
+                // TODO(#100): Add in cheaper comparison
+                SslStoreMetadata updated = SslStoreMetadata.of(sslConfiguration);
+                if (!updated.equals(metadataRefreshable.get())) {
+                    metadataRefreshable.update(updated);
+                }
+            } catch (RuntimeException e) {
+                log.error("Failed to refresh ssl store metadata", e);
             }
         }
     }

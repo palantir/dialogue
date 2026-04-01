@@ -19,6 +19,7 @@ package com.palantir.dialogue.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.hash.HashCode;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.core.SslStoreMetadata;
@@ -29,6 +30,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -43,21 +45,57 @@ class KeystoreSupportTest {
 
         SslConfiguration sslConfiguration = SslConfiguration.of(trustStore, keyStore, "keystore");
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
-        Refreshable<SslStoreMetadata> refreshable =
-                KeystoreSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
+        try {
+            Refreshable<SslStoreMetadata> refreshable =
+                    KeystoreSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
 
-        SslStoreMetadata initial = refreshable.get();
-        HashCode initialTrustHash = initial.trustStore().hash();
-        long initialTrustSize = initial.trustStore().sizeBytes();
+            SslStoreMetadata initial = refreshable.get();
+            HashCode initialTrustHash = initial.trustStore().hash();
+            long initialTrustSize = initial.trustStore().sizeBytes();
 
-        // Corrupts the truststore for the sake of testing updates
-        Files.write(trustStore, new byte[] {1, 0, 0, 0}, java.nio.file.StandardOpenOption.APPEND);
+            // Corrupts the truststore for the sake of testing updates
+            Files.write(trustStore, new byte[] {1, 0, 0, 0}, java.nio.file.StandardOpenOption.APPEND);
 
-        Awaitility.waitAtMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            SslStoreMetadata updated = refreshable.get();
-            assertThat(updated).isNotEqualTo(initial);
-            assertThat(updated.trustStore().hash()).isNotEqualTo(initialTrustHash);
-            assertThat(updated.trustStore().sizeBytes()).isEqualTo(initialTrustSize + 4);
-        });
+            Awaitility.waitAtMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+                SslStoreMetadata updated = refreshable.get();
+                assertThat(updated).isNotEqualTo(initial);
+                assertThat(updated.trustStore().hash()).isNotEqualTo(initialTrustHash);
+                assertThat(updated.trustStore().sizeBytes()).isEqualTo(initialTrustSize + 4);
+            });
+        } finally {
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.SECONDS))
+                    .isTrue();
+        }
+    }
+
+    @Test
+    void pollForChanges_handles_read_failures(@TempDir Path tempDir) throws Exception {
+        Path trustStore = tempDir.resolve("trustStore.jks");
+        Path keyStore = tempDir.resolve("keyStore.jks");
+        Path movedTrustStore = tempDir.resolve("trustStore.moved.jks");
+        Files.copy(TestConfigurations.SSL_CONFIG.trustStorePath(), trustStore);
+        Files.copy(TestConfigurations.SSL_CONFIG.keyStorePath().orElseThrow(), keyStore);
+
+        SslConfiguration sslConfiguration = SslConfiguration.of(trustStore, keyStore, "keystore");
+        ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+        try {
+            Refreshable<SslStoreMetadata> refreshable =
+                    KeystoreSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
+            long initialTrustSize = refreshable.get().trustStore().sizeBytes();
+
+            Files.move(trustStore, movedTrustStore);
+            Thread.sleep(150);
+
+            Files.move(movedTrustStore, trustStore);
+            Files.write(trustStore, new byte[] {9}, java.nio.file.StandardOpenOption.APPEND);
+
+            Awaitility.waitAtMost(Duration.ofSeconds(10))
+                    .untilAsserted(
+                            () -> assertThat(refreshable.get().trustStore().sizeBytes())
+                                    .isEqualTo(initialTrustSize + 1));
+        } finally {
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.SECONDS))
+                    .isTrue();
+        }
     }
 }
