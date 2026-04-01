@@ -38,11 +38,11 @@ com.palantir.common:streams:2.8.0 (1 constraints: 0c050d36)
 
 com.palantir.conjure.java:conjure-lib:8.75.0 (2 constraints: 3b24bd7b)
 
-com.palantir.conjure.java.api:errors:2.70.0 (3 constraints: 7529e112)
+com.palantir.conjure.java.api:errors:2.71.0 (3 constraints: 76294c13)
 
-com.palantir.conjure.java.api:service-config:2.70.0 (2 constraints: 55191fdc)
+com.palantir.conjure.java.api:service-config:2.71.0 (2 constraints: 56195bdc)
 
-com.palantir.conjure.java.api:ssl-config:2.70.0 (4 constraints: f83e559b)
+com.palantir.conjure.java.api:ssl-config:2.71.0 (4 constraints: fa3e6d9c)
 
 com.palantir.conjure.java.runtime:client-config:8.33.0 (1 constraints: 4005643b)
 
@@ -64,19 +64,19 @@ com.palantir.refreshable:refreshable:2.11.0 (2 constraints: 4a19d5da)
 
 com.palantir.ri:resource-identifier:2.15.0 (2 constraints: 58155ada)
 
-com.palantir.safe-logging:logger:3.13.0 (14 constraints: 33e1caec)
+com.palantir.safe-logging:logger:3.13.0 (14 constraints: 34e10cef)
 
 com.palantir.safe-logging:logger-slf4j:3.13.0 (1 constraints: 320e9050)
 
 com.palantir.safe-logging:logger-spi:3.13.0 (2 constraints: 731e76b0)
 
-com.palantir.safe-logging:preconditions:3.13.0 (20 constraints: f446afa4)
+com.palantir.safe-logging:preconditions:3.13.0 (20 constraints: f746cead)
 
-com.palantir.safe-logging:safe-logging:3.13.0 (19 constraints: 5238d95c)
+com.palantir.safe-logging:safe-logging:3.13.0 (19 constraints: 5438cd62)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.7.0 (1 constraints: 09050036)
 
-com.palantir.tokens:auth-tokens:4.2.0 (3 constraints: b5274953)
+com.palantir.tokens:auth-tokens:4.2.0 (3 constraints: 8427932b)
 
 com.palantir.tracing:tracing:6.33.0 (3 constraints: b02435fc)
 
@@ -88,7 +88,7 @@ com.palantir.tritium:tritium-caffeine:0.126.0 (1 constraints: 6b05a240)
 
 com.palantir.tritium:tritium-core:0.126.0 (1 constraints: 7110b1b2)
 
-com.palantir.tritium:tritium-ids:0.126.0 (1 constraints: fb0f91a6)
+com.palantir.tritium:tritium-ids:0.126.0 (1 constraints: fc0f94a6)
 
 com.palantir.tritium:tritium-metrics:0.126.0 (3 constraints: 9724a90a)
 
