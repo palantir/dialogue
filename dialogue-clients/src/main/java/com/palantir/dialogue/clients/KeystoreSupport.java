@@ -16,4 +16,154 @@
 
 package com.palantir.dialogue.clients;
 
-public class KeystoreSupport {}
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
+import com.palantir.dialogue.core.DialogueExecutors;
+import com.palantir.dialogue.core.SslStoreMetadata;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.refreshable.Refreshable;
+import com.palantir.refreshable.SettableRefreshable;
+import com.palantir.tritium.metrics.MetricRegistries;
+import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.ref.Cleaner;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.util.HexFormat;
+import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+
+final class KeystoreSupport {
+
+    private static final SafeLogger log = SafeLoggerFactory.get(KeystoreSupport.class);
+    private static final String SCHEDULER_NAME = "dialogue-client-ssl-store-scheduler";
+    private static final Duration DEFAULT_REFRESH_INTERVAL = Duration.ofSeconds(5);
+
+    private static final Cleaner cleaner = Cleaner.create(new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setNameFormat("dialogue-client-ssl-store-cleaner-%d")
+            .build());
+
+    @SuppressWarnings("deprecation") // Singleton registry for a singleton executor
+    private static final Supplier<ScheduledExecutorService> sharedScheduler =
+            Suppliers.memoize(() -> DialogueExecutors.newSharedSingleThreadScheduler(MetricRegistries.instrument(
+                    SharedTaggedMetricRegistries.getSingleton(),
+                    new ThreadFactoryBuilder()
+                            .setNameFormat(SCHEDULER_NAME + "-%d")
+                            .setDaemon(true)
+                            .build(),
+                    SCHEDULER_NAME)));
+
+    static Refreshable<SslStoreMetadata> pollForChanges(SslConfiguration sslConfiguration) {
+        return pollForChanges(sslConfiguration, sharedScheduler.get(), DEFAULT_REFRESH_INTERVAL);
+    }
+
+    @VisibleForTesting
+    static Refreshable<SslStoreMetadata> pollForChanges(
+            SslConfiguration sslConfiguration, ScheduledExecutorService executor, Duration refreshInterval) {
+        SettableRefreshable<SslStoreMetadata> metadataRefreshable =
+                Refreshable.create(readMetadataIgnoringFailures(sslConfiguration));
+        MetadataPollingTask task = new MetadataPollingTask(sslConfiguration, metadataRefreshable);
+        ScheduledFuture<?> future = executor.scheduleWithFixedDelay(
+                task, refreshInterval.toMillis(), refreshInterval.toMillis(), TimeUnit.MILLISECONDS);
+        cleaner.register(metadataRefreshable, new CleanupTask(future));
+        return metadataRefreshable;
+    }
+
+    private static SslStoreMetadata readMetadataIgnoringFailures(SslConfiguration sslConfiguration) {
+        try {
+            return readMetadata(sslConfiguration);
+        } catch (RuntimeException | IOException e) {
+            log.debug("Failed to load ssl store metadata", e);
+            return new SslStoreMetadata();
+        }
+    }
+
+    private static SslStoreMetadata readMetadata(SslConfiguration sslConfiguration) throws IOException {
+        SslStoreMetadata.StoreFileMetadata trustStoreMetadata = readFileMetadata(sslConfiguration.trustStorePath());
+        Optional<SslStoreMetadata.StoreFileMetadata> keyStoreMetadata = Optional.empty();
+        if (sslConfiguration.keyStorePath().isPresent()) {
+            keyStoreMetadata = Optional.of(readFileMetadata(sslConfiguration.keyStorePath().get()));
+        }
+        return SslStoreMetadata.of(trustStoreMetadata, keyStoreMetadata);
+    }
+
+    private static SslStoreMetadata.StoreFileMetadata readFileMetadata(Path path) throws IOException {
+        return new SslStoreMetadata.StoreFileMetadata(
+                Files.getLastModifiedTime(path).toMillis(), Files.size(path), hash(path));
+    }
+
+    private static String hash(Path path) throws IOException {
+        MessageDigest digest = sha256();
+        byte[] buffer = new byte[8192];
+        try (InputStream inputStream = Files.newInputStream(path)) {
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) >= 0) {
+                digest.update(buffer, 0, bytesRead);
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private static MessageDigest sha256() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new SafeRuntimeException("SHA-256 is required but unavailable", e);
+        }
+    }
+
+    private KeystoreSupport() {}
+
+    private static final class MetadataPollingTask implements Runnable {
+
+        private final SslConfiguration sslConfiguration;
+        private final SettableRefreshable<SslStoreMetadata> metadataRefreshable;
+
+        private MetadataPollingTask(
+                SslConfiguration sslConfiguration, SettableRefreshable<SslStoreMetadata> metadataRefreshable) {
+            this.sslConfiguration = sslConfiguration;
+            this.metadataRefreshable = metadataRefreshable;
+        }
+
+        @Override
+        public void run() {
+            SslStoreMetadata updated = readMetadataIgnoringFailures(sslConfiguration);
+            if (!updated.equals(metadataRefreshable.get())) {
+                metadataRefreshable.update(updated);
+            }
+        }
+    }
+
+    private static final class CleanupTask implements Runnable {
+
+        private static final SafeLogger log = SafeLoggerFactory.get(CleanupTask.class);
+
+        private final AtomicBoolean executed = new AtomicBoolean();
+        private final ScheduledFuture<?> scheduledFuture;
+
+        private CleanupTask(ScheduledFuture<?> scheduledFuture) {
+            this.scheduledFuture = scheduledFuture;
+        }
+
+        @Override
+        public void run() {
+            if (!executed.getAndSet(true)) {
+                log.debug("Unregistering ssl metadata background worker");
+                scheduledFuture.cancel(false);
+            }
+        }
+    }
+}

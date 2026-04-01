@@ -16,4 +16,29 @@
 
 package com.palantir.dialogue.core;
 
-public class SslStoreMetadata {}
+import com.palantir.logsafe.Preconditions;
+import java.util.Optional;
+
+public record SslStoreMetadata(Optional<StoreFileMetadata> trustStore, Optional<StoreFileMetadata> keyStore) {
+
+    public SslStoreMetadata {
+        Preconditions.checkNotNull(trustStore, "trustStore");
+        Preconditions.checkNotNull(keyStore, "keyStore");
+    }
+
+    public SslStoreMetadata() {
+        this(Optional.empty(), Optional.empty());
+    }
+
+    public static SslStoreMetadata of(StoreFileMetadata trustStore, Optional<StoreFileMetadata> keyStore) {
+        return new SslStoreMetadata(Optional.of(Preconditions.checkNotNull(trustStore, "trustStore")), keyStore);
+    }
+
+    public record StoreFileMetadata(long modifiedTimeMillis, long sizeBytes, String sha256) {
+        public StoreFileMetadata {
+            Preconditions.checkArgument(modifiedTimeMillis >= 0L, "modifiedTimeMillis must be non-negative");
+            Preconditions.checkArgument(sizeBytes >= 0L, "sizeBytes must be non-negative");
+            Preconditions.checkNotNull(sha256, "sha256");
+        }
+    }
+}
