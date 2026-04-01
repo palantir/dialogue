@@ -116,6 +116,26 @@ class ChannelCacheTest {
     }
 
     @Test
+    void different_ssl_store_hash_new_instance() {
+        ChannelCache.ApacheCacheEntry cacheResult = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
+                .serviceConf(serviceConf)
+                .channelName("channelName")
+                .sslStoreHash("hash-one")
+                .build());
+
+        ChannelCache.ApacheCacheEntry cacheResult2 = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
+                .serviceConf(serviceConf)
+                .channelName("channelName")
+                .sslStoreHash("hash-two")
+                .build());
+
+        assertThat(cacheResult).isNotSameAs(cacheResult2);
+        assertThat(cache.toString()).contains("apacheCache.size=1");
+    }
+
+    @Test
     void new_config_evicts_client_but_old_one_is_still_usable() {
         ChannelCache.ApacheCacheEntry cacheResult = cache.getApacheClient(ImmutableApacheClientRequest.builder()
                 .dnsResolver(StubDnsResolver.INSTANCE)

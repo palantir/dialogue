@@ -46,6 +46,7 @@ import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -189,33 +190,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
             // In a future change we should attempt to retain this state for channels that are retained between
             // updates.
-            LimitedChannel nodeSelectionChannel =
-                    new SupplierChannel(cf.uris().map(new Function<List<TargetUri>, LimitedChannel>() {
-                        private final Map<TargetUri, ChannelState> state = new ConcurrentHashMap<>();
+            LimitedChannel nodeSelectionChannel = createNodeSelectionChannel(cf, reloadMeter);
+            LimitedChannel keystoreUpdatingChannel =
+                    createKeystoreUpdatingChannel(cf, reloadMeter, nodeSelectionChannel);
 
-                        @Override
-                        public LimitedChannel apply(List<TargetUri> targetUris) {
-                            // remove state for uris we no longer care about, and create new ChannelStates
-                            // for uris we don't know about yet
-                            state.keySet().retainAll(targetUris);
-                            targetUris.forEach(uri -> state.computeIfAbsent(uri, _uri -> new ChannelState()));
-
-                            reloadMeter.mark();
-                            log.info(
-                                    "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets:"
-                                            + " {})",
-                                    SafeArg.of("channel", cf.channelName()),
-                                    UnsafeArg.of("uris", cf.clientConf().uris()),
-                                    SafeArg.of("numUris", cf.clientConf().uris().size()),
-                                    UnsafeArg.of("targets", targetUris),
-                                    SafeArg.of("numTargets", targetUris.size()));
-                            ImmutableList<LimitedChannel> targetChannels =
-                                    createHostChannels(cf, targetUris, Collections.unmodifiableMap(state));
-                            return NodeSelectionStrategyChannel.create(cf, targetChannels);
-                        }
-                    }));
-
-            LimitedChannel stickyValidationChannel = new StickyValidationChannel(nodeSelectionChannel);
+            LimitedChannel stickyValidationChannel = new StickyValidationChannel(keystoreUpdatingChannel);
 
             Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
             EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
@@ -284,6 +263,52 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 perUriChannels.add(limitedChannel);
             }
             return perUriChannels.build();
+        }
+
+        private static LimitedChannel createNodeSelectionChannel(Config cf, Meter reloadMeter) {
+            return new SupplierChannel(cf.uris().map(new Function<List<TargetUri>, LimitedChannel>() {
+                private final Map<TargetUri, ChannelState> state = new ConcurrentHashMap<>();
+
+                @Override
+                public LimitedChannel apply(List<TargetUri> targetUris) {
+                    // remove state for uris we no longer care about, and create new ChannelStates
+                    // for uris we don't know about yet
+                    state.keySet().retainAll(targetUris);
+                    targetUris.forEach(uri -> state.computeIfAbsent(uri, _uri -> new ChannelState()));
+
+                    reloadMeter.mark();
+                    log.info(
+                            "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets: {})",
+                            SafeArg.of("channel", cf.channelName()),
+                            UnsafeArg.of("uris", cf.clientConf().uris()),
+                            SafeArg.of("numUris", cf.clientConf().uris().size()),
+                            UnsafeArg.of("targets", targetUris),
+                            SafeArg.of("numTargets", targetUris.size()));
+                    ImmutableList<LimitedChannel> targetChannels =
+                            createHostChannels(cf, targetUris, Collections.unmodifiableMap(state));
+                    return NodeSelectionStrategyChannel.create(cf, targetChannels);
+                }
+            }));
+        }
+
+        private static LimitedChannel createKeystoreUpdatingChannel(
+                Config cf, Meter reloadMeter, LimitedChannel nodeSelectionChannel) {
+            return new SupplierChannel(cf.storeMetadata().map(new Function<SslStoreMetadata, LimitedChannel>() {
+                private final AtomicBoolean initialized = new AtomicBoolean(false);
+
+                @Override
+                public LimitedChannel apply(SslStoreMetadata _storeMetadata) {
+                    // TODO: Does this actually... do a reload of the underlying? Also, should this compose DNS, or
+                    // should DNS compose keystore?
+                    if (!initialized.getAndSet(true)) {
+                        return nodeSelectionChannel;
+                    }
+                    log.info(
+                            "Reloaded channel '{}' due to ssl store metadata change",
+                            SafeArg.of("channel", cf.channelName()));
+                    return createNodeSelectionChannel(cf, reloadMeter);
+                }
+            }));
         }
 
         public Builder storeMetadata(Refreshable<SslStoreMetadata> storeMetadata) {

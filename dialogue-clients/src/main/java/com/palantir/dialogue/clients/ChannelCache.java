@@ -143,18 +143,11 @@ final class ChannelCache {
     }
 
     private DialogueChannel createNonLiveReloadingChannel(ChannelCacheKey channelCacheRequest) {
-        ImmutableApacheClientRequest request = ImmutableApacheClientRequest.builder()
-                .from(channelCacheRequest)
-                .channelName(channelCacheRequest.channelName())
-                .serviceConf(stripUris(channelCacheRequest.serviceConf())) // we strip out uris to maximise cache hits
-                .blockingExecutor(channelCacheRequest.blockingExecutor())
-                .dnsResolver(channelCacheRequest.dnsResolver())
-                .build();
-
-        ApacheCacheEntry apacheClient = getApacheClient(request);
-
         Refreshable<SslStoreMetadata> storeMetadata =
                 KeystoreSupport.pollForChanges(channelCacheRequest.serviceConf().security());
+
+        ImmutableApacheClientRequest initialApacheRequest = apacheRequest(channelCacheRequest, storeMetadata.current());
+        ApacheCacheEntry initialApacheClient = getApacheClient(initialApacheRequest);
 
         Refreshable<List<TargetUri>> targets;
         if (channelCacheRequest.overrideHostIndex().isPresent()) {
@@ -180,17 +173,44 @@ final class ChannelCache {
         return DialogueChannel.builder()
                 .channelName(channelCacheRequest.channelName())
                 .clientConfiguration(ClientConfiguration.builder()
-                        .from(apacheClient.conf())
+                        .from(initialApacheClient.conf())
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
                 .uris(targets)
                 .storeMetadata(storeMetadata)
-                .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client()))
+                .factory(args -> ApacheHttpClientChannels.createSingleUri(
+                        args,
+                        getApacheClient(apacheRequest(channelCacheRequest, storeMetadata.current()))
+                                .client()))
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
                         .findAny())
                 .deadlineEnforcement(channelCacheRequest.deadlineEnforcement())
                 .build();
+    }
+
+    private static ImmutableApacheClientRequest apacheRequest(
+            ChannelCacheKey channelCacheRequest, SslStoreMetadata sslStoreMetadata) {
+        return ImmutableApacheClientRequest.builder()
+                .from(channelCacheRequest)
+                .channelName(channelCacheRequest.channelName())
+                .serviceConf(stripUris(channelCacheRequest.serviceConf())) // we strip out uris to maximise cache hits
+                .blockingExecutor(channelCacheRequest.blockingExecutor())
+                .dnsResolver(channelCacheRequest.dnsResolver())
+                .sslStoreHash(sslStoreHash(sslStoreMetadata))
+                .build();
+    }
+
+    private static String sslStoreHash(SslStoreMetadata sslStoreMetadata) {
+        String trustStoreHash = sslStoreMetadata
+                .trustStore()
+                .map(SslStoreMetadata.StoreFileMetadata::sha256)
+                .orElse("none");
+        String keyStoreHash = sslStoreMetadata
+                .keyStore()
+                .map(SslStoreMetadata.StoreFileMetadata::sha256)
+                .orElse("none");
+        return trustStoreHash + ':' + keyStoreHash;
     }
 
     @VisibleForTesting
@@ -309,6 +329,11 @@ final class ChannelCache {
         Optional<ExecutorService> blockingExecutor();
 
         DialogueDnsResolver dnsResolver();
+
+        @Value.Default
+        default String sslStoreHash() {
+            return "";
+        }
 
         @Value.Check
         default void check() {
