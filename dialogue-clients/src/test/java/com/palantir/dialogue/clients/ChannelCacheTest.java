@@ -21,21 +21,42 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.TestConfigurations;
+import com.palantir.dialogue.TestOnlyCertificates;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class ChannelCacheTest {
+
+    private static final char[] STORE_PASSWORD = "keystore".toCharArray();
 
     private final ChannelCache cache = ChannelCache.createEmptyCache();
     private final ServiceConfiguration serviceConf = ServiceConfiguration.builder()
@@ -169,10 +190,120 @@ class ChannelCacheTest {
         client2.voidToVoid();
     }
 
+    @Test
+    void keystore_and_truststore_changes_are_reflected_in_created_client(@TempDir Path tempDir) throws Exception {
+        Path trustStoreCopy = tempDir.resolve("trustStore-copy.jks");
+        Path keyStoreCopy = tempDir.resolve("keyStore-copy.jks");
+        Files.copy(pathFromSslConfig("trustStorePath"), trustStoreCopy);
+        Files.copy(pathFromSslConfig("keyStorePath"), keyStoreCopy);
+
+        SslConfiguration copiedSslConfig = SslConfiguration.of(trustStoreCopy, keyStoreCopy, "keystore");
+        ServiceConfiguration copiedServiceConfig =
+                ServiceConfiguration.builder().security(copiedSslConfig).build();
+
+        ImmutableApacheClientRequest request = apacheRequest(copiedServiceConfig, "mutated-store-test");
+        ChannelCache.ApacheCacheEntry initialEntry = cache.getApacheClient(request);
+
+        TestOnlyCertificates.GeneratedKeyPair replacement = TestOnlyCertificates.generate("localhost");
+        overwriteTrustStore(trustStoreCopy, replacement);
+        overwriteKeyStore(keyStoreCopy, replacement);
+        /*
+        SslConfiguration moreCopySsl = SslConfiguration.of(trustStoreCopy, keyStoreCopy, "keystore");
+        ServiceConfiguration moreConfig =
+                ServiceConfiguration.builder().security(moreCopySsl).build();
+        ImmutableApacheClientRequest request2 = apacheRequest(moreConfig, "mutated-store-test-2");*/
+
+        String fingerprintOnDisk = certificateFingerprint(readOnlyCertificateFromStore(trustStoreCopy));
+        assertThat(fingerprintOnDisk)
+                .as("sanity check that test truststore mutation produced a new certificate")
+                .isNotIn(trustedFingerprints(initialEntry));
+
+        Thread.sleep(10000);
+
+        ChannelCache.ApacheCacheEntry afterMutationEntry = cache.getApacheClient(request);
+        assertThat(trustedFingerprints(afterMutationEntry))
+                .as("Expected trust/keystore material to be reloaded after file mutation")
+                .contains(fingerprintOnDisk);
+    }
+
     private SampleServiceBlocking sampleServiceBlocking(ApacheHttpClientChannels.CloseableClient apache) {
         return SampleServiceBlocking.of(
                 ApacheHttpClientChannels.createSingleUri(uri, apache),
                 DefaultConjureRuntime.builder().build());
+    }
+
+    private static ImmutableApacheClientRequest apacheRequest(
+            ServiceConfiguration inputServiceConf, String channelName) {
+        return ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
+                .serviceConf(inputServiceConf)
+                .channelName(channelName)
+                .build();
+    }
+
+    private static Set<String> trustedFingerprints(ChannelCache.ApacheCacheEntry entry) {
+        return Arrays.stream(entry.conf().trustManager().getAcceptedIssuers())
+                .map(ChannelCacheTest::certificateFingerprint)
+                .collect(Collectors.toSet());
+    }
+
+    private static String certificateFingerprint(X509Certificate certificate) {
+        try {
+            return Base64.getEncoder().encodeToString(certificate.getEncoded());
+        } catch (CertificateEncodingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static X509Certificate readOnlyCertificateFromStore(Path storePath)
+            throws IOException, GeneralSecurityException {
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        try (InputStream inputStream = Files.newInputStream(storePath)) {
+            keyStore.load(inputStream, STORE_PASSWORD);
+        }
+        String alias = keyStore.aliases().nextElement();
+        Certificate certificate = keyStore.getCertificate(alias);
+        return (X509Certificate) certificate;
+    }
+
+    private static void overwriteTrustStore(Path trustStorePath, TestOnlyCertificates.GeneratedKeyPair replacement)
+            throws IOException, GeneralSecurityException {
+        KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        trustStore.load(null, STORE_PASSWORD);
+        trustStore.setCertificateEntry("self", replacement.certificate());
+        try (OutputStream outputStream = Files.newOutputStream(trustStorePath)) {
+            trustStore.store(outputStream, null);
+        }
+    }
+
+    private static void overwriteKeyStore(Path keyStorePath, TestOnlyCertificates.GeneratedKeyPair replacement)
+            throws IOException, GeneralSecurityException {
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, STORE_PASSWORD);
+        keyStore.setKeyEntry(
+                "key", replacement.privateKey(), STORE_PASSWORD, new Certificate[] {replacement.certificate()});
+        try (OutputStream outputStream = Files.newOutputStream(keyStorePath)) {
+            keyStore.store(outputStream, STORE_PASSWORD);
+        }
+    }
+
+    private static Path pathFromSslConfig(String methodName) {
+        try {
+            Method method = TestConfigurations.SSL_CONFIG.getClass().getDeclaredMethod(methodName);
+            method.setAccessible(true);
+            Object value = method.invoke(TestConfigurations.SSL_CONFIG);
+            if (value instanceof Path path) {
+                return path;
+            }
+            if (value instanceof Optional<?> maybePath
+                    && maybePath.isPresent()
+                    && maybePath.get() instanceof Path path) {
+                return path;
+            }
+            throw new IllegalStateException("Unsupported SSL_CONFIG path type: " + value);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private enum StubDnsResolver implements DialogueDnsResolver {

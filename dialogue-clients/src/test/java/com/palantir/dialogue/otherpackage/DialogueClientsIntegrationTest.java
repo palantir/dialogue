@@ -190,7 +190,9 @@ public class DialogueClientsIntegrationTest {
         Path trustStorePath = tempDir.resolve("trustStore.jks");
         Path keyStorePath = tempDir.resolve("keyStore.jks");
         Files.copy(TestConfigurations.SSL_CONFIG.keyStorePath().orElseThrow(), keyStorePath);
-        writeTrustStore(trustStorePath, TestOnlyCertificates.generate("different-hostname").certificate());
+        writeTrustStore(
+                trustStorePath,
+                TestOnlyCertificates.generate("different-hostname").certificate());
 
         SslConfiguration dynamicSslConfiguration = SslConfiguration.of(trustStorePath, keyStorePath, "keystore");
         ServicesConfigBlock dynamicScb = ServicesConfigBlock.builder()
@@ -210,9 +212,10 @@ public class DialogueClientsIntegrationTest {
 
         Files.copy(TestConfigurations.SSL_CONFIG.trustStorePath(), trustStorePath, StandardCopyOption.REPLACE_EXISTING);
 
-        Awaitility.waitAtMost(Duration.ofSeconds(15)).untilAsserted(() -> assertThatCode(client::voidToVoid)
-                .as("client should eventually pick up valid truststore and succeed")
-                .doesNotThrowAnyException());
+        Awaitility.waitAtMost(Duration.ofSeconds(15))
+                .untilAsserted(() -> assertThatCode(client::voidToVoid)
+                        .as("client should eventually pick up valid truststore and succeed")
+                        .doesNotThrowAnyException());
         assertThat(requestPaths).contains("/foo1/voidToVoid");
     }
 
