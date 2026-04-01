@@ -48,7 +48,7 @@ com.palantir.conjure.java.runtime:client-config:8.33.0 (1 constraints: 4005643b)
 
 com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.33.0 (1 constraints: 841cc5a4)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.33.0 (2 constraints: 5f16300f)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.33.0 (2 constraints: 6016330f)
 
 com.palantir.conjure.java.runtime:keystores:8.33.0 (2 constraints: 5f1976dd)
 
@@ -64,23 +64,23 @@ com.palantir.refreshable:refreshable:2.11.0 (2 constraints: 4a19d5da)
 
 com.palantir.ri:resource-identifier:2.15.0 (2 constraints: 58155ada)
 
-com.palantir.safe-logging:logger:3.13.0 (14 constraints: 32e115ec)
+com.palantir.safe-logging:logger:3.13.0 (14 constraints: 33e1caec)
 
 com.palantir.safe-logging:logger-slf4j:3.13.0 (1 constraints: 320e9050)
 
 com.palantir.safe-logging:logger-spi:3.13.0 (2 constraints: 731e76b0)
 
-com.palantir.safe-logging:preconditions:3.13.0 (20 constraints: f346cba3)
+com.palantir.safe-logging:preconditions:3.13.0 (20 constraints: f446afa4)
 
-com.palantir.safe-logging:safe-logging:3.13.0 (19 constraints: 51381f5c)
+com.palantir.safe-logging:safe-logging:3.13.0 (19 constraints: 5238d95c)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.7.0 (1 constraints: 09050036)
 
 com.palantir.tokens:auth-tokens:4.2.0 (3 constraints: b5274953)
 
-com.palantir.tracing:tracing:6.32.0 (3 constraints: ae24d4fb)
+com.palantir.tracing:tracing:6.33.0 (3 constraints: b02435fc)
 
-com.palantir.tracing:tracing-api:6.32.0 (2 constraints: 0f127118)
+com.palantir.tracing:tracing-api:6.33.0 (2 constraints: 11129d18)
 
 com.palantir.tritium:tritium-api:0.126.0 (2 constraints: 931f4ef4)
 
@@ -164,7 +164,7 @@ com.google.truth:truth:1.4.5 (1 constraints: 1d1219fb)
 
 com.palantir.safe-logging:preconditions-assertj:3.13.0 (1 constraints: 39053e3b)
 
-com.palantir.tracing:tracing-test-utils:6.32.0 (1 constraints: 3d05553b)
+com.palantir.tracing:tracing-test-utils:6.33.0 (1 constraints: 3e05583b)
 
 com.spotify.dataenum:dataenum:1.4.1 (1 constraints: e9105ac1)
 
