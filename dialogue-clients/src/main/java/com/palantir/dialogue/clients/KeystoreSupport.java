@@ -90,7 +90,7 @@ final class KeystoreSupport {
 
         @Override
         public void run() {
-            // TODO: Add in cheaper comparison
+            // TODO(#100): Add in cheaper comparison
             SslStoreMetadata updated = SslStoreMetadata.of(sslConfiguration);
             if (!updated.equals(metadataRefreshable.get())) {
                 metadataRefreshable.update(updated);
