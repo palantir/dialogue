@@ -46,7 +46,6 @@ import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -190,9 +189,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
             // In a future change we should attempt to retain this state for channels that are retained between
             // updates.
-            LimitedChannel nodeSelectionChannel = createNodeSelectionChannel(cf, reloadMeter);
             LimitedChannel keystoreUpdatingChannel =
-                    createKeystoreUpdatingChannel(cf, reloadMeter, nodeSelectionChannel);
+                    createKeystoreUpdatingChannel(cf, reloadMeter, () -> createDnsUpdatingChannel(cf, reloadMeter));
 
             LimitedChannel stickyValidationChannel = new StickyValidationChannel(keystoreUpdatingChannel);
 
@@ -265,7 +263,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return perUriChannels.build();
         }
 
-        private static LimitedChannel createNodeSelectionChannel(Config cf, Meter reloadMeter) {
+        private static LimitedChannel createDnsUpdatingChannel(Config cf, Meter reloadMeter) {
             return new SupplierChannel(cf.uris().map(new Function<List<TargetUri>, LimitedChannel>() {
                 private final Map<TargetUri, ChannelState> state = new ConcurrentHashMap<>();
 
@@ -292,21 +290,12 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         private static LimitedChannel createKeystoreUpdatingChannel(
-                Config cf, Meter reloadMeter, LimitedChannel nodeSelectionChannel) {
+                Config cf, Meter _reloadMeter, Supplier<LimitedChannel> delegateSupplier) {
             return new SupplierChannel(cf.storeMetadata().map(new Function<SslStoreMetadata, LimitedChannel>() {
-                private final AtomicBoolean initialized = new AtomicBoolean(false);
 
                 @Override
                 public LimitedChannel apply(SslStoreMetadata _storeMetadata) {
-                    // TODO: Does this actually... do a reload of the underlying? Also, should this compose DNS, or
-                    // should DNS compose keystore?
-                    if (!initialized.getAndSet(true)) {
-                        return nodeSelectionChannel;
-                    }
-                    log.info(
-                            "Reloaded channel '{}' due to ssl store metadata change",
-                            SafeArg.of("channel", cf.channelName()));
-                    return createNodeSelectionChannel(cf, reloadMeter);
+                    return delegateSupplier.get();
                 }
             }));
         }

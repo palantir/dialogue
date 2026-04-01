@@ -146,9 +146,6 @@ final class ChannelCache {
         Refreshable<SslStoreMetadata> storeMetadata =
                 KeystoreSupport.pollForChanges(channelCacheRequest.serviceConf().security());
 
-        ImmutableApacheClientRequest initialApacheRequest = apacheRequest(channelCacheRequest, storeMetadata.current());
-        ApacheCacheEntry initialApacheClient = getApacheClient(initialApacheRequest);
-
         Refreshable<List<TargetUri>> targets;
         if (channelCacheRequest.overrideHostIndex().isPresent()) {
             targets = Refreshable.only(
@@ -170,10 +167,13 @@ final class ChannelCache {
                             dnsResolutionResults.resolvedHosts(),
                             channelCacheRequest.taggedMetrics()));
         }
+
+        ClientConfiguration clientConf =
+                AugmentClientConfig.getClientConf(channelCacheRequest.serviceConf(), channelCacheRequest);
         return DialogueChannel.builder()
                 .channelName(channelCacheRequest.channelName())
                 .clientConfiguration(ClientConfiguration.builder()
-                        .from(initialApacheClient.conf())
+                        .from(clientConf)
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
                 .uris(targets)
@@ -197,20 +197,8 @@ final class ChannelCache {
                 .serviceConf(stripUris(channelCacheRequest.serviceConf())) // we strip out uris to maximise cache hits
                 .blockingExecutor(channelCacheRequest.blockingExecutor())
                 .dnsResolver(channelCacheRequest.dnsResolver())
-                .sslStoreHash(sslStoreHash(sslStoreMetadata))
+                .sslStoreHash(sslStoreMetadata.hash())
                 .build();
-    }
-
-    private static String sslStoreHash(SslStoreMetadata sslStoreMetadata) {
-        String trustStoreHash = sslStoreMetadata
-                .trustStore()
-                .map(SslStoreMetadata.StoreFileMetadata::sha256)
-                .orElse("none");
-        String keyStoreHash = sslStoreMetadata
-                .keyStore()
-                .map(SslStoreMetadata.StoreFileMetadata::sha256)
-                .orElse("none");
-        return trustStoreHash + ':' + keyStoreHash;
     }
 
     @VisibleForTesting

@@ -45,6 +45,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
@@ -267,8 +268,7 @@ public final class DialogueChannelTest {
         int initialCreateCount = channelCreateCount.get();
         assertThat(initialCreateCount).isGreaterThan(0);
 
-        storeMetadata.update(new SslStoreMetadata(
-                Optional.of(new SslStoreMetadata.StoreFileMetadata(1L, 1L, "hash")), Optional.empty()));
+        storeMetadata.update(SslStoreMetadata.of(TestConfigurations.SSL_CONFIG));
 
         Awaitility.waitAtMost(Duration.ofSeconds(1))
                 .untilAsserted(() -> assertThat(channelCreateCount.get()).isGreaterThan(initialCreateCount));
