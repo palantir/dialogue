@@ -286,6 +286,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return perUriChannels.build();
         }
 
+        public Builder storeMetadata(Refreshable<SslStoreMetadata> storeMetadata) {
+            builder.storeMetadata(storeMetadata);
+            return this;
+        }
+
         /**
          * {@link ChannelState} provider for per-endpoint channels like the endpoint concurrency limiter.
          * This object is held in the per-host state, and can be used to look up a {@link ChannelState}

@@ -23,6 +23,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.dialogue.core.SslStoreMetadata;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.DoNotLog;
@@ -152,6 +153,9 @@ final class ChannelCache {
 
         ApacheCacheEntry apacheClient = getApacheClient(request);
 
+        Refreshable<SslStoreMetadata> storeMetadata =
+                KeystoreSupport.pollForChanges(channelCacheRequest.serviceConf().security());
+
         Refreshable<List<TargetUri>> targets;
         if (channelCacheRequest.overrideHostIndex().isPresent()) {
             targets = Refreshable.only(
@@ -180,6 +184,7 @@ final class ChannelCache {
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
                 .uris(targets)
+                .storeMetadata(storeMetadata)
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client()))
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)

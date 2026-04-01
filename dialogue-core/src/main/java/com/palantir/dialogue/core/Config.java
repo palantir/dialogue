@@ -53,6 +53,11 @@ interface Config {
         return Refreshable.only(rawConfig().uris().stream().map(TargetUri::of).toList());
     }
 
+    @Value.Default
+    default Refreshable<SslStoreMetadata> storeMetadata() {
+        return Refreshable.only(new SslStoreMetadata());
+    }
+
     @Value.Derived
     default boolean isConcurrencyLimitingEnabled() {
         return rawConfig().clientQoS() == ClientQoS.ENABLED;
