@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
@@ -39,10 +40,14 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TagTranslator;
+import java.time.Duration;
 import java.util.Deque;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -92,24 +97,57 @@ final class QueuedChannel implements Channel {
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger inFlight = new AtomicInteger();
 
+    // Queue timeout: entries enqueued longer than this are failed by a periodic sweep.
+    // The sweep only calls setException on the future — cleanup of the main deque entry
+    // is handled by the existing isDone() check in scheduleNextTask().
+    private final long queueTimeoutNanos;
+    private final Ticker ticker;
+
+    // Separate FIFO queue for the timeout sweep. Entries are added here alongside the main deque.
+    // The sweep pops from the head (oldest first) and fails expired entries. This avoids
+    // iterating the main deque, which is also mutated by scheduleNextTask/offerFirst.
+    @Nullable
+    private final Queue<DeferredCall> timeoutQueue;
+
     QueuedChannel(
             LimitedChannel delegate,
             @Safe String channelName,
             @Safe String queueType,
             QueuedChannelInstrumentation metrics,
             int maxQueueSize) {
+        this(delegate, channelName, queueType, metrics, maxQueueSize, 0, Ticker.systemTicker(), null);
+    }
+
+    @SuppressWarnings("FutureReturnValueIgnored") // scheduleAtFixedRate intentionally not tracked
+    QueuedChannel(
+            LimitedChannel delegate,
+            @Safe String channelName,
+            @Safe String queueType,
+            QueuedChannelInstrumentation metrics,
+            int maxQueueSize,
+            long queueTimeoutNanos,
+            Ticker ticker,
+            @Nullable ScheduledExecutorService scheduler) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
         this.queueType = queueType;
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
+        this.queueTimeoutNanos = queueTimeoutNanos;
+        this.ticker = ticker;
+        this.timeoutQueue = queueTimeoutNanos > 0 ? new ConcurrentLinkedQueue<>() : null;
         // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
         // zero interactions because they support both increment and decrement operations.
         this.queueSizeCounter = Suppliers.memoize(metrics::requestsQueued);
         this.queuedTime = metrics.requestQueuedTime();
         this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
+        if (queueTimeoutNanos > 0 && scheduler != null) {
+            long sweepIntervalNanos = queueTimeoutNanos / 2;
+            scheduler.scheduleAtFixedRate(
+                    this::evictExpiredEntries, sweepIntervalNanos, sweepIntervalNanos, TimeUnit.NANOSECONDS);
+        }
     }
 
     // Metrics are global, even if max size is per queue.
@@ -122,13 +160,17 @@ final class QueuedChannel implements Channel {
     }
 
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
+        long timeoutNanos = cf.queueTimeout().map(Duration::toNanos).orElse(0L);
         return new QueuedChannel(
                 delegate,
                 cf.channelName(),
                 "channel",
                 channelInstrumentation(
                         DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
-                cf.maxQueueSize());
+                cf.maxQueueSize(),
+                timeoutNanos,
+                cf.ticker(),
+                timeoutNanos > 0 ? cf.scheduler() : null);
     }
 
     static QueuedChannel create(Config cf, Endpoint endpoint, LimitedChannel delegate) {
@@ -189,11 +231,15 @@ final class QueuedChannel implements Channel {
                 .response(SettableFuture.create())
                 .span(DetachedSpan.start("Dialogue-request-enqueued"))
                 .timer(queuedTime.time())
+                .enqueueNanos(ticker.read())
                 .build();
 
         if (!queuedCalls.offer(components)) {
             // Should never happen, ConcurrentLinkedDeque has no maximum size
             return Optional.empty();
+        }
+        if (timeoutQueue != null) {
+            timeoutQueue.add(components);
         }
         int newSize = incrementQueueSize();
 
@@ -207,6 +253,37 @@ final class QueuedChannel implements Channel {
         schedule();
 
         return Optional.of(components.response());
+    }
+
+    /**
+     * Sweep the timeout queue from the head, failing entries that have been queued longer than the timeout.
+     * Only calls {@link SettableFuture#setException} — does NOT remove entries from the main deque or
+     * modify queue size. The existing {@link #scheduleNextTask()} isDone() check handles cleanup.
+     */
+    @VisibleForTesting
+    void evictExpiredEntries() {
+        if (timeoutQueue == null) {
+            return;
+        }
+        long nowNanos = ticker.read();
+        DeferredCall head;
+        while ((head = timeoutQueue.peek()) != null) {
+            if (head.response().isDone()) {
+                // Already dispatched, cancelled, or otherwise completed — discard from timeout queue
+                timeoutQueue.poll();
+                continue;
+            }
+            if ((nowNanos - head.enqueueNanos()) <= queueTimeoutNanos) {
+                // Not expired — nothing behind it will be either (FIFO ordering)
+                break;
+            }
+            timeoutQueue.poll();
+            head.response()
+                    .setException(new SafeRuntimeException(
+                            "Request queued for longer than queue timeout",
+                            SafeArg.of("channelName", channelName),
+                            SafeArg.of("queueTimeoutNanos", queueTimeoutNanos)));
+        }
     }
 
     private void onCompletion() {
@@ -254,7 +331,8 @@ final class QueuedChannel implements Channel {
         if (queueHead == null) {
             return false;
         }
-        // If the future has been completed (most likely via cancel) the call should not be queued.
+        // If the future has been completed (most likely via cancel, or via queue timeout sweep)
+        // the call should not be dispatched.
         // There's a race where cancel may be invoked between this check and execution, but the scheduled
         // request will be quickly cancelled in that case.
         if (queueHead.response().isDone()) {
@@ -359,6 +437,11 @@ final class QueuedChannel implements Channel {
                 SafeArg.of("endpoint", endpoint.endpointName()));
     }
 
+    @VisibleForTesting
+    int getQueueSizeForTesting() {
+        return queueSizeEstimate.get();
+    }
+
     @Override
     public String toString() {
         return "QueuedChannel{queueSizeEstimate="
@@ -416,6 +499,9 @@ final class QueuedChannel implements Channel {
         DetachedSpan span();
 
         Timer.Context timer();
+
+        /** Timestamp (from {@link Ticker#read()}) when this call was enqueued. */
+        long enqueueNanos();
 
         class Builder extends ImmutableDeferredCall.Builder {}
 

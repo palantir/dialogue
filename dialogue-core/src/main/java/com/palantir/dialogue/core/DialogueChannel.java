@@ -38,6 +38,7 @@ import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -54,11 +55,17 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
     private final EndpointChannelFactory delegate;
     private final Config cf;
     private final Supplier<Channel> stickyChannelSupplier;
+    private final QueuedChannel multiHostQueuedChannel;
 
-    private DialogueChannel(Config cf, EndpointChannelFactory delegate, Supplier<Channel> stickyChannelSupplier) {
+    private DialogueChannel(
+            Config cf,
+            EndpointChannelFactory delegate,
+            Supplier<Channel> stickyChannelSupplier,
+            QueuedChannel multiHostQueuedChannel) {
         this.cf = cf;
         this.delegate = delegate;
         this.stickyChannelSupplier = stickyChannelSupplier;
+        this.multiHostQueuedChannel = multiHostQueuedChannel;
     }
 
     @Override
@@ -73,6 +80,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
     public Supplier<Channel> stickyChannels() {
         return stickyChannelSupplier;
+    }
+
+    @VisibleForTesting
+    QueuedChannel getMultiHostQueuedChannelForTesting() {
+        return multiHostQueuedChannel;
     }
 
     public static Builder builder() {
@@ -173,6 +185,12 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        @VisibleForTesting
+        Builder queueTimeout(Duration value) {
+            builder.queueTimeout(Optional.of(value));
+            return this;
+        }
+
         @CheckReturnValue
         public DialogueChannel build() {
             Config cf = builder.build();
@@ -217,7 +235,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             LimitedChannel stickyValidationChannel = new StickyValidationChannel(nodeSelectionChannel);
 
-            Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
+            QueuedChannel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
             EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
 
             Supplier<Channel> stickyChannelSupplier =
@@ -230,7 +248,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .build();
             createMeter.mark();
 
-            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
+            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier, multiHostQueuedChannel);
         }
 
         private static ImmutableList<LimitedChannel> createHostChannels(
