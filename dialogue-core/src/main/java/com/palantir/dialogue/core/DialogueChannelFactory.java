@@ -34,6 +34,8 @@ public interface DialogueChannelFactory {
 
         Optional<InetAddress> resolvedAddress();
 
+        Optional<String> sslStoreHash();
+
         OptionalInt uriIndexForInstrumentation();
 
         static Builder builder() {

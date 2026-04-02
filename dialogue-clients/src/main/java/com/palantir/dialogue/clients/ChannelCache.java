@@ -22,6 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.DialogueChannelFactory.ChannelArgs;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.SslStoreMetadata;
 import com.palantir.dialogue.core.TargetUri;
@@ -180,7 +181,7 @@ final class ChannelCache {
                 .storeMetadata(storeMetadata)
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(
                         args,
-                        getApacheClient(apacheRequest(channelCacheRequest, storeMetadata.current()))
+                        getApacheClient(apacheRequest(channelCacheRequest, args))
                                 .client()))
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
@@ -189,15 +190,14 @@ final class ChannelCache {
                 .build();
     }
 
-    private static ImmutableApacheClientRequest apacheRequest(
-            ChannelCacheKey channelCacheRequest, SslStoreMetadata sslStoreMetadata) {
+    private static ImmutableApacheClientRequest apacheRequest(ChannelCacheKey channelCacheRequest, ChannelArgs args) {
         return ImmutableApacheClientRequest.builder()
                 .from(channelCacheRequest)
                 .channelName(channelCacheRequest.channelName())
                 .serviceConf(stripUris(channelCacheRequest.serviceConf())) // we strip out uris to maximise cache hits
                 .blockingExecutor(channelCacheRequest.blockingExecutor())
                 .dnsResolver(channelCacheRequest.dnsResolver())
-                .sslStoreHash(sslStoreMetadata.hash())
+                .sslStoreHash(args.sslStoreHash())
                 .build();
     }
 
@@ -318,10 +318,7 @@ final class ChannelCache {
 
         DialogueDnsResolver dnsResolver();
 
-        @Value.Default
-        default String sslStoreHash() {
-            return "";
-        }
+        Optional<String> sslStoreHash();
 
         @Value.Check
         default void check() {

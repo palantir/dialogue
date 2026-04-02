@@ -189,8 +189,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
             // In a future change we should attempt to retain this state for channels that are retained between
             // updates.
-            LimitedChannel keystoreUpdatingChannel =
-                    createKeystoreUpdatingChannel(cf, reloadMeter, () -> createDnsUpdatingChannel(cf, reloadMeter));
+            LimitedChannel keystoreUpdatingChannel = createKeystoreUpdatingChannel(
+                    cf, reloadMeter, sslStoreMetadata -> createDnsUpdatingChannel(cf, reloadMeter, sslStoreMetadata));
 
             LimitedChannel stickyValidationChannel = new StickyValidationChannel(keystoreUpdatingChannel);
 
@@ -211,7 +211,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         private static ImmutableList<LimitedChannel> createHostChannels(
-                Config cf, List<TargetUri> targetUris, Map<TargetUri, ChannelState> state) {
+                Config cf,
+                List<TargetUri> targetUris,
+                Map<TargetUri, ChannelState> state,
+                SslStoreMetadata sslStoreMetadata) {
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < targetUris.size(); uriIndex++) {
                 final int uriIndexForInstrumentation =
@@ -222,6 +225,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                                 .uri(targetUri.uri())
                                 .uriIndexForInstrumentation(uriIndexForInstrumentation)
                                 .resolvedAddress(targetUri.resolvedAddress())
+                                .sslStoreHash(sslStoreMetadata.hash())
                                 .build());
                 channel = RetryOtherValidatingChannel.create(cf, channel);
                 channel = HostMetricsChannel.create(cf, channel, targetUri.uri());
@@ -263,7 +267,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return perUriChannels.build();
         }
 
-        private static LimitedChannel createDnsUpdatingChannel(Config cf, Meter reloadMeter) {
+        private static LimitedChannel createDnsUpdatingChannel(
+                Config cf, Meter reloadMeter, SslStoreMetadata sslStoreMetadata) {
             return new SupplierChannel(cf.uris().map(new Function<List<TargetUri>, LimitedChannel>() {
                 private final Map<TargetUri, ChannelState> state = new ConcurrentHashMap<>();
 
@@ -283,19 +288,19 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                             UnsafeArg.of("targets", targetUris),
                             SafeArg.of("numTargets", targetUris.size()));
                     ImmutableList<LimitedChannel> targetChannels =
-                            createHostChannels(cf, targetUris, Collections.unmodifiableMap(state));
+                            createHostChannels(cf, targetUris, Collections.unmodifiableMap(state), sslStoreMetadata);
                     return NodeSelectionStrategyChannel.create(cf, targetChannels);
                 }
             }));
         }
 
         private static LimitedChannel createKeystoreUpdatingChannel(
-                Config cf, Meter _reloadMeter, Supplier<LimitedChannel> delegateSupplier) {
+                Config cf, Meter _reloadMeter, Function<SslStoreMetadata, LimitedChannel> delegateSupplier) {
             return new SupplierChannel(cf.storeMetadata().map(new Function<SslStoreMetadata, LimitedChannel>() {
 
                 @Override
-                public LimitedChannel apply(SslStoreMetadata _storeMetadata) {
-                    return delegateSupplier.get();
+                public LimitedChannel apply(SslStoreMetadata storeMetadata) {
+                    return delegateSupplier.apply(storeMetadata);
                 }
             }));
         }

@@ -332,6 +332,11 @@ acceptedBreaks:
         \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withDeadlineEnforcement(boolean)"
       justification: "New method added to allow clients to set deadline enforcement.\
         \ This interface is only consumed externally, not implemented."
+  "6.24.0":
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.method.addedToInterface"
+      new: "method java.util.Optional<java.lang.String> com.palantir.dialogue.core.DialogueChannelFactory.ChannelArgs::sslStoreHash()"
+      justification: "Type is consumed, not extended"
   "6.7.0":
     com.palantir.dialogue:dialogue-target:
     - code: "java.class.removed"
