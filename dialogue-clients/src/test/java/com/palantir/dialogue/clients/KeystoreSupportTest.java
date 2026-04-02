@@ -88,8 +88,8 @@ class KeystoreSupportTest {
             Files.write(trustStore, new byte[] {9}, java.nio.file.StandardOpenOption.APPEND);
 
             Awaitility.waitAtMost(Duration.ofSeconds(10))
-                    .untilAsserted(
-                            () -> assertThat(refreshable.get().trustStore().hash()).isNotEqualTo(initialTrustHash));
+                    .untilAsserted(() ->
+                            assertThat(refreshable.get().trustStore().hash()).isNotEqualTo(initialTrustHash));
         } finally {
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.SECONDS))
                     .isTrue();
