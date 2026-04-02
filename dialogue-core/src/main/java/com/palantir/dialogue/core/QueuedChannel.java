@@ -24,6 +24,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -39,6 +40,8 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TagTranslator;
+import com.palantir.tritium.metrics.MetricRegistries;
+import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -71,6 +74,17 @@ import org.jspecify.annotations.Nullable;
  */
 final class QueuedChannel implements Channel {
     private static final SafeLogger log = SafeLoggerFactory.get(QueuedChannel.class);
+    private static final String TIMEOUT_SCHEDULER_NAME = "dialogue-QueuedChannel-timeout-scheduler";
+
+    @SuppressWarnings("deprecation") // Singleton registry for a singleton executor
+    static final Supplier<ScheduledExecutorService> sharedTimeoutScheduler =
+            Suppliers.memoize(() -> DialogueExecutors.newSharedSingleThreadScheduler(MetricRegistries.instrument(
+                    SharedTaggedMetricRegistries.getSingleton(),
+                    new ThreadFactoryBuilder()
+                            .setNameFormat(TIMEOUT_SCHEDULER_NAME + "-%d")
+                            .setDaemon(true)
+                            .build(),
+                    TIMEOUT_SCHEDULER_NAME)));
 
     private final Deque<DeferredCall> queuedCalls;
     private final NeverThrowLimitedChannel delegate;
@@ -159,7 +173,7 @@ final class QueuedChannel implements Channel {
                         DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
                 cf.maxQueueSize(),
                 timeoutNanos,
-                timeoutNanos > 0 ? cf.scheduler() : null);
+                timeoutNanos > 0 ? cf.queueTimeoutScheduler() : null);
     }
 
     static QueuedChannel create(Config cf, Endpoint endpoint, LimitedChannel delegate) {
@@ -175,7 +189,7 @@ final class QueuedChannel implements Channel {
                         endpoint.endpointName()),
                 cf.maxQueueSize(),
                 timeoutNanos,
-                timeoutNanos > 0 ? cf.scheduler() : null);
+                timeoutNanos > 0 ? cf.queueTimeoutScheduler() : null);
     }
 
     @Override

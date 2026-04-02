@@ -344,9 +344,8 @@ class RequestFlowWalkthroughTest {
         // Total requests must be > 1: the first attempt hit a 429, then a retry succeeded.
         // This proves RetryingChannel re-invoked the outer QueuedChannel (going through node
         // selection again), rather than retrying on the same host.
-        long totalRequests = requestCounts.values().stream()
-                .mapToInt(AtomicInteger::get)
-                .sum();
+        long totalRequests =
+                requestCounts.values().stream().mapToInt(AtomicInteger::get).sum();
         assertThat(totalRequests)
                 .as("Must have made at least 2 requests (first 429, then retry succeeded)")
                 .isGreaterThanOrEqualTo(2);
@@ -445,11 +444,10 @@ class RequestFlowWalkthroughTest {
 
         // All 5 queued futures should have been failed by the scheduled timeout task
         for (int i = 0; i < 5; i++) {
-            assertThat(queued[i]).as("Queued request %d should be done (timed out)", i).isDone();
             assertThat(queued[i])
-                    .failsWithin(Duration.ZERO)
-                    .withThrowableThat()
-                    .withMessageContaining("queue timeout");
+                    .as("Queued request %d should be done (timed out)", i)
+                    .isDone();
+            assertThat(queued[i]).failsWithin(Duration.ZERO).withThrowableThat().withMessageContaining("queue timeout");
         }
 
         // The deque entries are still present (not yet cleaned up).
