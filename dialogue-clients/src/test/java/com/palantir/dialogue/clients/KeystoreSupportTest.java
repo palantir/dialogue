@@ -51,7 +51,6 @@ class KeystoreSupportTest {
 
             SslStoreMetadata initial = refreshable.get();
             HashCode initialTrustHash = initial.trustStore().hash();
-            long initialTrustSize = initial.trustStore().sizeBytes();
 
             // Corrupts the truststore for the sake of testing updates
             Files.write(trustStore, new byte[] {1, 0, 0, 0}, java.nio.file.StandardOpenOption.APPEND);
@@ -60,7 +59,6 @@ class KeystoreSupportTest {
                 SslStoreMetadata updated = refreshable.get();
                 assertThat(updated).isNotEqualTo(initial);
                 assertThat(updated.trustStore().hash()).isNotEqualTo(initialTrustHash);
-                assertThat(updated.trustStore().sizeBytes()).isEqualTo(initialTrustSize + 4);
             });
         } finally {
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.SECONDS))
@@ -81,7 +79,7 @@ class KeystoreSupportTest {
         try {
             Refreshable<SslStoreMetadata> refreshable =
                     KeystoreSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
-            long initialTrustSize = refreshable.get().trustStore().sizeBytes();
+            HashCode initialTrustHash = refreshable.get().trustStore().hash();
 
             Files.move(trustStore, movedTrustStore);
             Thread.sleep(150);
@@ -91,8 +89,7 @@ class KeystoreSupportTest {
 
             Awaitility.waitAtMost(Duration.ofSeconds(10))
                     .untilAsserted(
-                            () -> assertThat(refreshable.get().trustStore().sizeBytes())
-                                    .isEqualTo(initialTrustSize + 1));
+                            () -> assertThat(refreshable.get().trustStore().hash()).isNotEqualTo(initialTrustHash));
         } finally {
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.SECONDS))
                     .isTrue();

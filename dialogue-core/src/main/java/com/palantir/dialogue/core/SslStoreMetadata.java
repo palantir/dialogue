@@ -28,11 +28,17 @@ import java.nio.file.Path;
 import java.util.HexFormat;
 import java.util.Optional;
 
-public record SslStoreMetadata(StoreFileMetadata trustStore, StoreFileMetadata keyStore) {
+public record SslStoreMetadata(StoreFileMetadata trustStore, StoreFileMetadata keyStore, String hash) {
     private static final SafeLogger log = SafeLoggerFactory.get(SslStoreMetadata.class);
+
+    public SslStoreMetadata {}
 
     public SslStoreMetadata() {
         this(StoreFileMetadata.empty(), StoreFileMetadata.empty());
+    }
+
+    public SslStoreMetadata(StoreFileMetadata trustStore, StoreFileMetadata keyStore) {
+        this(trustStore, keyStore, computeHash(trustStore, keyStore));
     }
 
     public static SslStoreMetadata of(SslConfiguration sslConfiguration) {
@@ -40,10 +46,10 @@ public record SslStoreMetadata(StoreFileMetadata trustStore, StoreFileMetadata k
         Optional<Path> keyStorePath = sslConfiguration.keyStorePath();
 
         try {
-            StoreFileMetadata trustMd = new StoreFileMetadata(Files.size(trustStorePath), hashFile(trustStorePath));
+            StoreFileMetadata trustMd = new StoreFileMetadata(hashFile(trustStorePath));
             StoreFileMetadata keyMd;
             if (keyStorePath.isPresent()) {
-                keyMd = new StoreFileMetadata(Files.size(keyStorePath.get()), hashFile(keyStorePath.get()));
+                keyMd = new StoreFileMetadata(hashFile(keyStorePath.get()));
             } else {
                 keyMd = StoreFileMetadata.empty();
             }
@@ -59,7 +65,7 @@ public record SslStoreMetadata(StoreFileMetadata trustStore, StoreFileMetadata k
         return Hashing.murmur3_128().hashBytes(bytes);
     }
 
-    public String hash() {
+    private static String computeHash(StoreFileMetadata trustStore, StoreFileMetadata keyStore) {
         byte[] trust = trustStore.hash().asBytes();
         byte[] key = keyStore.hash().asBytes();
         byte[] combined = new byte[trust.length + key.length];
@@ -68,9 +74,9 @@ public record SslStoreMetadata(StoreFileMetadata trustStore, StoreFileMetadata k
         return HexFormat.of().formatHex(combined);
     }
 
-    public record StoreFileMetadata(long sizeBytes, HashCode hash) {
+    public record StoreFileMetadata(HashCode hash) {
         public static StoreFileMetadata empty() {
-            return new StoreFileMetadata(0, HashCode.fromBytes(new byte[1]));
+            return new StoreFileMetadata(HashCode.fromBytes(new byte[1]));
         }
     }
 }
