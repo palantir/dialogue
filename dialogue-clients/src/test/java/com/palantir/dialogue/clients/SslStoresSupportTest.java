@@ -37,7 +37,7 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class KeystoreSupportTest {
+class SslStoresSupportTest {
     @Test
     void pollForChanges_updates_on_change(@TempDir Path tempDir) throws IOException {
         Path trustStore = tempDir.resolve("trustStore.jks");
