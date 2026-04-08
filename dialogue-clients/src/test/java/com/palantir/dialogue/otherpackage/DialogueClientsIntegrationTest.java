@@ -224,6 +224,50 @@ public class DialogueClientsIntegrationTest {
     }
 
     @Test
+    void test_reloading_cert_path_changes(@TempDir Path tempDir) throws Exception {
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+
+        Path invalidTrustStorePath = tempDir.resolve("invalid-trustStore.jks");
+        Path validTrustStorePath = tempDir.resolve("valid-trustStore.jks");
+        Path keyStorePath = tempDir.resolve("keyStore.jks");
+        Files.copy(TestConfigurations.SSL_CONFIG.keyStorePath().orElseThrow(), keyStorePath);
+        Files.copy(TestConfigurations.SSL_CONFIG.trustStorePath(), validTrustStorePath);
+        writeTrustStore(
+                invalidTrustStorePath,
+                TestOnlyCertificates.generate("different-hostname").certificate());
+
+        ServicesConfigBlock initialScb = ServicesConfigBlock.builder()
+                .defaultSecurity(SslConfiguration.of(invalidTrustStorePath, keyStorePath, "keystore"))
+                .putServices("foo", foo1)
+                .build();
+
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(initialScb);
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
+        assertThatThrownBy(client::voidToVoid)
+                .isInstanceOf(DialogueException.class)
+                .hasCauseInstanceOf(SSLException.class);
+        assertThat(requestPaths).isEmpty();
+
+        refreshable.update(ServicesConfigBlock.builder()
+                .from(initialScb)
+                .defaultSecurity(SslConfiguration.of(validTrustStorePath, keyStorePath, "keystore"))
+                .build());
+
+        Awaitility.waitAtMost(Duration.ofSeconds(15))
+                .untilAsserted(() -> assertThatCode(client::voidToVoid)
+                        .as("client should eventually pick up the new truststore")
+                        .doesNotThrowAnyException());
+        assertThat(requestPaths).contains("/foo1/voidToVoid");
+    }
+
+    @Test
     void test_reloading_certs_keeps_in_flight_request_on_old_client(@TempDir Path tempDir) throws Exception {
         Duration keyMaterialReloadWait = SslStoresSupport.DEFAULT_REFRESH_INTERVAL.multipliedBy(2);
         CountDownLatch firstRequestStarted = new CountDownLatch(1);
