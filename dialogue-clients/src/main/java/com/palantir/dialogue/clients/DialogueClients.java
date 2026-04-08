@@ -208,6 +208,12 @@ public final class DialogueClients {
          */
         ReloadingFactory withDeadlineEnforcement(boolean deadlineEnforcementEnabled);
 
+        /**
+         * Configures the initial number of permits for the AIMD concurrency limiter. The limiter starts with this
+         * many permits and dynamically adjusts based on server responses. The default value is 20.
+         */
+        ReloadingFactory withInitialConcurrencyLimit(int initialLimit);
+
         StickyChannelFactory getStickyChannels(String serviceName);
 
         @Beta

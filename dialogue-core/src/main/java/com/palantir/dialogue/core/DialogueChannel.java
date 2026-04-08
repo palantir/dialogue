@@ -149,6 +149,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        public Builder initialConcurrencyLimit(OptionalInt initialConcurrencyLimit) {
+            builder.initialConcurrencyLimit(initialConcurrencyLimit);
+            return this;
+        }
+
         @VisibleForTesting
         Builder random(Random value) {
             builder.random(value);
@@ -186,6 +191,26 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .clientType("dialogue-channel-non-reloading")
                     .build();
 
+            // When a custom initial concurrency limit is configured, create keys that
+            // capture it. Otherwise fall back to the default keys in ConcurrencyLimitedChannel.
+            OptionalInt configuredLimit = cf.initialConcurrencyLimit();
+            ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter> hostKey = configuredLimit.isPresent()
+                    ? new ChannelState.Key<>(
+                            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
+                            () -> new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(
+                                    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior.HOST_LEVEL,
+                                    configuredLimit.getAsInt()))
+                    : ConcurrencyLimitedChannel.HOST_SPECIFIC_STATE_KEY;
+            ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter> endpointKey =
+                    configuredLimit.isPresent()
+                            ? new ChannelState.Key<>(
+                                    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
+                                    () -> new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(
+                                            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior
+                                                    .ENDPOINT_LEVEL,
+                                            configuredLimit.getAsInt()))
+                            : ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_STATE_KEY;
+
             // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
             // In a future change we should attempt to retain this state for channels that are retained between
             // updates.
@@ -209,8 +234,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                                     SafeArg.of("numUris", cf.clientConf().uris().size()),
                                     UnsafeArg.of("targets", targetUris),
                                     SafeArg.of("numTargets", targetUris.size()));
-                            ImmutableList<LimitedChannel> targetChannels =
-                                    createHostChannels(cf, targetUris, Collections.unmodifiableMap(state));
+                            ImmutableList<LimitedChannel> targetChannels = createHostChannels(
+                                    cf, targetUris, Collections.unmodifiableMap(state), hostKey, endpointKey);
                             return NodeSelectionStrategyChannel.create(cf, targetChannels);
                         }
                     }));
@@ -234,7 +259,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         private static ImmutableList<LimitedChannel> createHostChannels(
-                Config cf, List<TargetUri> targetUris, Map<TargetUri, ChannelState> state) {
+                Config cf,
+                List<TargetUri> targetUris,
+                Map<TargetUri, ChannelState> state,
+                ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter> hostKey,
+                ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter> endpointKey) {
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < targetUris.size(); uriIndex++) {
                 final int uriIndexForInstrumentation =
@@ -269,14 +298,15 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                                 cf.channelName(),
                                 uriIndexForInstrumentation,
                                 endpoint,
-                                endpointChannelState.get(endpoint));
+                                endpointChannelState.get(endpoint),
+                                endpointKey);
                         // Note that because the queue is recreated when nodes are refreshed, it's critical that
                         // the queue can force at least one request through at a time using the behavior introduced
                         // by https://github.com/palantir/dialogue/pull/2422
                         return QueuedChannel.create(cf, endpoint, limited);
                     });
                     limitedChannel = ConcurrencyLimitedChannel.createForHost(
-                            cf, channel, uriIndexForInstrumentation, channelState);
+                            cf, channel, uriIndexForInstrumentation, channelState, hostKey);
                 } else {
                     limitedChannel = new ChannelToLimitedChannelAdapter(channel);
                 }

@@ -100,7 +100,8 @@ public class ConcurrencyLimitedChannelTest {
 
         // create two channels for the same host, which should re-use the same AIMD state
 
-        LimitedChannel forHost = ConcurrencyLimitedChannel.createForHost(config, delegate, 0, state);
+        LimitedChannel forHost = ConcurrencyLimitedChannel.createForHost(
+                config, delegate, 0, state, ConcurrencyLimitedChannel.HOST_SPECIFIC_STATE_KEY);
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
                 state.getState(ConcurrencyLimitedChannel.HOST_SPECIFIC_STATE_KEY);
 
@@ -109,7 +110,8 @@ public class ConcurrencyLimitedChannelTest {
         forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
         assertThat(limiter.getInflight()).isEqualTo(1);
 
-        LimitedChannel forHost2 = ConcurrencyLimitedChannel.createForHost(config, delegate, 0, state);
+        LimitedChannel forHost2 = ConcurrencyLimitedChannel.createForHost(
+                config, delegate, 0, state, ConcurrencyLimitedChannel.HOST_SPECIFIC_STATE_KEY);
         forHost2.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
 
         assertThat(limiter.getInflight()).isEqualTo(2);
@@ -121,8 +123,8 @@ public class ConcurrencyLimitedChannelTest {
         ChannelState state = new ChannelState();
 
         // create two channels for the same endpoint, which should re-use the same AIMD state
-        LimitedChannel forEndpoint =
-                ConcurrencyLimitedChannel.createForEndpoint(delegate, channelName, 0, endpoint, state);
+        LimitedChannel forEndpoint = ConcurrencyLimitedChannel.createForEndpoint(
+                delegate, channelName, 0, endpoint, state, ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_STATE_KEY);
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
                 state.getState(ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_STATE_KEY);
 
@@ -132,8 +134,8 @@ public class ConcurrencyLimitedChannelTest {
         assertThat(limiter.getInflight()).isEqualTo(1);
 
         // different uriIndex has no impact on whether state is shared, as indexes will shuffle when nodes go down
-        LimitedChannel forEndpoint2 =
-                ConcurrencyLimitedChannel.createForEndpoint(delegate, channelName, 1, endpoint, state);
+        LimitedChannel forEndpoint2 = ConcurrencyLimitedChannel.createForEndpoint(
+                delegate, channelName, 1, endpoint, state, ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_STATE_KEY);
         forEndpoint2.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
 
         assertThat(limiter.getInflight()).isEqualTo(2);

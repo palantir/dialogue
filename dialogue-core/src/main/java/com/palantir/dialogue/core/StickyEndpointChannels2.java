@@ -61,12 +61,16 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
 
         private final String channelName;
         private final int maxQueueSize;
+        private final double initialConcurrencyLimit;
         private final QueuedChannelInstrumentation queuedChannelInstrumentation;
         private final LimitedChannel nodeSelectionChannel;
 
         private QueueOverrideSupplier(Config cf, LimitedChannel nodeSelectionChannel) {
             this.channelName = cf.channelName();
             this.maxQueueSize = cf.maxQueueSize();
+            this.initialConcurrencyLimit = cf.initialConcurrencyLimit()
+                    .orElse((int) CautiousIncreaseAggressiveDecreaseConcurrencyLimiter
+                            .DEFAULT_INITIAL_CONCURRENCY_LIMIT);
             this.queuedChannelInstrumentation = QueuedChannel.stickyInstrumentation(
                     DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), channelName);
             this.nodeSelectionChannel = nodeSelectionChannel;
@@ -75,7 +79,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         @Override
         public Channel get() {
             LimitedChannel stickyLimitedChannel =
-                    StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, channelName);
+                    StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, channelName, initialConcurrencyLimit);
             return QueuedChannel.createForSticky(
                     channelName, maxQueueSize, queuedChannelInstrumentation, stickyLimitedChannel);
         }

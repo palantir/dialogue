@@ -58,10 +58,14 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
     private final String channelNameForLogging;
 
-    static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex, ChannelState hostSpecificState) {
+    static LimitedChannel createForHost(
+            Config cf,
+            Channel channel,
+            int uriIndex,
+            ChannelState hostSpecificState,
+            ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter> hostStateKey) {
         TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
-                hostSpecificState.getState(HOST_SPECIFIC_STATE_KEY);
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = hostSpecificState.getState(hostStateKey);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
         return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
@@ -72,10 +76,15 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      * Metrics are not reported by this component per-endpoint, only by the per-endpoint queue.
      */
     static LimitedChannel createForEndpoint(
-            Channel channel, String channelName, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
+            Channel channel,
+            String channelName,
+            int uriIndex,
+            Endpoint endpoint,
+            ChannelState endpointChannelState,
+            ChannelState.Key<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter> endpointStateKey) {
         return new ConcurrencyLimitedChannel(
                 channel,
-                endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY),
+                endpointChannelState.getState(endpointStateKey),
                 new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint));
     }
 
