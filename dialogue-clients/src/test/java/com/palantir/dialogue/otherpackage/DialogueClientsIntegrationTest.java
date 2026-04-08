@@ -44,6 +44,7 @@ import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
+import com.palantir.dialogue.clients.KeystoreSupport;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.logsafe.Preconditions;
@@ -70,6 +71,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -217,6 +221,55 @@ public class DialogueClientsIntegrationTest {
                         .as("client should eventually pick up valid truststore and succeed")
                         .doesNotThrowAnyException());
         assertThat(requestPaths).contains("/foo1/voidToVoid");
+    }
+
+    @Test
+    void test_reloading_certs_keeps_in_flight_request_on_old_client(@TempDir Path tempDir) throws Exception {
+        Duration keyMaterialReloadWait = KeystoreSupport.DEFAULT_REFRESH_INTERVAL.multipliedBy(2);
+        CountDownLatch firstRequestStarted = new CountDownLatch(1);
+        CountDownLatch allowFirstResponse = new CountDownLatch(1);
+        undertowHandler = exchange -> {
+            firstRequestStarted.countDown();
+            allowFirstResponse.await(keyMaterialReloadWait.multipliedBy(2).toMillis(), TimeUnit.MILLISECONDS);
+            exchange.setStatusCode(200);
+        };
+
+        Path trustStorePath = tempDir.resolve("trustStore.jks");
+        Path keyStorePath = tempDir.resolve("keyStore.jks");
+        Files.copy(TestConfigurations.SSL_CONFIG.trustStorePath(), trustStorePath);
+        Files.copy(TestConfigurations.SSL_CONFIG.keyStorePath().orElseThrow(), keyStorePath);
+
+        SslConfiguration dynamicSslConfiguration = SslConfiguration.of(trustStorePath, keyStorePath, "keystore");
+        ServicesConfigBlock dynamicScb = ServicesConfigBlock.builder()
+                .defaultSecurity(dynamicSslConfiguration)
+                .putServices("foo", foo1)
+                .build();
+
+        SampleServiceBlocking client = DialogueClients.create(Refreshable.only(dynamicScb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .get(SampleServiceBlocking.class, "foo");
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        Future<?> inFlightRequest = executor.submit(client::voidToVoid);
+        assertThat(firstRequestStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+        writeTrustStore(
+                trustStorePath,
+                TestOnlyCertificates.generate("different-hostname").certificate());
+
+        TimeUnit.SECONDS.sleep(keyMaterialReloadWait.toSeconds());
+        assertThat(inFlightRequest.isDone()).isFalse();
+
+        allowFirstResponse.countDown();
+        assertThatCode(() -> inFlightRequest.get(5, TimeUnit.SECONDS))
+                .as("in-flight request run to completion despite keymaterial reload")
+                .doesNotThrowAnyException();
+
+        assertThatThrownBy(client::voidToVoid)
+                .as("subsequent requests use an invalid truststore")
+                .isInstanceOf(DialogueException.class)
+                .hasCauseInstanceOf(SSLException.class);
     }
 
     @Test
