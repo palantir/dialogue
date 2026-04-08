@@ -54,8 +54,8 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     }
 
     private static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter(
-            Behavior behavior, double initialLimit) {
-        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(behavior, initialLimit);
+            Behavior behavior, double initialConcurrencyLimit) {
+        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(behavior, initialConcurrencyLimit);
     }
 
     @Test
