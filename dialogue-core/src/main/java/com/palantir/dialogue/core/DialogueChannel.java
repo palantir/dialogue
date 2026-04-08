@@ -189,10 +189,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
             // In a future change we should attempt to retain this state for channels that are retained between
             // updates.
-            LimitedChannel keystoreUpdatingChannel = createKeystoreUpdatingChannel(
+            LimitedChannel createSslStoresUpdatingChannel = createKeystoreUpdatingChannel(
                     cf, reloadMeter, sslStoreMetadata -> createDnsUpdatingChannel(cf, reloadMeter, sslStoreMetadata));
 
-            LimitedChannel stickyValidationChannel = new StickyValidationChannel(keystoreUpdatingChannel);
+            LimitedChannel stickyValidationChannel = new StickyValidationChannel(createSslStoresUpdatingChannel);
 
             Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
             EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
@@ -296,13 +296,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
         private static LimitedChannel createKeystoreUpdatingChannel(
                 Config cf, Meter _reloadMeter, Function<SslStoreMetadata, LimitedChannel> delegateSupplier) {
-            return new SupplierChannel(cf.storeMetadata().map(new Function<SslStoreMetadata, LimitedChannel>() {
-
-                @Override
-                public LimitedChannel apply(SslStoreMetadata storeMetadata) {
-                    return delegateSupplier.apply(storeMetadata);
-                }
-            }));
+            return new SupplierChannel(cf.storeMetadata().map(delegateSupplier));
         }
 
         public Builder storeMetadata(Refreshable<SslStoreMetadata> storeMetadata) {

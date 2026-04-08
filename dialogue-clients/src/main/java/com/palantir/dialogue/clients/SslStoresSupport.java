@@ -37,11 +37,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-public final class KeystoreSupport {
+public final class SslStoresSupport {
     public static final String SCHEDULER_NAME = "dialogue-client-ssl-store-scheduler";
     public static final Duration DEFAULT_REFRESH_INTERVAL = Duration.ofSeconds(5);
 
-    private static final SafeLogger log = SafeLoggerFactory.get(KeystoreSupport.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(SslStoresSupport.class);
 
     private static final Cleaner cleaner = Cleaner.create(new ThreadFactoryBuilder()
             .setDaemon(true)
@@ -76,7 +76,7 @@ public final class KeystoreSupport {
         return metadataRefreshable;
     }
 
-    private KeystoreSupport() {}
+    private SslStoresSupport() {}
 
     private static final class MetadataPollingTask implements Runnable {
 

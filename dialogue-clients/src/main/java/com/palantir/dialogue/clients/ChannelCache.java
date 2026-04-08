@@ -144,8 +144,8 @@ final class ChannelCache {
     }
 
     private DialogueChannel createNonLiveReloadingChannel(ChannelCacheKey channelCacheRequest) {
-        Refreshable<SslStoreMetadata> storeMetadata =
-                KeystoreSupport.pollForChanges(channelCacheRequest.serviceConf().security());
+        Refreshable<SslStoreMetadata> storeMetadata = SslStoresSupport.pollForChanges(
+                channelCacheRequest.serviceConf().security());
 
         Refreshable<List<TargetUri>> targets;
         if (channelCacheRequest.overrideHostIndex().isPresent()) {
@@ -318,6 +318,7 @@ final class ChannelCache {
 
         DialogueDnsResolver dnsResolver();
 
+        // This argument is used solely to cause cache misses when the underlying keystores change on disk
         Optional<String> sslStoreHash();
 
         @Value.Check

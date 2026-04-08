@@ -47,7 +47,7 @@ class KeystoreSupportTest {
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
         try {
             Refreshable<SslStoreMetadata> refreshable =
-                    KeystoreSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
+                    SslStoresSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
 
             SslStoreMetadata initial = refreshable.get();
             HashCode initialTrustHash = initial.trustStore().hash();
@@ -78,7 +78,7 @@ class KeystoreSupportTest {
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
         try {
             Refreshable<SslStoreMetadata> refreshable =
-                    KeystoreSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
+                    SslStoresSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
             HashCode initialTrustHash = refreshable.get().trustStore().hash();
 
             Files.move(trustStore, movedTrustStore);

@@ -44,7 +44,7 @@ import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
-import com.palantir.dialogue.clients.KeystoreSupport;
+import com.palantir.dialogue.clients.SslStoresSupport;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.logsafe.Preconditions;
@@ -225,7 +225,7 @@ public class DialogueClientsIntegrationTest {
 
     @Test
     void test_reloading_certs_keeps_in_flight_request_on_old_client(@TempDir Path tempDir) throws Exception {
-        Duration keyMaterialReloadWait = KeystoreSupport.DEFAULT_REFRESH_INTERVAL.multipliedBy(2);
+        Duration keyMaterialReloadWait = SslStoresSupport.DEFAULT_REFRESH_INTERVAL.multipliedBy(2);
         CountDownLatch firstRequestStarted = new CountDownLatch(1);
         CountDownLatch allowFirstResponse = new CountDownLatch(1);
         undertowHandler = exchange -> {
