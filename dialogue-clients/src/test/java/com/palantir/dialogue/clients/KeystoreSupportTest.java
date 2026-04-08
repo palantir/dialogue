@@ -19,6 +19,7 @@ package com.palantir.dialogue.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.hash.HashCode;
+import com.google.common.hash.Hashing;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.dialogue.TestConfigurations;
@@ -27,6 +28,7 @@ import com.palantir.refreshable.Refreshable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,14 +53,32 @@ class KeystoreSupportTest {
 
             SslStoreMetadata initial = refreshable.get();
             HashCode initialTrustHash = initial.trustStore().hash();
+            HashCode initialKeyHash = initial.keyStore().hash();
 
             // Corrupts the truststore for the sake of testing updates
-            Files.write(trustStore, new byte[] {1, 0, 0, 0}, java.nio.file.StandardOpenOption.APPEND);
+            Files.write(trustStore, new byte[] {1, 0, 0, 0}, StandardOpenOption.APPEND);
+            HashCode updatedTrustHash = Hashing.murmur3_128().hashBytes(Files.readAllBytes(trustStore));
 
             Awaitility.waitAtMost(Duration.ofSeconds(10)).untilAsserted(() -> {
                 SslStoreMetadata updated = refreshable.get();
                 assertThat(updated).isNotEqualTo(initial);
                 assertThat(updated.trustStore().hash()).isNotEqualTo(initialTrustHash);
+                assertThat(updated.trustStore().hash()).isEqualTo(updatedTrustHash);
+                assertThat(updated.keyStore().hash()).isEqualTo(initialKeyHash);
+            });
+
+            SslStoreMetadata updatedStoreMetadata = refreshable.get();
+
+            Files.write(keyStore, new byte[] {2, 0, 0, 0}, StandardOpenOption.APPEND);
+            HashCode updatedKeyHash = Hashing.murmur3_128().hashBytes(Files.readAllBytes(keyStore));
+
+            Awaitility.waitAtMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+                SslStoreMetadata updated = refreshable.get();
+                assertThat(updated).isNotEqualTo(updatedStoreMetadata);
+                assertThat(updated.trustStore().hash())
+                        .isEqualTo(updatedStoreMetadata.trustStore().hash());
+                assertThat(updated.keyStore().hash()).isEqualTo(updatedKeyHash);
+                assertThat(updated.keyStore().hash()).isNotEqualTo(initialKeyHash);
             });
         } finally {
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.SECONDS))
@@ -85,7 +105,7 @@ class KeystoreSupportTest {
             Thread.sleep(150);
 
             Files.move(movedTrustStore, trustStore);
-            Files.write(trustStore, new byte[] {9}, java.nio.file.StandardOpenOption.APPEND);
+            Files.write(trustStore, new byte[] {9}, StandardOpenOption.APPEND);
 
             Awaitility.waitAtMost(Duration.ofSeconds(10))
                     .untilAsserted(() ->
