@@ -29,6 +29,7 @@ import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import java.lang.ref.Cleaner;
+import java.lang.ref.WeakReference;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -80,21 +81,26 @@ final class KeystoreSupport {
     private static final class MetadataPollingTask implements Runnable {
 
         private final SslConfiguration sslConfiguration;
-        private final SettableRefreshable<SslStoreMetadata> metadataRefreshable;
+        private final WeakReference<SettableRefreshable<SslStoreMetadata>> metadataRefreshable;
 
         private MetadataPollingTask(
                 SslConfiguration sslConfiguration, SettableRefreshable<SslStoreMetadata> metadataRefreshable) {
             this.sslConfiguration = sslConfiguration;
-            this.metadataRefreshable = metadataRefreshable;
+            this.metadataRefreshable = new WeakReference<>(metadataRefreshable);
         }
 
         @Override
         public void run() {
+            SettableRefreshable<SslStoreMetadata> refreshable = metadataRefreshable.get();
+            if (refreshable == null) {
+                log.info("Output refreshable has been garbage collected, no need to continue polling");
+                return;
+            }
             try {
                 // TODO(#100): Add in cheaper comparison
                 SslStoreMetadata updated = SslStoreMetadata.of(sslConfiguration);
-                if (!updated.equals(metadataRefreshable.get())) {
-                    metadataRefreshable.update(updated);
+                if (!updated.equals(refreshable.get())) {
+                    refreshable.update(updated);
                 }
             } catch (RuntimeException e) {
                 log.error("Failed to refresh ssl store metadata", e);
