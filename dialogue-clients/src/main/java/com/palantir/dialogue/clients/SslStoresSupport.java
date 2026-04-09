@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.clients;
 
+import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -28,6 +29,7 @@ import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.Cleaner;
 import java.lang.ref.WeakReference;
 import java.time.Duration;
@@ -58,18 +60,23 @@ public final class SslStoresSupport {
                             .build(),
                     SCHEDULER_NAME)));
 
-    static Refreshable<SslStoreMetadata> pollForChanges(SslConfiguration sslConfiguration) {
-        return pollForChanges(sslConfiguration, sharedScheduler.get(), DEFAULT_REFRESH_INTERVAL);
+    static Refreshable<SslStoreMetadata> pollForChanges(SslConfiguration sslConfiguration, TaggedMetricRegistry metrics) {
+        return pollForChanges(sslConfiguration, metrics, sharedScheduler.get(), DEFAULT_REFRESH_INTERVAL);
     }
 
     @VisibleForTesting
     static Refreshable<SslStoreMetadata> pollForChanges(
-            SslConfiguration sslConfiguration, ScheduledExecutorService executor, Duration refreshInterval) {
+            SslConfiguration sslConfiguration,
+            TaggedMetricRegistry metrics,
+            ScheduledExecutorService executor,
+            Duration refreshInterval) {
 
         SettableRefreshable<SslStoreMetadata> metadataRefreshable =
                 Refreshable.create(SslStoreMetadata.of(sslConfiguration));
 
-        MetadataPollingTask task = new MetadataPollingTask(sslConfiguration, metadataRefreshable);
+        ClientSslStoreMetrics sslMetrics = ClientSslStoreMetrics.of(metrics);
+        MetadataPollingTask task = new MetadataPollingTask(
+                sslConfiguration, metadataRefreshable, sslMetrics.refresh(), sslMetrics.failure());
         ScheduledFuture<?> future = executor.scheduleWithFixedDelay(
                 task, refreshInterval.toMillis(), refreshInterval.toMillis(), TimeUnit.MILLISECONDS);
         cleaner.register(metadataRefreshable, new CleanupTask(future));
@@ -82,11 +89,18 @@ public final class SslStoresSupport {
 
         private final SslConfiguration sslConfiguration;
         private final WeakReference<SettableRefreshable<SslStoreMetadata>> metadataRefreshable;
+        private final Meter refreshMeter;
+        private final Meter failureMeter;
 
         private MetadataPollingTask(
-                SslConfiguration sslConfiguration, SettableRefreshable<SslStoreMetadata> metadataRefreshable) {
+                SslConfiguration sslConfiguration,
+                SettableRefreshable<SslStoreMetadata> metadataRefreshable,
+                Meter refreshMeter,
+                Meter failureMeter) {
             this.sslConfiguration = sslConfiguration;
             this.metadataRefreshable = new WeakReference<>(metadataRefreshable);
+            this.refreshMeter = refreshMeter;
+            this.failureMeter = failureMeter;
         }
 
         @Override
@@ -97,12 +111,13 @@ public final class SslStoresSupport {
                 return;
             }
             try {
-                // TODO(#100): Add in cheaper comparison
                 SslStoreMetadata updated = SslStoreMetadata.of(sslConfiguration);
                 if (!updated.equals(refreshable.get())) {
                     refreshable.update(updated);
+                    refreshMeter.mark();
                 }
             } catch (RuntimeException e) {
+                failureMeter.mark();
                 log.error("Failed to refresh ssl store metadata", e);
             }
         }

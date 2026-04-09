@@ -18,6 +18,7 @@ package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.codahale.metrics.Meter;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -25,6 +26,8 @@ import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.core.SslStoreMetadata;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,9 +50,12 @@ class SslStoresSupportTest {
 
         SslConfiguration sslConfiguration = SslConfiguration.of(trustStore, keyStore, "keystore");
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Meter refreshMeter = ClientSslStoreMetrics.of(metrics).refresh();
+        Meter failureMeter = ClientSslStoreMetrics.of(metrics).failure();
         try {
-            Refreshable<SslStoreMetadata> refreshable =
-                    SslStoresSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
+            Refreshable<SslStoreMetadata> refreshable = SslStoresSupport.pollForChanges(
+                    sslConfiguration, metrics, executorService, Duration.ofMillis(25));
 
             SslStoreMetadata initial = refreshable.get();
             HashCode initialTrustHash = initial.trustStore().hash();
@@ -66,6 +72,8 @@ class SslStoresSupportTest {
                 assertThat(updated.trustStore().hash()).isEqualTo(updatedTrustHash);
                 assertThat(updated.keyStore().hash()).isEqualTo(initialKeyHash);
             });
+            assertThat(refreshMeter.getCount()).isEqualTo(1);
+            assertThat(failureMeter.getCount()).isZero();
 
             SslStoreMetadata updatedStoreMetadata = refreshable.get();
 
@@ -80,6 +88,8 @@ class SslStoresSupportTest {
                 assertThat(updated.keyStore().hash()).isEqualTo(updatedKeyHash);
                 assertThat(updated.keyStore().hash()).isNotEqualTo(initialKeyHash);
             });
+            assertThat(refreshMeter.getCount()).isEqualTo(2);
+            assertThat(failureMeter.getCount()).isZero();
         } finally {
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.SECONDS))
                     .isTrue();
@@ -96,13 +106,17 @@ class SslStoresSupportTest {
 
         SslConfiguration sslConfiguration = SslConfiguration.of(trustStore, keyStore, "keystore");
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Meter refreshMeter = ClientSslStoreMetrics.of(metrics).refresh();
+        Meter failureMeter = ClientSslStoreMetrics.of(metrics).failure();
         try {
-            Refreshable<SslStoreMetadata> refreshable =
-                    SslStoresSupport.pollForChanges(sslConfiguration, executorService, Duration.ofMillis(25));
+            Refreshable<SslStoreMetadata> refreshable = SslStoresSupport.pollForChanges(
+                    sslConfiguration, metrics, executorService, Duration.ofMillis(25));
             HashCode initialTrustHash = refreshable.get().trustStore().hash();
 
             Files.move(trustStore, movedTrustStore);
-            Thread.sleep(150);
+            Awaitility.waitAtMost(Duration.ofSeconds(10))
+                    .untilAsserted(() -> assertThat(failureMeter.getCount()).isGreaterThan(0));
 
             Files.move(movedTrustStore, trustStore);
             Files.write(trustStore, new byte[] {9}, StandardOpenOption.APPEND);
@@ -110,6 +124,7 @@ class SslStoresSupportTest {
             Awaitility.waitAtMost(Duration.ofSeconds(10))
                     .untilAsserted(() ->
                             assertThat(refreshable.get().trustStore().hash()).isNotEqualTo(initialTrustHash));
+            assertThat(refreshMeter.getCount()).isEqualTo(1);
         } finally {
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.SECONDS))
                     .isTrue();

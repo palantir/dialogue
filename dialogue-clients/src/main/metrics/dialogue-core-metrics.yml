@@ -43,3 +43,12 @@ namespaces:
           - name: error-type
             docs: Describes the error type returned by getaddrinfo() when lookup fails.
         docs: DNS resolver query failures.
+  client.ssl.store:
+    docs: Dialogue SSL store polling metrics.
+    metrics:
+      refresh:
+        type: meter
+        docs: Number of times SSL store metadata changed and triggered a refresh.
+      failure:
+        type: meter
+        docs: Number of failed SSL store refresh attempts.

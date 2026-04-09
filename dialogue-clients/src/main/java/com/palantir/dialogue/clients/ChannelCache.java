@@ -145,7 +145,8 @@ final class ChannelCache {
 
     private DialogueChannel createNonLiveReloadingChannel(ChannelCacheKey channelCacheRequest) {
         Refreshable<SslStoreMetadata> storeMetadata = SslStoresSupport.pollForChanges(
-                channelCacheRequest.serviceConf().security());
+                channelCacheRequest.serviceConf().security(),
+                channelCacheRequest.taggedMetrics());
 
         Refreshable<List<TargetUri>> targets;
         if (channelCacheRequest.overrideHostIndex().isPresent()) {
