@@ -260,6 +260,7 @@ final class ChannelCache {
                 + '}';
     }
 
+    @SuppressWarnings("for-rollout:DangerousImmutablesToStringDoNotLog")
     @DoNotLog
     @Value.Immutable
     interface ChannelCacheKey extends AugmentClientConfig {
@@ -294,6 +295,7 @@ final class ChannelCache {
         }
     }
 
+    @SuppressWarnings("for-rollout:DangerousImmutablesToStringDoNotLog")
     @DoNotLog
     @Value.Immutable
     interface ApacheClientRequest extends AugmentClientConfig {
@@ -311,6 +313,7 @@ final class ChannelCache {
         }
     }
 
+    @SuppressWarnings("for-rollout:DangerousImmutablesToStringDoNotLog")
     @DoNotLog
     @Value.Immutable
     interface ApacheCacheEntry {
