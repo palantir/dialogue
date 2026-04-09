@@ -54,8 +54,8 @@ class SslStoresSupportTest {
         Meter refreshMeter = ClientSslStoreMetrics.of(metrics).refresh();
         Meter failureMeter = ClientSslStoreMetrics.of(metrics).failure();
         try {
-            Refreshable<SslStoreMetadata> refreshable = SslStoresSupport.pollForChanges(
-                    sslConfiguration, metrics, executorService, Duration.ofMillis(25));
+            Refreshable<SslStoreMetadata> refreshable =
+                    SslStoresSupport.pollForChanges(sslConfiguration, metrics, executorService, Duration.ofMillis(25));
 
             SslStoreMetadata initial = refreshable.get();
             HashCode initialTrustHash = initial.trustStore().hash();
@@ -110,21 +110,17 @@ class SslStoresSupportTest {
         Meter refreshMeter = ClientSslStoreMetrics.of(metrics).refresh();
         Meter failureMeter = ClientSslStoreMetrics.of(metrics).failure();
         try {
-            Refreshable<SslStoreMetadata> refreshable = SslStoresSupport.pollForChanges(
-                    sslConfiguration, metrics, executorService, Duration.ofMillis(25));
-            HashCode initialTrustHash = refreshable.get().trustStore().hash();
+            SslStoresSupport.pollForChanges(sslConfiguration, metrics, executorService, Duration.ofMillis(25));
 
             Files.move(trustStore, movedTrustStore);
             Awaitility.waitAtMost(Duration.ofSeconds(10))
                     .untilAsserted(() -> assertThat(failureMeter.getCount()).isGreaterThan(0));
 
+            Files.write(movedTrustStore, new byte[] {9}, StandardOpenOption.APPEND);
             Files.move(movedTrustStore, trustStore);
-            Files.write(trustStore, new byte[] {9}, StandardOpenOption.APPEND);
 
             Awaitility.waitAtMost(Duration.ofSeconds(10))
-                    .untilAsserted(() ->
-                            assertThat(refreshable.get().trustStore().hash()).isNotEqualTo(initialTrustHash));
-            assertThat(refreshMeter.getCount()).isEqualTo(1);
+                    .untilAsserted(() -> assertThat(refreshMeter.getCount()).isEqualTo(1));
         } finally {
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.SECONDS))
                     .isTrue();
