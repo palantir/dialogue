@@ -51,7 +51,7 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        @Nullable Permit maybePermit = limiter.acquire(limitEnforcement);
+        @Nullable Permit maybePermit = limiter.acquire(limitEnforcement, channelNameForLogging);
         if (maybePermit != null) {
             logPermitAcquired();
 

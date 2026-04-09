@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -125,20 +126,20 @@ public final class StickyConcurrencyLimitedChannelTest {
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DANGEROUS_BYPASS_LIMITS))
                 .isPresent();
-        verify(mockLimiter).acquire(LimitEnforcement.DANGEROUS_BYPASS_LIMITS);
+        verify(mockLimiter).acquire(eq(LimitEnforcement.DANGEROUS_BYPASS_LIMITS), any());
         verify(delegate).maybeExecute(endpoint, request, LimitEnforcement.DANGEROUS_BYPASS_LIMITS);
     }
 
     @Test
     public void acquire_fails() {
-        when(mockLimiter.acquire(any())).thenReturn(null);
+        when(mockLimiter.acquire(any(), any())).thenReturn(null);
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DANGEROUS_BYPASS_LIMITS))
                 .isEmpty();
         verifyNoInteractions(permit, delegate);
     }
 
     private void whenAcquireSuccessful() {
-        when(mockLimiter.acquire(any())).thenReturn(permit);
+        when(mockLimiter.acquire(any(), any())).thenReturn(permit);
     }
 
     private void whenOnlyInFlight(boolean onlyInFlight) {

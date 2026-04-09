@@ -63,12 +63,12 @@ public class ConcurrencyLimitedChannelTest {
     @Spy
     private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit hostPermit =
             new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL)
-                    .acquire(LimitEnforcement.DEFAULT_ENABLED);
+                    .acquire(LimitEnforcement.DEFAULT_ENABLED, "test");
 
     @Spy
     private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit endpointPermit =
             new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL)
-                    .acquire(LimitEnforcement.DEFAULT_ENABLED);
+                    .acquire(LimitEnforcement.DEFAULT_ENABLED, "test");
 
     @Mock
     private Response response;
@@ -261,19 +261,19 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     private void mockHostLimitAvailable() {
-        when(mockLimiter.acquire(any())).thenReturn(hostPermit);
+        when(mockLimiter.acquire(any(), any())).thenReturn(hostPermit);
     }
 
     private void mockHostLimitUnavailable() {
-        when(mockLimiter.acquire(any())).thenReturn(null);
+        when(mockLimiter.acquire(any(), any())).thenReturn(null);
     }
 
     private void mockEndpointLimitAvailable() {
-        when(mockLimiter.acquire(any())).thenReturn(endpointPermit);
+        when(mockLimiter.acquire(any(), any())).thenReturn(endpointPermit);
     }
 
     private void mockEndpointLimitUnavailable() {
-        when(mockLimiter.acquire(any())).thenReturn(null);
+        when(mockLimiter.acquire(any(), any())).thenReturn(null);
     }
 
     @SuppressWarnings("unchecked")

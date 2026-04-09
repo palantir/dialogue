@@ -71,7 +71,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * ignore/dropped/success depending on the success or failure state of the response.
      * */
     @Nullable // avoiding java.util.Optional because this method is on the hot path
-    Permit acquire(LimitEnforcement limitEnforcement) {
+    Permit acquire(LimitEnforcement limitEnforcement, String channelNameForLogging) {
 
         // Capture the limit field reference once to avoid work in a tight loop. The JIT cannot
         // reliably optimize out references to final fields due to the potential for reflective
@@ -91,7 +91,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
             int newInFlight = currentInFlight + 1;
             if (inFlight.compareAndSet(currentInFlight, newInFlight)) {
-                return new Permit(newInFlight);
+                return new Permit(newInFlight, channelNameForLogging);
             }
         }
     }
@@ -183,9 +183,11 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
     final class Permit implements PermitControl, FutureCallback<Response> {
         private final int inFlightSnapshot;
+        private final String channelNameForLogging;
 
-        Permit(int inFlightSnapshot) {
+        Permit(int inFlightSnapshot, String channelNameForLogging) {
             this.inFlightSnapshot = inFlightSnapshot;
+            this.channelNameForLogging = channelNameForLogging;
         }
 
         boolean isOnlyInFlight() {
@@ -219,7 +221,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             inFlight.decrementAndGet();
             double newLimit = accumulateAndGetLimit(inFlightSnapshot, LimitUpdater.DROPPED);
             if (log.isDebugEnabled()) {
-                log.debug("Decreasing limit {}", SafeArg.of("newLimit", newLimit));
+                log.debug(
+                        "Decreasing limit {} on {}",
+                        SafeArg.of("newLimit", newLimit),
+                        SafeArg.of("channel", channelNameForLogging));
             }
         }
 
@@ -228,7 +233,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             inFlight.decrementAndGet();
             double newLimit = accumulateAndGetLimit(inFlightSnapshot, LimitUpdater.SUCCESS);
             if (log.isDebugEnabled()) {
-                log.debug("Increasing limit {}", SafeArg.of("newLimit", newLimit));
+                log.debug(
+                        "Increasing limit {} on {}",
+                        SafeArg.of("newLimit", newLimit),
+                        SafeArg.of("channel", channelNameForLogging));
             }
         }
     }
