@@ -33,6 +33,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import org.immutables.value.Value;
 
 /** Private class to centralize validation of params necessary to construct a dialogue channel. */
+@SuppressWarnings("for-rollout:DangerousImmutablesToStringDoNotLog")
 @DoNotLog
 @Value.Immutable
 interface Config {
