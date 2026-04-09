@@ -21,7 +21,6 @@
         </Console>
     </Appenders>
     <Loggers>
-        <Logger name="com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter" level="debug"/>
         <Root level="info">
             <AppenderRef ref="Console"/>
         </Root>
