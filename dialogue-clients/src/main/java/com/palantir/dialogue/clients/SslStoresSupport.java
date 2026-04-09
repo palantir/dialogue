@@ -60,7 +60,8 @@ public final class SslStoresSupport {
                             .build(),
                     SCHEDULER_NAME)));
 
-    static Refreshable<SslStoreMetadata> pollForChanges(SslConfiguration sslConfiguration, TaggedMetricRegistry metrics) {
+    static Refreshable<SslStoreMetadata> pollForChanges(
+            SslConfiguration sslConfiguration, TaggedMetricRegistry metrics) {
         return pollForChanges(sslConfiguration, metrics, sharedScheduler.get(), DEFAULT_REFRESH_INTERVAL);
     }
 
