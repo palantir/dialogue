@@ -173,7 +173,6 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
-        // MARK(pm): Is this actually just for tests?
         @VisibleForTesting
         Builder maxQueueSize(int value) {
             builder.maxQueueSize(value);
