@@ -494,6 +494,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     + exceptionSupplier.get().getMessage() + '}';
         }
 
+        @Unsafe
         @Override
         public Channel stickyChannel() {
             return this;

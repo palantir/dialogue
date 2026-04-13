@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
@@ -47,7 +48,10 @@ interface Config {
 
     ClientConfiguration rawConfig();
 
-    Cache<Endpoint, EndpointChannel> stickyEndpointChannelCache();
+    @Value.Default
+    default Cache<Endpoint, EndpointChannel> stickyEndpointChannelCache() {
+        return Caffeine.newBuilder().maximumSize(0).build(); // no cache by default
+    }
 
     @Value.Derived
     default ClientConfiguration clientConf() {

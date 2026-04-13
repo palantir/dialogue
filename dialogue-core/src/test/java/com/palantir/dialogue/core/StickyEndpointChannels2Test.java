@@ -23,6 +23,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -80,14 +82,19 @@ public final class StickyEndpointChannels2Test {
 
     private Supplier<Channel> sticky;
 
+    private final Cache<Endpoint, EndpointChannel> stickyEndpointChannelCache =
+            Caffeine.newBuilder().maximumSize(3).weakValues().build();
+
     @BeforeEach
     public void beforeEach() {
         when(config.channelName()).thenReturn("channel");
         when(config.clientConf()).thenReturn(clientConfiguration);
+        when(config.stickyEndpointChannelCache()).thenReturn(stickyEndpointChannelCache);
         lenient().when(endpointChannelFactory.endpoint(any())).thenReturn(endpointChannel);
         when(clientConfiguration.taggedMetricRegistry()).thenReturn(new DefaultTaggedMetricRegistry());
-        sticky = StickyEndpointChannels2.create(
-                config, nodeSelectionChannel, stickyEndpointChannelsCache, endpointChannelFactory);
+        StickyEndpointChannelsFactory stickyEndpointChannelsFactory =
+                StickyEndpointChannels2.create(config, nodeSelectionChannel, endpointChannelFactory);
+        sticky = () -> stickyEndpointChannelsFactory.stickyChannel();
     }
 
     @Test

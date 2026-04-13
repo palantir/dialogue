@@ -89,7 +89,7 @@ final class StickyEndpointChannels2 implements StickyEndpointChannelsFactory {
         }
     }
 
-    private static final class StickyChannel2 implements Channel {
+    private static final class StickyChannel2 implements Channel, EndpointChannelFactory {
 
         private final Channel queueOverride;
         private final EndpointChannelFactory delegate;
@@ -106,12 +106,18 @@ final class StickyEndpointChannels2 implements StickyEndpointChannelsFactory {
         }
 
         @Override
-        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        public EndpointChannel endpoint(Endpoint endpoint) {
             EndpointChannel cachedEndpoint = cache.get(endpoint, delegate::endpoint);
             EndpointChannel endpointWithQueueOverride = innerRequest -> {
                 QueueAttachments.setQueueOverride(innerRequest, queueOverride);
                 return cachedEndpoint.execute(innerRequest);
             };
+            return endpointWithQueueOverride;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            EndpointChannel endpointWithQueueOverride = endpoint(endpoint);
             return router.execute(request, endpointWithQueueOverride);
         }
 
