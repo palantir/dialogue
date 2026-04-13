@@ -49,6 +49,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory, StickyEndpointChannelsFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueChannel.class);
@@ -71,6 +72,14 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
     @Override
     public EndpointChannel endpoint(Endpoint endpoint) {
         return delegate.endpoint(endpoint);
+    }
+
+    /**
+     * @deprecated use {@link #stickyChannel()}
+     */
+    @Deprecated
+    public Supplier<Channel> stickyChannels() {
+        return () -> stickyChannel();
     }
 
     @Override
