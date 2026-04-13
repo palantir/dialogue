@@ -114,6 +114,7 @@ populated with the reason for which the last retry has failed.
 - `dialogue.client.requests.queued` tagged `channel-name` (counter): Number of queued requests waiting to execute.
 - `dialogue.client.requests.endpoint.queued` tagged `channel-name`, `service-name`, `endpoint` (counter): Number of queued requests waiting to execute for a specific endpoint due to server QoS.
 - `dialogue.client.requests.sticky.queued` tagged `channel-name` (counter): Number of sticky queued requests waiting to try to be executed.
+- `dialogue.client.request.queue.timeout` tagged `channel-name` (counter): Count of requests that are failed due to queue timeout.
 - `dialogue.client.request.queued.time` tagged `channel-name` (timer): Time spent waiting in the queue before execution.
 - `dialogue.client.request.endpoint.queued.time` tagged `channel-name`, `service-name`, `endpoint` (timer): Time spent waiting in the queue before execution on a specific endpoint due to server QoS.
 - `dialogue.client.request.sticky.queued.time` tagged `channel-name` (timer): Time spent waiting in the sticky queue before execution attempt.

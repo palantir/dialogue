@@ -106,6 +106,7 @@ final class QueuedChannel implements Channel {
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
     private final Supplier<Counter> queueSizeCounter;
+    private final Supplier<Counter> queueTimeoutCounter;
     private final Timer queuedTime;
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
     // Metrics aren't reported until the queue is first used, allowing per-endpoint queues to
@@ -126,7 +127,7 @@ final class QueuedChannel implements Channel {
             LimitedChannel delegate,
             @Safe String channelName,
             @Safe String queueType,
-            QueuedChannelInstrumentation instrumentation,
+            QueuedChannelInstrumentation metrics,
             int maxQueueSize) {
         this(
                 delegate,
@@ -159,10 +160,11 @@ final class QueuedChannel implements Channel {
         this.scheduler = scheduler;
         // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
         // zero interactions because they support both increment and decrement operations.
-        this.queueSizeCounter = Suppliers.memoize(instrumentation::requestsQueued);
-        this.queuedTime = instrumentation.requestQueuedTime();
+        this.queueSizeCounter = Suppliers.memoize(metrics::requestsQueued);
+        this.queueTimeoutCounter = Suppliers.memoize(metrics::requestQueueTimeout);
+        this.queuedTime = metrics.requestQueuedTime();
         this.limitedResultSupplier = () -> {
-            List<SafeArg<?>> safeArgs = new ArrayList<>(instrumentation.queueFullSafeArgs());
+            List<SafeArg<?>> safeArgs = new ArrayList<>(metrics.queueFullSafeArgs());
             safeArgs.add(SafeArg.of("maxQueueSize", maxQueueSize));
             safeArgs.add(SafeArg.of("channelName", channelName));
             return Futures.immediateFailedFuture(new SafeRuntimeException(
@@ -315,10 +317,12 @@ final class QueuedChannel implements Channel {
     @VisibleForTesting
     void failWithQueueTimeout(
             SettableFuture<Response> responseFuture, DetachedSpan span, IdempotentTimerContext timer) {
-        responseFuture.setException(new SafeRuntimeException(
+        if (responseFuture.setException(new SafeRuntimeException(
                 "Request queued for longer than queue timeout",
                 SafeArg.of("channelName", channelName),
-                SafeArg.of("queueTimeoutNanos", queueTimeoutNanos)));
+                SafeArg.of("queueTimeoutNanos", queueTimeoutNanos)))) {
+            queueTimeoutCounter.get().inc();
+        }
         span.complete(QueuedChannelTagTranslator.INSTANCE, this);
         timer.stop();
     }
@@ -589,6 +593,8 @@ final class QueuedChannel implements Channel {
         Timer requestQueuedTime();
 
         List<SafeArg<?>> queueFullSafeArgs();
+
+        Counter requestQueueTimeout();
     }
 
     static QueuedChannelInstrumentation channelInstrumentation(DialogueClientMetrics metrics, String channelName) {
@@ -606,6 +612,10 @@ final class QueuedChannel implements Channel {
             @Override
             public List<SafeArg<?>> queueFullSafeArgs() {
                 return List.of();
+            }
+
+            public Counter requestQueueTimeout() {
+                return metrics.requestQueueTimeout(channelName);
             }
         };
     }
@@ -627,6 +637,10 @@ final class QueuedChannel implements Channel {
             @Override
             public List<SafeArg<?>> queueFullSafeArgs() {
                 return List.of(SafeArg.of("sticky", true));
+            }
+
+            public Counter requestQueueTimeout() {
+                return metrics.requestQueueTimeout(channelName);
             }
         });
     }
@@ -656,6 +670,10 @@ final class QueuedChannel implements Channel {
             public List<SafeArg<?>> queueFullSafeArgs() {
                 return List.of(SafeArg.of("service", service), SafeArg.of("endpoint", endpoint));
             }
+
+            public Counter requestQueueTimeout() {
+                return metrics.requestQueueTimeout(channelName);
+            }
         };
     }
 
@@ -664,11 +682,13 @@ final class QueuedChannel implements Channel {
         private final Supplier<Counter> requestsQueuedSupplier;
         private final Supplier<Timer> requestQueuedTimeSupplier;
         private final Supplier<List<SafeArg<?>>> queueFullSafeArgs;
+        private final Supplier<Counter> requestQueueTimeoutSupplier;
 
         MemoizedQueuedChannelInstrumentation(QueuedChannelInstrumentation delegate) {
             this.requestsQueuedSupplier = Suppliers.memoize(delegate::requestsQueued);
             this.requestQueuedTimeSupplier = Suppliers.memoize(delegate::requestQueuedTime);
             this.queueFullSafeArgs = Suppliers.memoize(delegate::queueFullSafeArgs);
+            this.requestQueueTimeoutSupplier = Suppliers.memoize(delegate::requestQueueTimeout);
         }
 
         @Override
@@ -684,6 +704,10 @@ final class QueuedChannel implements Channel {
         @Override
         public List<SafeArg<?>> queueFullSafeArgs() {
             return queueFullSafeArgs.get();
+        }
+
+        public Counter requestQueueTimeout() {
+            return requestQueueTimeoutSupplier.get();
         }
     }
 
