@@ -30,23 +30,21 @@ import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.ri.ResourceIdentifier;
 import java.net.ConnectException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.Rule;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.RecordedRequest;
+import mockwebserver3.junit5.StartStop;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 
 // CHECKSTYLE:ON
 
-@EnableRuleMigrationSupport
+@SuppressWarnings("VisibilityModifier")
 public abstract class AbstractSampleServiceClientTest {
 
     protected abstract SampleServiceBlocking createBlockingClient(URL baseUrl, Duration timeout);
@@ -62,30 +60,33 @@ public abstract class AbstractSampleServiceClientTest {
     private static final SampleObject RESPONSE = SampleObject.of(84);
     private static final String RESPONSE_STRING = "{\"intProperty\": 84}";
 
-    @Rule
-    public final MockWebServer server = new MockWebServer();
+    @StartStop
+    protected final MockWebServer server = new MockWebServer();
 
     private SampleServiceBlocking blockingClient;
     private SampleServiceAsync asyncClient;
 
     @BeforeEach
     public void before() {
-        server.useHttps(SslSocketFactories.createSslSocketFactory(TestConfigurations.SSL_CONFIG), false);
+        server.useHttps(SslSocketFactories.createSslSocketFactory(TestConfigurations.SSL_CONFIG));
         blockingClient = createBlockingClient(server.url("").url(), Duration.ofSeconds(1));
         asyncClient = createAsyncClient(server.url("").url(), Duration.ofSeconds(1));
     }
 
     @Test
     public void testBlocking_objectToObject_expectedCase() throws Exception {
-        server.enqueue(
-                new MockResponse().setBody(RESPONSE_STRING).addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
+        server.enqueue(new MockResponse.Builder()
+                .body(RESPONSE_STRING)
+                .addHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                .build());
 
         assertThat(blockingClient.objectToObject(HEADER, PATH, QUERY, BODY)).isEqualTo(RESPONSE);
         RecordedRequest request = server.takeRequest();
-        assertThat(request.getPath())
-                .isEqualTo("/objectToObject/objects/myPath?queryKey=ri.a.b.c.d&queryKey=ri.a.b.c.e");
-        assertThat(request.getHeader("headerKey")).isEqualTo("2018-07-19T08:11:21Z");
-        assertThat(request.getBody().readString(StandardCharsets.UTF_8)).isEqualTo(BODY_STRING);
+        assertThat(request.getUrl().pathSegments()).containsExactly("objectToObject", "objects", "myPath");
+        assertThat(request.getUrl().queryParameterNames()).containsExactlyInAnyOrder("queryKey");
+        assertThat(request.getUrl().queryParameterValues("queryKey")).containsExactly("ri.a.b.c.d", "ri.a.b.c.e");
+        assertThat(request.getHeaders().get("headerKey")).isEqualTo("2018-07-19T08:11:21Z");
+        assertThat(request.getBody().utf8()).isEqualTo(BODY_STRING);
     }
 
     @Test
@@ -97,14 +98,18 @@ public abstract class AbstractSampleServiceClientTest {
 
     @Test
     public void testAsync_objectToObject_expectedCase() throws Exception {
-        server.enqueue(
-                new MockResponse().setBody(RESPONSE_STRING).addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
+        server.enqueue(new MockResponse.Builder()
+                .body(RESPONSE_STRING)
+                .addHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                .build());
         assertThat(asyncClient.objectToObject(HEADER, PATH, QUERY, BODY).get()).isEqualTo(RESPONSE);
     }
 
     @Test
     public void testBlocking_objectToObject_throwsWhenResponseBodyIsEmpty() {
-        server.enqueue(new MockResponse().addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
+        server.enqueue(new MockResponse.Builder()
+                .addHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                .build());
         assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Failed to deserialize response stream");
@@ -112,19 +117,21 @@ public abstract class AbstractSampleServiceClientTest {
 
     @Test
     public void testBlocking_voidToVoid_doesNotThrowWhenResponseBodyIsNonEmpty() {
-        server.enqueue(new MockResponse().setBody("Unexpected response"));
+        server.enqueue(new MockResponse.Builder().body("Unexpected response").build());
         blockingClient.voidToVoid();
     }
 
     @Test
     public void testAsync_voidToVoid_doesNotThrowWhenResponseBodyIsNonEmpty() throws Exception {
-        server.enqueue(new MockResponse().setBody("Unexpected response"));
+        server.enqueue(new MockResponse.Builder().body("Unexpected response").build());
         assertThat(asyncClient.voidToVoid().get()).isNull();
     }
 
     @Test
     public void testAsync_objectToObject_throwsWhenResponseBodyIsEmpty() {
-        server.enqueue(new MockResponse().addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
+        server.enqueue(new MockResponse.Builder()
+                .addHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                .build());
         assertThatThrownBy(() ->
                         asyncClient.objectToObject(HEADER, PATH, QUERY, BODY).get())
                 .hasMessageContaining("Failed to deserialize response");
@@ -140,22 +147,23 @@ public abstract class AbstractSampleServiceClientTest {
 
     @Test
     public void testBlocking_voidToVoid_expectedCase() throws Exception {
-        server.enqueue(new MockResponse());
+        server.enqueue(new MockResponse.Builder().build());
         blockingClient.voidToVoid();
         RecordedRequest request = server.takeRequest();
-        assertThat(request.getPath()).isEqualTo("/voidToVoid");
+        assertThat(request.getUrl().pathSegments()).containsExactly("voidToVoid");
     }
 
     @Test
     public void testAsync_voidToVoid_expectedCase() throws Exception {
-        server.enqueue(new MockResponse());
+        server.enqueue(new MockResponse.Builder().build());
         assertThat(asyncClient.voidToVoid().get()).isNull();
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     @Timeout(2)
     public void testBlocking_throwsOnConnectError() throws Exception {
-        server.shutdown();
+        server.close();
         assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class)
                 .getCause()
@@ -166,10 +174,11 @@ public abstract class AbstractSampleServiceClientTest {
     @Test // see client construction: we set a 1s timeout
     @Timeout(5)
     public void testBlocking_throwsOnTimeout() throws Exception {
-        server.enqueue(new MockResponse()
-                .setBody("\"response\"")
+        server.enqueue(new MockResponse.Builder()
+                .body("\"response\"")
                 .addHeader(HttpHeaders.CONTENT_TYPE, "application/json")
-                .setBodyDelay(10, TimeUnit.SECONDS));
+                .bodyDelay(10, TimeUnit.SECONDS)
+                .build());
         assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class);
     }
@@ -177,7 +186,7 @@ public abstract class AbstractSampleServiceClientTest {
     @Test
     @Timeout(2)
     public void testAsync_throwsOnConnectError() throws Exception {
-        server.shutdown();
+        server.close();
         assertThatThrownBy(() -> asyncClient.voidToVoid().get())
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseInstanceOf(ConnectException.class)

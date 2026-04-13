@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
@@ -29,12 +30,14 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.refreshable.Refreshable;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 import org.immutables.value.Value;
 
 /** Private class to centralize validation of params necessary to construct a dialogue channel. */
+@SuppressWarnings("for-rollout:DangerousImmutablesToStringDoNotLog")
 @DoNotLog
 @Value.Immutable
 interface Config {
@@ -45,7 +48,10 @@ interface Config {
 
     ClientConfiguration rawConfig();
 
-    Cache<Endpoint, EndpointChannel> stickyEndpointChannelCache();
+    @Value.Default
+    default Cache<Endpoint, EndpointChannel> stickyEndpointChannelCache() {
+        return Caffeine.newBuilder().maximumSize(0).build(); // no cache by default
+    }
 
     @Value.Derived
     default ClientConfiguration clientConf() {
@@ -83,6 +89,11 @@ interface Config {
     }
 
     OptionalInt overrideSingleHostIndex();
+
+    @Value.Default
+    default Optional<Boolean> deadlineEnforcement() {
+        return Optional.empty();
+    }
 
     @Value.Check
     default void check() {

@@ -325,3 +325,55 @@ acceptedBreaks:
       new: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.DeserializerArgs<T>)"
       justification: "Adding new methods to create deserializers in support of endpoint\
         \ associated error deserialization"
+  "6.10.0":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withDeadlineEnforcement(boolean)"
+      justification: "New method added to allow clients to set deadline enforcement.\
+        \ This interface is only consumed externally, not implemented."
+  "6.7.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.class.removed"
+      old: "class com.palantir.dialogue.DeserializerArgs<T extends java.lang.Object>"
+      justification: "Removing support for creating deserializers for result types\
+        \ while we rethink the ideal way to model endpoint associated errors"
+    - code: "java.class.removed"
+      old: "class com.palantir.dialogue.EndpointError<T extends java.lang.Object>"
+      justification: "Removing support for creating deserializers for result types\
+        \ while we rethink the ideal way to model endpoint associated errors"
+    - code: "java.method.removed"
+      old: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::deserializer(com.palantir.dialogue.DeserializerArgs<T>)"
+      justification: "Removing support for creating deserializers for result types\
+        \ while we rethink the ideal way to model endpoint associated errors"
+    - code: "java.method.removed"
+      old: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::inputStreamDeserializer(com.palantir.dialogue.DeserializerArgs<T>)"
+      justification: "Removing support for creating deserializers for result types\
+        \ while we rethink the ideal way to model endpoint associated errors"
+    - code: "java.method.removed"
+      old: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.DeserializerArgs<T>)"
+      justification: "Removing support for creating deserializers for result types\
+        \ while we rethink the ideal way to model endpoint associated errors"
+  "6.8.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.addedToInterface"
+      new: "method <T> com.palantir.dialogue.Deserializer<T> com.palantir.dialogue.BodySerDe::deserializer(com.palantir.dialogue.ExceptionDeserializerArgs<T>)"
+      justification: "Adding methods to support deserialization of errors as exceptions"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.Deserializer<java.io.InputStream> com.palantir.dialogue.BodySerDe::inputStreamDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.io.InputStream>)"
+      justification: "Adding methods to support deserialization of errors as exceptions"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.Deserializer<java.lang.Void> com.palantir.dialogue.BodySerDe::emptyBodyDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.lang.Void>)"
+      justification: "Adding methods to support deserialization of errors as exceptions"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.Deserializer<java.util.Optional<java.io.InputStream>>\
+        \ com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer(com.palantir.dialogue.ExceptionDeserializerArgs<java.util.Optional<java.io.InputStream>>)"
+      justification: "Adding methods to support deserialization of errors as exceptions"
+  "6.9.0":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method T com.palantir.conjure.java.clients.ConjureClients.WithClientOptions<T>::withConjureErrorParameterFormat(com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat)\
+        \ @ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory"
+      justification: "A method was added to WithClientOptions to support setting the\
+        \ error parameter format. The DialogueClients.ReloadingFactory interface extends\
+        \ WithClientOptions."

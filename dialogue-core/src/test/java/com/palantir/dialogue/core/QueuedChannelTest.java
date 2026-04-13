@@ -167,12 +167,13 @@ public class QueuedChannelTest {
 
         delegateThrows.set(true);
         queued.schedule();
-        assertThat(queuedFuture).hasValueSatisfying(item -> assertThat(item)
-                .failsWithin(Duration.ZERO)
-                .withThrowableThat()
-                .havingRootCause()
-                .isInstanceOf(NullPointerException.class)
-                .withMessage("expected"));
+        assertThat(queuedFuture)
+                .hasValueSatisfying(item -> assertThat(item)
+                        .failsWithin(Duration.ZERO)
+                        .withThrowableThat()
+                        .havingRootCause()
+                        .isInstanceOf(NullPointerException.class)
+                        .withMessage("expected"));
     }
 
     @Test
@@ -539,12 +540,13 @@ public class QueuedChannelTest {
         // Complete the ongoing request, allowing the queued request to be processed
         settableResponses.get(0).get().set(new TestResponse().code(200));
 
-        assertThat(queuedResponse).hasValueSatisfying(item -> assertThat(item)
-                .failsWithin(Duration.ZERO)
-                .withThrowableThat()
-                .havingRootCause()
-                .isInstanceOf(SafeIllegalStateException.class)
-                .withMessageContaining("A request which explicitly bypassed rate limits failed to execute"));
+        assertThat(queuedResponse)
+                .hasValueSatisfying(item -> assertThat(item)
+                        .failsWithin(Duration.ZERO)
+                        .withThrowableThat()
+                        .havingRootCause()
+                        .isInstanceOf(SafeIllegalStateException.class)
+                        .withMessageContaining("A request which explicitly bypassed rate limits failed to execute"));
 
         assertThat(instrumentation.requestsQueued().getCount()).isZero();
     }

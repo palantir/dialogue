@@ -50,7 +50,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
-import okhttp3.mockwebserver.RecordedRequest;
+import mockwebserver3.RecordedRequest;
 import org.junit.jupiter.api.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
@@ -60,6 +60,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         return ApacheHttpClientChannels.create(config);
     }
 
+    @SuppressWarnings("for-rollout:deprecation")
     @Test
     public void close_doesnt_fail_inflight_requests() throws Exception {
         ClientConfiguration conf = TestConfigurations.create("http://foo");
@@ -73,25 +74,26 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                     channel.execute(TestEndpoint.POST, Request.builder().build());
             assertThatThrownBy(() -> Futures.getUnchecked(response))
                     .getCause()
-                    .isInstanceOfSatisfying(UnknownHostException.class, throwable -> assertThat(
-                                    throwable.getSuppressed()[0])
-                            .satisfies(diagnosticThrowable -> assertThat(diagnosticThrowable.getStackTrace())
-                                    .as("Diagnostic exception should have an empty stack trace")
-                                    .isEmpty())
-                            .isInstanceOfSatisfying(SafeLoggable.class, safeLoggable -> {
-                                assertThat(Lists.transform(safeLoggable.getArgs(), Arg::getName))
-                                        .as("Expected a diagnostic exception")
-                                        .containsExactlyInAnyOrder(
-                                                "durationMillis",
-                                                "connectTimeout",
-                                                "socketTimeout",
-                                                "clientName",
-                                                "serviceName",
-                                                "endpointName",
-                                                "requestTraceId",
-                                                "requestSpanId",
-                                                "hostIndex");
-                            }));
+                    .isInstanceOfSatisfying(
+                            UnknownHostException.class,
+                            throwable -> assertThat(throwable.getSuppressed()[0])
+                                    .satisfies(diagnosticThrowable -> assertThat(diagnosticThrowable.getStackTrace())
+                                            .as("Diagnostic exception should have an empty stack trace")
+                                            .isEmpty())
+                                    .isInstanceOfSatisfying(SafeLoggable.class, safeLoggable -> {
+                                        assertThat(Lists.transform(safeLoggable.getArgs(), Arg::getName))
+                                                .as("Expected a diagnostic exception")
+                                                .containsExactlyInAnyOrder(
+                                                        "durationMillis",
+                                                        "connectTimeout",
+                                                        "socketTimeout",
+                                                        "clientName",
+                                                        "serviceName",
+                                                        "endpointName",
+                                                        "requestTraceId",
+                                                        "requestSpanId",
+                                                        "hostIndex");
+                                    }));
         }
 
         ListenableFuture<Response> again =
@@ -279,8 +281,10 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
             channel.execute(endpoint, request);
             RecordedRequest recordedRequest = server.takeRequest();
             assertThat(recordedRequest.getMethod()).isEqualTo("POST");
-            assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_LENGTH)).isEqualTo(Long.toString(value));
-            assertThat(recordedRequest.getHeader(HttpHeaders.TRANSFER_ENCODING)).isNull();
+            assertThat(recordedRequest.getHeaders().get(HttpHeaders.CONTENT_LENGTH))
+                    .isEqualTo(Long.toString(value));
+            assertThat(recordedRequest.getHeaders().get(HttpHeaders.TRANSFER_ENCODING))
+                    .isNull();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

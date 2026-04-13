@@ -42,6 +42,7 @@ public interface Endpoint {
                 url);
     }
 
+    @SuppressWarnings("for-rollout:NullAway")
     default void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
         renderPath(params.isEmpty() ? ImmutableMap.of() : MultimapAsMap.of(params), url);
     }

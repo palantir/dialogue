@@ -23,6 +23,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
+import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -31,6 +32,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import java.util.stream.LongStream;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -89,10 +91,9 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit =
-                limiter.acquire(limitEnforcement);
-        if (maybePermit.isPresent()) {
-            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
+        @Nullable Permit maybePermit = limiter.acquire(limitEnforcement);
+        if (maybePermit != null) {
+            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit;
             logPermitAcquired();
             ListenableFuture<Response> result = delegate.execute(endpoint, request);
             DialogueFutures.addDirectCallback(result, permit);

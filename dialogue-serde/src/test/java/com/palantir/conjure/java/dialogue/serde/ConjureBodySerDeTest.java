@@ -30,7 +30,6 @@ import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
-import com.palantir.dialogue.DeserializerArgs;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
@@ -55,7 +54,6 @@ public class ConjureBodySerDeTest {
 
     @Test
     public void testRequestContentType() throws IOException {
-
         TestResponse response = new TestResponse().contentType("text/plain");
         BodySerDe serializers = conjureBodySerDe("application/json", "text/plain");
         String value = serializers.deserializer(TYPE).deserialize(response);
@@ -68,20 +66,6 @@ public class ConjureBodySerDeTest {
         BodySerDe serializers = conjureBodySerDe("application/json");
         Optional<String> value = serializers.deserializer(OPTIONAL_TYPE).deserialize(response);
         assertThat(value).isEmpty();
-    }
-
-    @Test
-    public void testRequestCustomEmpty() {
-        record EmptyRecord() {}
-        TestResponse response = new TestResponse().code(204);
-        BodySerDe serializers = conjureBodySerDe("application/json");
-        EmptyRecord value = serializers
-                .deserializer(DeserializerArgs.<EmptyRecord>builder()
-                        .baseType(new TypeMarker<>() {})
-                        .success(new TypeMarker<>() {})
-                        .build())
-                .deserialize(response);
-        assertThat(value).isNotNull();
     }
 
     private ConjureBodySerDe conjureBodySerDe(String... contentTypes) {

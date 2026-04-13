@@ -59,6 +59,7 @@ final class InstrumentedDnsResolver implements DnsResolver {
         this.errorMeter = DialogueClientMetrics.of(metricRegistry).connectionResolutionError(clientName);
     }
 
+    @SuppressWarnings("for-rollout:LogsafeArrayArg")
     @Override
     public InetAddress[] resolve(String host) throws UnknownHostException {
         // Snapshot whether debug logging is enabled because it may change mid-execution

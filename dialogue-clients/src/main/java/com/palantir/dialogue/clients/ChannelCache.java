@@ -77,9 +77,21 @@ final class ChannelCache {
             // Avoid holding onto old targets, which is now more common as we bind to resolved IP addresses
             .weakValues()
             .build(this::createNonLiveReloadingChannel);
-    // TODO: add docs
+
+    /**
+     * Cache for sticky {@link EndpointChannel} instances keyed by {@link Endpoint}.
+     * <p>
+     * This cache is used to optimize sticky client behavior by reusing {@link EndpointChannel}
+     * instances for the same endpoint, reducing overhead from repeated channel creation.
+     * <p>
+     * The cache is configured with a maximum size of 1000 to prevent unbounded memory usage,
+     * and uses weak values to allow unused channels to be garbage collected, minimizing
+     * the risk of memory leaks. This configuration strikes a balance between performance
+     * (by enabling reuse) and resource management.
+     */
     private final Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache =
             Caffeine.newBuilder().maximumSize(1000).weakValues().build();
+
     private final int instanceNumber;
 
     private ChannelCache() {
@@ -143,6 +155,7 @@ final class ChannelCache {
                 .dnsResolver(reloadingParams.dnsResolver())
                 .dnsRefreshInterval(reloadingParams.dnsRefreshInterval())
                 .dnsNodeDiscovery(overrideHostIndex.isEmpty() && reloadingParams.dnsNodeDiscovery())
+                .deadlineEnforcement(reloadingParams.deadlineEnforcement())
                 .build());
     }
 
@@ -189,6 +202,7 @@ final class ChannelCache {
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
                         .findAny())
+                .deadlineEnforcement(channelCacheRequest.deadlineEnforcement())
                 .stickyEndpointChannelsCache(stickyEndpointChannelsCache)
                 .build();
     }
@@ -265,6 +279,7 @@ final class ChannelCache {
                 + '}';
     }
 
+    @SuppressWarnings("for-rollout:DangerousImmutablesToStringDoNotLog")
     @DoNotLog
     @Value.Immutable
     interface ChannelCacheKey extends AugmentClientConfig {
@@ -281,6 +296,8 @@ final class ChannelCache {
         Duration dnsRefreshInterval();
 
         boolean dnsNodeDiscovery();
+
+        Optional<Boolean> deadlineEnforcement();
     }
 
     @Unsafe
@@ -297,6 +314,7 @@ final class ChannelCache {
         }
     }
 
+    @SuppressWarnings("for-rollout:DangerousImmutablesToStringDoNotLog")
     @DoNotLog
     @Value.Immutable
     interface ApacheClientRequest extends AugmentClientConfig {
@@ -314,6 +332,7 @@ final class ChannelCache {
         }
     }
 
+    @SuppressWarnings("for-rollout:DangerousImmutablesToStringDoNotLog")
     @DoNotLog
     @Value.Immutable
     interface ApacheCacheEntry {

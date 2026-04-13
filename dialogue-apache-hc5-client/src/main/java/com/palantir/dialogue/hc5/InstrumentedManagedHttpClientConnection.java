@@ -23,6 +23,7 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocket;
 import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -47,6 +48,11 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
     @Override
     public void bind(Socket socket) throws IOException {
         delegate.bind(socket);
+    }
+
+    @Override
+    public void bind(SSLSocket sslSocket, Socket socket) throws IOException {
+        delegate.bind(sslSocket, socket);
     }
 
     @Override

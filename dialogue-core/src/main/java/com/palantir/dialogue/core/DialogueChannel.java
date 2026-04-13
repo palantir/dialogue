@@ -43,11 +43,13 @@ import com.palantir.refreshable.Refreshable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory, StickyEndpointChannelsFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueChannel.class);
@@ -70,6 +72,14 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
     @Override
     public EndpointChannel endpoint(Endpoint endpoint) {
         return delegate.endpoint(endpoint);
+    }
+
+    /**
+     * @deprecated use {@link #stickyChannel()}
+     */
+    @Deprecated
+    public Supplier<Channel> stickyChannels() {
+        return () -> stickyChannel();
     }
 
     @Override
@@ -108,8 +118,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
         }
 
         /**
-         * Exists for backcompat, prefer {@link #uris( Refreshable)}.
-         * @deprecated prefer {@link #uris( Refreshable)}.
+         * Exists for backcompat, prefer {@link #uris(Refreshable)}.
+         *
+         * @deprecated prefer {@link #uris(Refreshable)}.
          */
         @Deprecated
         public Builder uris(List<TargetUri> value) {
@@ -123,6 +134,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
 
         /**
          * Please use {@link #factory(DialogueChannelFactory)}.
+         *
          * @deprecated prefer {@link #factory(DialogueChannelFactory)}
          */
         @Deprecated
@@ -141,6 +153,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
          */
         public Builder overrideHostIndex(OptionalInt maybeUriIndex) {
             builder.overrideSingleHostIndex(maybeUriIndex);
+            return this;
+        }
+
+        public Builder deadlineEnforcement(Optional<Boolean> deadlineEnforcement) {
+            builder.deadlineEnforcement(deadlineEnforcement);
             return this;
         }
 
@@ -249,8 +266,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
                 channel = HostMetricsChannel.create(cf, channel, targetUri.uri());
                 channel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
-                channel = new DeadlineAdvertisementChannel(
-                        channel, cf.clientConf().readTimeout());
+                channel = DeadlineAdvertisementChannel.create(
+                        channel, cf.clientConf().readTimeout(), cf.deadlineEnforcement());
 
                 ChannelState channelState = state.get(targetUri);
                 Preconditions.checkNotNull(channelState, "no ChannelState exists for this TargetUri");

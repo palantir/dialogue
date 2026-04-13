@@ -87,7 +87,9 @@ public final class RefreshingChannelFactoryTest {
     private Channel channel2;
 
     private AtomicReference<ServicesConfigBlock> conf = new AtomicReference<>(ServicesConfigBlock.empty());
+
     private RefreshingChannelFactory clientFactory;
+
     private Channel channelA;
 
     @BeforeEach

@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2024 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2025 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,19 +17,23 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.QosReasons;
 import com.palantir.conjure.java.api.errors.QosReasons.QosResponseDecodingAdapter;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
+import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer;
+import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
@@ -46,6 +50,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -53,14 +58,13 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Extracts the error from a {@link Response}.
- * <p>If the error's name is in the {@link #errorNameToJsonDeserializerMap}, this class attempts to deserialize the
- * {@link Response} body as JSON, to the error type. Otherwise, a {@link RemoteException} is thrown. If the
+ * <p>If the response body is an error, and the error's name is in the {@link #errorNameToExceptionDeserializerMap},
+ * this class attempts to deserialize the {@link Response} body as JSON, to the error type, and throw the corresponding
+ * exception. Otherwise, a {@link RemoteException} is thrown. If the
  * {@link Response} does not adhere to the expected format, an {@link UnknownRemoteException} is thrown.
- *
- * @param <T> the base type of the endpoint response. It's a union of the result type and all the error types.
  */
-final class EndpointErrorDecoder<T> {
-    private static final SafeLogger log = SafeLoggerFactory.get(EndpointErrorDecoder.class);
+final class ExceptionDeserializingErrorDecoder {
+    private static final SafeLogger log = SafeLoggerFactory.get(ExceptionDeserializingErrorDecoder.class);
     // Errors are currently expected to be JSON objects. See
     // https://palantir.github.io/conjure/#/docs/spec/wire?id=_55-conjure-errors. As there is greater adoption of
     // endpoint associated errors and larger parameters, we may be interested in supporting SMILE/CBOR for more
@@ -70,35 +74,37 @@ final class EndpointErrorDecoder<T> {
             JSON_ENCODING.deserializer(new TypeMarker<>() {});
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(new TypeMarker<>() {});
-    private final Map<String, Encoding.Deserializer<? extends T>> errorNameToJsonDeserializerMap;
 
-    EndpointErrorDecoder(Map<String, TypeMarker<? extends T>> errorNameToTypeMap) {
-        this(errorNameToTypeMap, Optional.empty());
+    private final Map<String, DeserializerExceptionPair<?, ?>> errorNameToExceptionDeserializerMap;
+    private final boolean expectJsonErrors;
+
+    static ExceptionDeserializingErrorDecoder withoutExceptions() {
+        return new ExceptionDeserializingErrorDecoder(Collections.emptyMap(), false);
     }
 
-    EndpointErrorDecoder(
-            Map<String, TypeMarker<? extends T>> errorNameToTypeMap, Optional<Encoding> maybeJsonEncoding) {
-        this.errorNameToJsonDeserializerMap = ImmutableMap.copyOf(
-                Maps.transformValues(errorNameToTypeMap, maybeJsonEncoding.orElse(JSON_ENCODING)::deserializer));
+    ExceptionDeserializingErrorDecoder(
+            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap, boolean expectJsonErrors) {
+        this.errorNameToExceptionDeserializerMap = ImmutableMap.copyOf(Maps.transformValues(
+                errorNameToExceptionTypeMap,
+                errorExceptionPair -> createDeserializerForException(JSON_ENCODING, errorExceptionPair)));
+        this.expectJsonErrors = expectJsonErrors;
     }
 
     boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
     }
 
-    T decode(Response response) {
+    public RuntimeException decode(Response response) {
         if (log.isDebugEnabled()) {
             log.debug("Received an error response", diagnosticArgs(response));
         }
-        try {
-            return decodeInternal(response);
-        } catch (Exception e) {
-            e.addSuppressed(diagnostic(response));
-            throw e;
-        }
+        RuntimeException result = decodeInternal(response);
+        result.addSuppressed(diagnostic(response));
+        return result;
     }
 
-    Optional<RuntimeException> checkCode(Response response) {
+    private RuntimeException decodeInternal(Response response) {
+        // Check if the response code indicates an error, and if so, handle it accordingly.
         int code = response.code();
         switch (code) {
             case 308 -> {
@@ -109,7 +115,7 @@ final class EndpointErrorDecoder<T> {
                         UnknownRemoteException remoteException = new UnknownRemoteException(code, "");
                         remoteException.initCause(
                                 QosException.retryOther(qosReason(response), new URL(locationHeader)));
-                        return Optional.of(remoteException);
+                        return remoteException;
                     } catch (MalformedURLException e) {
                         log.error(
                                 "Failed to parse location header for QosException.RetryOther",
@@ -122,84 +128,106 @@ final class EndpointErrorDecoder<T> {
                 }
             }
             case 429 -> {
-                return Optional.of(response.getFirstHeader(HttpHeaders.RETRY_AFTER)
+                return response.getFirstHeader(HttpHeaders.RETRY_AFTER)
                         .map(Longs::tryParse)
                         .map(Duration::ofSeconds)
                         .map(duration -> QosException.throttle(qosReason(response), duration))
-                        .orElseGet(() -> QosException.throttle(qosReason(response))));
+                        .orElseGet(() -> QosException.throttle(qosReason(response)));
             }
             case 503 -> {
-                return Optional.of(QosException.unavailable(qosReason(response)));
+                return QosException.unavailable(qosReason(response));
             }
         }
-        return Optional.empty();
-    }
-
-    private @Nullable String extractErrorName(byte[] body) {
-        try {
-            NamedError namedError = NAMED_ERROR_DESERIALIZER.deserialize(new ByteArrayInputStream(body));
-            if (namedError == null) {
-                return null;
-            }
-            return namedError.errorName();
-        } catch (IOException | RuntimeException e) {
-            return null;
-        }
-    }
-
-    private T decodeInternal(Response response) {
-        Optional<RuntimeException> maybeQosException = checkCode(response);
-        if (maybeQosException.isPresent()) {
-            throw maybeQosException.get();
-        }
-        int code = response.code();
 
         byte[] body;
-        try {
-            body = toByteArray(response.body());
+        try (InputStream bodyStream = response.body()) {
+            body = bodyStream.readAllBytes();
         } catch (NullPointerException | IOException e) {
             UnknownRemoteException exception = new UnknownRemoteException(code, "<unparseable>");
             exception.initCause(e);
-            throw exception;
+            return exception;
+        }
+
+        String stringBody = null;
+        if (log.isDebugEnabled()) {
+            stringBody = new String(body, StandardCharsets.UTF_8);
+            log.debug("Read error response body", UnsafeArg.of("body", stringBody));
         }
 
         Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-        if (contentType.isPresent()
-                && Encodings.matchesContentType(JSON_ENCODING.getContentType(), contentType.get())) {
-            try {
-                String errorName = extractErrorName(body);
-                if (errorName == null) {
-                    throw createRemoteException(body, code);
-                }
-                Deserializer<? extends T> deserializer = errorNameToJsonDeserializerMap.get(errorName);
-                if (deserializer == null) {
-                    throw createRemoteException(body, code);
-                }
-                return deserializer.deserialize(new ByteArrayInputStream(body));
-            } catch (RemoteException remoteException) {
-                // rethrow the created remote exception
-                throw remoteException;
-            } catch (Exception e) {
-                UnknownRemoteException unknownRemoteException =
-                        new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
-                unknownRemoteException.initCause(e);
-                throw unknownRemoteException;
+        if (contentType.isEmpty() || !Encodings.matchesContentType(JSON_ENCODING.getContentType(), contentType.get())) {
+            if (stringBody == null) {
+                // Only convert to string if we haven't already done so
+                stringBody = new String(body, StandardCharsets.UTF_8);
             }
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Error response body had missing or non-JSON content-type, cannot deserialize error",
+                        UnsafeArg.of("contentType", contentType.orElse("<missing>")),
+                        UnsafeArg.of("body", stringBody));
+            }
+            return new UnknownRemoteException(code, stringBody);
         }
 
-        throw new UnknownRemoteException(code, new String(body, StandardCharsets.UTF_8));
+        try {
+            return jsonExceptionFromBody(body, code);
+        } catch (Exception e) {
+            if (stringBody == null) {
+                // Only convert to string if we haven't already done so
+                stringBody = new String(body, StandardCharsets.UTF_8);
+            }
+            UnknownRemoteException unknownRemoteException = new UnknownRemoteException(code, stringBody);
+            unknownRemoteException.initCause(e);
+            return unknownRemoteException;
+        }
+    }
+
+    private RemoteException jsonExceptionFromBody(byte[] body, int code) throws IOException {
+        String errorName = extractErrorName(body);
+        if (errorName == null) {
+            // Per the Conjure spec, errorName is required. We fall back to creating a RemoteException to handle
+            // legacy errors that used a "message" field instead of "errorName".
+            log.debug("Could not find errorName field in error response body - falling back to RemoteException");
+            return createRemoteException(body, code);
+        }
+        DeserializerExceptionPair<?, ?> deserializerExceptionPair = errorNameToExceptionDeserializerMap.get(errorName);
+        if (deserializerExceptionPair == null) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "No deserializer found for error name - falling back to RemoteException",
+                        SafeArg.of("errorName", errorName));
+            }
+            return createRemoteException(body, code);
+        }
+        // Attempt to deserialize the error using the deserializer for the specific exception type.
+        try {
+            // The concrete error type is a subtype of AbstractSerializableError<?> at runtime.
+            // AbstractSerializableError is an abstract class.
+            AbstractSerializableError<?> error =
+                    deserializerExceptionPair.deserializer().deserialize(new ByteArrayInputStream(body));
+            return ErrorExceptionPair.getExceptionFromSerializableError(
+                    error, deserializerExceptionPair.exceptionType(), code);
+        } catch (Exception e) {
+            // If we're unable to deserialize the error as JSON, throw a RemoteException.
+            if (expectJsonErrors) {
+                log.error(
+                        "Failed to deserialize error response as exception - falling back to RemoteException",
+                        SafeArg.of("errorName", errorName),
+                        e);
+            } else if (log.isDebugEnabled()) {
+                log.debug(
+                        "Failed to deserialize error response as exception - falling back to RemoteException",
+                        SafeArg.of("errorName", errorName),
+                        e);
+            }
+            return createRemoteException(body, code);
+        }
     }
 
     private static RemoteException createRemoteException(byte[] body, int code) throws IOException {
         SerializableError serializableError =
                 SERIALIZABLE_ERROR_DESERIALIZER.deserialize(new ByteArrayInputStream(body));
         return new RemoteException(serializableError, code);
-    }
-
-    private static byte[] toByteArray(InputStream body) throws IOException {
-        try (body) {
-            return body.readAllBytes();
-        }
     }
 
     static ResponseDiagnostic diagnostic(Response response) {
@@ -224,9 +252,11 @@ final class EndpointErrorDecoder<T> {
         response.getFirstHeader(header).ifPresent(server -> args.add(SafeArg.of(header, server)));
     }
 
-    private static final class ResponseDiagnostic extends RuntimeException implements SafeLoggable {
+    @VisibleForTesting
+    static final class ResponseDiagnostic extends RuntimeException implements SafeLoggable {
 
-        private static final String SAFE_MESSAGE = "Response Diagnostic Information";
+        @VisibleForTesting
+        static final String SAFE_MESSAGE = "Response Diagnostic Information";
 
         private final ImmutableList<Arg<?>> args;
 
@@ -267,5 +297,28 @@ final class EndpointErrorDecoder<T> {
         }
     }
 
+    private @Nullable String extractErrorName(byte[] body) {
+        try {
+            NamedError namedError = NAMED_ERROR_DESERIALIZER.deserialize(new ByteArrayInputStream(body));
+            if (namedError == null) {
+                return null;
+            }
+            return namedError.errorName();
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     record NamedError(@JsonProperty("errorName") String errorName) {}
+
+    private record DeserializerExceptionPair<
+            U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>(
+            Encoding.Deserializer<U> deserializer, TypeMarker<V> exceptionType) {}
+
+    // Purely to provide Java type inference information.
+    private static <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
+            DeserializerExceptionPair<U, V> createDeserializerForException(
+                    Encoding encoding, ErrorExceptionPair<U, V> pair) {
+        return new DeserializerExceptionPair<>(encoding.deserializer(pair.errorType()), pair.exceptionType());
+    }
 }

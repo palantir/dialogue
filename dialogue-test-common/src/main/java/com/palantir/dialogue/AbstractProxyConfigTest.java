@@ -30,14 +30,13 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.Rule;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.RecordedRequest;
+import mockwebserver3.junit5.StartStop;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 
-@EnableRuleMigrationSupport
+@SuppressWarnings("VisibilityModifier")
 public abstract class AbstractProxyConfigTest {
 
     private static final Request request = Request.builder()
@@ -62,18 +61,18 @@ public abstract class AbstractProxyConfigTest {
             })
             .build();
 
-    @Rule
-    public final MockWebServer server = new MockWebServer();
+    @StartStop
+    protected final MockWebServer server = new MockWebServer();
 
-    @Rule
-    public final MockWebServer proxyServer = new MockWebServer();
+    @StartStop
+    protected final MockWebServer proxyServer = new MockWebServer();
 
     protected abstract Channel create(ClientConfiguration config);
 
     @Test
     public void testDirectVersusProxyConnection() throws Exception {
-        server.enqueue(new MockResponse().setBody("server"));
-        proxyServer.enqueue(new MockResponse().setBody("proxyServer"));
+        server.enqueue(new MockResponse.Builder().body("server").build());
+        proxyServer.enqueue(new MockResponse.Builder().body("proxyServer").build());
 
         Channel directChannel = create(TestConfigurations.create("http://localhost:" + server.getPort()));
         ClientConfiguration proxiedConfig = ClientConfiguration.builder()
@@ -93,15 +92,16 @@ public abstract class AbstractProxyConfigTest {
             assertThat(response.body()).hasContent("proxyServer");
         }
         RecordedRequest proxyRequest = proxyServer.takeRequest();
-        assertThat(proxyRequest.getHeader("Host")).isEqualTo("localhost:" + server.getPort());
+        assertThat(proxyRequest.getHeaders().get("Host")).isEqualTo("localhost:" + server.getPort());
     }
 
     @Test
     public void testAuthenticatedProxy() throws Exception {
-        proxyServer.enqueue(new MockResponse()
+        proxyServer.enqueue(new MockResponse.Builder()
                 .addHeader("Proxy-Authenticate", "Basic realm=test")
-                .setResponseCode(407)); // indicates authenticated proxy
-        proxyServer.enqueue(new MockResponse().setBody("proxyServer"));
+                .code(407)
+                .build()); // indicates authenticated proxy
+        proxyServer.enqueue(new MockResponse.Builder().body("proxyServer").build());
 
         ClientConfiguration proxiedConfig = ClientConfiguration.builder()
                 .from(TestConfigurations.create("http://localhost:" + server.getPort()))
@@ -116,9 +116,9 @@ public abstract class AbstractProxyConfigTest {
             assertThat(response.body()).hasContent("proxyServer");
         }
         RecordedRequest firstRequest = proxyServer.takeRequest();
-        assertThat(firstRequest.getHeader("Proxy-Authorization")).isNull();
+        assertThat(firstRequest.getHeaders().get("Proxy-Authorization")).isNull();
         RecordedRequest secondRequest = proxyServer.takeRequest();
-        assertThat(secondRequest.getHeader("Proxy-Authorization"))
+        assertThat(secondRequest.getHeaders().get("Proxy-Authorization"))
                 .isEqualTo("Basic ZmFrZVVzZXJAZmFrZS5jb206ZmFrZTpQYXNzd29yZA==");
     }
 

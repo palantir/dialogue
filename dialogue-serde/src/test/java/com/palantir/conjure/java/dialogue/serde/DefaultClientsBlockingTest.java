@@ -24,15 +24,18 @@ import static org.mockito.Mockito.verify;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
+import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.DialogueException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 import java.util.Optional;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -144,6 +147,60 @@ public class DefaultClientsBlockingTest {
                 .as("getUnchecked should not clear interrupted state")
                 .isTrue();
         verify(responseBody).close();
+    }
+
+    @Test
+    public void testUserDefinedRemoteExceptionSubclass() {
+        CustomRemoteException customException = new CustomRemoteException(
+                new MySerializableError(
+                        ErrorType.INVALID_ARGUMENT.code().toString(),
+                        ErrorType.INVALID_ARGUMENT.name(),
+                        "instanceId",
+                        new MyParams("myFieldValue")),
+                ErrorType.INVALID_ARGUMENT.httpErrorCode());
+        ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(customException);
+
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture)).satisfies(exception -> {
+            assertThat(exception).isInstanceOf(CustomRemoteException.class);
+            assertThat(exception).hasMessageContainingAll("Default:InvalidArgument", "{someField=myFieldValue}");
+            assertThat(exception).isInstanceOf(RemoteException.class);
+            assertThat(exception.getCause()).isInstanceOfSatisfying(CustomRemoteException.class, cause -> {
+                assertThat(cause).isNotNull();
+                assertThat(cause).hasMessageContainingAll("Default:InvalidArgument", "{someField=myFieldValue}");
+            });
+        });
+    }
+
+    public record MyParams(String someField) {}
+
+    public static final class MySerializableError extends AbstractSerializableError<MyParams> {
+        public MySerializableError(String errorCode, String errorName, String errorInstanceId, MyParams parameters) {
+            super(errorCode, errorName, errorInstanceId, parameters);
+        }
+
+        SerializableError toSerializableError() {
+            return SerializableError.builder()
+                    .errorCode(errorCode())
+                    .errorName(errorName())
+                    .errorInstanceId(errorInstanceId())
+                    .parameters(Map.of("someField", parameters().someField()))
+                    .build();
+        }
+    }
+
+    public static final class CustomRemoteException extends RemoteException
+            implements SerializableErrorProvider<MyParams> {
+        private final MySerializableError error;
+
+        public CustomRemoteException(MySerializableError error, int status) {
+            super(error.toSerializableError(), status);
+            this.error = error;
+        }
+
+        @Override
+        public MySerializableError error() {
+            return this.error;
+        }
     }
 
     private static RemoteException remoteException(ServiceException exception) {
