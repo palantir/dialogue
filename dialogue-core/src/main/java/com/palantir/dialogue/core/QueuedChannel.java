@@ -39,7 +39,9 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TagTranslator;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -96,7 +98,7 @@ final class QueuedChannel implements Channel {
             LimitedChannel delegate,
             @Safe String channelName,
             @Safe String queueType,
-            QueuedChannelInstrumentation metrics,
+            QueuedChannelInstrumentation instrumentation,
             int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
@@ -106,10 +108,15 @@ final class QueuedChannel implements Channel {
         this.maxQueueSize = maxQueueSize;
         // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
         // zero interactions because they support both increment and decrement operations.
-        this.queueSizeCounter = Suppliers.memoize(metrics::requestsQueued);
-        this.queuedTime = metrics.requestQueuedTime();
-        this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
-                "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
+        this.queueSizeCounter = Suppliers.memoize(instrumentation::requestsQueued);
+        this.queuedTime = instrumentation.requestQueuedTime();
+        this.limitedResultSupplier = () -> {
+            List<SafeArg<?>> safeArgs = new ArrayList<>(instrumentation.queueFullSafeArgs());
+            safeArgs.add(SafeArg.of("maxQueueSize", maxQueueSize));
+            safeArgs.add(SafeArg.of("channelName", channelName));
+            return Futures.immediateFailedFuture(new SafeRuntimeException(
+                    "Unable to make a request (queue is full)", safeArgs.toArray(SafeArg[]::new)));
+        };
     }
 
     // Metrics are global, even if max size is per queue.
@@ -436,6 +443,8 @@ final class QueuedChannel implements Channel {
         Counter requestsQueued();
 
         Timer requestQueuedTime();
+
+        List<SafeArg<?>> queueFullSafeArgs();
     }
 
     static QueuedChannelInstrumentation channelInstrumentation(DialogueClientMetrics metrics, String channelName) {
@@ -448,6 +457,11 @@ final class QueuedChannel implements Channel {
             @Override
             public Timer requestQueuedTime() {
                 return metrics.requestQueuedTime(channelName);
+            }
+
+            @Override
+            public List<SafeArg<?>> queueFullSafeArgs() {
+                return List.of();
             }
         };
     }
@@ -464,6 +478,11 @@ final class QueuedChannel implements Channel {
             @Override
             public Timer requestQueuedTime() {
                 return metrics.requestStickyQueuedTime(channelName);
+            }
+
+            @Override
+            public List<SafeArg<?>> queueFullSafeArgs() {
+                return List.of(SafeArg.of("sticky", true));
             }
         });
     }
@@ -488,6 +507,11 @@ final class QueuedChannel implements Channel {
                         .endpoint(endpoint)
                         .build();
             }
+
+            @Override
+            public List<SafeArg<?>> queueFullSafeArgs() {
+                return List.of(SafeArg.of("service", service), SafeArg.of("endpoint", endpoint));
+            }
         };
     }
 
@@ -495,10 +519,12 @@ final class QueuedChannel implements Channel {
 
         private final Supplier<Counter> requestsQueuedSupplier;
         private final Supplier<Timer> requestQueuedTimeSupplier;
+        private final Supplier<List<SafeArg<?>>> queueFullSafeArgs;
 
         MemoizedQueuedChannelInstrumentation(QueuedChannelInstrumentation delegate) {
             this.requestsQueuedSupplier = Suppliers.memoize(delegate::requestsQueued);
             this.requestQueuedTimeSupplier = Suppliers.memoize(delegate::requestQueuedTime);
+            this.queueFullSafeArgs = Suppliers.memoize(delegate::queueFullSafeArgs);
         }
 
         @Override
@@ -509,6 +535,11 @@ final class QueuedChannel implements Channel {
         @Override
         public Timer requestQueuedTime() {
             return requestQueuedTimeSupplier.get();
+        }
+
+        @Override
+        public List<SafeArg<?>> queueFullSafeArgs() {
+            return queueFullSafeArgs.get();
         }
     }
 
