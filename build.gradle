@@ -21,38 +21,41 @@ buildscript {
     }
 
     dependencies {
+        classpath 'com.palantir.baseline-error-prone:gradle-baseline-error-prone:0.15.0'
         classpath 'com.palantir.jakartapackagealignment:jakarta-package-alignment:0.6.0'
-        classpath 'com.palantir.gradle.jdks:gradle-jdks:0.69.0'
-        classpath 'com.palantir.gradle.jdkslatest:gradle-jdks-latest:0.21.0'
-        classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.24.0'
-        classpath 'com.palantir.gradle.failure-reports:gradle-failure-reports:1.14.0'
+        classpath 'com.palantir.gradle.jdks:gradle-jdks:0.79.0'
+        classpath 'com.palantir.gradle.jdkslatest:gradle-jdks-latest:0.26.0'
+        classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.35.0'
+        classpath 'com.palantir.gradle.failure-reports:gradle-failure-reports:1.18.0'
         classpath 'org.revapi:gradle-revapi:1.8.0'
-        classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.73.0'
-        classpath 'com.palantir.baseline:gradle-baseline-java:6.51.0'
-        classpath 'com.palantir.gradle.gitversion:gradle-git-version:4.0.0'
-        classpath 'com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.5.0'
-        classpath 'com.palantir.metricschema:gradle-metric-schema:0.33.0'
-        classpath 'com.palantir.suppressible-error-prone:gradle-suppressible-error-prone:2.12.0'
-        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.60.0'
+        classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.90.0'
+        classpath 'com.palantir.baseline:gradle-baseline-java:7.4.0'
+        classpath 'com.palantir.gradle.gitversion:gradle-git-version:5.0.0'
+        classpath 'com.palantir.gradle.idea-configuration:gradle-idea-configuration:0.8.0'
+        classpath 'com.palantir.metricschema:gradle-metric-schema:0.39.0'
+        classpath 'com.palantir.suppressible-error-prone:gradle-suppressible-error-prone:2.31.0'
+        classpath 'com.palantir.gradle.conjure:gradle-conjure:6.0.0'
         classpath 'org.unbroken-dome.gradle-plugins:gradle-testsets-plugin:4.1.0'
     }
 }
 
 plugins {
-id 'com.palantir.consistent-versions' version '2.37.0'
+id 'com.palantir.consistent-versions' version '3.15.0'
 }
 
 apply plugin: 'com.palantir.external-publish'
 apply plugin: 'com.palantir.failure-reports'
 apply plugin: 'com.palantir.baseline'
+apply plugin: 'com.palantir.baseline-error-prone-root'
 apply plugin: 'com.palantir.git-version'
 apply plugin: 'com.palantir.jdks'
 apply plugin: 'com.palantir.baseline-java-versions'
 apply plugin: 'com.palantir.jdks.latest'
 
 javaVersions {
+    javaCompiler = 25
     libraryTarget = 17
-    runtime = 21
+    runtime = 25
 }
 
 version System.env.CIRCLE_TAG ?: gitVersion()
@@ -69,12 +72,6 @@ allprojects {
     }
     configurations.all {
         resolutionStrategy.preferProjectModules()
-        resolutionStrategy.eachDependency { details ->
-            if (details.requested.group == 'com.google.errorprone' && details.requested.name == 'error_prone_annotations') {
-                details.useTarget group: 'com.google.errorprone', name: 'error_prone_annotations', version: '2.7.1'
-                details.because "The error_prone_annotations dependency must be low to avoid forcing consumers to use newer releases"
-            }
-        }
     }
 }
 
@@ -90,17 +87,20 @@ subprojects {
             errorprone 'com.uber.nullaway:nullaway'
         }
 
-        tasks.withType(JavaCompile).configureEach {
+        tasks.withType(JavaCompile).configureEach(task -> {
             if (name.toLowerCase().contains("test")) {
                 options.errorprone.disable('NullAway')
             } else {
                 options.errorprone.option('NullAway:AnnotatedPackages', 'com.palantir,com.google.common')
                 options.errorprone.option('NullAway:CheckOptionalEmptiness', 'true')
-                options.errorprone.option('NullAway:JSpecifyMode', 'true')
+                // As of NullAway 0.12.11, JSpecify annotations require Java 22+
+                // https://github.com/uber/NullAway/wiki/JSpecify-Support#supported-jdk-versions
+                options.errorprone.option('NullAway:JSpecifyMode',
+                        task.javaCompiler.map { it.metadata.languageVersion.asInt() >= 22 ? 'true' : 'false' })
             }
             // This project is performance sensitive
             options.errorprone.disable('PreferJavaTimeOverload')
-        }
+        })
     })
 
     tasks.check.dependsOn checkImplicitDependencies, checkUnusedDependencies

@@ -7,11 +7,13 @@ dependencies {
     api 'com.palantir.ri:resource-identifier'
     api 'com.palantir.conjure.java:conjure-lib'
     api 'org.jspecify:jspecify'
+    api 'com.palantir.conjure.java.api:errors'
 
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.palantir.conjure.java.api:errors'
 
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.assertj:assertj-guava'

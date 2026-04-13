@@ -22,11 +22,13 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
+import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 final class StickyConcurrencyLimitedChannel implements LimitedChannel {
 
@@ -49,10 +51,8 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit =
-                limiter.acquire(limitEnforcement);
-        if (maybePermit.isPresent()) {
-            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
+        @Nullable Permit maybePermit = limiter.acquire(limitEnforcement);
+        if (maybePermit != null) {
             logPermitAcquired();
 
             // This is a trade-off to solve an edge case where the first request on this channel could get
@@ -63,12 +63,12 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(
                     endpoint,
                     request,
-                    permit.isOnlyInFlight() ? LimitEnforcement.DANGEROUS_BYPASS_LIMITS : limitEnforcement);
+                    maybePermit.isOnlyInFlight() ? LimitEnforcement.DANGEROUS_BYPASS_LIMITS : limitEnforcement);
             if (result.isPresent()) {
-                DialogueFutures.addDirectCallback(result.get(), permit);
+                DialogueFutures.addDirectCallback(result.get(), maybePermit);
                 return result;
             } else {
-                maybePermit.get().dropped();
+                maybePermit.dropped();
                 return Optional.empty();
             }
         } else {

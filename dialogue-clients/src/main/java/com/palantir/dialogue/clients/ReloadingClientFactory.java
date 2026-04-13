@@ -26,6 +26,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
@@ -105,6 +106,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 dnsResult.resolvedHosts(),
                                 params.taggedMetrics())))
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
+                .deadlineEnforcement(params.deadlineEnforcement())
                 .build();
     }
 
@@ -136,6 +138,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         Optional<ExecutorService> blockingExecutor();
+
+        Optional<Boolean> deadlineEnforcement();
     }
 
     @Override
@@ -379,6 +383,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
+    public ReloadingFactory withConjureErrorParameterFormat(ConjureErrorParameterFormat format) {
+        return new ReloadingClientFactory(
+                params.withRuntime(new ErrorSerializationFormatSettingConjureRuntime(params.runtime(), format)), cache);
+    }
+
+    @Override
     public ReloadingFactory withDnsResolver(DialogueDnsResolver value) {
         return new ReloadingClientFactory(params.withDnsResolver(value), cache);
     }
@@ -391,6 +401,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public ReloadingFactory withDnsNodeDiscovery(boolean dnsNodeDiscovery) {
         return new ReloadingClientFactory(params.withDnsNodeDiscovery(dnsNodeDiscovery), cache);
+    }
+
+    @Override
+    public ReloadingFactory withDeadlineEnforcement(boolean deadlineEnforcementEnabled) {
+        return new ReloadingClientFactory(params.withDeadlineEnforcement(deadlineEnforcementEnabled), cache);
     }
 
     @Override

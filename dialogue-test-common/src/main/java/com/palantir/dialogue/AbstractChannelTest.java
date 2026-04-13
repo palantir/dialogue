@@ -38,21 +38,20 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.RecordedRequest;
+import mockwebserver3.junit5.StartStop;
 import okhttp3.HttpUrl;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
 import okio.Buffer;
 import okio.GzipSink;
-import org.junit.Rule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 
 // CHECKSTYLE:ON
-@SuppressWarnings({"checkstyle:avoidstaticimport", "checkstyle:VisibilityModifier", "FutureReturnValueIgnored"})
-@EnableRuleMigrationSupport
+
+@SuppressWarnings({"FutureReturnValueIgnored", "VisibilityModifier"})
 public abstract class AbstractChannelTest {
 
     protected static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);
@@ -63,8 +62,8 @@ public abstract class AbstractChannelTest {
         return createChannel(TestConfigurations.create(baseUrl.toString()));
     }
 
-    @Rule
-    public final MockWebServer server = new MockWebServer();
+    @StartStop
+    protected final MockWebServer server = new MockWebServer();
 
     protected final RequestBody body = new RequestBody() {
         @Override
@@ -102,7 +101,7 @@ public abstract class AbstractChannelTest {
         channel = createChannel(server.url("").url());
 
         request = Request.builder().build();
-        server.enqueue(new MockResponse().setBody("body"));
+        server.enqueue(new MockResponse.Builder().body("body").build());
 
         endpoint = new FakeEndpoint();
         endpoint.method = HttpMethod.GET;
@@ -113,21 +112,21 @@ public abstract class AbstractChannelTest {
     public void respectsBasePath_emptyBasePath() throws InterruptedException {
         channel = createChannel(server.url("").url());
         channel.execute(endpoint, request);
-        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/a"));
+        assertThat(server.takeRequest().getUrl()).isEqualTo(server.url("/a"));
     }
 
     @Test
     public void respectsBasePath_slashBasePath() throws InterruptedException {
         channel = createChannel(server.url("/").url());
         channel.execute(endpoint, request);
-        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/a"));
+        assertThat(server.takeRequest().getUrl()).isEqualTo(server.url("/a"));
     }
 
     @Test
     public void respectsBasePath_nonEmptyBasePath() throws InterruptedException {
         channel = createChannel(server.url("/foo/bar").url());
         channel.execute(endpoint, request);
-        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/foo/bar/a"));
+        assertThat(server.takeRequest().getUrl()).isEqualTo(server.url("/foo/bar/a"));
     }
 
     @Test
@@ -136,7 +135,7 @@ public abstract class AbstractChannelTest {
 
         channel = createChannel(server.url("/foo/bar").url());
         channel.execute(endpoint, request);
-        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/foo/bar"));
+        assertThat(server.takeRequest().getUrl()).isEqualTo(server.url("/foo/bar"));
     }
 
     @Test
@@ -145,7 +144,7 @@ public abstract class AbstractChannelTest {
 
         channel = createChannel(server.url("/foo/bar").url());
         channel.execute(endpoint, request);
-        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/foo/bar/"));
+        assertThat(server.takeRequest().getUrl()).isEqualTo(server.url("/foo/bar/"));
     }
 
     @Test
@@ -154,7 +153,7 @@ public abstract class AbstractChannelTest {
         endpoint.renderPath = (params, url) -> url.pathSegment(params.get("a"));
 
         channel.execute(endpoint, request);
-        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/A"));
+        assertThat(server.takeRequest().getUrl()).isEqualTo(server.url("/A"));
     }
 
     @Test
@@ -162,14 +161,14 @@ public abstract class AbstractChannelTest {
         endpoint.renderPath = (_params, url) -> url.pathSegment("/ü/");
 
         channel.execute(endpoint, request);
-        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/%2F%C3%BC%2F"));
+        assertThat(server.takeRequest().getUrl()).isEqualTo(server.url("/%2F%C3%BC%2F"));
     }
 
     @Test
     public void allowsColonPathParameter() throws InterruptedException {
         endpoint.renderPath = (_params, url) -> url.pathSegment("foo:bar");
         channel.execute(endpoint, request);
-        assertThat(server.takeRequest().getRequestUrl())
+        assertThat(server.takeRequest().getUrl())
                 .as("Several GCP APIs require colons in url paths")
                 .isEqualTo(server.url("/foo:bar"));
     }
@@ -183,8 +182,8 @@ public abstract class AbstractChannelTest {
         channel.execute(endpoint, request);
 
         RecordedRequest actualRequest = server.takeRequest();
-        assertThat(actualRequest.getHeader("a")).isEqualTo("A");
-        assertThat(actualRequest.getHeader("b")).isEqualTo("B");
+        assertThat(actualRequest.getHeaders().get("a")).isEqualTo("A");
+        assertThat(actualRequest.getHeaders().get("b")).isEqualTo("B");
     }
 
     @Test
@@ -194,7 +193,7 @@ public abstract class AbstractChannelTest {
         channel.execute(endpoint, request);
 
         RecordedRequest actualRequest = server.takeRequest();
-        assertThat(actualRequest.getHeader("a")).isEqualTo("ø\nü");
+        assertThat(actualRequest.getHeaders().get("a")).isEqualTo("ø\nü");
     }
 
     @Test
@@ -205,7 +204,7 @@ public abstract class AbstractChannelTest {
                 .build();
         channel.execute(endpoint, request);
 
-        HttpUrl requestUrl = server.takeRequest().getRequestUrl();
+        HttpUrl requestUrl = server.takeRequest().getUrl();
         Set<String> queryParameters = requestUrl.queryParameterNames();
         assertThat(queryParameters).hasSize(2);
         assertThat(requestUrl.queryParameterValues("a")).containsExactlyInAnyOrder("A1", "A2");
@@ -221,7 +220,7 @@ public abstract class AbstractChannelTest {
                 .build();
         channel.execute(endpoint, request);
 
-        HttpUrl url = server.takeRequest().getRequestUrl();
+        HttpUrl url = server.takeRequest().getUrl();
         assertThat(url.queryParameterValues(mustEncode)).containsExactlyInAnyOrder(mustEncode);
         assertThat(url.url().getQuery()).isEqualTo("%25%5E%26/?a%3DA3%26a%3DA4=%25%5E%26/?a=A3%26a=A4");
     }
@@ -332,7 +331,7 @@ public abstract class AbstractChannelTest {
         request = Request.builder().from(request).body(body).build();
         channel.execute(endpoint, request);
 
-        assertThat(server.takeRequest().getHeader("content-type")).isEqualTo("application/text");
+        assertThat(server.takeRequest().getHeaders().get("content-type")).isEqualTo("application/text");
     }
 
     @Test
@@ -359,7 +358,7 @@ public abstract class AbstractChannelTest {
         call.cancel(true);
 
         Thread.sleep(1000);
-        server.enqueue(new MockResponse());
+        server.enqueue(new MockResponse.Builder().build());
 
         assertThatThrownBy(call::get).isInstanceOfAny(CancellationException.class);
     }
@@ -368,7 +367,7 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void connectionErrorsSurfaceAsExceptions() throws IOException {
-        server.shutdown();
+        server.close();
         ListenableFuture<Response> call = channel.execute(endpoint, request);
         assertThatThrownBy(call::get).hasCauseInstanceOf(ConnectException.class);
     }
@@ -379,7 +378,10 @@ public abstract class AbstractChannelTest {
         channel.execute(endpoint, request).get();
         server.takeRequest();
 
-        server.enqueue(new MockResponse().addHeader("cOntent-encoding", "gzip").setBody(zip("foo")));
+        server.enqueue(new MockResponse.Builder()
+                .addHeader("cOntent-encoding", "gzip")
+                .body(zip("foo"))
+                .build());
         Response response = channel.execute(endpoint, request).get();
         assertThat(response.body()).hasContent("foo");
         assertThat(server.takeRequest().getHeaders().get("accept-encoding")).isEqualTo("gzip");
@@ -393,7 +395,7 @@ public abstract class AbstractChannelTest {
         ListenableFuture<Response> result = channel.execute(endpoint, request);
         RecordedRequest recorded = server.takeRequest();
         assertThat(recorded.getMethod()).isEqualTo("GET");
-        assertThat(recorded.getPath()).isEqualTo("/a//b");
+        assertThat(recorded.getUrl().pathSegments()).containsExactly("a", "", "b");
         assertThat(result.get().code()).isEqualTo(200);
     }
 
@@ -404,7 +406,7 @@ public abstract class AbstractChannelTest {
         ListenableFuture<Response> result = channel.execute(endpoint, request);
         RecordedRequest recorded = server.takeRequest();
         assertThat(recorded.getMethod()).isEqualTo("GET");
-        assertThat(recorded.getPath()).isEqualTo("/foo/");
+        assertThat(recorded.getUrl().pathSegments()).containsExactly("foo", "");
         assertThat(result.get().code()).isEqualTo(200);
     }
 
@@ -414,7 +416,7 @@ public abstract class AbstractChannelTest {
         endpoint.method = HttpMethod.POST;
         ListenableFuture<Response> result = channel.execute(endpoint, request);
         RecordedRequest recorded = server.takeRequest();
-        assertThat(recorded.getHeader("X-B3-TraceId")).isNotEmpty();
+        assertThat(recorded.getHeaders().get("X-B3-TraceId")).isNotEmpty();
         assertThat(result.get().code()).isEqualTo(200);
     }
 
@@ -422,14 +424,14 @@ public abstract class AbstractChannelTest {
     public void postIncludesZeroContentLength() throws InterruptedException {
         endpoint.method = HttpMethod.POST;
         channel.execute(endpoint, request);
-        assertThat(server.takeRequest().getHeader("Content-Length")).isEqualTo("0");
+        assertThat(server.takeRequest().getHeaders().get("Content-Length")).isEqualTo("0");
     }
 
     @Test
     public void putIncludesZeroContentLength() throws InterruptedException {
         endpoint.method = HttpMethod.PUT;
         channel.execute(endpoint, request);
-        assertThat(server.takeRequest().getHeader("Content-Length")).isEqualTo("0");
+        assertThat(server.takeRequest().getHeaders().get("Content-Length")).isEqualTo("0");
     }
 
     private static Buffer zip(String content) throws IOException {

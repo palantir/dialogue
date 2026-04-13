@@ -21,11 +21,13 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.base.Splitter;
+import com.google.common.base.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.conjure.java.api.config.service.HumanReadableDuration;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -34,6 +36,7 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
+import com.palantir.dialogue.DialogueException;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
@@ -49,6 +52,7 @@ import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import java.net.InetSocketAddress;
+import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,6 +62,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -65,6 +71,7 @@ import java.util.stream.IntStream;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509TrustManager;
+import org.assertj.core.data.Percentage;
 import org.immutables.value.Value;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -126,6 +133,40 @@ public class DialogueClientsIntegrationTest {
         assertThatThrownBy(() -> DialogueClients.create(Refreshable.only(null))
                         .getNonReloading(SampleServiceAsync.class, serviceConfig))
                 .hasMessageContaining("userAgent must be specified");
+    }
+
+    @Test
+    void timeout_is_respected() {
+        Duration readTimeout = Duration.ofSeconds(1);
+
+        CountDownLatch requestDone = new CountDownLatch(1);
+        undertowHandler = exchange -> {
+            // Block the response until the test is complete
+            // If we haven't finished within 3x the read timeout, something is wrong, so we give up waiting.
+            requestDone.await(readTimeout.toMillis() * 3, TimeUnit.MILLISECONDS);
+            exchange.setStatusCode(200);
+        };
+        ServicesConfigBlock badScb = ServicesConfigBlock.builder()
+                .from(scb)
+                .defaultReadTimeout(HumanReadableDuration.seconds(readTimeout.toSeconds()))
+                .build();
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(badScb);
+
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
+
+        Ticker ticker = Ticker.systemTicker();
+        long startNanos = ticker.read();
+        assertThatThrownBy(client::voidToVoid)
+                .isInstanceOf(DialogueException.class)
+                .hasCauseInstanceOf(SocketTimeoutException.class);
+        Duration elapsed = Duration.ofNanos(ticker.read() - startNanos);
+        assertThat(elapsed.toMillis()).isCloseTo(readTimeout.toMillis(), Percentage.withPercentage(20));
+
+        // Now that we're done, allow the server to respond and shutdown cleanly.
+        requestDone.countDown();
     }
 
     @Test

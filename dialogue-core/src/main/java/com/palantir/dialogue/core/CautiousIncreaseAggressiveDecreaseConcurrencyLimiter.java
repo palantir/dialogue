@@ -25,7 +25,6 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleBinaryOperator;
 import org.jspecify.annotations.Nullable;
@@ -71,7 +70,8 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * {@link Permit#onFailure} which delegate to
      * ignore/dropped/success depending on the success or failure state of the response.
      * */
-    Optional<Permit> acquire(LimitEnforcement limitEnforcement) {
+    @Nullable // avoiding java.util.Optional because this method is on the hot path
+    Permit acquire(LimitEnforcement limitEnforcement) {
 
         // Capture the limit field reference once to avoid work in a tight loop. The JIT cannot
         // reliably optimize out references to final fields due to the potential for reflective
@@ -86,12 +86,12 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         while (true) {
             int currentInFlight = localInFlight.get();
             if (limitEnforcement.enforceLimits() && currentInFlight >= currentLimit) {
-                return Optional.empty();
+                return null;
             }
 
             int newInFlight = currentInFlight + 1;
             if (inFlight.compareAndSet(currentInFlight, newInFlight)) {
-                return Optional.of(new Permit(newInFlight));
+                return new Permit(newInFlight);
             }
         }
     }

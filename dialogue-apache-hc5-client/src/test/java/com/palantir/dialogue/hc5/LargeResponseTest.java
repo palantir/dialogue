@@ -156,8 +156,9 @@ public final class LargeResponseTest {
     }
 
     private static Stream<Arguments> responseTestArguments() {
-        return Arrays.stream(CloseType.values()).flatMap(closeType -> Arrays.stream(TransferEncoding.values())
-                .map(trasnferEncoding -> Arguments.of(closeType, trasnferEncoding)));
+        return Arrays.stream(CloseType.values())
+                .flatMap(closeType -> Arrays.stream(TransferEncoding.values())
+                        .map(trasnferEncoding -> Arguments.of(closeType, trasnferEncoding)));
     }
 
     private static Undertow startServer(HttpHandler handler) {

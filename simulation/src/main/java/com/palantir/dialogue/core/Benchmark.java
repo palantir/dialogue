@@ -92,9 +92,11 @@ public final class Benchmark {
 
     public Benchmark numRequests(long numRequests) {
         Preconditions.checkState(requestStream == null, "Already set up requests");
-        requestStream = infiniteRequests(delayBetweenRequests, () -> endpointChannels
-                        .get(endpointChannelChooser.getAsInt())
-                        .channel())
+        requestStream = infiniteRequests(
+                        delayBetweenRequests,
+                        () -> endpointChannels
+                                .get(endpointChannelChooser.getAsInt())
+                                .channel())
                 .limit(numRequests);
         stopWhenNumReceived(numRequests);
         return this;
@@ -119,8 +121,9 @@ public final class Benchmark {
         Preconditions.checkNotNull(simulation, "Must call .simulation() first");
 
         endpointChannels = new ArrayList<>();
-        Arrays.stream(clients).forEach(client -> Arrays.stream(endpoints)
-                .forEach(endpoint -> addEndpointChannel(client.name(), endpoint, client.channel())));
+        Arrays.stream(clients)
+                .forEach(client -> Arrays.stream(endpoints)
+                        .forEach(endpoint -> addEndpointChannel(client.name(), endpoint, client.channel())));
 
         Random pseudoRandom = new Random(21876781263L);
         int count = endpointChannels.size();

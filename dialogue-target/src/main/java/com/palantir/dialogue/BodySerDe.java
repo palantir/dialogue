@@ -16,12 +16,12 @@
 
 package com.palantir.dialogue;
 
+import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
 import java.io.InputStream;
 import java.util.Optional;
 
 /** Request and response Deserialization and Serialization functionality used by generated code. */
 public interface BodySerDe {
-
     /** Creates a {@link Serializer} for the requested type. Serializer instances should be reused. */
     <T> Serializer<T> serializer(TypeMarker<T> type);
 
@@ -29,16 +29,21 @@ public interface BodySerDe {
     <T> Deserializer<T> deserializer(TypeMarker<T> type);
 
     /**
-     * Creates a {@link Deserializer} for the base type {@link T} specified in the {@link DeserializerArgs}.
+     * Creates a {@link Deserializer} for the base type {@link T} specified in the {@link ExceptionDeserializerArgs}.
      * <p>
      * Deserializer instances should be reused.
      **/
-    <T> Deserializer<T> deserializer(DeserializerArgs<T> deserializerArgs);
+    <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs);
 
     /**
      * Returns a {@link Deserializer} that fails if a non-empty reponse body is presented and returns null otherwise.
      */
     Deserializer<Void> emptyBodyDeserializer();
+
+    /**
+     * Similar to {@link #emptyBodyDeserializer()} but allows for specifying error type to exception mapping.
+     */
+    Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs);
 
     /**
      * Returns a {@link Deserializer} that reads an {@link InputStream} from the {@link Response} body.
@@ -49,16 +54,28 @@ public interface BodySerDe {
     Deserializer<InputStream> inputStreamDeserializer();
 
     /**
-     * Creates a {@link Deserializer} for input streams and with error types specified in the {@link DeserializerArgs}.
+     * Creates a {@link Deserializer} for input streams and with error types specified in the {@link ExceptionDeserializerArgs}.
      **/
-    <T> Deserializer<T> inputStreamDeserializer(DeserializerArgs<T> deserializerArgs);
+    Deserializer<InputStream> inputStreamDeserializer(ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs);
 
     /** Same as {@link #inputStreamDeserializer()} with support for 204 responses. */
     Deserializer<Optional<InputStream>> optionalInputStreamDeserializer();
 
-    /** Same as {@link #inputStreamDeserializer(DeserializerArgs)} with support for 204 responses. */
-    <T> Deserializer<T> optionalInputStreamDeserializer(DeserializerArgs<T> deserializerArgs);
+    /**
+     * Same as {@link #inputStreamDeserializer(ExceptionDeserializerArgs)} with support for 204 responses. */
+    Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
+            ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs);
 
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);
+
+    /**
+     * Specifies the expected error parameter format for deserialization. This field is used in code generation, where
+     * client interfaces can specify a header sent to servers requesting an error be serialized in the selected format.
+     * Clients should not assume that servers will always respect this header, and should be able to handle errors that
+     * are serialized in any format the server provides.
+     * */
+    default Optional<ConjureErrorParameterFormat> errorParameterFormat() {
+        return Optional.empty();
+    }
 }
