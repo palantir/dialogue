@@ -25,8 +25,12 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
+import java.time.Duration;
+import java.util.OptionalLong;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -63,6 +67,10 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         private final int maxQueueSize;
         private final QueuedChannelInstrumentation queuedChannelInstrumentation;
         private final LimitedChannel nodeSelectionChannel;
+        private final OptionalLong queueTimeoutNanos;
+        private final Ticker clock;
+        @Nullable
+        private final ScheduledExecutorService scheduler;
 
         private QueueOverrideSupplier(Config cf, LimitedChannel nodeSelectionChannel) {
             this.channelName = cf.channelName();
@@ -70,6 +78,12 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
             this.queuedChannelInstrumentation = QueuedChannel.stickyInstrumentation(
                     DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), channelName);
             this.nodeSelectionChannel = nodeSelectionChannel;
+            this.queueTimeoutNanos = cf.queueTimeout()
+                    .map(Duration::toNanos)
+                    .map(OptionalLong::of)
+                    .orElseGet(OptionalLong::empty);
+            this.clock = cf.ticker();
+            this.scheduler = queueTimeoutNanos.isPresent() ? cf.queueTimeoutScheduler() : null;
         }
 
         @Override
@@ -77,7 +91,13 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
             LimitedChannel stickyLimitedChannel =
                     StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, channelName);
             return QueuedChannel.createForSticky(
-                    channelName, maxQueueSize, queuedChannelInstrumentation, stickyLimitedChannel);
+                    channelName,
+                    maxQueueSize,
+                    queuedChannelInstrumentation,
+                    stickyLimitedChannel,
+                    queueTimeoutNanos,
+                    clock,
+                    scheduler);
         }
     }
 
