@@ -35,8 +35,10 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -203,7 +205,7 @@ class QueueTimeoutEteTest {
         @SuppressWarnings("FutureReturnValueIgnored")
         void timed_out_request_is_not_retried() throws Exception {
             // Track how many times the wire is hit
-            java.util.concurrent.atomic.AtomicInteger wireHitCount = new java.util.concurrent.atomic.AtomicInteger();
+            AtomicInteger wireHitCount = new AtomicInteger();
             WireChannel wire = new WireChannel() {
                 @Override
                 public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
@@ -280,7 +282,7 @@ class QueueTimeoutEteTest {
     private static DialogueChannel buildChannel(WireChannel wire, String... uris) {
         ClientConfiguration config = ClientConfiguration.builder()
                 .from(ClientConfigurations.of(ServiceConfiguration.builder()
-                        .uris(java.util.List.of(uris))
+                        .uris(List.of(uris))
                         .security(SSL_CONFIG)
                         .build()))
                 .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)

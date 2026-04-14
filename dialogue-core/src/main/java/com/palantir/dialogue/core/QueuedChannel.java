@@ -294,8 +294,9 @@ final class QueuedChannel implements Channel {
         Preconditions.checkNotNull(scheduler, "Scheduler must be present when queue timeouts are enabled");
 
         long timeoutNanos = queueTimeoutNanos.getAsLong();
-        long expirationNanos = QueueTimeoutAttachments.setExpirationIfAbsent(request, clock.read() + timeoutNanos);
-        long delayNanos = expirationNanos - clock.read();
+        long nowNanos = clock.read();
+        long expirationNanos = QueueTimeoutAttachments.setExpirationIfAbsent(request, nowNanos + timeoutNanos);
+        long delayNanos = expirationNanos - nowNanos;
 
         if (delayNanos <= 0) {
             failWithQueueTimeout(responseFuture, span, timer);

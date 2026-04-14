@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1154,6 +1155,45 @@ public class RetryingChannelTest {
                     public void close() {}
                 })
                 .build();
+    }
+
+    @Test
+    void retry_clears_queue_timeout_attachment() throws Exception {
+        // First call returns 429 (retryable), second call returns 200.
+        // Verify that the queue timeout expiration is cleared between attempts.
+        Request request = Request.builder().build();
+
+        QueueTimeoutAttachments.setExpirationIfAbsent(request, 12345L);
+
+        AtomicInteger attempts = new AtomicInteger();
+        when(channel.execute(any())).thenAnswer(_invocation -> {
+            int attempt = attempts.incrementAndGet();
+            if (attempt == 1) {
+                // First attempt: expiration is set
+                assertThat(QueueTimeoutAttachments.getExpiration(request))
+                        .as("First attempt should see the expiration")
+                        .isEqualTo(12345L);
+                return Futures.immediateFuture(mockResponse(429));
+            }
+            // Second attempt: expiration should have been cleared by RetryingChannel
+            assertThat(QueueTimeoutAttachments.getExpiration(request))
+                    .as("RetryingChannel should clear the expiration before retrying")
+                    .isNull();
+            return Futures.immediateFuture(new TestResponse().code(200));
+        });
+
+        EndpointChannel retryer = new RetryingChannel(
+                registry,
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(request);
+        assertThat(response.get().code()).isEqualTo(200);
+        assertThat(attempts.get()).isEqualTo(2);
     }
 
     private static Response mockResponse(int status) {
