@@ -392,6 +392,8 @@ final class RetryingChannel implements EndpointChannel {
         @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
         private ListenableFuture<Response> scheduleRetry(Meter meter, long backoffNanoseconds) {
             meter.mark();
+            // Clear the queue timeout expiration so the retry gets a fresh queue timeout.
+            QueueTimeoutAttachments.clearExpiration(request);
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(request));
             }
