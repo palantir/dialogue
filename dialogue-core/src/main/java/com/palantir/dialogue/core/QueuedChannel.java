@@ -177,8 +177,19 @@ final class QueuedChannel implements Channel {
             String channelName,
             int maxQueueSize,
             QueuedChannelInstrumentation queuedChannelInstrumentation,
-            LimitedChannel delegate) {
-        return new QueuedChannel(delegate, channelName, "sticky", queuedChannelInstrumentation, maxQueueSize);
+            LimitedChannel delegate,
+            OptionalLong queueTimeoutNanos,
+            Ticker clock,
+            @Nullable ScheduledExecutorService scheduler) {
+        return new QueuedChannel(
+                delegate,
+                channelName,
+                "sticky",
+                queuedChannelInstrumentation,
+                maxQueueSize,
+                queueTimeoutNanos,
+                clock,
+                scheduler);
     }
 
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
@@ -257,6 +268,13 @@ final class QueuedChannel implements Channel {
         DetachedSpan span = DetachedSpan.start("Dialogue-request-enqueued");
         IdempotentTimerContext timer = new IdempotentTimerContext(queuedTime.time());
         @Nullable ScheduledFuture<?> timeoutFuture = scheduleQueueTimeout(request, responseFuture, span, timer);
+
+        // If the timeout budget was already exhausted (e.g., from time spent in a previous queue),
+        // scheduleQueueTimeout failed the future immediately. Return early to avoid creating a
+        // DeferredCall and adding it to the deque only for scheduleNextTask to clean it up.
+        if (responseFuture.isDone()) {
+            return Optional.of(responseFuture);
+        }
 
         DeferredCall components = DeferredCall.builder()
                 .endpoint(endpoint)
