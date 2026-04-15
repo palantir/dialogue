@@ -310,8 +310,19 @@ final class QueuedChannel implements Channel {
             return null;
         }
         Preconditions.checkNotNull(scheduler, "Scheduler must be present when queue timeouts are enabled");
-        QueueTimeoutAttachments.setExpirationIfAbsent(request, clock.read() + queueTimeoutNanos.getAsLong());
-        return scheduleTimeoutFromExpiration(request, responseFuture, span, timer);
+
+        long timeoutNanos = queueTimeoutNanos.getAsLong();
+        long nowNanos = clock.read();
+        long expirationNanos = QueueTimeoutAttachments.setExpirationIfAbsent(request, nowNanos + timeoutNanos);
+        long delayNanos = expirationNanos - nowNanos;
+
+        if (delayNanos <= 0) {
+            failWithQueueTimeout(responseFuture, span, timer);
+            return null;
+        }
+
+        return scheduler.schedule(
+                () -> failWithQueueTimeout(responseFuture, span, timer), delayNanos, TimeUnit.NANOSECONDS);
     }
 
     /**
@@ -380,13 +391,10 @@ final class QueuedChannel implements Channel {
         if (queueHead == null) {
             return false;
         }
-        // Cancel the timeout proactively before dispatch. Once popped from the deque, the
-        // queueing phase is conceptually over. If the delegate rejects and we re-queue,
-        // a fresh timeout is scheduled in the offerFirst path (see requeueWithTimeout).
-        queueHead.timeoutFuture().ifPresent(future -> future.cancel(false));
-
-        // If the future has been completed (via cancel, queue timeout that won the race
-        // before we cancelled, or any other reason), clean up without dispatching.
+        // If the future has been completed (most likely via cancel or queue timeout) the call should
+        // not be dispatched. Cancel the timeout task to free the ScheduledFuture from the heap.
+        // There's a race where cancel may be invoked between this check and execution, but the scheduled
+        // request will be quickly cancelled in that case.
         if (queueHead.response().isDone()) {
             cleanupDeferredCall(queueHead);
             return true;
@@ -433,17 +441,14 @@ final class QueuedChannel implements Channel {
                         SafeArg.of("endpoint", endpoint.endpointName()));
                 return true;
             } else {
-                // Delegate rejected — re-queue with a fresh timeout for the remaining budget.
-                // The original timeout was cancelled in scheduleNextTask before dispatch.
-                DeferredCall requeued = addTimeout(queueHead);
-                if (!queuedCalls.offerFirst(requeued)) {
+                if (!queuedCalls.offerFirst(queueHead)) {
                     // Should never happen, ConcurrentLinkedDeque has no maximum size
                     log.error(
                             "Failed to add an attempted call back to the deque",
                             SafeArg.of("channel", channelName),
                             SafeArg.of("service", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()));
-                    cleanupDeferredCall(requeued);
+                    cleanupDeferredCall(queueHead);
                     if (!queuedResponse.setException(new SafeRuntimeException(
                             "Failed to req-queue request",
                             SafeArg.of("channel", channelName),
@@ -472,43 +477,6 @@ final class QueuedChannel implements Channel {
         decrementQueueSize();
         call.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
         call.timer().stop();
-    }
-
-    /**
-     * Creates a copy of the DeferredCall with a fresh timeout task for the remaining budget.
-     */
-    private DeferredCall addTimeout(DeferredCall original) {
-        @Nullable
-        ScheduledFuture<?> newTimeout = scheduleTimeoutFromExpiration(
-                original.request(), original.response(), original.span(), original.timer());
-        return DeferredCall.builder()
-                .from(original)
-                .timeoutFuture(Optional.ofNullable(newTimeout))
-                .build();
-    }
-
-    /**
-     * Schedules a timeout task based on the expiration already stamped on the request attachment.
-     * Shared by {@link #scheduleQueueTimeout} (which stamps then schedules) and
-     * {@link #addTimeout} (which re-schedules from the existing stamp).
-     */
-    @Nullable
-    private ScheduledFuture<?> scheduleTimeoutFromExpiration(
-            Request request, SettableFuture<Response> responseFuture, DetachedSpan span, IdempotentTimerContext timer) {
-        if (queueTimeoutNanos.isEmpty() || scheduler == null) {
-            return null;
-        }
-        Long expirationNanos = QueueTimeoutAttachments.getExpiration(request);
-        if (expirationNanos == null) {
-            return null;
-        }
-        long delayNanos = expirationNanos - clock.read();
-        if (delayNanos <= 0) {
-            failWithQueueTimeout(responseFuture, span, timer);
-            return null;
-        }
-        return scheduler.schedule(
-                () -> failWithQueueTimeout(responseFuture, span, timer), delayNanos, TimeUnit.NANOSECONDS);
     }
 
     /**
