@@ -18,17 +18,17 @@ com.fasterxml.jackson.datatype:jackson-datatype-joda:2.21.1 (1 constraints: 7c1c
 
 com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.1 (1 constraints: 7c1c98a4)
 
-com.github.ben-manes.caffeine:caffeine:3.2.4 (3 constraints: 06289434)
+com.github.ben-manes.caffeine:caffeine:3.2.4 (3 constraints: 05286534)
 
 com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.49.0 (19 constraints: 382f0311)
+com.google.errorprone:error_prone_annotations:2.49.0 (19 constraints: 262f0cea)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.6.0-jre (18 constraints: f43f64c8)
+com.google.guava:guava:33.6.0-jre (18 constraints: ef3f22bf)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -36,21 +36,21 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.10.0 (1 constraints: 35052f3b)
 
-com.palantir.conjure.java:conjure-lib:8.78.0 (2 constraints: 4124bc7c)
+com.palantir.conjure.java:conjure-lib:8.78.0 (2 constraints: 3f24b67c)
 
-com.palantir.conjure.java.api:errors:2.73.0 (3 constraints: 7c29a014)
+com.palantir.conjure.java.api:errors:999 (3 constraints: 0029d898)
 
-com.palantir.conjure.java.api:service-config:2.73.0 (2 constraints: 5a19d9dc)
+com.palantir.conjure.java.api:service-config:999 (2 constraints: de188691)
 
-com.palantir.conjure.java.api:ssl-config:2.73.0 (4 constraints: 023f139f)
+com.palantir.conjure.java.api:ssl-config:999 (4 constraints: 8d3dbacc)
 
-com.palantir.conjure.java.runtime:client-config:8.35.0 (1 constraints: 42056a3b)
+com.palantir.conjure.java.runtime:client-config:999 (1 constraints: c104512c)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.35.0 (1 constraints: 861ccba4)
+com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:999 (1 constraints: 051ce64f)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.35.0 (2 constraints: 6416a10f)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:999 (2 constraints: e315c8e7)
 
-com.palantir.conjure.java.runtime:keystores:8.35.0 (2 constraints: 6319f4dd)
+com.palantir.conjure.java.runtime:keystores:999 (2 constraints: 61182968)
 
 com.palantir.deadlines:deadlines:0.22.0 (1 constraints: 36052d3b)
 
@@ -60,23 +60,23 @@ com.palantir.javapoet:javapoet:0.16.0 (2 constraints: 2e1189ee)
 
 com.palantir.nylon:nylon-threads:0.10.0 (1 constraints: 39102ca2)
 
-com.palantir.refreshable:refreshable:2.13.0 (2 constraints: 4e1953db)
+com.palantir.refreshable:refreshable:2.13.0 (2 constraints: 4d1950db)
 
 com.palantir.ri:resource-identifier:2.17.0 (2 constraints: 5d15c7da)
 
-com.palantir.safe-logging:logger:3.15.0 (14 constraints: 51e16c10)
+com.palantir.safe-logging:logger:3.15.0 (14 constraints: 49e15401)
 
 com.palantir.safe-logging:logger-slf4j:3.15.0 (1 constraints: 340e9650)
 
 com.palantir.safe-logging:logger-spi:3.15.0 (2 constraints: 771ee2b0)
 
-com.palantir.safe-logging:preconditions:3.15.0 (21 constraints: a65398d1)
+com.palantir.safe-logging:preconditions:3.15.0 (21 constraints: 9a5348b1)
 
-com.palantir.safe-logging:safe-logging:3.15.0 (20 constraints: 0045df70)
+com.palantir.safe-logging:safe-logging:3.15.0 (20 constraints: f644b556)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.9.0 (1 constraints: 0b050636)
 
-com.palantir.tokens:auth-tokens:4.5.0 (3 constraints: 8c273e2d)
+com.palantir.tokens:auth-tokens:4.5.0 (3 constraints: 8927352d)
 
 com.palantir.tracing:tracing:6.35.0 (3 constraints: b6245ffd)
 
@@ -88,11 +88,11 @@ com.palantir.tritium:tritium-caffeine:0.130.0 (1 constraints: 66059440)
 
 com.palantir.tritium:tritium-core:0.130.0 (1 constraints: 6c10a3b2)
 
-com.palantir.tritium:tritium-ids:0.130.0 (1 constraints: fe0f9aa6)
+com.palantir.tritium:tritium-ids:0.130.0 (1 constraints: fc0f94a6)
 
 com.palantir.tritium:tritium-metrics:0.130.0 (3 constraints: 8824c807)
 
-com.palantir.tritium:tritium-registry:0.130.0 (6 constraints: e165b142)
+com.palantir.tritium:tritium-registry:0.130.0 (6 constraints: eb65bc49)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
@@ -132,7 +132,7 @@ org.eclipse.collections:eclipse-collections-api:13.0.0 (2 constraints: fa22df26)
 
 org.hdrhistogram:HdrHistogram:2.2.2 (1 constraints: 0e100092)
 
-org.immutables:value:2.12.2 (2 constraints: 0215eec1)
+org.immutables:value:2.12.2 (2 constraints: 0115edc1)
 
 org.jboss.logging:jboss-logging:3.6.1.Final (7 constraints: c283b7cb)
 

@@ -394,6 +394,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
+    public DialogueClients.ReloadingFactory withQueueTimeout(Duration duration) {
+        return new ReloadingClientFactory(params.withQueueTimeout(duration), cache);
+    }
+
+    @Override
     public ReloadingFactory withConjureErrorParameterFormat(ConjureErrorParameterFormat format) {
         return new ReloadingClientFactory(params.withConjureErrorParameterFormat(format), cache);
     }
