@@ -396,10 +396,7 @@ final class QueuedChannel implements Channel {
         // There's a race where cancel may be invoked between this check and execution, but the scheduled
         // request will be quickly cancelled in that case.
         if (queueHead.response().isDone()) {
-            cancelTimeoutFuture(queueHead);
-            decrementQueueSize();
-            queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
-            queueHead.timer().stop();
+            cleanupDeferredCall(queueHead);
             return true;
         }
         return scheduleTaskFromQueue(queueHead);
@@ -414,13 +411,9 @@ final class QueuedChannel implements Channel {
                     delegate.maybeExecute(endpoint, queueHead.request(), limitEnforcement);
 
             if (maybeResponse.isPresent()) {
-                // Request is leaving the queue — cancel the timeout task.
-                cancelTimeoutFuture(queueHead);
+                cleanupDeferredCall(queueHead);
                 inFlight.incrementAndGet();
-                decrementQueueSize();
                 ListenableFuture<Response> response = maybeResponse.get();
-                queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
-                queueHead.timer().stop();
                 DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(queuedResponse));
                 DialogueFutures.addDirectListener(queuedResponse, () -> {
                     if (queuedResponse.isCancelled()) {
@@ -439,10 +432,7 @@ final class QueuedChannel implements Channel {
                 });
                 return true;
             } else if (!limitEnforcement.enforceLimits()) {
-                cancelTimeoutFuture(queueHead);
-                decrementQueueSize();
-                queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
-                queueHead.timer().stop();
+                cleanupDeferredCall(queueHead);
                 queuedResponse.setException(limitEnforcementExpectationFailure(queueHead.endpoint()));
                 log.warn(
                         "Failed to make a request bypassing concurrency limits, which should not be possible",
@@ -458,9 +448,7 @@ final class QueuedChannel implements Channel {
                             SafeArg.of("channel", channelName),
                             SafeArg.of("service", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()));
-                    cancelTimeoutFuture(queueHead);
-                    decrementQueueSize();
-                    queueHead.timer().stop();
+                    cleanupDeferredCall(queueHead);
                     if (!queuedResponse.setException(new SafeRuntimeException(
                             "Failed to req-queue request",
                             SafeArg.of("channel", channelName),
@@ -480,8 +468,15 @@ final class QueuedChannel implements Channel {
         }
     }
 
-    private static void cancelTimeoutFuture(DeferredCall call) {
+    /**
+     * Cleans up a {@link DeferredCall} that is leaving the deque. It cancels timeout, decrements queue size, completes
+     * the span, and stops the timer. Both span and timer are idempotent.
+     */
+    private void cleanupDeferredCall(DeferredCall call) {
         call.timeoutFuture().ifPresent(future -> future.cancel(false));
+        decrementQueueSize();
+        call.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
+        call.timer().stop();
     }
 
     /**
