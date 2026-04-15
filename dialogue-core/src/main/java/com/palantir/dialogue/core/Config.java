@@ -89,7 +89,7 @@ interface Config {
 
     @Value.Default
     default Optional<Duration> queueTimeout() {
-        return Optional.empty();
+        return rawConfig().queueTimeout();
     }
 
     @Value.Default
