@@ -34,6 +34,16 @@ public final class RequestAttachments {
     }
 
     @Nullable
+    public <V> V putIfAbsent(RequestAttachmentKey<V> key, V value) {
+        return attachments.putIfAbsent(key.attachment(), value);
+    }
+
+    @Nullable
+    public <V> V remove(RequestAttachmentKey<V> key) {
+        return attachments.remove(key.attachment());
+    }
+
+    @Nullable
     public <V> V getOrDefault(RequestAttachmentKey<V> key, @Nullable V defaultValue) {
         return attachments.getOrDefault(key.attachment(), defaultValue);
     }

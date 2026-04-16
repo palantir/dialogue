@@ -44,6 +44,24 @@ final class Attachments {
     }
 
     @Nullable
+    <V> V putIfAbsent(AttachmentKey<V> key, V value) {
+        Preconditions.checkNotNull(key, "key");
+        Preconditions.checkNotNull(value, "value");
+        key.checkIsInstance(value);
+        @SuppressWarnings("unchecked")
+        V result = (V) attachments.putIfAbsent(key, value);
+        return result;
+    }
+
+    @Nullable
+    <V> V remove(AttachmentKey<V> key) {
+        Preconditions.checkNotNull(key, "key");
+        @SuppressWarnings("unchecked")
+        V result = (V) attachments.remove(key);
+        return result;
+    }
+
+    @Nullable
     <V> V getOrDefault(AttachmentKey<V> key, @Nullable V defaultValue) {
         Preconditions.checkNotNull(key, "key");
         @SuppressWarnings("unchecked")

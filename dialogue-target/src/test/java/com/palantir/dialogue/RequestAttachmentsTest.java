@@ -30,4 +30,30 @@ public final class RequestAttachmentsTest {
         requestAttachments.put(ATTACHMENT_KEY, true);
         assertThat(requestAttachments.getOrDefault(ATTACHMENT_KEY, false)).isTrue();
     }
+
+    @Test
+    public void testPutIfAbsent() {
+        RequestAttachments requestAttachments = RequestAttachments.create();
+        assertThat(requestAttachments.putIfAbsent(ATTACHMENT_KEY, true)).isNull();
+        assertThat(requestAttachments.putIfAbsent(ATTACHMENT_KEY, false))
+                .as("putIfAbsent should return existing value")
+                .isTrue();
+        assertThat(requestAttachments.getOrDefault(ATTACHMENT_KEY, false))
+                .as("original value should be unchanged")
+                .isTrue();
+    }
+
+    @Test
+    public void testRemove() {
+        RequestAttachments requestAttachments = RequestAttachments.create();
+        requestAttachments.put(ATTACHMENT_KEY, true);
+        assertThat(requestAttachments.remove(ATTACHMENT_KEY)).isTrue();
+        assertThat(requestAttachments.getOrDefault(ATTACHMENT_KEY, null)).isNull();
+    }
+
+    @Test
+    public void testRemoveWhenAbsent() {
+        RequestAttachments requestAttachments = RequestAttachments.create();
+        assertThat(requestAttachments.remove(ATTACHMENT_KEY)).isNull();
+    }
 }
