@@ -18,17 +18,17 @@ com.fasterxml.jackson.datatype:jackson-datatype-joda:2.21.1 (1 constraints: 7c1c
 
 com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.1 (1 constraints: 7c1c98a4)
 
-com.github.ben-manes.caffeine:caffeine:3.2.4 (3 constraints: 05286534)
+com.github.ben-manes.caffeine:caffeine:3.2.4 (3 constraints: 06289434)
 
 com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.49.0 (19 constraints: 262f0cea)
+com.google.errorprone:error_prone_annotations:2.49.0 (19 constraints: 382f0311)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.6.0-jre (18 constraints: ef3f22bf)
+com.google.guava:guava:33.6.0-jre (18 constraints: f23feec3)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -36,21 +36,21 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.10.0 (1 constraints: 35052f3b)
 
-com.palantir.conjure.java:conjure-lib:8.78.0 (2 constraints: 3f24b67c)
+com.palantir.conjure.java:conjure-lib:8.78.0 (2 constraints: 4124bc7c)
 
-com.palantir.conjure.java.api:errors:999 (3 constraints: 0029d898)
+com.palantir.conjure.java.api:errors:2.72.0-rc1 (3 constraints: e12baa56)
 
-com.palantir.conjure.java.api:service-config:999 (2 constraints: de188691)
+com.palantir.conjure.java.api:service-config:2.72.0-rc1 (2 constraints: bf1b2da6)
 
-com.palantir.conjure.java.api:ssl-config:999 (4 constraints: 8d3dbacc)
+com.palantir.conjure.java.api:ssl-config:2.72.0-rc1 (4 constraints: cc439470)
 
-com.palantir.conjure.java.runtime:client-config:999 (1 constraints: c104512c)
+com.palantir.conjure.java.runtime:client-config:8.36.0-rc1 (1 constraints: 76067a53)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:999 (1 constraints: 051ce64f)
+com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.36.0-rc1 (1 constraints: ba1dfa19)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:999 (2 constraints: e315c8e7)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.36.0-rc1 (2 constraints: 9817a562)
 
-com.palantir.conjure.java.runtime:keystores:999 (2 constraints: 61182968)
+com.palantir.conjure.java.runtime:keystores:8.36.0-rc1 (2 constraints: cb1b0ba8)
 
 com.palantir.deadlines:deadlines:0.22.0 (1 constraints: 36052d3b)
 
@@ -60,19 +60,19 @@ com.palantir.javapoet:javapoet:0.16.0 (2 constraints: 2e1189ee)
 
 com.palantir.nylon:nylon-threads:0.10.0 (1 constraints: 39102ca2)
 
-com.palantir.refreshable:refreshable:2.13.0 (2 constraints: 4d1950db)
+com.palantir.refreshable:refreshable:2.13.0 (2 constraints: 4f1956db)
 
 com.palantir.ri:resource-identifier:2.17.0 (2 constraints: 5d15c7da)
 
-com.palantir.safe-logging:logger:3.15.0 (14 constraints: 49e15401)
+com.palantir.safe-logging:logger:3.15.0 (14 constraints: 4fe1e80b)
 
 com.palantir.safe-logging:logger-slf4j:3.15.0 (1 constraints: 340e9650)
 
 com.palantir.safe-logging:logger-spi:3.15.0 (2 constraints: 771ee2b0)
 
-com.palantir.safe-logging:preconditions:3.15.0 (21 constraints: 9a5348b1)
+com.palantir.safe-logging:preconditions:3.15.0 (21 constraints: a0535abf)
 
-com.palantir.safe-logging:safe-logging:3.15.0 (20 constraints: f644b556)
+com.palantir.safe-logging:safe-logging:3.15.0 (20 constraints: fc44f764)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.9.0 (1 constraints: 0b050636)
 
@@ -92,11 +92,11 @@ com.palantir.tritium:tritium-ids:0.130.0 (1 constraints: fc0f94a6)
 
 com.palantir.tritium:tritium-metrics:0.130.0 (3 constraints: 8824c807)
 
-com.palantir.tritium:tritium-registry:0.130.0 (6 constraints: eb65bc49)
+com.palantir.tritium:tritium-registry:0.130.0 (6 constraints: e165b142)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
-io.dropwizard.metrics:metrics-core:4.2.39 (6 constraints: b861dab5)
+io.dropwizard.metrics:metrics-core:4.2.39 (6 constraints: b96191b6)
 
 io.smallrye.common:smallrye-common-annotation:2.14.0 (1 constraints: f20d0944)
 

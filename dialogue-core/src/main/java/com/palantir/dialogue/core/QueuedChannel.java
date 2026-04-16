@@ -204,7 +204,7 @@ final class QueuedChannel implements Channel {
                 cf.maxQueueSize(),
                 timeoutNanos,
                 cf.ticker(),
-                timeoutNanos.isPresent() ? cf.queueTimeoutScheduler() : null);
+                timeoutNanos.isPresent() ? sharedTimeoutScheduler.get() : null);
     }
 
     static QueuedChannel create(Config cf, Endpoint endpoint, LimitedChannel delegate) {
@@ -222,7 +222,7 @@ final class QueuedChannel implements Channel {
                 cf.maxQueueSize(),
                 timeoutNanos,
                 cf.ticker(),
-                timeoutNanos.isPresent() ? cf.queueTimeoutScheduler() : null);
+                timeoutNanos.isPresent() ? sharedTimeoutScheduler.get() : null);
     }
 
     @Override
@@ -656,6 +656,7 @@ final class QueuedChannel implements Channel {
                 return List.of();
             }
 
+            @Override
             public Counter requestQueueTimeout() {
                 return metrics.requestQueueTimeout(channelName);
             }
@@ -681,6 +682,7 @@ final class QueuedChannel implements Channel {
                 return List.of(SafeArg.of("sticky", true));
             }
 
+            @Override
             public Counter requestQueueTimeout() {
                 return metrics.requestQueueTimeout(channelName);
             }
@@ -713,6 +715,7 @@ final class QueuedChannel implements Channel {
                 return List.of(SafeArg.of("service", service), SafeArg.of("endpoint", endpoint));
             }
 
+            @Override
             public Counter requestQueueTimeout() {
                 return metrics.requestQueueTimeout(channelName);
             }
@@ -748,6 +751,7 @@ final class QueuedChannel implements Channel {
             return queueFullSafeArgs.get();
         }
 
+        @Override
         public Counter requestQueueTimeout() {
             return requestQueueTimeoutSupplier.get();
         }

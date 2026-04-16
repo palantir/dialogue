@@ -29,31 +29,21 @@ import javax.annotation.Nullable;
  */
 final class QueueTimeoutAttachments {
     private static final RequestAttachmentKey<Long> QUEUE_EXPIRATION_NANOS = RequestAttachmentKey.create(Long.class);
-    private static final long CLEARED_SENTINEL = Long.MIN_VALUE;
 
     private QueueTimeoutAttachments() {}
 
-    /**
-     * Clears the expiration attachment by setting it to a sentinel value that {@link #setExpirationIfAbsent} treats as
-     * absent.
-     */
+    /** Clears the expiration so the next queue stamps a fresh budget (used on retry). */
     static void clearExpiration(Request request) {
-        request.attachments().put(QUEUE_EXPIRATION_NANOS, CLEARED_SENTINEL);
+        request.attachments().remove(QUEUE_EXPIRATION_NANOS);
     }
 
-    /** Sets the expiration only if one hasn't been set yet (or was cleared). */
-    static long setExpirationIfAbsent(Request request, long expirationNanos) {
-        Long existing = request.attachments().getOrDefault(QUEUE_EXPIRATION_NANOS, null);
-        if (existing != null && existing != CLEARED_SENTINEL) {
-            return existing;
-        }
-        request.attachments().put(QUEUE_EXPIRATION_NANOS, expirationNanos);
-        return expirationNanos;
+    /** Sets the expiration only if one hasn't been set yet. */
+    static void setExpirationIfAbsent(Request request, long expirationNanos) {
+        request.attachments().putIfAbsent(QUEUE_EXPIRATION_NANOS, expirationNanos);
     }
 
     @VisibleForTesting
     static @Nullable Long getExpiration(Request request) {
-        Long value = request.attachments().getOrDefault(QUEUE_EXPIRATION_NANOS, null);
-        return (value != null && value != CLEARED_SENTINEL) ? value : null;
+        return request.attachments().getOrDefault(QUEUE_EXPIRATION_NANOS, null);
     }
 }

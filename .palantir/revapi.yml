@@ -332,6 +332,12 @@ acceptedBreaks:
         \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withDeadlineEnforcement(boolean)"
       justification: "New method added to allow clients to set deadline enforcement.\
         \ This interface is only consumed externally, not implemented."
+  "6.27.0":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method T com.palantir.conjure.java.clients.ConjureClients.WithClientOptions<T>::withQueueTimeout(java.time.Duration)\
+        \ @ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory"
+      justification: "Adding queue timeout"
   "6.7.0":
     com.palantir.dialogue:dialogue-target:
     - code: "java.class.removed"

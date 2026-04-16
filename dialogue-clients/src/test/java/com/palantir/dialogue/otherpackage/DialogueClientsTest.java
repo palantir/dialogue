@@ -299,5 +299,10 @@ class DialogueClientsTest {
         public Alternative withMaxNumRetries(int _maxNumRetries) {
             return this;
         }
+
+        @Override
+        public Alternative withQueueTimeout(Duration _duration) {
+            return this;
+        }
     }
 }
