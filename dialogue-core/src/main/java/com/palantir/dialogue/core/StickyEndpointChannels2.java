@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -25,7 +26,6 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
 import java.time.Duration;
@@ -69,6 +69,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         private final LimitedChannel nodeSelectionChannel;
         private final OptionalLong queueTimeoutNanos;
         private final Ticker clock;
+
         @Nullable
         private final ScheduledExecutorService scheduler;
 
@@ -83,7 +84,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     .map(OptionalLong::of)
                     .orElseGet(OptionalLong::empty);
             this.clock = cf.ticker();
-            this.scheduler = queueTimeoutNanos.isPresent() ? cf.queueTimeoutScheduler() : null;
+            this.scheduler = queueTimeoutNanos.isPresent() ? QueuedChannel.sharedTimeoutScheduler.get() : null;
         }
 
         @Override

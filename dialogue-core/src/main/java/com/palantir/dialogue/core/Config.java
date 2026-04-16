@@ -92,11 +92,6 @@ interface Config {
         return rawConfig().queueTimeout();
     }
 
-    @Value.Default
-    default ScheduledExecutorService queueTimeoutScheduler() {
-        return QueuedChannel.sharedTimeoutScheduler.get();
-    }
-
     @Value.Check
     default void check() {
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");
