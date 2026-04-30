@@ -121,6 +121,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         Optional<ConjureErrorParameterFormat> conjureErrorParameterFormat();
 
+        // ConjureRuntime is an interface: we can't mutate it so instead we use a delegating wrapper to update the
+        // error serialization format.
         @Value.Derived
         default ConjureRuntime runtime() {
             return conjureErrorParameterFormat()
