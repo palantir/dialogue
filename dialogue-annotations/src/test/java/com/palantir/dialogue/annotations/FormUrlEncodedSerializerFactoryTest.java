@@ -52,6 +52,7 @@ public final class FormUrlEncodedSerializerFactoryTest {
         return new MapFormUrlEncodedSerializer().serialize(values);
     }
 
+    @SuppressWarnings("for-rollout:JdkObsolete")
     private static String asString(RequestBody body) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         body.writeTo(baos);
