@@ -56,7 +56,7 @@ com.palantir.deadlines:deadlines:0.21.0 (1 constraints: 35052a3b)
 
 com.palantir.goethe:goethe:0.22.0 (1 constraints: 36052d3b)
 
-com.palantir.javapoet:javapoet:0.14.0 (2 constraints: 2b1138ee)
+com.palantir.javapoet:javapoet:0.15.0 (2 constraints: 2c115fee)
 
 com.palantir.nylon:nylon-threads:0.9.0 (1 constraints: 11100992)
 
