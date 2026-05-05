@@ -30,6 +30,10 @@ import com.palantir.dialogue.TypeMarker;
 import java.io.InputStream;
 import java.util.Optional;
 
+/**
+ * Wraps a user-supplied {@link ConjureRuntime} to override {@link BodySerDe#errorParameterFormat()}. Since
+ * {@link ConjureRuntime} is an interface, we can't mutate the caller's instance (passed via {@code withRuntime}).
+ */
 final class ErrorSerializationFormatSettingConjureRuntime implements ConjureRuntime {
     private final ConjureRuntime delegate;
     private final BodySerDe bodySerDe;

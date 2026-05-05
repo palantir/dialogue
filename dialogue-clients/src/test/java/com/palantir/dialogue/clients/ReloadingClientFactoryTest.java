@@ -128,6 +128,24 @@ class ReloadingClientFactoryTest {
         assertThat(originalService.runtime().bodySerDe().errorParameterFormat()).isEmpty();
     }
 
+    @Test
+    void withRuntime_after_withConjureErrorParameterFormat_preserves_format() {
+        ChannelCache mockCache = mock(ChannelCache.class);
+        ImmutableReloadingParams params = ImmutableReloadingParams.builder()
+                .scb(Refreshable.only(ServicesConfigBlock.builder().build()))
+                .build();
+        ReloadingClientFactory factory = new ReloadingClientFactory(params, mockCache);
+
+        ReloadingFactory modifiedFactory = factory.withConjureErrorParameterFormat(
+                        ConjureErrorParameterFormat.JSON_FORMAT)
+                .withRuntime(DefaultConjureRuntime.builder().build());
+
+        RuntimeCapturingService service = modifiedFactory.get(RuntimeCapturingService.class, "foo");
+
+        assertThat(service.runtime().bodySerDe().errorParameterFormat())
+                .contains(ConjureErrorParameterFormat.JSON_FORMAT);
+    }
+
     @DialogueService(RuntimeCapturingService.Factory.class)
     private record RuntimeCapturingService(ConjureRuntime runtime) {
         static RuntimeCapturingService of(ConjureRuntime runtime) {

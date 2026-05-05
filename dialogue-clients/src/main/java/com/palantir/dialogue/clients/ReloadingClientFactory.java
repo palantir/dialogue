@@ -115,8 +115,20 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Refreshable<ServicesConfigBlock> scb();
 
         @Value.Default
-        default ConjureRuntime runtime() {
+        default ConjureRuntime baseRuntime() {
             return DefaultConjureRuntime.builder().build();
+        }
+
+        Optional<ConjureErrorParameterFormat> conjureErrorParameterFormat();
+
+        // ConjureRuntime is an interface: we can't mutate it so instead we use a delegating wrapper to update the
+        // error serialization format.
+        @Value.Derived
+        default ConjureRuntime runtime() {
+            return conjureErrorParameterFormat()
+                    .<ConjureRuntime>map(
+                            format -> new ErrorSerializationFormatSettingConjureRuntime(baseRuntime(), format))
+                    .orElseGet(this::baseRuntime);
         }
 
         @Value.Default
@@ -332,7 +344,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public DialogueClients.ReloadingFactory withRuntime(ConjureRuntime runtime) {
-        return new ReloadingClientFactory(params.withRuntime(runtime), cache);
+        return new ReloadingClientFactory(params.withBaseRuntime(runtime), cache);
     }
 
     @Override
@@ -383,8 +395,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public ReloadingFactory withConjureErrorParameterFormat(ConjureErrorParameterFormat format) {
-        return new ReloadingClientFactory(
-                params.withRuntime(new ErrorSerializationFormatSettingConjureRuntime(params.runtime(), format)), cache);
+        return new ReloadingClientFactory(params.withConjureErrorParameterFormat(format), cache);
     }
 
     @Override
