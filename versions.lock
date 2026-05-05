@@ -18,13 +18,13 @@ com.fasterxml.jackson.datatype:jackson-datatype-joda:2.21.1 (1 constraints: 7c1c
 
 com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.1 (1 constraints: 7c1c98a4)
 
-com.github.ben-manes.caffeine:caffeine:3.2.3 (3 constraints: 03280134)
+com.github.ben-manes.caffeine:caffeine:3.2.4 (3 constraints: 04286434)
 
 com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.47.0 (19 constraints: 182f02d3)
+com.google.errorprone:error_prone_annotations:2.49.0 (19 constraints: 1e2f6ae6)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
