@@ -201,7 +201,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                             targetUris.forEach(uri -> state.computeIfAbsent(uri, _uri -> new ChannelState()));
 
                             reloadMeter.mark();
-                            log.info(
+                            log.debug(
                                     "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets:"
                                             + " {})",
                                     SafeArg.of("channel", cf.channelName()),
