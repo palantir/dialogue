@@ -27,6 +27,8 @@ import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
@@ -42,6 +44,7 @@ import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -110,12 +113,16 @@ public final class DialogueChannelTest {
     private Request request = Request.builder().build();
     private DialogueChannel channel;
 
+    private final Cache<Endpoint, EndpointChannel> stickyEndpointChannelCache =
+            Caffeine.newBuilder().maximumSize(10).weakValues().build();
+
     @BeforeEach
     public void before() {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
                 .factory(_args -> mockChannel)
+                .stickyEndpointChannelsCache(stickyEndpointChannelCache)
                 .build();
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
@@ -590,6 +597,7 @@ public final class DialogueChannelTest {
                         .build())
                 .factory(factory)
                 .random(new Random(1L))
+                .stickyEndpointChannelsCache(stickyEndpointChannelCache)
                 .build();
 
         request = createRequestWithAddExecutedOnAttachment();

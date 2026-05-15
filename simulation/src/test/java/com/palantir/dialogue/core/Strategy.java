@@ -50,7 +50,8 @@ public enum Strategy {
 
     public Supplier<Channel> getSticky2NonReloading(Simulation simulation, Map<String, SimulationServer> servers) {
         Preconditions.checkArgument(servers.size() == 1, "Only one server supported");
-        return dialogueChannelWithDefaults(simulation, servers).stickyChannels();
+        DialogueChannel dialogueChannel = dialogueChannelWithDefaults(simulation, servers);
+        return () -> dialogueChannel.stickyChannel();
     }
 
     private static void concurrencyLimiter(ClientConfiguration.Builder configBuilder) {
