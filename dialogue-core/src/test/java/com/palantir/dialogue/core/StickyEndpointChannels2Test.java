@@ -84,6 +84,7 @@ public final class StickyEndpointChannels2Test {
     public void beforeEach() {
         when(config.channelName()).thenReturn("channel");
         when(config.clientConf()).thenReturn(clientConfiguration);
+        when(config.maxEndpointCacheSize()).thenReturn(1_000);
         lenient().when(endpointChannelFactory.endpoint(any())).thenReturn(endpointChannel);
         when(clientConfiguration.taggedMetricRegistry()).thenReturn(new DefaultTaggedMetricRegistry());
         StickyEndpointChannelsFactory stickyEndpointChannelsFactory =
