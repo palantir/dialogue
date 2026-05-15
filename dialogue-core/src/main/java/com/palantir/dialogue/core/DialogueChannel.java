@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
-import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
@@ -182,11 +181,6 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory, S
         @VisibleForTesting
         Builder ticker(Ticker value) {
             builder.ticker(value);
-            return this;
-        }
-
-        public Builder stickyEndpointChannelsCache(Cache<Endpoint, EndpointChannel> value) {
-            builder.stickyEndpointChannelCache(value);
             return this;
         }
 

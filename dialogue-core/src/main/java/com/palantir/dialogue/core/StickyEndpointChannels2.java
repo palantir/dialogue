@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -59,10 +60,16 @@ final class StickyEndpointChannels2 implements StickyEndpointChannelsFactory {
         return "StickyEndpointChannels2{" + delegate + "}";
     }
 
+    private static final int MAX_CACHED_STICKY_ENDPOINTS = 1000;
+
     static StickyEndpointChannelsFactory create(
             Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
         Supplier<Channel> queueOverrideSupplier = new QueueOverrideSupplier(cf, nodeSelectionChannel);
-        return new StickyEndpointChannels2(queueOverrideSupplier, cf.stickyEndpointChannelCache(), delegate);
+        Cache<Endpoint, EndpointChannel> stickyCache = Caffeine.newBuilder()
+                .maximumSize(MAX_CACHED_STICKY_ENDPOINTS)
+                .weakValues()
+                .build();
+        return new StickyEndpointChannels2(queueOverrideSupplier, stickyCache, delegate);
     }
 
     private static final class QueueOverrideSupplier implements Supplier<Channel> {
