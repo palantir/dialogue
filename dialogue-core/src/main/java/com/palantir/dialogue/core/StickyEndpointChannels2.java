@@ -16,8 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -38,21 +36,16 @@ import org.jspecify.annotations.Nullable;
 final class StickyEndpointChannels2 implements StickyEndpointChannelsFactory {
 
     private final Supplier<Channel> queueOverrideSupplier;
-    private final Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache;
     private final EndpointChannelFactory delegate;
 
-    StickyEndpointChannels2(
-            Supplier<Channel> queueOverrideSupplier,
-            Cache<Endpoint, EndpointChannel> stickyEndpointChannelsCache,
-            EndpointChannelFactory delegate) {
+    StickyEndpointChannels2(Supplier<Channel> queueOverrideSupplier, EndpointChannelFactory endpointChannelFactory) {
         this.queueOverrideSupplier = queueOverrideSupplier;
-        this.stickyEndpointChannelsCache = stickyEndpointChannelsCache;
-        this.delegate = delegate;
+        this.delegate = endpointChannelFactory;
     }
 
     @Override
     public Channel stickyChannel() {
-        return new StickyChannel2(queueOverrideSupplier, delegate, stickyEndpointChannelsCache);
+        return new StickyChannel2(queueOverrideSupplier, delegate);
     }
 
     @Override
@@ -60,16 +53,14 @@ final class StickyEndpointChannels2 implements StickyEndpointChannelsFactory {
         return "StickyEndpointChannels2{" + delegate + "}";
     }
 
-    private static final int MAX_CACHED_STICKY_ENDPOINTS = 1000;
-
     static StickyEndpointChannelsFactory create(
             Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
         Supplier<Channel> queueOverrideSupplier = new QueueOverrideSupplier(cf, nodeSelectionChannel);
-        Cache<Endpoint, EndpointChannel> stickyCache = Caffeine.newBuilder()
-                .maximumSize(MAX_CACHED_STICKY_ENDPOINTS)
-                .weakValues()
-                .build();
-        return new StickyEndpointChannels2(queueOverrideSupplier, stickyCache, delegate);
+        int maxEndpointCacheSize = cf.maxEndpointCacheSize();
+        EndpointChannelFactory channelFactory = (maxEndpointCacheSize <= 0)
+                ? delegate
+                : new CachingEndpointChannelFactory(delegate, maxEndpointCacheSize);
+        return new StickyEndpointChannels2(queueOverrideSupplier, channelFactory);
     }
 
     private static final class QueueOverrideSupplier implements Supplier<Channel> {
@@ -99,25 +90,20 @@ final class StickyEndpointChannels2 implements StickyEndpointChannelsFactory {
     private static final class StickyChannel2 implements Channel, EndpointChannelFactory {
 
         private final Channel queueOverride;
-        private final EndpointChannelFactory delegate;
-        private final Cache<Endpoint, EndpointChannel> cache;
+        private final EndpointChannelFactory channelFactory;
         private final StickyRouter router = new StickyRouter();
 
-        private StickyChannel2(
-                Supplier<Channel> queueOverrideSupplier,
-                EndpointChannelFactory delegate,
-                Cache<Endpoint, EndpointChannel> cache) {
+        private StickyChannel2(Supplier<Channel> queueOverrideSupplier, EndpointChannelFactory channelFactory) {
             this.queueOverride = queueOverrideSupplier.get();
-            this.delegate = delegate;
-            this.cache = cache;
+            this.channelFactory = channelFactory;
         }
 
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
-            EndpointChannel cachedEndpoint = cache.get(endpoint, delegate::endpoint);
+            EndpointChannel endpointChannel = channelFactory.endpoint(endpoint);
             EndpointChannel endpointWithQueueOverride = innerRequest -> {
                 QueueAttachments.setQueueOverride(innerRequest, queueOverride);
-                return cachedEndpoint.execute(innerRequest);
+                return endpointChannel.execute(innerRequest);
             };
             return request -> router.execute(request, endpointWithQueueOverride);
         }
@@ -129,7 +115,7 @@ final class StickyEndpointChannels2 implements StickyEndpointChannelsFactory {
 
         @Override
         public String toString() {
-            return "Sticky{" + delegate + '}';
+            return "Sticky{" + channelFactory + '}';
         }
     }
 

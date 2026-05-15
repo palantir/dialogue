@@ -74,7 +74,6 @@ final class ChannelCache {
             // Avoid holding onto old targets, which is now more common as we bind to resolved IP addresses
             .weakValues()
             .build(this::createNonLiveReloadingChannel);
-
     private final int instanceNumber;
 
     private ChannelCache() {

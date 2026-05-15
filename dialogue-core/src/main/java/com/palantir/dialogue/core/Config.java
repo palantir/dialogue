@@ -79,6 +79,11 @@ interface Config {
         return 100_000;
     }
 
+    @Value.Default
+    default int maxEndpointCacheSize() {
+        return 1_000;
+    }
+
     OptionalInt overrideSingleHostIndex();
 
     @Value.Default
