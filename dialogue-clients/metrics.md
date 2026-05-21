@@ -162,6 +162,12 @@ Metrics for deadlines.
     - `propagate`: Deadline propagation was enabled for this trace at the time the deadline expiration was reached. This means that further RPC calls will still potentially propagate an expired deadline value.
     - `propagate-already-expired`: Deadline propagation was enabled for this trace, but the deadline had already expired by the time it was first received.
     - `ignore`: Deadline propagation was disabled for this trace at the time the deadline expiration was reached. This means that further RPC calls will not propagate an expired deadline value any more.
+  - `budget`: Records the original deadline budget bucket at the time of a deadline expiration.
+    - `sub-100ms`: Original deadline budget was less than 100 milliseconds.
+    - `sub-1s`: Original deadline budget was less than 1 second.
+    - `sub-10s`: Original deadline budget was less than 10 seconds.
+    - `sub-100s`: Original deadline budget was less than 100 seconds.
+    - `above-100s`: Original deadline budget was 100 seconds or more.
 
 ## Tritium Caffeine
 
