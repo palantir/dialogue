@@ -86,8 +86,15 @@ interface Config {
         return Optional.empty();
     }
 
+    @Value.Default
+    default OptionalInt initialConcurrencyLimit() {
+        return OptionalInt.empty();
+    }
+
     @Value.Check
     default void check() {
+        initialConcurrencyLimit()
+                .ifPresent(value -> Preconditions.checkArgument(value > 0, "initialConcurrencyLimit must be positive"));
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");
         Preconditions.checkArgument(rawConfig().userAgent().isPresent(), "userAgent must be specified");
         Preconditions.checkArgument(

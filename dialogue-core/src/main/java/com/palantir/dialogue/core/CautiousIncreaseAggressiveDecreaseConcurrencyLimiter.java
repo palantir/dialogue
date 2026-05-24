@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -44,18 +45,24 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
     private static final SafeLogger log =
             SafeLoggerFactory.get(CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class);
-    private static final double INITIAL_LIMIT = 20;
+    static final double DEFAULT_INITIAL_CONCURRENCY_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
     private static final double MIN_LIMIT = 1;
     private static final double MAX_LIMIT = 1_000_000D;
 
-    private final AtomicDouble limit = new AtomicDouble(INITIAL_LIMIT);
+    private final AtomicDouble limit;
     private final AtomicInteger inFlight = new AtomicInteger();
 
     private final Behavior behavior;
 
     CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior behavior) {
+        this(behavior, DEFAULT_INITIAL_CONCURRENCY_LIMIT);
+    }
+
+    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior behavior, double initialConcurrencyLimit) {
+        Preconditions.checkArgument(initialConcurrencyLimit > 0, "initialConcurrencyLimit must be positive");
         this.behavior = behavior;
+        this.limit = new AtomicDouble(initialConcurrencyLimit);
     }
 
     /**

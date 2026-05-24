@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -138,6 +139,7 @@ final class ChannelCache {
                 .dnsRefreshInterval(reloadingParams.dnsRefreshInterval())
                 .dnsNodeDiscovery(overrideHostIndex.isEmpty() && reloadingParams.dnsNodeDiscovery())
                 .deadlineEnforcement(reloadingParams.deadlineEnforcement())
+                .initialConcurrencyLimit(reloadingParams.initialConcurrencyLimit())
                 .build());
     }
 
@@ -185,6 +187,7 @@ final class ChannelCache {
                         .mapToInt(OverrideHostIndex::index)
                         .findAny())
                 .deadlineEnforcement(channelCacheRequest.deadlineEnforcement())
+                .initialConcurrencyLimit(channelCacheRequest.initialConcurrencyLimit())
                 .build();
     }
 
@@ -279,6 +282,8 @@ final class ChannelCache {
         boolean dnsNodeDiscovery();
 
         Optional<Boolean> deadlineEnforcement();
+
+        OptionalInt initialConcurrencyLimit();
     }
 
     @Unsafe

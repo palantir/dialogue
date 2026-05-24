@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -50,6 +51,39 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
 
     private static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter(Behavior behavior) {
         return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(behavior);
+    }
+
+    private static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter(
+            Behavior behavior, double initialConcurrencyLimit) {
+        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(behavior, initialConcurrencyLimit);
+    }
+
+    @Test
+    void customInitialLimit_isRespected() {
+        double max = 5;
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL, max);
+        assertThat(limiter.getLimit()).isEqualTo(max);
+
+        Permit latestPermit = null;
+        for (int i = 0; i < max; i++) {
+            latestPermit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
+            assertThat(latestPermit).isNotNull();
+        }
+
+        assertThat(limiter.getInflight()).isEqualTo((int) max);
+        assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isNull();
+
+        latestPermit.success();
+        assertThat(limiter.getLimit()).isEqualTo(5.2);
+
+        latestPermit.ignore();
+        assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isNotNull();
+    }
+
+    @Test
+    void customInitialLimit_rejectsNonPositive() {
+        assertThatThrownBy(() -> limiter(Behavior.HOST_LEVEL, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> limiter(Behavior.HOST_LEVEL, -1)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @ParameterizedTest

@@ -63,6 +63,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -106,6 +107,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 params.taggedMetrics())))
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
                 .deadlineEnforcement(params.deadlineEnforcement())
+                .initialConcurrencyLimit(params.initialConcurrencyLimit())
                 .build();
     }
 
@@ -151,6 +153,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Optional<ExecutorService> blockingExecutor();
 
         Optional<Boolean> deadlineEnforcement();
+
+        OptionalInt initialConcurrencyLimit();
     }
 
     @Override
@@ -416,6 +420,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public ReloadingFactory withDeadlineEnforcement(boolean deadlineEnforcementEnabled) {
         return new ReloadingClientFactory(params.withDeadlineEnforcement(deadlineEnforcementEnabled), cache);
+    }
+
+    @Override
+    public ReloadingFactory withInitialConcurrencyLimit(int initialConcurrencyLimit) {
+        return new ReloadingClientFactory(params.withInitialConcurrencyLimit(initialConcurrencyLimit), cache);
     }
 
     @Override
