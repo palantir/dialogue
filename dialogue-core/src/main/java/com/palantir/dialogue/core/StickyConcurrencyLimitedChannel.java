@@ -78,8 +78,10 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     static LimitedChannel create(LimitedChannel channel, String channelName) {
-        return new StickyConcurrencyLimitedChannel(
-                channel, new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.STICKY), channelName);
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
+                new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.STICKY);
+        limiter.setChannelNameForLogging(channelName);
+        return new StickyConcurrencyLimitedChannel(channel, limiter, channelName);
     }
 
     private void logPermitAcquired() {

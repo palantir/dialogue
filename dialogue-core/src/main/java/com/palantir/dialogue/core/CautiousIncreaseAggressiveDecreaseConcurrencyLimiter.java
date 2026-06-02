@@ -54,8 +54,16 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
     private final Behavior behavior;
 
+    // Used strictly for providing the channel name in debug logs.
+    // Volatile because it may be set from a different thread than the one emitting the log line.
+    private volatile String channelNameForLogging = "unknown";
+
     CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior behavior) {
         this.behavior = behavior;
+    }
+
+    void setChannelNameForLogging(String value) {
+        this.channelNameForLogging = value;
     }
 
     /**
@@ -219,7 +227,12 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             inFlight.decrementAndGet();
             double newLimit = accumulateAndGetLimit(inFlightSnapshot, LimitUpdater.DROPPED);
             if (log.isDebugEnabled()) {
-                log.debug("Decreasing limit {}", SafeArg.of("newLimit", newLimit));
+                log.debug(
+                        "Decreasing limit on {} to {}",
+                        SafeArg.of("channel", channelNameForLogging),
+                        SafeArg.of("newLimit", newLimit),
+                        SafeArg.of("behavior", behavior),
+                        SafeArg.of("inFlightSnapshot", inFlightSnapshot));
             }
         }
 
@@ -228,7 +241,12 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             inFlight.decrementAndGet();
             double newLimit = accumulateAndGetLimit(inFlightSnapshot, LimitUpdater.SUCCESS);
             if (log.isDebugEnabled()) {
-                log.debug("Increasing limit {}", SafeArg.of("newLimit", newLimit));
+                log.debug(
+                        "Increasing limit on {} to {}",
+                        SafeArg.of("channel", channelNameForLogging),
+                        SafeArg.of("newLimit", newLimit),
+                        SafeArg.of("behavior", behavior),
+                        SafeArg.of("inFlightSnapshot", inFlightSnapshot));
             }
         }
     }

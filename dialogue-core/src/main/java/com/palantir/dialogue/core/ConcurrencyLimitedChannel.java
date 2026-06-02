@@ -64,6 +64,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 hostSpecificState.getState(HOST_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
+        limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
         return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
     }
 
@@ -73,10 +74,12 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      */
     static LimitedChannel createForEndpoint(
             Channel channel, String channelName, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
-        return new ConcurrencyLimitedChannel(
-                channel,
-                endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY),
-                new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint));
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
+                endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY);
+        ConcurrencyLimitedChannelInstrumentation instrumentation =
+                new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint);
+        limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
+        return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
     }
 
     ConcurrencyLimitedChannel(
