@@ -35,6 +35,161 @@ types:
       AliasDouble:
         alias: double
 
+
+      GetResponse1:
+        fields:
+          getResponse1: string
+      GetResponse2:
+        fields:
+          getResponse2: string
+      GetResponse3:
+        fields:
+          getResponse3: string
+      GetResponse4:
+        fields:
+          getResponse4: string
+      GetResponse5:
+        fields:
+          getResponse5: string
+      GetResponse6:
+        fields:
+          getResponse6: string
+      GetResponse7:
+        fields:
+          getResponse7: string
+      GetResponse8:
+        fields:
+          getResponse8: string
+      GetResponse9:
+        fields:
+          getResponse9: string
+      GetResponse10:
+        fields:
+          getResponse10: string
+
+      PutRequest1:
+        fields:
+          putRequest1: string
+      PutResponse1:
+        fields:
+          putResponse1: string
+      PutRequest2:
+        fields:
+          putRequest2: string
+      PutResponse2:
+        fields:
+          putResponse2: string
+      PutRequest3:
+        fields:
+          putRequest3: string
+      PutResponse3:
+        fields:
+          putResponse3: string
+      PutRequest4:
+        fields:
+          putRequest4: string
+      PutResponse4:
+        fields:
+          putResponse4: string
+      PutRequest5:
+        fields:
+          putRequest5: string
+      PutResponse5:
+        fields:
+          putResponse5: string
+      PutRequest6:
+        fields:
+          putRequest6: string
+      PutResponse6:
+        fields:
+          putResponse6: string
+      PutRequest7:
+        fields:
+          putRequest7: string
+      PutResponse7:
+        fields:
+          putResponse7: string
+      PutRequest8:
+        fields:
+          putRequest8: string
+      PutResponse8:
+        fields:
+          putResponse8: string
+      PutRequest9:
+        fields:
+          putRequest9: string
+      PutResponse9:
+        fields:
+          putResponse9: string
+      PutRequest10:
+        fields:
+          putRequest10: string
+      PutResponse10:
+        fields:
+          putResponse10: string
+
+      PostRequest1:
+        fields:
+          postRequest1: string
+      PostResponse1:
+        fields:
+          postResponse1: string
+      PostRequest2:
+        fields:
+          postRequest2: string
+      PostResponse2:
+        fields:
+          postResponse2: string
+      PostRequest3:
+        fields:
+          postRequest3: string
+      PostResponse3:
+        fields:
+          postResponse3: string
+      PostRequest4:
+        fields:
+          postRequest4: string
+      PostResponse4:
+        fields:
+          postResponse4: string
+      PostRequest5:
+        fields:
+          postRequest5: string
+      PostResponse5:
+        fields:
+          postResponse5: string
+      PostRequest6:
+        fields:
+          postRequest6: string
+      PostResponse6:
+        fields:
+          postResponse6: string
+      PostRequest7:
+        fields:
+          postRequest7: string
+      PostResponse7:
+        fields:
+          postResponse7: string
+      PostRequest8:
+        fields:
+          postRequest8: string
+      PostResponse8:
+        fields:
+          postResponse8: string
+      PostRequest9:
+        fields:
+          postRequest9: string
+      PostResponse9:
+        fields:
+          postResponse9: string
+      PostRequest10:
+        fields:
+          postRequest10: string
+      PostResponse10:
+        fields:
+          postResponse10: string
+
+
 services:
   SampleService:
     name: Sample Service
@@ -75,4 +230,178 @@ services:
       getMyAlias2:
         http: GET /getMyAlias2
         returns: AliasOfAliasOfOptional
+
+  # A service with many endpoints, to test memory allocations/consumption
+  ManyEndpointsService:
+    name: Sample service with many endpoints
+    package: com.palantir.dialogue.example
+    default-auth: none
+    endpoints:
+      voidToVoid:
+        http: GET /voidToVoid
+
+      stringToVoid:
+        http: GET /stringToVoid/{path}
+        args:
+          path: string
+
+      objectToObject:
+        http: POST /objectToObject/objects/{path}
+        args:
+          path: string
+          header:
+            param-id: HeaderKey
+            type: datetime
+            param-type: header
+          queryKey:
+            type: list<rid>
+            param-type: query
+          body: SampleObject
+        returns: SampleObject
+
+      getOptionalBinary:
+        http: GET /getOptionalBinary
+        returns: optional<binary>
+
+      getMyAlias:
+        http: GET /getMyAlias
+        returns: AliasOfOptional
+
+      getMyAlias2:
+        http: GET /getMyAlias2
+        returns: AliasOfAliasOfOptional
+
+      # Another ~30 endpoints
+      get1:
+        http: GET /get1
+        returns: GetResponse1
+      get2:
+        http: GET /get2
+        returns: GetResponse2
+      get3:
+        http: GET /get3
+        returns: GetResponse3
+      get4:
+        http: GET /get4
+        returns: GetResponse4
+      get5:
+        http: GET /get5
+        returns: GetResponse5
+      get6:
+        http: GET /get6
+        returns: GetResponse6
+      get7:
+        http: GET /get7
+        returns: GetResponse7
+      get8:
+        http: GET /get8
+        returns: GetResponse8
+      get9:
+        http: GET /get9
+        returns: GetResponse9
+      get10:
+        http: GET /get10
+        returns: GetResponse10
+
+      put1:
+        http: PUT /put1
+        args:
+          body: PutRequest1
+        returns: PutResponse1
+      put2:
+        http: PUT /put2
+        args:
+          body: PutRequest2
+        returns: PutResponse2
+      put3:
+        http: PUT /put3
+        args:
+          body: PutRequest3
+        returns: PutResponse3
+      put4:
+        http: PUT /put4
+        args:
+          body: PutRequest4
+        returns: PutResponse4
+      put5:
+        http: PUT /put5
+        args:
+          body: PutRequest5
+        returns: PutResponse5
+      put6:
+        http: PUT /put6
+        args:
+          body: PutRequest6
+        returns: PutResponse6
+      put7:
+        http: PUT /put7
+        args:
+          body: PutRequest7
+        returns: PutResponse7
+      put8:
+        http: PUT /put8
+        args:
+          body: PutRequest8
+        returns: PutResponse8
+      put9:
+        http: PUT /put9
+        args:
+          body: PutRequest9
+        returns: PutResponse9
+      put10:
+        http: PUT /put10
+        args:
+          body: PutRequest10
+        returns: PutResponse10
+
+      post1:
+        http: POST /post1
+        args:
+          body: PostRequest1
+        returns: PostResponse1
+      post2:
+        http: POST /post2
+        args:
+          body: PostRequest2
+        returns: PostResponse2
+      post3:
+        http: POST /post3
+        args:
+          body: PostRequest3
+        returns: PostResponse3
+      post4:
+        http: POST /post4
+        args:
+          body: PostRequest4
+        returns: PostResponse4
+      post5:
+        http: POST /post5
+        args:
+          body: PostRequest5
+        returns: PostResponse5
+      post6:
+        http: POST /post6
+        args:
+          body: PostRequest6
+        returns: PostResponse6
+      post7:
+        http: POST /post7
+        args:
+          body: PostRequest7
+        returns: PostResponse7
+      post8:
+        http: POST /post8
+        args:
+          body: PostRequest8
+        returns: PostResponse8
+      post9:
+        http: POST /post9
+        args:
+          body: PostRequest9
+        returns: PostResponse9
+      post10:
+        http: POST /post10
+        args:
+          body: PostRequest10
+        returns: PostResponse10
 
