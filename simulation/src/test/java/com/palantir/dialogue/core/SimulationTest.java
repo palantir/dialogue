@@ -20,7 +20,6 @@ import static com.palantir.dialogue.core.Benchmark.DEFAULT_ENDPOINT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codahale.metrics.Meter;
-import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -33,25 +32,14 @@ import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -65,9 +53,6 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.knowm.xchart.XYChart;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Simulates client heuristics defined in {@link Strategy} against {@link SimulationServer} nodes. These don't
@@ -102,7 +87,6 @@ import org.slf4j.LoggerFactory;
  */
 @Execution(ExecutionMode.CONCURRENT)
 final class SimulationTest {
-    private static final Logger log = LoggerFactory.getLogger(SimulationTest.class);
 
     @SuppressWarnings("for-rollout:deprecation")
     @Inherited
@@ -112,40 +96,35 @@ final class SimulationTest {
             name = ParameterizedTest.DISPLAY_NAME_PLACEHOLDER + "[" + ParameterizedTest.ARGUMENTS_PLACEHOLDER + "]")
     @interface SimulationCase {}
 
-    private Strategy st;
-
     private final Simulation simulation = new Simulation();
-    private Supplier<Map<String, SimulationServer>> servers;
-    private Benchmark.BenchmarkResult result;
+    private final SimulationReport report = new SimulationReport(simulation);
+    private Outcome outcome;
+
+    private record Outcome(Strategy strategy, Benchmark.BenchmarkResult result) {}
 
     @SimulationCase
     public void simplest_possible_case(Strategy strategy) {
         // real servers don't scale like this - see later tests
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("fast")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("fast")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("medium")
-                        .simulation(simulation)
+                server("medium")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(800)))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("slightly_slow")
-                        .simulation(simulation)
+                server("slightly_slow")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(1000)))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(11)
-                .sendUntil(Duration.ofMinutes(20))
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofHours(1))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(11)
+                        .sendUntil(Duration.ofMinutes(20))
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofHours(1))
+                        .run());
     }
 
     @SimulationCase
@@ -153,55 +132,46 @@ final class SimulationTest {
         Endpoint getEndpoint = SimulationUtils.endpoint("endpoint", HttpMethod.GET);
         int errorThreshold = 40;
         int slowdownThreshold = 30;
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("fast")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("fast")
                         .handler(
                                 getEndpoint,
                                 h -> h.respond200UntilCapacity(500, errorThreshold)
                                         .linearResponseTime(Duration.ofMillis(600), slowdownThreshold))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("medium")
-                        .simulation(simulation)
+                server("medium")
                         .handler(
                                 getEndpoint,
                                 h -> h.respond200UntilCapacity(500, errorThreshold)
                                         .linearResponseTime(Duration.ofMillis(800), slowdownThreshold))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("slightly_slow")
-                        .simulation(simulation)
+                server("slightly_slow")
                         .handler(
                                 getEndpoint,
                                 h -> h.respond200UntilCapacity(500, errorThreshold)
                                         .linearResponseTime(Duration.ofMillis(1000), slowdownThreshold))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(500)
-                .sendUntil(Duration.ofSeconds(20))
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .endpoints(getEndpoint)
-                .abortAfter(Duration.ofMinutes(10))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(500)
+                        .sendUntil(Duration.ofSeconds(20))
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .endpoints(getEndpoint)
+                        .abortAfter(Duration.ofMinutes(10))
+                        .run());
     }
 
     @SimulationCase
     public void slow_503s_then_revert(Strategy strategy) {
         int capacity = 60;
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("fast")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("fast")
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("slow_failures_then_revert")
-                        .simulation(simulation)
+                server("slow_failures_then_revert")
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .until(Duration.ofSeconds(3), "slow 503s")
                         .handler(h -> h.response(503).linearResponseTime(Duration.ofSeconds(1), capacity))
@@ -209,27 +179,25 @@ final class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(200)
-                .sendUntil(Duration.ofSeconds(15)) // something weird happens at 1811... bug in DeterministicScheduler?
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofMinutes(10))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(200)
+                        .sendUntil(Duration.ofSeconds(
+                                15)) // something weird happens at 1811... bug in DeterministicScheduler?
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofMinutes(10))
+                        .run());
     }
 
     @SimulationCase
     public void fast_503s_then_revert(Strategy strategy) {
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("normal")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("normal")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("fast_503s_then_revert")
-                        .simulation(simulation)
+                server("fast_503s_then_revert")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .until(Duration.ofSeconds(3), "fast 503s")
                         .handler(h -> h.response(503).responseTime(Duration.ofNanos(10)))
@@ -237,27 +205,24 @@ final class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(500)
-                .sendUntil(Duration.ofSeconds(90))
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofMinutes(10))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(500)
+                        .sendUntil(Duration.ofSeconds(90))
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofMinutes(10))
+                        .run());
     }
 
     @SimulationCase
     public void fast_400s_then_revert(Strategy strategy) {
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("normal")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("normal")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("fast_400s_then_revert")
-                        .simulation(simulation)
+                server("fast_400s_then_revert")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .until(Duration.ofSeconds(3), "fast 400s")
                         .handler(h -> h.response(400).responseTime(Duration.ofMillis(20)))
@@ -265,27 +230,24 @@ final class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(100)
-                .sendUntil(Duration.ofMinutes(1))
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofMinutes(10))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(100)
+                        .sendUntil(Duration.ofMinutes(1))
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofMinutes(10))
+                        .run());
     }
 
     @SimulationCase
     public void short_outage_on_one_node(Strategy strategy) {
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("stable")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("stable")
                         .handler(h -> h.response(200).responseTime(Duration.ofSeconds(2)))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("has_short_outage")
-                        .simulation(simulation)
+                server("has_short_outage")
                         .handler(h -> h.response(200).responseTime(Duration.ofSeconds(2)))
                         .until(Duration.ofSeconds(30), "20s_outage")
                         .handler(h -> h.response(500).responseTime(Duration.ofNanos(10)))
@@ -293,28 +255,25 @@ final class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofSeconds(2)))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(20)
-                .sendUntil(Duration.ofSeconds(80))
-                .client(strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofMinutes(3))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(20)
+                        .sendUntil(Duration.ofSeconds(80))
+                        .client(strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofMinutes(3))
+                        .run());
     }
 
     @SimulationCase
     public void drastic_slowdown(Strategy strategy) {
         int capacity = 60;
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("fast")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("fast")
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("fast_then_slow_then_fast")
-                        .simulation(simulation)
+                server("fast_then_slow_then_fast")
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .until(Duration.ofSeconds(3), "slow 200s")
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofSeconds(10), capacity))
@@ -322,68 +281,63 @@ final class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(200)
-                .sendUntil(Duration.ofSeconds(20))
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofMinutes(10))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(200)
+                        .sendUntil(Duration.ofSeconds(20))
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofMinutes(10))
+                        .run());
     }
 
     @SimulationCase
     public void all_nodes_500(Strategy strategy) {
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("node1")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("node1")
                         .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .until(Duration.ofSeconds(10), "revert badness")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("node2")
-                        .simulation(simulation)
+                server("node2")
                         .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .until(Duration.ofSeconds(10), "revert badness")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(100)
-                .sendUntil(Duration.ofSeconds(20))
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofMinutes(10))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(100)
+                        .sendUntil(Duration.ofSeconds(20))
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofMinutes(10))
+                        .run());
     }
 
     @SimulationCase
     public void black_hole(Strategy strategy) {
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("node1")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("node1")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("node2_black_hole")
-                        .simulation(simulation)
+                server("node2_black_hole")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .until(Duration.ofSeconds(3), "black hole")
                         .handler(h -> h.response(200).responseTime(Duration.ofDays(1)))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(200)
-                .sendUntil(Duration.ofSeconds(10))
-                .abortAfter(Duration.ofSeconds(30)) // otherwise the test never terminates!
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(200)
+                        .sendUntil(Duration.ofSeconds(10))
+                        .abortAfter(Duration.ofSeconds(30)) // otherwise the test never terminates!
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .run());
     }
 
     @SimulationCase
@@ -391,19 +345,15 @@ final class SimulationTest {
         Endpoint endpoint1 = SimulationUtils.endpoint("e1", HttpMethod.POST);
         Endpoint endpoint2 = SimulationUtils.endpoint("e2", HttpMethod.POST);
 
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("server_where_e1_breaks")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("server_where_e1_breaks")
                         .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .until(Duration.ofSeconds(3), "e1 breaks")
                         .handler(endpoint1, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("server_where_e2_breaks")
-                        .simulation(simulation)
+                server("server_where_e2_breaks")
                         .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .until(Duration.ofSeconds(3), "e2 breaks")
@@ -411,76 +361,69 @@ final class SimulationTest {
                         .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(250)
-                .sendUntil(Duration.ofSeconds(10))
-                .abortAfter(Duration.ofMinutes(1))
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .endpoints(endpoint1, endpoint2)
-                .abortAfter(Duration.ofMinutes(10))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(250)
+                        .sendUntil(Duration.ofSeconds(10))
+                        .abortAfter(Duration.ofMinutes(1))
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .endpoints(endpoint1, endpoint2)
+                        .abortAfter(Duration.ofMinutes(10))
+                        .run());
     }
 
     @SimulationCase
     public void live_reloading(Strategy strategy) {
         int capacity = 60;
-        servers = liveReloadingServers(
+        Supplier<Map<String, SimulationServer>> servers = liveReloadingServers(
                 beginAt(
                         Duration.ZERO,
-                        SimulationServer.builder()
-                                .serverName("always_on")
-                                .simulation(simulation)
+                        server("always_on")
                                 .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
                                 .build()),
                 beginAt(
                         Duration.ZERO,
-                        SimulationServer.builder()
-                                .serverName("always_broken")
-                                .simulation(simulation)
+                        server("always_broken")
                                 .handler(h -> h.response(500).linearResponseTime(Duration.ofMillis(600), capacity))
                                 .build()),
                 beginAt(
                         Duration.ofSeconds(5),
-                        SimulationServer.builder()
-                                .serverName("added_halfway")
-                                .simulation(simulation)
+                        server("added_halfway")
                                 .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
                                 .build()));
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(250)
-                .sendUntil(Duration.ofSeconds(10))
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofMinutes(10))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(250)
+                        .sendUntil(Duration.ofSeconds(10))
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofMinutes(10))
+                        .run());
     }
 
     @SimulationCase
     public void uncommon_flakes(Strategy strategy) {
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("fast0")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("fast0")
                         .handler(h -> h.response(respond500AtRate(.01D)).responseTime(Duration.ofNanos(1000)))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("fast1")
-                        .simulation(simulation)
+                server("fast1")
                         .handler(h -> h.response(respond500AtRate(.01D)).responseTime(Duration.ofNanos(1000)))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(1000)
-                .sendUntil(Duration.ofSeconds(10))
-                .clients(10, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofSeconds(10))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(1000)
+                        .sendUntil(Duration.ofSeconds(10))
+                        .clients(10, _i -> strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofSeconds(10))
+                        .run());
     }
 
     /**
@@ -491,26 +434,23 @@ final class SimulationTest {
     @SimulationCase
     public void one_big_spike(Strategy strategy) {
         int capacity = 100;
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("node1")
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(
+                server("node1")
                         .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
                         .build(),
-                SimulationServer.builder()
-                        .serverName("node2")
-                        .simulation(simulation)
+                server("node2")
                         .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
                         .build());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(30_000) // fire off a ton of requests very quickly
-                .numRequests(1000)
-                .client(strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofSeconds(10))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(30_000) // fire off a ton of requests very quickly
+                        .numRequests(1000)
+                        .client(strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofSeconds(10))
+                        .run());
     }
 
     @SimulationCase
@@ -520,7 +460,7 @@ final class SimulationTest {
         int numClients = 2;
         double perServerRateLimit = totalRateLimit / numServers;
 
-        servers = servers(IntStream.range(0, numServers)
+        Supplier<Map<String, SimulationServer>> servers = servers(IntStream.range(0, numServers)
                 .mapToObj(i -> {
                     Meter requestRate = new Meter(simulation.codahaleClock());
                     Function<SimulationServer, Response> responseFunc = _s -> {
@@ -531,22 +471,21 @@ final class SimulationTest {
                             return new TestResponse().code(429);
                         }
                     };
-                    return SimulationServer.builder()
-                            .serverName("node" + i)
-                            .simulation(simulation)
+                    return server("node" + i)
                             .handler(h -> h.response(responseFunc).responseTime(Duration.ofSeconds(200)))
                             .build();
                 })
                 .toArray(SimulationServer[]::new));
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(totalRateLimit)
-                .sendUntil(Duration.ofMinutes(25_000))
-                .clients(numClients, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofHours(1_000))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(totalRateLimit)
+                        .sendUntil(Duration.ofMinutes(25_000))
+                        .clients(numClients, _i -> strategy.getChannel(simulation, servers))
+                        .abortAfter(Duration.ofHours(1_000))
+                        .run());
     }
 
     @SimulationCase
@@ -577,10 +516,8 @@ final class SimulationTest {
         long totalNumRequests = numSlowAndSteady + numBurst;
         assertThat(totalNumRequests).isEqualTo(10060);
 
-        servers = servers(IntStream.range(0, numServers)
-                .mapToObj(i -> SimulationServer.builder()
-                        .serverName("node" + i)
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(IntStream.range(0, numServers)
+                .mapToObj(i -> server("node" + i)
                         .handler(h ->
                                 h.respond200UntilCapacity(429, concurrencyLimit).responseTime(responseTime))
                         .build())
@@ -602,11 +539,12 @@ final class SimulationTest {
                         timeBetweenBurstRequests, () -> oneShotBurstChannel)
                 .limit(numBurst);
 
-        st = strategy;
-        result = builder.mergeRequestStreams(slowAndSteadyChannelRequests, oneShotBurstChannelRequests)
-                .stopWhenNumReceived(totalNumRequests)
-                .abortAfter(benchmarkDuration.plus(Duration.ofMinutes(1)))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                builder.mergeRequestStreams(slowAndSteadyChannelRequests, oneShotBurstChannelRequests)
+                        .stopWhenNumReceived(totalNumRequests)
+                        .abortAfter(benchmarkDuration.plus(Duration.ofMinutes(1)))
+                        .run());
     }
 
     @SimulationCase
@@ -616,10 +554,8 @@ final class SimulationTest {
         Duration responseTime = Duration.ofMillis(150);
         int concurrencyLimit = 2;
 
-        servers = servers(IntStream.range(0, numServers)
-                .mapToObj(i -> SimulationServer.builder()
-                        .serverName("node" + i)
-                        .simulation(simulation)
+        Supplier<Map<String, SimulationServer>> servers = servers(IntStream.range(0, numServers)
+                .mapToObj(i -> server("node" + i)
                         .handler(h ->
                                 h.respond200UntilCapacity(429, concurrencyLimit).responseTime(responseTime))
                         .build())
@@ -627,14 +563,15 @@ final class SimulationTest {
 
         Supplier<Channel> stickyChannelSupplier = strategy.getSticky2NonReloading(simulation, servers.get());
 
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(30)
-                .sendUntil(Duration.ofMinutes(1))
-                .clients(numClients, _i -> stickyChannelSupplier.get())
-                .abortAfter(Duration.ofMinutes(2))
-                .run();
+        outcome = new Outcome(
+                strategy,
+                Benchmark.builder()
+                        .simulation(simulation)
+                        .requestsPerSecond(30)
+                        .sendUntil(Duration.ofMinutes(1))
+                        .clients(numClients, _i -> stickyChannelSupplier.get())
+                        .abortAfter(Duration.ofMinutes(2))
+                        .run());
     }
 
     private Function<SimulationServer, Response> respond500AtRate(double rate) {
@@ -645,6 +582,10 @@ final class SimulationTest {
             }
             return new TestResponse().code(200);
         };
+    }
+
+    private SimulationServer.Builder server(String serverName) {
+        return SimulationServer.builder().serverName(serverName).simulation(simulation);
     }
 
     private Supplier<Map<String, SimulationServer>> servers(SimulationServer... values) {
@@ -678,82 +619,11 @@ final class SimulationTest {
 
     @AfterEach
     public void after(TestInfo testInfo) throws IOException {
-        Stopwatch after = Stopwatch.createStarted();
-        Duration serverCpu = Duration.ofNanos(
-                MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());
-        long clientMeanNanos = (long) result.clientHistogram().getMean();
-        double clientMeanMillis = TimeUnit.NANOSECONDS.toMillis(clientMeanNanos);
+        report.record(testInfo, outcome.strategy(), outcome.result());
 
-        // intentionally using tabs so that opening report.txt with 'cat' aligns columns nicely
-        StringBuilder longSummaryBuilder = new StringBuilder();
-        longSummaryBuilder.append(String.format(
-                "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\tclient_received=%s/%s\tserver_resps=%s\tcodes=%s\n",
-                result.successPercentage(),
-                Duration.of(clientMeanNanos, ChronoUnit.NANOS),
-                serverCpu,
-                result.numReceived(),
-                result.numSent(),
-                result.numGlobalResponses(),
-                result.statusCodes()));
-        result.perEndpointHistograms()
-                .forEach((name, snapshot) -> longSummaryBuilder.append(String.format(
-                        "client=%s\tclient_mean=%-15s\n",
-                        name, Duration.of((long) snapshot.getMean(), ChronoUnit.NANOS))));
-
-        String longSummary = longSummaryBuilder.toString();
-
-        String methodName = testInfo.getTestMethod().get().getName() + "[" + st + "]";
-
-        Path txt = Paths.get("src/test/resources/txt/" + methodName + ".txt");
-        String pngPath = "src/test/resources/" + methodName + ".png";
-        String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
-
-        boolean txtChanged = !longSummary.equals(onDisk);
-
-        if (System.getenv().containsKey("CI")) { // only strict on CI, locally we just overwrite
-            assertThat(onDisk)
-                    .describedAs("Run tests locally to update checked-in file: %s", txt)
-                    .isEqualTo(longSummary);
-            assertThat(Paths.get(pngPath)).exists();
-        } else if (txtChanged || !Files.exists(Paths.get(pngPath))) {
-            // only re-generate PNGs if the txt file changed (as they're slow af)
-            List<XYChart> charts = new ArrayList<>();
-            Stopwatch sw = Stopwatch.createStarted();
-            Files.write(
-                    txt,
-                    longSummary.getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING);
-
-            XYChart activeRequestsPerServerNode =
-                    simulation.metricsReporter().chart(MetricNames.serverActiveRequestsPattern());
-            activeRequestsPerServerNode.setTitle(String.format(
-                    "%s success=%s%% client_mean=%.1f ms server_cpu=%s",
-                    st, result.successPercentage(), clientMeanMillis, serverCpu));
-            charts.add(activeRequestsPerServerNode);
-
-            // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev.png
-            // on disk to aid local iteration.
-            if (Files.exists(Paths.get(pngPath))) {
-                Path previousPng = Paths.get(pngPath.replaceAll("\\.png", "\\.prev.png"));
-                Files.deleteIfExists(previousPng);
-                Files.move(Paths.get(pngPath), previousPng);
-            }
-
-            charts.add(simulation.metricsReporter().chart(MetricNames.serverRequestMeterPattern()));
-
-            charts.addAll(simulation.metricsReporter().charts(MetricNames.perClientEndpointResponseTimerPattern()));
-
-            // charts.add(simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)")));
-
-            SimulationMetricsReporter.png(pngPath, charts);
-            log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
-        }
-
-        assertThat(result.responsesLeaked())
+        assertThat(outcome.result().responsesLeaked())
                 .describedAs("There should be no unclosed responses")
                 .isZero();
-        log.warn("after() ({} ms)", after.elapsed(TimeUnit.MILLISECONDS));
     }
 
     @SuppressWarnings("for-rollout:deprecation")
@@ -768,56 +638,6 @@ final class SimulationTest {
 
     @AfterAll
     public static void afterClass() throws IOException {
-        // squish all txt files together into one markdown report so that github displays diffs
-        String txtSection = buildTxtSection();
-        String images = buildImagesTable();
-        String report = String.format(
-                "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n", txtSection, images);
-        Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String buildTxtSection() throws IOException {
-        try (Stream<Path> list = Files.list(Paths.get("src/test/resources/txt"))) {
-            List<Path> files = list.filter(p -> !p.toString().endsWith("report.md"))
-                    .sorted(Comparator.comparing(Path::getFileName))
-                    .collect(Collectors.toList());
-
-            return files.stream()
-                    .filter(p -> p.toString().endsWith("txt"))
-                    .map(p -> {
-                        try {
-                            return String.format(
-                                    "%70s:\t%s%n",
-                                    p.getFileName().toString(),
-                                    new String(Files.readAllBytes(p), StandardCharsets.UTF_8));
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    })
-                    .collect(Collectors.joining("", "```\n", "```\n"));
-        }
-    }
-
-    private static String buildImagesTable() throws IOException {
-        try (Stream<Path> files = Files.list(Paths.get("src/test/resources"))) {
-            return files.filter(
-                            p -> p.toString().endsWith("png") && !p.toString().endsWith(".prev.png"))
-                    .sorted(Comparator.comparing(Path::getFileName))
-                    .map(p -> {
-                        String githubLfsUrl = "https://media.githubusercontent.com/media/palantir/dialogue/develop/"
-                                + "simulation/src/test/resources/"
-                                + p.getFileName();
-                        return String.format(
-                                "%n## `%s`%n"
-                                        + "<table><tr><th>develop</th><th>current</th></tr>%n"
-                                        + "<tr>"
-                                        + "<td><image width=400 src=\"%s\" /></td>"
-                                        + "<td><image width=400 src=\"%s\" /></td>"
-                                        + "</tr>"
-                                        + "</table>%n%n",
-                                p.getFileName().toString().replaceAll("\\.png", ""), githubLfsUrl, p.getFileName());
-                    })
-                    .collect(Collectors.joining());
-        }
+        SimulationReport.writeMarkdownReport();
     }
 }

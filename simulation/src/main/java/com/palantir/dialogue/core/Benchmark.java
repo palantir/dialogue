@@ -365,13 +365,6 @@ public final class Benchmark {
         BenchmarkTimingEndpointChannel channel();
     }
 
-    @Value.Immutable
-    interface LimitedStream {
-        long limit();
-
-        Stream<ScheduledRequest> stream();
-    }
-
     /**
      * Determines when the benchmark terminates - useful when a server is behaving like a black hole (not returning).
      */

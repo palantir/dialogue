@@ -25,7 +25,6 @@ import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
 import com.palantir.logsafe.Preconditions;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -54,9 +53,7 @@ public enum Strategy {
     }
 
     private static void concurrencyLimiter(ClientConfiguration.Builder configBuilder) {
-        configBuilder
-                .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
-                .failedUrlCooldown(Duration.ofMillis(200));
+        configBuilder.nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN);
     }
 
     private static void pinUntilError(ClientConfiguration.Builder configBuilder) {
@@ -66,7 +63,6 @@ public enum Strategy {
     private static void unlimitedRoundRobin(ClientConfiguration.Builder configBuilder) {
         configBuilder
                 .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
-                .failedUrlCooldown(Duration.ofMillis(200))
                 .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS);
     }
 
