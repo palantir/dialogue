@@ -41,10 +41,17 @@ task jmh(type: JavaExec) {
     mainClass = 'org.openjdk.jmh.Main'
     classpath = sourceSets.main.runtimeClasspath
 
-    // e.g. ./gradlew jmv -PjmhOptions='-rf json'
+    def jmhArgs = [
+            'ClientCreationBenchmark',
+            '-prof',
+            'jfr:dir=build/profile-results',
+            '-prof',
+            'gc'] // Use GC profiler by default
+    // e.g. ./gradlew jmh -PjmhOptions='-rf json'
     if (project.hasProperty('jmhOptions')) {
-        args(project.jmhOptions.split(' '))
+        jmhArgs.addAll(project.jmhOptions.split(' '))
     }
+    args(jmhArgs)
 }
 
 tasks.withType(JavaCompile) {

@@ -1,0 +1,337 @@
+types:
+  definitions:
+    default-package: com.palantir.dialogue.example
+    errors:
+      # One of each error types
+      PermissionDeniedError:
+        namespace: Errors
+        code: PERMISSION_DENIED
+      InvalidArgumentError:
+        namespace: Errors
+        code: INVALID_ARGUMENT
+      NotFoundError:
+        namespace: Errors
+        code: NOT_FOUND
+      ConflictError:
+        namespace: Errors
+        code: CONFLICT
+      RequestTooLargeError:
+        namespace: Errors
+        code: REQUEST_ENTITY_TOO_LARGE
+      FailedPreconditionError:
+        namespace: Errors
+        code: FAILED_PRECONDITION
+      InternalError:
+        namespace: Errors
+        code: INTERNAL
+      TimeoutError:
+        namespace: Errors
+        code: TIMEOUT
+      CustomServerError:
+        namespace: Errors
+        code: CUSTOM_SERVER
+      CustomClientError:
+        namespace: Errors
+        code: CUSTOM_CLIENT
+
+      # ~100 errors to test memory usage of having many errors
+      InternalError1:
+        namespace: Errors
+        code: INTERNAL
+      InternalError2:
+        namespace: Errors
+        code: INTERNAL
+      InternalError3:
+        namespace: Errors
+        code: INTERNAL
+      InternalError4:
+        namespace: Errors
+        code: INTERNAL
+      InternalError5:
+        namespace: Errors
+        code: INTERNAL
+      InternalError6:
+        namespace: Errors
+        code: INTERNAL
+      InternalError7:
+        namespace: Errors
+        code: INTERNAL
+      InternalError8:
+        namespace: Errors
+        code: INTERNAL
+      InternalError9:
+        namespace: Errors
+        code: INTERNAL
+      InternalError10:
+        namespace: Errors
+        code: INTERNAL
+      InternalError11:
+        namespace: Errors
+        code: INTERNAL
+      InternalError12:
+        namespace: Errors
+        code: INTERNAL
+      InternalError13:
+        namespace: Errors
+        code: INTERNAL
+      InternalError14:
+        namespace: Errors
+        code: INTERNAL
+      InternalError15:
+        namespace: Errors
+        code: INTERNAL
+      InternalError16:
+        namespace: Errors
+        code: INTERNAL
+      InternalError17:
+        namespace: Errors
+        code: INTERNAL
+      InternalError18:
+        namespace: Errors
+        code: INTERNAL
+      InternalError19:
+        namespace: Errors
+        code: INTERNAL
+      InternalError20:
+        namespace: Errors
+        code: INTERNAL
+      InternalError21:
+        namespace: Errors
+        code: INTERNAL
+      InternalError22:
+        namespace: Errors
+        code: INTERNAL
+      InternalError23:
+        namespace: Errors
+        code: INTERNAL
+      InternalError24:
+        namespace: Errors
+        code: INTERNAL
+      InternalError25:
+        namespace: Errors
+        code: INTERNAL
+      InternalError26:
+        namespace: Errors
+        code: INTERNAL
+      InternalError27:
+        namespace: Errors
+        code: INTERNAL
+      InternalError28:
+        namespace: Errors
+        code: INTERNAL
+      InternalError29:
+        namespace: Errors
+        code: INTERNAL
+      InternalError30:
+        namespace: Errors
+        code: INTERNAL
+      InternalError31:
+        namespace: Errors
+        code: INTERNAL
+      InternalError32:
+        namespace: Errors
+        code: INTERNAL
+      InternalError33:
+        namespace: Errors
+        code: INTERNAL
+      InternalError34:
+        namespace: Errors
+        code: INTERNAL
+      InternalError35:
+        namespace: Errors
+        code: INTERNAL
+      InternalError36:
+        namespace: Errors
+        code: INTERNAL
+      InternalError37:
+        namespace: Errors
+        code: INTERNAL
+      InternalError38:
+        namespace: Errors
+        code: INTERNAL
+      InternalError39:
+        namespace: Errors
+        code: INTERNAL
+      InternalError40:
+        namespace: Errors
+        code: INTERNAL
+      InternalError41:
+        namespace: Errors
+        code: INTERNAL
+      InternalError42:
+        namespace: Errors
+        code: INTERNAL
+      InternalError43:
+        namespace: Errors
+        code: INTERNAL
+      InternalError44:
+        namespace: Errors
+        code: INTERNAL
+      InternalError45:
+        namespace: Errors
+        code: INTERNAL
+      InternalError46:
+        namespace: Errors
+        code: INTERNAL
+      InternalError47:
+        namespace: Errors
+        code: INTERNAL
+      InternalError48:
+        namespace: Errors
+        code: INTERNAL
+      InternalError49:
+        namespace: Errors
+        code: INTERNAL
+      InternalError50:
+        namespace: Errors
+        code: INTERNAL
+      InternalError51:
+        namespace: Errors
+        code: INTERNAL
+      InternalError52:
+        namespace: Errors
+        code: INTERNAL
+      InternalError53:
+        namespace: Errors
+        code: INTERNAL
+      InternalError54:
+        namespace: Errors
+        code: INTERNAL
+      InternalError55:
+        namespace: Errors
+        code: INTERNAL
+      InternalError56:
+        namespace: Errors
+        code: INTERNAL
+      InternalError57:
+        namespace: Errors
+        code: INTERNAL
+      InternalError58:
+        namespace: Errors
+        code: INTERNAL
+      InternalError59:
+        namespace: Errors
+        code: INTERNAL
+      InternalError60:
+        namespace: Errors
+        code: INTERNAL
+      InternalError61:
+        namespace: Errors
+        code: INTERNAL
+      InternalError62:
+        namespace: Errors
+        code: INTERNAL
+      InternalError63:
+        namespace: Errors
+        code: INTERNAL
+      InternalError64:
+        namespace: Errors
+        code: INTERNAL
+      InternalError65:
+        namespace: Errors
+        code: INTERNAL
+      InternalError66:
+        namespace: Errors
+        code: INTERNAL
+      InternalError67:
+        namespace: Errors
+        code: INTERNAL
+      InternalError68:
+        namespace: Errors
+        code: INTERNAL
+      InternalError69:
+        namespace: Errors
+        code: INTERNAL
+      InternalError70:
+        namespace: Errors
+        code: INTERNAL
+      InternalError71:
+        namespace: Errors
+        code: INTERNAL
+      InternalError72:
+        namespace: Errors
+        code: INTERNAL
+      InternalError73:
+        namespace: Errors
+        code: INTERNAL
+      InternalError74:
+        namespace: Errors
+        code: INTERNAL
+      InternalError75:
+        namespace: Errors
+        code: INTERNAL
+      InternalError76:
+        namespace: Errors
+        code: INTERNAL
+      InternalError77:
+        namespace: Errors
+        code: INTERNAL
+      InternalError78:
+        namespace: Errors
+        code: INTERNAL
+      InternalError79:
+        namespace: Errors
+        code: INTERNAL
+      InternalError80:
+        namespace: Errors
+        code: INTERNAL
+      InternalError81:
+        namespace: Errors
+        code: INTERNAL
+      InternalError82:
+        namespace: Errors
+        code: INTERNAL
+      InternalError83:
+        namespace: Errors
+        code: INTERNAL
+      InternalError84:
+        namespace: Errors
+        code: INTERNAL
+      InternalError85:
+        namespace: Errors
+        code: INTERNAL
+      InternalError86:
+        namespace: Errors
+        code: INTERNAL
+      InternalError87:
+        namespace: Errors
+        code: INTERNAL
+      InternalError88:
+        namespace: Errors
+        code: INTERNAL
+      InternalError89:
+        namespace: Errors
+        code: INTERNAL
+      InternalError90:
+        namespace: Errors
+        code: INTERNAL
+      InternalError91:
+        namespace: Errors
+        code: INTERNAL
+      InternalError92:
+        namespace: Errors
+        code: INTERNAL
+      InternalError93:
+        namespace: Errors
+        code: INTERNAL
+      InternalError94:
+        namespace: Errors
+        code: INTERNAL
+      InternalError95:
+        namespace: Errors
+        code: INTERNAL
+      InternalError96:
+        namespace: Errors
+        code: INTERNAL
+      InternalError97:
+        namespace: Errors
+        code: INTERNAL
+      InternalError98:
+        namespace: Errors
+        code: INTERNAL
+      InternalError99:
+        namespace: Errors
+        code: INTERNAL
+      InternalError100:
+        namespace: Errors
+        code: INTERNAL
