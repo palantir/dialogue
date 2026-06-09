@@ -21,6 +21,7 @@ import com.github.benmanes.caffeine.cache.CaffeineSpec;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
@@ -28,6 +29,7 @@ import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
+import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
@@ -63,7 +65,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<Void> emptyBodyDeserializer;
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
-    private final LoadingCache<ExceptionDeserializerCacheKey<?>, Deserializer<?>> exceptionDeserializers;
+    private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -107,9 +109,9 @@ final class ConjureBodySerDe implements BodySerDe {
                 .build(key -> deserializerFor(
                         key.type(),
                         emptyContainerDeserializer,
-                        key.args().returnType(),
+                        TypeMarker.of(key.returnType()),
                         new ExceptionDeserializingErrorDecoder(
-                                key.args().errorNameToExceptionTypeMarkers(), expectJsonErrors())));
+                                key.errorNameToExceptionTypeMarkers(), expectJsonErrors())));
     }
 
     @SuppressWarnings("unchecked")
@@ -445,14 +447,22 @@ final class ConjureBodySerDe implements BodySerDe {
         INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
     }
 
-    private record ExceptionDeserializerCacheKey<T>(ExceptionDeserializerArgs<T> args, DeserializerType type) {
+    private record ExceptionDeserializerCacheKey(
+            // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
+            // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
+            Type returnType,
+            ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers,
+            DeserializerType type) {
         ExceptionDeserializerCacheKey {
-            Preconditions.checkNotNull(args, "args must be non-null");
+            Preconditions.checkNotNull(returnType, "returnType must be non-null");
+            Preconditions.checkNotNull(
+                    errorNameToExceptionTypeMarkers, "errorNameToExceptionTypeMarkers must be non-null");
             Preconditions.checkNotNull(type, "type must be non-null");
         }
 
-        static <T> ExceptionDeserializerCacheKey<T> of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
-            return new ExceptionDeserializerCacheKey<>(args, type);
+        static <T> ExceptionDeserializerCacheKey of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
+            return new ExceptionDeserializerCacheKey(
+                    args.returnType().getType(), args.errorNameToExceptionTypeMarkers(), type);
         }
     }
 }
