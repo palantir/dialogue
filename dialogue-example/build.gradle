@@ -7,3 +7,9 @@ subprojects {
     tasks.checkImplicitDependenciesMain.enabled = false
     tasks.checkUnusedDependenciesMain.enabled = false
 }
+
+conjure {
+    java {
+        generateErrorParameterFormatRespectingDialogueInterfaces = true
+    }
+}
