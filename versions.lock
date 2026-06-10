@@ -38,19 +38,19 @@ com.palantir.common:streams:2.11.0 (1 constraints: 3605323b)
 
 com.palantir.conjure.java:conjure-lib:8.79.0 (2 constraints: 42240e7d)
 
-com.palantir.conjure.java.api:errors:2.73.0 (3 constraints: 7d29dc14)
+com.palantir.conjure.java.api:errors:2.73.0 (3 constraints: 7e29df14)
 
-com.palantir.conjure.java.api:service-config:2.73.0 (2 constraints: 5a19d9dc)
+com.palantir.conjure.java.api:service-config:2.73.0 (2 constraints: 5b19dcdc)
 
-com.palantir.conjure.java.api:ssl-config:2.73.0 (4 constraints: 023f139f)
+com.palantir.conjure.java.api:ssl-config:2.73.0 (4 constraints: 043f4e9f)
 
-com.palantir.conjure.java.runtime:client-config:8.35.0 (1 constraints: 42056a3b)
+com.palantir.conjure.java.runtime:client-config:8.36.0 (1 constraints: 43056d3b)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.35.0 (1 constraints: 861ccba4)
+com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.36.0 (1 constraints: 871ccea4)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.35.0 (2 constraints: 6416a10f)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.36.0 (2 constraints: 6516d50f)
 
-com.palantir.conjure.java.runtime:keystores:8.35.0 (2 constraints: 6319f4dd)
+com.palantir.conjure.java.runtime:keystores:8.36.0 (2 constraints: 651933de)
 
 com.palantir.deadlines:deadlines:0.22.0 (1 constraints: 36052d3b)
 
@@ -60,7 +60,7 @@ com.palantir.javapoet:javapoet:0.16.0 (2 constraints: 2e1189ee)
 
 com.palantir.nylon:nylon-threads:0.11.0 (1 constraints: 3a102fa2)
 
-com.palantir.refreshable:refreshable:2.13.0 (2 constraints: 4e1953db)
+com.palantir.refreshable:refreshable:2.13.0 (2 constraints: 4f1956db)
 
 com.palantir.ri:resource-identifier:2.17.0 (2 constraints: 5d15c7da)
 
@@ -92,11 +92,11 @@ com.palantir.tritium:tritium-ids:0.131.0 (1 constraints: fe0f9aa6)
 
 com.palantir.tritium:tritium-metrics:0.131.0 (3 constraints: 8a242908)
 
-com.palantir.tritium:tritium-registry:0.131.0 (6 constraints: 7868c455)
+com.palantir.tritium:tritium-registry:0.131.0 (6 constraints: 7a682d57)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
-io.dropwizard.metrics:metrics-core:4.2.39 (6 constraints: bb6169b6)
+io.dropwizard.metrics:metrics-core:4.2.39 (6 constraints: bc6120b7)
 
 io.smallrye.common:smallrye-common-annotation:2.14.0 (1 constraints: f20d0944)
 
