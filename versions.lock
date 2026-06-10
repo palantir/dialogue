@@ -36,9 +36,9 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.11.0 (1 constraints: 3605323b)
 
-com.palantir.conjure.java:conjure-lib:8.78.0 (2 constraints: 4124bc7c)
+com.palantir.conjure.java:conjure-lib:8.79.0 (2 constraints: 42240e7d)
 
-com.palantir.conjure.java.api:errors:2.73.0 (3 constraints: 7c29a014)
+com.palantir.conjure.java.api:errors:2.73.0 (3 constraints: 7d29dc14)
 
 com.palantir.conjure.java.api:service-config:2.73.0 (2 constraints: 5a19d9dc)
 
@@ -76,7 +76,7 @@ com.palantir.safe-logging:safe-logging:3.15.0 (20 constraints: 02452076)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.9.0 (1 constraints: 0b050636)
 
-com.palantir.tokens:auth-tokens:4.5.0 (3 constraints: 8c273e2d)
+com.palantir.tokens:auth-tokens:4.5.0 (3 constraints: 8d27762d)
 
 com.palantir.tracing:tracing:6.35.0 (3 constraints: b6245ffd)
 
