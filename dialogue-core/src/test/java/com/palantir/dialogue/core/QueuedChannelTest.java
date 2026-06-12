@@ -628,32 +628,37 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void timeout_after_dispatch_is_noop() {
+        void late_timeout_losing_dispatch_race_closes_wire_response() {
+            // This test covers the race: the scheduled timeout begins executing just before scheduleNextTask cancels
+            // it, and wins after the request has already been dispatched. In that case the caller future is failed with
+            // the timeout, and the (now orphaned) wire response must be closed rather than leaked.
             setInFlightRequest();
 
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
             assertThat(callerFuture).isNotDone();
 
-            // Dispatch
+            // Dispatch the queued request.
             delegate.setAccepting(true);
             queuedChannel.schedule();
 
-            // Simulate timeout firing after dispatch. This should be a no-op.
-            // This flow is also tested in
-            // QueueTimeoutIntegrationTest#timeout_is_cancelled_when_request_is_dispatched.
+            // Model the lost race: the timeout fires after dispatch. failWithQueueTimeout (invoked directly here,
+            // bypassing the dispatch-time cancel) fails the already-dispatched caller future.
             simulateTimeout(callerFuture);
+            assertThat(callerFuture)
+                    .as("Timeout won the race, so the caller future is failed")
+                    .isDone();
 
             // Pop the first request from the queue which was used to set inFlight > 0.
             delegate.lastDispatched();
             SettableFuture<Response> wireFuture = delegate.lastDispatched();
             assertThat(wireFuture).isNotNull();
 
-            // callerFuture is now failed with timeout, but ForwardAndSchedule will
-            // close the response when the wire completes
+            // When the wire later responds, ForwardAndSchedule must close the response because the caller future
+            // was already failed, otherwise the response would leak.
             TestResponse wireResponse = new TestResponse().code(200);
             wireFuture.set(wireResponse);
             assertThat(wireResponse.isClosed())
-                    .as("Response must be closed since caller future was already failed")
+                    .as("Late wire response must be closed when the caller future is already failed")
                     .isTrue();
         }
 
@@ -772,6 +777,33 @@ public class QueuedChannelTest {
         }
 
         @Test
+        void requeue_preserves_original_expiration() {
+            setInFlightRequest();
+
+            // Initial enqueue at ticker=0 stamps the expiration at 0 + timeout. The delegate is rejecting, so the
+            // request stays queued.
+            Request req = Request.builder().build();
+            ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, req);
+            Long originalExpiration = QueueTimeoutAttachments.getExpiration(req);
+            assertThat(originalExpiration)
+                    .as("initial enqueue stamps expiration at ticker.read() + timeout")
+                    .isEqualTo(QUEUE_TIMEOUT_NANOS);
+
+            // Advance partway into the budget, then drain while the delegate still rejects: the head is popped and
+            // re-queued via addTimeoutOnRequeue, which must read the existing expiration rather than re-stamping it.
+            ticker.advance(Duration.ofNanos(QUEUE_TIMEOUT_NANOS / 2));
+            queuedChannel.schedule();
+
+            assertThat(callerFuture)
+                    .as("request was re-queued, not dispatched or failed")
+                    .isNotDone();
+            assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(1);
+            assertThat(QueueTimeoutAttachments.getExpiration(req))
+                    .as("re-queue must preserve the original expiration, not reset the queue-timeout budget")
+                    .isEqualTo(originalExpiration);
+        }
+
+        @Test
         void endpoint_queue_fails_immediately_when_budget_exhausted() {
             AtomicBoolean accepting = new AtomicBoolean(false);
             LimitedChannel rejectingDelegate = (_endpoint, _request, limitEnforcement) -> {
@@ -881,9 +913,19 @@ public class QueuedChannelTest {
             queuedChannel.schedule();
 
             assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(0);
+
+            // Prove future2 was actually dispatched, not merely still queued: the first dispatched wire call belongs
+            // to setInFlightRequest, the second to future2. Completing future2's wire call must flow back through
+            // ForwardAndSchedule and complete future2 with the response.
+            delegate.lastDispatched();
+            SettableFuture<Response> future2Wire = delegate.lastDispatched();
+            assertThat(future2Wire)
+                    .as("future2 should have been handed to the delegate")
+                    .isNotNull();
+            future2Wire.set(new TestResponse().code(200));
             assertThat(future2)
-                    .as("Second request should have been dispatched, not timed out")
-                    .isNotDone();
+                    .as("future2 completes via its dispatched wire call, confirming it was dispatched")
+                    .succeedsWithin(Duration.ZERO);
         }
 
         // Gets inFlight > 0 to avoid DANGEROUS_BYPASS_LIMITS on subsequent requests

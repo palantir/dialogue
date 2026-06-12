@@ -55,17 +55,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
     private final EndpointChannelFactory delegate;
     private final Config cf;
     private final Supplier<Channel> stickyChannelSupplier;
-    private final QueuedChannel multiHostQueuedChannel;
 
-    private DialogueChannel(
-            Config cf,
-            EndpointChannelFactory delegate,
-            Supplier<Channel> stickyChannelSupplier,
-            QueuedChannel multiHostQueuedChannel) {
+    private DialogueChannel(Config cf, EndpointChannelFactory delegate, Supplier<Channel> stickyChannelSupplier) {
         this.cf = cf;
         this.delegate = delegate;
         this.stickyChannelSupplier = stickyChannelSupplier;
-        this.multiHostQueuedChannel = multiHostQueuedChannel;
     }
 
     @Override
@@ -80,11 +74,6 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
     public Supplier<Channel> stickyChannels() {
         return stickyChannelSupplier;
-    }
-
-    @VisibleForTesting
-    QueuedChannel getMultiHostQueuedChannelForTesting() {
-        return multiHostQueuedChannel;
     }
 
     public static Builder builder() {
@@ -248,7 +237,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .build();
             createMeter.mark();
 
-            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier, multiHostQueuedChannel);
+            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
         }
 
         private static ImmutableList<LimitedChannel> createHostChannels(

@@ -1175,7 +1175,10 @@ public class RetryingChannelTest {
                         .isEqualTo(12345L);
                 return Futures.immediateFuture(mockResponse(429));
             }
-            // Second attempt: expiration should have been cleared by RetryingChannel
+            // Second attempt: expiration should have been cleared by RetryingChannel. Clearing it means the retried
+            // attempt stamps a fresh full queue-timeout budget on its next enqueue rather than inheriting the prior
+            // attempt's (possibly nearly-exhausted) remaining budget — so a retry still gets a queue timeout, reset
+            // to the original value.
             assertThat(QueueTimeoutAttachments.getExpiration(request))
                     .as("RetryingChannel should clear the expiration before retrying")
                     .isNull();

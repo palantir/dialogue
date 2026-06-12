@@ -267,7 +267,9 @@ final class QueuedChannel implements Channel {
         SettableFuture<Response> responseFuture = SettableFuture.create();
         DetachedSpan span = DetachedSpan.start("Dialogue-request-enqueued");
         IdempotentTimerContext timer = new IdempotentTimerContext(queuedTime.time());
-        @Nullable ScheduledFuture<?> timeoutFuture = scheduleQueueTimeout(request, responseFuture, span, timer);
+        AtomicBoolean queueSizeDecremented = new AtomicBoolean(false);
+        Optional<ScheduledFuture<?>> timeoutFuture =
+                Optional.ofNullable(scheduleQueueTimeout(request, responseFuture, span, timer, queueSizeDecremented));
 
         // If the timeout budget was already exhausted (e.g., from time spent in a previous queue),
         // scheduleQueueTimeout failed the future immediately. Return early to avoid creating a
@@ -282,7 +284,8 @@ final class QueuedChannel implements Channel {
                 .response(responseFuture)
                 .span(span)
                 .timer(timer)
-                .timeoutFuture(Optional.ofNullable(timeoutFuture))
+                .timeoutFuture(timeoutFuture)
+                .queueSizeDecremented(queueSizeDecremented)
                 .build();
 
         if (!queuedCalls.offer(components)) {
@@ -305,13 +308,17 @@ final class QueuedChannel implements Channel {
 
     @Nullable
     private ScheduledFuture<?> scheduleQueueTimeout(
-            Request request, SettableFuture<Response> responseFuture, DetachedSpan span, IdempotentTimerContext timer) {
+            Request request,
+            SettableFuture<Response> responseFuture,
+            DetachedSpan span,
+            IdempotentTimerContext timer,
+            AtomicBoolean queueSizeDecremented) {
         if (queueTimeoutNanos.isEmpty()) {
             return null;
         }
         Preconditions.checkNotNull(scheduler, "Scheduler must be present when queue timeouts are enabled");
         QueueTimeoutAttachments.setExpirationIfAbsent(request, clock.read() + queueTimeoutNanos.getAsLong());
-        return scheduleTimeoutFromExpiration(request, responseFuture, span, timer);
+        return scheduleTimeoutFromExpiration(request, responseFuture, span, timer, queueSizeDecremented);
     }
 
     /**
@@ -433,7 +440,7 @@ final class QueuedChannel implements Channel {
                 return true;
             } else {
                 // Delegate rejected. We need to re-queue with a timeout for the remaining budget.
-                DeferredCall requeued = addTimeout(queueHead);
+                DeferredCall requeued = addTimeoutOnRequeue(queueHead);
                 if (!queuedCalls.offerFirst(requeued)) {
                     // Should never happen, ConcurrentLinkedDeque has no maximum size
                     log.error(
@@ -467,7 +474,7 @@ final class QueuedChannel implements Channel {
      */
     private void cleanupDeferredCall(DeferredCall call) {
         call.timeoutFuture().ifPresent(future -> future.cancel(false));
-        decrementQueueSize();
+        atomicQueueSizeDecrement(call.queueSizeDecremented());
         call.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
         call.timer().stop();
     }
@@ -475,10 +482,14 @@ final class QueuedChannel implements Channel {
     /**
      * Creates a copy of the DeferredCall with a fresh timeout task for the remaining budget.
      */
-    private DeferredCall addTimeout(DeferredCall original) {
+    private DeferredCall addTimeoutOnRequeue(DeferredCall original) {
         @Nullable
         ScheduledFuture<?> newTimeout = scheduleTimeoutFromExpiration(
-                original.request(), original.response(), original.span(), original.timer());
+                original.request(),
+                original.response(),
+                original.span(),
+                original.timer(),
+                original.queueSizeDecremented());
         return DeferredCall.builder()
                 .from(original)
                 .timeoutFuture(Optional.ofNullable(newTimeout))
@@ -490,7 +501,11 @@ final class QueuedChannel implements Channel {
      */
     @Nullable
     private ScheduledFuture<?> scheduleTimeoutFromExpiration(
-            Request request, SettableFuture<Response> responseFuture, DetachedSpan span, IdempotentTimerContext timer) {
+            Request request,
+            SettableFuture<Response> responseFuture,
+            DetachedSpan span,
+            IdempotentTimerContext timer,
+            AtomicBoolean queueSizeDecremented) {
         if (queueTimeoutNanos.isEmpty() || scheduler == null) {
             return null;
         }
@@ -500,11 +515,37 @@ final class QueuedChannel implements Channel {
         }
         long delayNanos = expirationNanos - clock.read();
         if (delayNanos <= 0) {
+            // The timeout is already reached, so we fail immediately. We don't decrement the queue size here, because
+            // in both cases that reach this branch the count is already correct: on initial enqueue the entry has not
+            // been counted yet (maybeExecute returns early, before incrementing), and on re-queue the entry is still
+            // counted and gets decremented when a drain next pops it or when the timeout is hit.
             failWithQueueTimeout(responseFuture, span, timer);
             return null;
         }
         return scheduler.schedule(
-                () -> failWithQueueTimeout(responseFuture, span, timer), delayNanos, TimeUnit.NANOSECONDS);
+                () -> failWithQueueTimeoutAndDecrementQueueSize(responseFuture, span, timer, queueSizeDecremented),
+                delayNanos,
+                TimeUnit.NANOSECONDS);
+    }
+
+    /**
+     * Invoked when a scheduled timeout task fires. Fails the future and proactively decrements the queue size, so the
+     * queue size reflects only live requests rather than lingering until the next {@link #scheduleNextTask()} drain
+     * pops the timed-out entry.
+     */
+    private void failWithQueueTimeoutAndDecrementQueueSize(
+            SettableFuture<Response> responseFuture,
+            DetachedSpan span,
+            IdempotentTimerContext timer,
+            AtomicBoolean queueSizeDecremented) {
+        failWithQueueTimeout(responseFuture, span, timer);
+        atomicQueueSizeDecrement(queueSizeDecremented);
+    }
+
+    private void atomicQueueSizeDecrement(AtomicBoolean queueSizeDecremented) {
+        if (queueSizeDecremented.compareAndSet(false, true)) {
+            decrementQueueSize();
+        }
     }
 
     /**
@@ -527,11 +568,6 @@ final class QueuedChannel implements Channel {
                 SafeArg.of("channel", channelName),
                 SafeArg.of("service", endpoint.serviceName()),
                 SafeArg.of("endpoint", endpoint.endpointName()));
-    }
-
-    @VisibleForTesting
-    int getQueueSizeForTesting() {
-        return queueSizeEstimate.get();
     }
 
     @Override
@@ -613,6 +649,8 @@ final class QueuedChannel implements Channel {
 
         /** The scheduled timeout task, if queue timeout is enabled. Cancelled on dispatch. */
         Optional<ScheduledFuture<?>> timeoutFuture();
+
+        AtomicBoolean queueSizeDecremented();
 
         class Builder extends ImmutableDeferredCall.Builder {}
 
