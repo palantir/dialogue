@@ -2,9 +2,9 @@
 
 com.fasterxml.jackson.core:jackson-annotations:2.21 (9 constraints: 28980987)
 
-com.fasterxml.jackson.core:jackson-core:2.21.4 (11 constraints: 5ce541c2)
+com.fasterxml.jackson.core:jackson-core:2.21.4 (11 constraints: 5fe5a0c9)
 
-com.fasterxml.jackson.core:jackson-databind:2.21.4 (15 constraints: 4a31e74c)
+com.fasterxml.jackson.core:jackson-databind:2.21.4 (15 constraints: 4d31cb56)
 
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.21.4 (1 constraints: 7f1c9ba4)
 
@@ -152,7 +152,7 @@ org.wildfly.common:wildfly-common:2.0.1 (2 constraints: 591adc48)
 
 [Test dependencies]
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.4 (1 constraints: 3805373b)
+com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.4 (1 constraints: 3b053a3b)
 
 com.google.auto.value:auto-value-annotations:1.11.0 (2 constraints: d01cd319)
 
