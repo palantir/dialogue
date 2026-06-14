@@ -4,7 +4,7 @@ com.fasterxml.jackson.core:jackson-annotations:2.21 (9 constraints: 28980987)
 
 com.fasterxml.jackson.core:jackson-core:2.21.4 (11 constraints: 5fe5a0c9)
 
-com.fasterxml.jackson.core:jackson-databind:2.21.4 (15 constraints: 4d31cb56)
+com.fasterxml.jackson.core:jackson-databind:2.21.4 (15 constraints: 5331435d)
 
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.21.4 (1 constraints: 7f1c9ba4)
 
@@ -38,11 +38,11 @@ com.palantir.common:streams:2.11.0 (1 constraints: 3605323b)
 
 com.palantir.conjure.java:conjure-lib:8.80.0 (2 constraints: 33246b7a)
 
-com.palantir.conjure.java.api:errors:2.73.0 (3 constraints: 7e29df14)
+com.palantir.conjure.java.api:errors:2.74.0 (3 constraints: 7f294a15)
 
-com.palantir.conjure.java.api:service-config:2.73.0 (2 constraints: 5b19dcdc)
+com.palantir.conjure.java.api:service-config:2.74.0 (2 constraints: 5c1918dd)
 
-com.palantir.conjure.java.api:ssl-config:2.73.0 (4 constraints: 043f4e9f)
+com.palantir.conjure.java.api:ssl-config:2.74.0 (4 constraints: 063f66a0)
 
 com.palantir.conjure.java.runtime:client-config:8.37.0 (1 constraints: 4405703b)
 
@@ -64,15 +64,15 @@ com.palantir.refreshable:refreshable:2.13.0 (2 constraints: 4f1956db)
 
 com.palantir.ri:resource-identifier:2.19.0 (2 constraints: 60152edb)
 
-com.palantir.safe-logging:logger:3.16.0 (14 constraints: 56e16019)
+com.palantir.safe-logging:logger:3.16.0 (14 constraints: 57e1a21b)
 
 com.palantir.safe-logging:logger-slf4j:3.16.0 (1 constraints: 350e9950)
 
 com.palantir.safe-logging:logger-spi:3.16.0 (2 constraints: 791e18b1)
 
-com.palantir.safe-logging:preconditions:3.16.0 (21 constraints: b0533de9)
+com.palantir.safe-logging:preconditions:3.16.0 (21 constraints: b3535cf2)
 
-com.palantir.safe-logging:safe-logging:3.16.0 (20 constraints: 0d451a8c)
+com.palantir.safe-logging:safe-logging:3.16.0 (20 constraints: 0f450e92)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.9.0 (1 constraints: 0b050636)
 
