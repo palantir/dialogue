@@ -41,12 +41,10 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.jupiter.api.AfterEach;
+import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -564,9 +562,6 @@ public class QueuedChannelTest {
 
     @Nested
     class QueueTimeoutTests {
-        // The timeout is intentionally very long to ensure that the scheduler does not fire during a test. This test
-        // suite manually advances the clock. A scheduler needs to be supplied to the QueuedChannel constructor because
-        // there is a null-check on the scheduler in QueuedChannel#scheduleQueueTimeout.
         private static final long QUEUE_TIMEOUT_NANOS = Duration.ofHours(10).toNanos();
         private static final String CHANNEL_NAME = "timeout-test";
         private static final int QUEUE_SIZE = 100;
@@ -576,16 +571,14 @@ public class QueuedChannelTest {
         private ToggleableDelegate delegate;
         private QueuedChannel queuedChannel;
         private QueuedChannelInstrumentation instrumentation;
-        private ScheduledExecutorService scheduler;
+        private DeterministicScheduler scheduler;
 
         @BeforeEach
         void beforeEach() {
             ticker = new ManualTicker();
             request = Request.builder().build();
             delegate = new ToggleableDelegate();
-            // Scheduler is required when timeout is configured. The 10-hour timeout means scheduled tasks won't fire
-            // during the test, and we call failWithQueueTimeout directly.
-            scheduler = Executors.newSingleThreadScheduledExecutor();
+            scheduler = new DeterministicScheduler();
             instrumentation = QueuedChannel.channelInstrumentation(
                     DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), CHANNEL_NAME);
 
@@ -600,11 +593,6 @@ public class QueuedChannelTest {
                     scheduler);
         }
 
-        @AfterEach
-        void afterEach() {
-            scheduler.shutdownNow();
-        }
-
         @Test
         void caller_future_is_failed_with_timeout() {
             setInFlightRequest();
@@ -613,18 +601,40 @@ public class QueuedChannelTest {
             assertThat(callerFuture).isNotDone();
             assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(1);
 
-            simulateTimeout(callerFuture);
+            scheduler.tick(QUEUE_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
 
             assertThat(callerFuture).isDone();
             assertThat(callerFuture)
                     .failsWithin(Duration.ZERO)
                     .withThrowableThat()
                     .withMessageContaining("queue timeout");
+            assertThat(instrumentation.requestsQueued().getCount())
+                    .as("the timeout task proactively decrements the queue size")
+                    .isEqualTo(0);
 
-            // Assert that the deque entry is cleaned up on the next queue drain
+            // The deque still holds the timed-out entry; the next drain pops it
             delegate.setAccepting(true);
             queuedChannel.schedule();
             assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(0);
+        }
+
+        @Test
+        void timeout_after_dispatch_is_cancelled() {
+            setInFlightRequest();
+
+            ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
+            assertThat(callerFuture).isNotDone();
+
+            // Dispatch the queued request, which cancels its timeout task.
+            delegate.setAccepting(true);
+            queuedChannel.schedule();
+
+            // Advance past the timeout. The cancelled task must not fire.
+            scheduler.tick(QUEUE_TIMEOUT_NANOS * 2, TimeUnit.NANOSECONDS);
+
+            assertThat(callerFuture)
+                    .as("dispatch cancelled the timeout, so firing the scheduler is a no-op")
+                    .isNotDone();
         }
 
         @Test
@@ -702,16 +712,21 @@ public class QueuedChannelTest {
             assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(1);
             assertThat(callerFuture).isNotDone();
 
-            // toggle delegate to accept requests -> timeout the request -> schedule() -> assert the queue is empty
-            delegate.setAccepting(true);
-            simulateTimeout(callerFuture);
+            // Fire the scheduled timeout. Only the most recently re-queued entry has a live timeout task (each drain
+            // cancels the previous one); it runs the real path, failing the caller future and proactively
+            // decrementing the queue size.
+            scheduler.tick(QUEUE_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
 
             assertThat(callerFuture).isDone();
             assertThat(callerFuture)
                     .failsWithin(Duration.ZERO)
                     .withThrowableThat()
                     .withMessageContaining("queue timeout");
+            assertThat(instrumentation.requestsQueued().getCount())
+                    .as("re-queued entry is cleaned up proactively when its timeout fires")
+                    .isEqualTo(0);
 
+            // The next drain pops the now-dead entry without double-counting.
             queuedChannel.schedule();
             assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(0);
         }
@@ -935,7 +950,7 @@ public class QueuedChannelTest {
             delegate.setAccepting(false);
         }
 
-        // Simulate the scheduled timeout task firing. Uses dummy span/timer since tests don't assert on metrics.
+        // Directly invokes the timeout action on a specific queued request, modelling the timeout task body running.
         private void simulateTimeout(ListenableFuture<Response> future) {
             queuedChannel.failWithQueueTimeout(
                     (SettableFuture<Response>) future,
