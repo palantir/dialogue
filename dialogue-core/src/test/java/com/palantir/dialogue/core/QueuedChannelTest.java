@@ -638,6 +638,42 @@ public class QueuedChannelTest {
         }
 
         @Test
+        void expiration_is_cleared_on_completion_so_a_reused_request_gets_a_fresh_budget() {
+            setInFlightRequest();
+            Request reused = Request.builder().build();
+
+            // First execution: the delegate is rejecting, so the request queues and stamps an absolute expiration.
+            ListenableFuture<Response> first = queuedChannel.execute(TestEndpoint.POST, reused);
+            assertThat(QueueTimeoutAttachments.getExpiration(reused))
+                    .as("first execution stamps the expiration at clock.read() + timeout")
+                    .isEqualTo(QUEUE_TIMEOUT_NANOS);
+
+            // Complete the first execution by dispatching it and completing its wire response.
+            delegate.setAccepting(true);
+            queuedChannel.schedule();
+            delegate.lastDispatched(); // the setInFlightRequest dispatch
+            SettableFuture<Response> wire = delegate.lastDispatched();
+            wire.set(new TestResponse().code(200));
+            assertThat(first).succeedsWithin(Duration.ZERO);
+
+            assertThat(QueueTimeoutAttachments.getExpiration(reused))
+                    .as("expiration is cleared on terminal completion so the request can be safely reused")
+                    .isNull();
+
+            // Reuse the same request for a second execution after the clock has advanced past the old timeout. It must
+            // not inherit the stale deadline (which would make it time out immediately). It gets a new budget instead
+            ticker.advance(Duration.ofNanos(QUEUE_TIMEOUT_NANOS * 2));
+            delegate.setAccepting(false);
+            ListenableFuture<Response> second = queuedChannel.execute(TestEndpoint.POST, reused);
+            assertThat(second)
+                    .as("reused request must not immediately time out from a stale deadline")
+                    .isNotDone();
+            assertThat(QueueTimeoutAttachments.getExpiration(reused))
+                    .as("a fresh budget is stamped for the second execution")
+                    .isEqualTo(QUEUE_TIMEOUT_NANOS * 3);
+        }
+
+        @Test
         void late_timeout_losing_dispatch_race_closes_wire_response() {
             // This test covers the race: the scheduled timeout begins executing just before scheduleNextTask cancels
             // it, and wins after the request has already been dispatched. In that case the caller future is failed with

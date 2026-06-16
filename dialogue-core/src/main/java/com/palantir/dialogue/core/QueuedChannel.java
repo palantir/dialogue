@@ -278,6 +278,13 @@ final class QueuedChannel implements Channel {
             return Optional.of(responseFuture);
         }
 
+        // The queue-timeout expiration is stamped on a Request attachment and shared across queue layers for the
+        // duration of a single execution. Clear it once this execution terminates (success, failure, timeout, or
+        // cancellation). This is mostly defensive: we don't expect requests to be re-used.
+        if (queueTimeoutNanos.isPresent()) {
+            DialogueFutures.addDirectListener(responseFuture, () -> QueueTimeoutAttachments.clearExpiration(request));
+        }
+
         DeferredCall components = DeferredCall.builder()
                 .endpoint(endpoint)
                 .request(request)
