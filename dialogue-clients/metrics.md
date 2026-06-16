@@ -71,6 +71,11 @@ Dialogue DNS metrics.
 - `client.dns.failure` (meter): DNS resolver query failures.
   - `error-type`: Describes the error type returned by getaddrinfo() when lookup fails.
 
+### client.ssl.store
+Dialogue SSL store polling metrics.
+- `client.ssl.store.refresh` (meter): Number of times SSL store metadata changed and triggered a refresh.
+- `client.ssl.store.failure` (meter): Number of failed SSL store refresh attempts.
+
 ### client.uri
 Dialogue URI parsing metrics.
 - `client.uri.invalid` tagged `channel-name` (meter): Meter which is incremented any time an invalid URI is read.

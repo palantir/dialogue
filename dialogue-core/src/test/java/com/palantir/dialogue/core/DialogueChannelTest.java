@@ -45,6 +45,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
@@ -73,6 +74,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.assertj.core.data.Percentage;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -246,6 +248,30 @@ public final class DialogueChannelTest {
         assertThatThrownBy(rejected::get)
                 .hasRootCauseExactlyInstanceOf(SafeRuntimeException.class)
                 .hasMessageContaining("queue is full");
+    }
+
+    @Test
+    void store_metadata_update_reloads_node_selection_channel() {
+        SettableRefreshable<SslStoreMetadata> storeMetadata = Refreshable.create(new SslStoreMetadata());
+        AtomicInteger channelCreateCount = new AtomicInteger();
+
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .storeMetadata(storeMetadata)
+                .factory(_args -> {
+                    channelCreateCount.incrementAndGet();
+                    return (_endpoint, _request) -> Futures.immediateFuture(new TestResponse().code(204));
+                })
+                .build();
+
+        int initialCreateCount = channelCreateCount.get();
+        assertThat(initialCreateCount).isGreaterThan(0);
+
+        storeMetadata.update(SslStoreMetadata.of(TestConfigurations.SSL_CONFIG));
+
+        Awaitility.waitAtMost(Duration.ofSeconds(1))
+                .untilAsserted(() -> assertThat(channelCreateCount.get()).isGreaterThan(initialCreateCount));
     }
 
     static class ThrowingOutputStream extends OutputStream {

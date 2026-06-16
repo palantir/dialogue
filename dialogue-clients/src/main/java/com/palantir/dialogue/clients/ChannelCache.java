@@ -22,7 +22,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.DialogueChannelFactory.ChannelArgs;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.dialogue.core.SslStoreMetadata;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.DoNotLog;
@@ -142,15 +144,8 @@ final class ChannelCache {
     }
 
     private DialogueChannel createNonLiveReloadingChannel(ChannelCacheKey channelCacheRequest) {
-        ImmutableApacheClientRequest request = ImmutableApacheClientRequest.builder()
-                .from(channelCacheRequest)
-                .channelName(channelCacheRequest.channelName())
-                .serviceConf(stripUris(channelCacheRequest.serviceConf())) // we strip out uris to maximise cache hits
-                .blockingExecutor(channelCacheRequest.blockingExecutor())
-                .dnsResolver(channelCacheRequest.dnsResolver())
-                .build();
-
-        ApacheCacheEntry apacheClient = getApacheClient(request);
+        Refreshable<SslStoreMetadata> storeMetadata = SslStoresSupport.pollForChanges(
+                channelCacheRequest.serviceConf().security(), channelCacheRequest.taggedMetrics());
 
         Refreshable<List<TargetUri>> targets;
         if (channelCacheRequest.overrideHostIndex().isPresent()) {
@@ -173,18 +168,36 @@ final class ChannelCache {
                             dnsResolutionResults.resolvedHosts(),
                             channelCacheRequest.taggedMetrics()));
         }
+
+        ClientConfiguration clientConf =
+                AugmentClientConfig.getClientConf(channelCacheRequest.serviceConf(), channelCacheRequest);
         return DialogueChannel.builder()
                 .channelName(channelCacheRequest.channelName())
                 .clientConfiguration(ClientConfiguration.builder()
-                        .from(apacheClient.conf())
+                        .from(clientConf)
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
                 .uris(targets)
-                .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client()))
+                .storeMetadata(storeMetadata)
+                .factory(args -> ApacheHttpClientChannels.createSingleUri(
+                        args,
+                        getApacheClient(apacheRequest(channelCacheRequest, args))
+                                .client()))
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
                         .findAny())
                 .deadlineEnforcement(channelCacheRequest.deadlineEnforcement())
+                .build();
+    }
+
+    private static ImmutableApacheClientRequest apacheRequest(ChannelCacheKey channelCacheRequest, ChannelArgs args) {
+        return ImmutableApacheClientRequest.builder()
+                .from(channelCacheRequest)
+                .channelName(channelCacheRequest.channelName())
+                .serviceConf(stripUris(channelCacheRequest.serviceConf())) // we strip out uris to maximise cache hits
+                .blockingExecutor(channelCacheRequest.blockingExecutor())
+                .dnsResolver(channelCacheRequest.dnsResolver())
+                .sslStoreHash(args.sslStoreHash())
                 .build();
     }
 
@@ -306,6 +319,9 @@ final class ChannelCache {
         Optional<ExecutorService> blockingExecutor();
 
         DialogueDnsResolver dnsResolver();
+
+        // This argument is used solely to cause cache misses when the underlying keystores change on disk
+        Optional<String> sslStoreHash();
 
         @Value.Check
         default void check() {
