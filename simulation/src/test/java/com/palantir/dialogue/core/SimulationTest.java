@@ -88,7 +88,7 @@ import org.slf4j.LoggerFactory;
  *
  * The following scenarios are important for clients to handle.
  * <ol>
- *     <li>Normal operation: some node node is maybe 10-20% slower (e.g. maybe it's further away)
+ *     <li>Normal operation: some node is maybe 10-20% slower (e.g. maybe it's further away)
  *     <li>Fast failures (500/503/429) with revert: upgrading one node means everything gets insta 500'd (also 503 /
  *     429)
  *     <li>Slow failures (500/503/429) with revert: upgrading one node means all requests get slow and also return
@@ -96,6 +96,7 @@ import org.slf4j.LoggerFactory;
  *     <li>Drastic slowdown with revert: One node suddenly starts taking 10 seconds to return (but not throwing errors)
  *     <li>All nodes return 500s briefly (ideally clients could queue up if they're willing to wait)
  *     <li>Black hole: one node just starts accepting requests but never returning responses
+ *     <li>TODO: Low traffic with interspersed spikes of traffic. This reflects the behavior seen on fusili by contour-backend-multiplexer. Or maybe in general user-compute flows where users sporadically launch compute things(?)
  * </ol>
  */
 @Execution(ExecutionMode.CONCURRENT)
@@ -508,6 +509,52 @@ final class SimulationTest {
                 .numRequests(1000)
                 .client(strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofSeconds(10))
+                .run();
+    }
+
+    /**
+     * A burst of load followed by a long tail of light load, against an effectively infinite-capacity server
+     * (constant latency at any concurrency, never emits QoS/errors).
+     */
+    @SimulationCase
+    public void burst_then_low_load(Strategy strategy) {
+        servers = servers(SimulationServer.builder()
+                .serverName("high_capacity")
+                .simulation(simulation)
+                // Constant response time regardless of concurrency => no capacity cliff, no QoS, no errors.
+                .handler(h -> h.response(200).responseTime(Duration.ofMillis(100)))
+                .build());
+
+        Channel client = strategy.getChannel(simulation, servers);
+
+        Benchmark builder = Benchmark.builder().simulation(simulation);
+        // Two endpoint channels over the *same* client channel, so the burst and the trailing low load share
+        // limiter state but get their own client-perceived latency histograms in the report.
+        EndpointChannel burstChannel = builder.addEndpointChannel("burst", DEFAULT_ENDPOINT, client);
+        EndpointChannel lowLoadChannel = builder.addEndpointChannel("lowload", DEFAULT_ENDPOINT, client);
+
+        int burstSize = 1000;
+        Duration burstInterval = Duration.ofNanos(1000); // ~all fired within 1ms
+        long burstWindowNanos = burstInterval.toNanos() * burstSize;
+
+        int lowLoadCount = 200;
+        Duration lowLoadInterval = Duration.ofMillis(100); // ~10 rps trickle, never saturates the limit
+        long lowLoadStartNanos = burstWindowNanos + Duration.ofSeconds(1).toNanos();
+
+        Stream<ScheduledRequest> burst =
+                builder.infiniteRequests(burstInterval, () -> burstChannel).limit(burstSize);
+        Stream<ScheduledRequest> lowLoad = builder.infiniteRequests(lowLoadInterval, () -> lowLoadChannel)
+                .limit(lowLoadCount)
+                .map(req -> ImmutableScheduledRequest.builder()
+                        .from(req)
+                        .number(burstSize + req.number())
+                        .sendTimeNanos(lowLoadStartNanos + req.sendTimeNanos())
+                        .build());
+
+        st = strategy;
+        result = builder.mergeRequestStreams(burst, lowLoad)
+                .stopWhenNumReceived(burstSize + lowLoadCount)
+                .abortAfter(Duration.ofMinutes(5))
                 .run();
     }
 

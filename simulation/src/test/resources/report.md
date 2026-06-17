@@ -73,6 +73,18 @@ client=7 endpoint	client_mean=PT0.6S
 client=8 endpoint	client_mean=PT0.6S         
 client=9 endpoint	client_mean=PT0.6S         
 
+          burst_then_low_load[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT1.524824885S 	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
+client=burst endpoint	client_mean=PT1.788809696S 
+client=lowload endpoint	client_mean=PT0.20490083S  
+
+              burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.524824885S 	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
+client=burst endpoint	client_mean=PT1.788809696S 
+client=lowload endpoint	client_mean=PT0.20490083S  
+
+                        burst_then_low_load[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.1S         	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
+client=burst endpoint	client_mean=PT0.1S         
+client=lowload endpoint	client_mean=PT0.1S         
+
              drastic_slowdown[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT3.120674249S 	server_cpu=PT41M7.682333314S	client_received=4000/4000	server_resps=4000	codes={200=4000}
 client=0 endpoint	client_mean=PT0.068773437S 
 client=1 endpoint	client_mean=PT7.862170666S 
@@ -575,6 +587,21 @@ client=9 endpoint	client_mean=PT0.000001S
 ## `black_hole[UNLIMITED_ROUND_ROBIN]`
 <table><tr><th>develop</th><th>current</th></tr>
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/black_hole[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="black_hole[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `burst_then_low_load[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/burst_then_low_load[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td><td><image width=400 src="burst_then_low_load[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td></tr></table>
+
+
+## `burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td><td><image width=400 src="burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `burst_then_low_load[UNLIMITED_ROUND_ROBIN]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/burst_then_low_load[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="burst_then_low_load[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
 
 
 ## `drastic_slowdown[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`

@@ -27,13 +27,19 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
+<<<<<<< HEAD
 import java.util.Locale;
+=======
+>>>>>>> b7ca66c8 (Add load sweep simulation)
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+<<<<<<< HEAD
 import org.junit.jupiter.api.AfterAll;
+=======
+>>>>>>> b7ca66c8 (Add load sweep simulation)
 import org.junit.jupiter.api.Test;
 import org.knowm.xchart.XYChart;
 import org.knowm.xchart.XYChartBuilder;
@@ -202,8 +208,7 @@ final class LoadSweepTest {
         chart.getStyler().setLegendPosition(Styler.LegendPosition.InsideNW);
         chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Line);
         chart.getStyler().setMarkerSize(5);
-        chart.getStyler().setYAxisLogarithmic(logarithmicYAxis);
-        seriesByStrategy.forEach((strategy, values) -> chart.addSeries(strategy.name(), offeredRps, values));
+        chart.getStyler().setYAxisLogarithmic(logarithmicYAxis); seriesByStrategy.forEach((strategy, values) -> chart.addSeries(strategy.name(), offeredRps, values));
         return chart;
     }
 
