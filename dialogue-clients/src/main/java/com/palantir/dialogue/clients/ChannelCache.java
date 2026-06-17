@@ -138,6 +138,7 @@ final class ChannelCache {
                 .dnsRefreshInterval(reloadingParams.dnsRefreshInterval())
                 .dnsNodeDiscovery(overrideHostIndex.isEmpty() && reloadingParams.dnsNodeDiscovery())
                 .deadlineEnforcement(reloadingParams.deadlineEnforcement())
+                .concurrencyLimiterSlowStart(reloadingParams.concurrencyLimiterSlowStart())
                 .build());
     }
 
@@ -185,6 +186,7 @@ final class ChannelCache {
                         .mapToInt(OverrideHostIndex::index)
                         .findAny())
                 .deadlineEnforcement(channelCacheRequest.deadlineEnforcement())
+                .concurrencyLimiterSlowStart(channelCacheRequest.concurrencyLimiterSlowStart())
                 .build();
     }
 
@@ -279,6 +281,8 @@ final class ChannelCache {
         boolean dnsNodeDiscovery();
 
         Optional<Boolean> deadlineEnforcement();
+
+        Optional<Boolean> concurrencyLimiterSlowStart();
     }
 
     @Unsafe

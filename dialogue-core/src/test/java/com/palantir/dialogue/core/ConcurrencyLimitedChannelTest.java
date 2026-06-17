@@ -31,7 +31,6 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.dialogue.core.ConcurrencyLimitedChannel.ConcurrencyLimitedChannelInstrumentation;
 import com.palantir.dialogue.core.ConcurrencyLimitedChannel.HostConcurrencyLimitedChannelInstrumentation;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
@@ -104,15 +103,15 @@ public class ConcurrencyLimitedChannelTest {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
                 state.getState(ConcurrencyLimitedChannel.HOST_SPECIFIC_STATE_KEY);
 
-        assertThat(limiter.getInflight()).isEqualTo(0);
+        assertThat(limiter.getInFlight()).isEqualTo(0);
 
         forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
-        assertThat(limiter.getInflight()).isEqualTo(1);
+        assertThat(limiter.getInFlight()).isEqualTo(1);
 
         LimitedChannel forHost2 = ConcurrencyLimitedChannel.createForHost(config, delegate, 0, state);
         forHost2.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
 
-        assertThat(limiter.getInflight()).isEqualTo(2);
+        assertThat(limiter.getInFlight()).isEqualTo(2);
     }
 
     @Test
@@ -122,21 +121,21 @@ public class ConcurrencyLimitedChannelTest {
 
         // create two channels for the same endpoint, which should re-use the same AIMD state
         LimitedChannel forEndpoint =
-                ConcurrencyLimitedChannel.createForEndpoint(delegate, channelName, 0, endpoint, state);
+                ConcurrencyLimitedChannel.createForEndpoint(delegate, channelName, 0, endpoint, state, false);
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
                 state.getState(ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_STATE_KEY);
 
-        assertThat(limiter.getInflight()).isEqualTo(0);
+        assertThat(limiter.getInFlight()).isEqualTo(0);
 
         forEndpoint.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
-        assertThat(limiter.getInflight()).isEqualTo(1);
+        assertThat(limiter.getInFlight()).isEqualTo(1);
 
         // different uriIndex has no impact on whether state is shared, as indexes will shuffle when nodes go down
         LimitedChannel forEndpoint2 =
-                ConcurrencyLimitedChannel.createForEndpoint(delegate, channelName, 1, endpoint, state);
+                ConcurrencyLimitedChannel.createForEndpoint(delegate, channelName, 1, endpoint, state, false);
         forEndpoint2.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
 
-        assertThat(limiter.getInflight()).isEqualTo(2);
+        assertThat(limiter.getInFlight()).isEqualTo(2);
     }
 
     @Test

@@ -338,6 +338,10 @@ acceptedBreaks:
       new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
         \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withMaxResponseSize(long)"
       justification: "ReloadingClientFactory is meant to be consumed, not implemented"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withConcurrencyLimiterSlowStart(boolean)"
+      justification: "Adding a flag for a new concurrency update function"
   "6.32.0":
     com.palantir.dialogue:dialogue-clients:
     - code: "java.method.addedToInterface"

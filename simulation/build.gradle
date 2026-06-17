@@ -33,3 +33,12 @@ tasks.withType(JavaCompile) {
 }
 
 tasks.checkImplicitDependenciesMain.enabled = false // not published, don't care
+
+test {
+    // Forward the experimental slow-start limiter flag to the test JVM so simulations can be run against it, e.g.:
+    //   ./gradlew :simulation:test --tests '*burst_then_low_load' -Ddialogue.experimental.concurrencyLimiter.slowStart=true
+    // Declared as a task input so toggling the flag invalidates the up-to-date check and forces a re-run.
+    String slowStartLimiter = System.getProperty('dialogue.experimental.concurrencyLimiter.slowStart', 'false')
+    systemProperty 'dialogue.experimental.concurrencyLimiter.slowStart', slowStartLimiter
+    inputs.property 'slowStartLimiter', slowStartLimiter
+}
