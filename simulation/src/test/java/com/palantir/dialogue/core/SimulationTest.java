@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -104,6 +105,11 @@ import org.slf4j.LoggerFactory;
 @Execution(ExecutionMode.CONCURRENT)
 final class SimulationTest {
     private static final Logger log = LoggerFactory.getLogger(SimulationTest.class);
+
+    // The slow-start limiter is experimental; we only keep its comparison output for the load-spike scenarios, where
+    // limiter ramp-up behavior is most interesting. When the flag is enabled, all other scenarios skip slow-start file
+    // generation so we don't check in dozens of near-duplicate images. See after().
+    private static final Set<String> SLOW_START_SCENARIOS = Set.of("one_big_spike", "burst_then_low_load");
 
     @SuppressWarnings("for-rollout:deprecation")
     @Inherited
@@ -749,8 +755,26 @@ final class SimulationTest {
 
         String longSummary = longSummaryBuilder.toString();
 
-        String methodName = testInfo.getTestMethod().get().getName() + "[" + st + "]";
+        // Suffix slow-start runs so they don't clobber the default-limiter baseline files (empty when disabled, so
+        // ordinary runs are unaffected). The flag is fixed at JVM start via system property, never mutated here, so
+        // this is safe under the concurrent execution of these simulations. Only the load-spike scenarios keep a
+        // slow-start variant; other scenarios skip file generation entirely when the flag is on (see
+        // SLOW_START_SCENARIOS), but still run their no-leaked-responses assertion below.
+        boolean slowStart = ConcurrencyLimiters.slowStartEnabled();
+        String testName = testInfo.getTestMethod().get().getName();
+        if (!slowStart || SLOW_START_SCENARIOS.contains(testName)) {
+            String methodName = testName + "[" + st + "]" + (slowStart ? "_slowstart" : "");
+            writeReportFiles(longSummary, clientMeanMillis, serverCpu, methodName);
+        }
 
+        assertThat(result.responsesLeaked())
+                .describedAs("There should be no unclosed responses")
+                .isZero();
+        log.warn("after() ({} ms)", after.elapsed(TimeUnit.MILLISECONDS));
+    }
+
+    private void writeReportFiles(String longSummary, double clientMeanMillis, Duration serverCpu, String methodName)
+            throws IOException {
         Path txt = Paths.get("src/test/resources/txt/" + methodName + ".txt");
         String pngPath = "src/test/resources/" + methodName + ".png";
         String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
@@ -796,11 +820,6 @@ final class SimulationTest {
             SimulationMetricsReporter.png(pngPath, charts);
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
-
-        assertThat(result.responsesLeaked())
-                .describedAs("There should be no unclosed responses")
-                .isZero();
-        log.warn("after() ({} ms)", after.elapsed(TimeUnit.MILLISECONDS));
     }
 
     @SuppressWarnings("for-rollout:deprecation")

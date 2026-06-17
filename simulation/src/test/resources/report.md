@@ -77,11 +77,23 @@ client=9 endpoint	client_mean=PT0.6S
 client=burst endpoint	client_mean=PT1.788809696S 
 client=lowload endpoint	client_mean=PT0.20490083S  
 
+burst_then_low_load[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_slowstart.txt:	success=100.0%	client_mean=PT0.914754261S 	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
+client=burst endpoint	client_mean=PT1.076210029S 
+client=lowload endpoint	client_mean=PT0.107475425S 
+
               burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.524824885S 	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
 client=burst endpoint	client_mean=PT1.788809696S 
 client=lowload endpoint	client_mean=PT0.20490083S  
 
+    burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN]_slowstart.txt:	success=100.0%	client_mean=PT0.914754261S 	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
+client=burst endpoint	client_mean=PT1.076210029S 
+client=lowload endpoint	client_mean=PT0.107475425S 
+
                         burst_then_low_load[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.1S         	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
+client=burst endpoint	client_mean=PT0.1S         
+client=lowload endpoint	client_mean=PT0.1S         
+
+              burst_then_low_load[UNLIMITED_ROUND_ROBIN]_slowstart.txt:	success=100.0%	client_mean=PT0.1S         	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
 client=burst endpoint	client_mean=PT0.1S         
 client=lowload endpoint	client_mean=PT0.1S         
 
@@ -232,10 +244,19 @@ client=9 endpoint	client_mean=PT2.755373134S
                 one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT2.667606696S 	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
 client=0 endpoint	client_mean=PT2.667606696S 
 
+      one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_slowstart.txt:	success=100.0%	client_mean=PT1.639825596S 	server_cpu=PT2M30.45S     	client_received=1000/1000	server_resps=1003	codes={200=1000}
+client=0 endpoint	client_mean=PT1.639825596S 
+
                     one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.579726259S 	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
 client=0 endpoint	client_mean=PT1.579726259S 
 
+          one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN]_slowstart.txt:	success=100.0%	client_mean=PT1.097365192S 	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
+client=0 endpoint	client_mean=PT1.097365192S 
+
                               one_big_spike[UNLIMITED_ROUND_ROBIN].txt:	success=99.9%	client_mean=PT1.220762244S 	server_cpu=PT8M28.2S      	client_received=1000/1000	server_resps=3388	codes={200=999, 429=1}
+client=0 endpoint	client_mean=PT1.220762244S 
+
+                    one_big_spike[UNLIMITED_ROUND_ROBIN]_slowstart.txt:	success=99.9%	client_mean=PT1.220762244S 	server_cpu=PT8M28.2S      	client_received=1000/1000	server_resps=3388	codes={200=999, 429=1}
 client=0 endpoint	client_mean=PT1.220762244S 
 
 one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=66.0%	client_mean=PT2.0668656S   	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1651, 500=849}
@@ -556,14 +577,29 @@ client=9 endpoint	client_mean=PT0.000001S
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/burst_then_low_load[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td><td><image width=400 src="burst_then_low_load[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td></tr></table>
 
 
+## `burst_then_low_load[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_slowstart`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/burst_then_low_load[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_slowstart.png" /></td><td><image width=400 src="burst_then_low_load[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_slowstart.png" /></td></tr></table>
+
+
 ## `burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN]`
 <table><tr><th>develop</th><th>current</th></tr>
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td><td><image width=400 src="burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td></tr></table>
 
 
+## `burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN]_slowstart`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN]_slowstart.png" /></td><td><image width=400 src="burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN]_slowstart.png" /></td></tr></table>
+
+
 ## `burst_then_low_load[UNLIMITED_ROUND_ROBIN]`
 <table><tr><th>develop</th><th>current</th></tr>
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/burst_then_low_load[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="burst_then_low_load[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `burst_then_low_load[UNLIMITED_ROUND_ROBIN]_slowstart`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/burst_then_low_load[UNLIMITED_ROUND_ROBIN]_slowstart.png" /></td><td><image width=400 src="burst_then_low_load[UNLIMITED_ROUND_ROBIN]_slowstart.png" /></td></tr></table>
 
 
 ## `drastic_slowdown[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
@@ -626,9 +662,24 @@ client=9 endpoint	client_mean=PT0.000001S
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/live_reloading[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="live_reloading[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
 
 
+## `load_sweep`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/load_sweep.png" /></td><td><image width=400 src="load_sweep.png" /></td></tr></table>
+
+
+## `load_sweep_slowstart`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/load_sweep_slowstart.png" /></td><td><image width=400 src="load_sweep_slowstart.png" /></td></tr></table>
+
+
 ## `one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
 <table><tr><th>develop</th><th>current</th></tr>
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td><td><image width=400 src="one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td></tr></table>
+
+
+## `one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_slowstart`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_slowstart.png" /></td><td><image width=400 src="one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_slowstart.png" /></td></tr></table>
 
 
 ## `one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN]`
@@ -636,9 +687,19 @@ client=9 endpoint	client_mean=PT0.000001S
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td><td><image width=400 src="one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td></tr></table>
 
 
+## `one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN]_slowstart`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN]_slowstart.png" /></td><td><image width=400 src="one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN]_slowstart.png" /></td></tr></table>
+
+
 ## `one_big_spike[UNLIMITED_ROUND_ROBIN]`
 <table><tr><th>develop</th><th>current</th></tr>
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/one_big_spike[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="one_big_spike[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `one_big_spike[UNLIMITED_ROUND_ROBIN]_slowstart`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/one_big_spike[UNLIMITED_ROUND_ROBIN]_slowstart.png" /></td><td><image width=400 src="one_big_spike[UNLIMITED_ROUND_ROBIN]_slowstart.png" /></td></tr></table>
 
 
 ## `one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`

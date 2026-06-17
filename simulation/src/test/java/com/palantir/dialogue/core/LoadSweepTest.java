@@ -73,6 +73,29 @@ final class LoadSweepTest {
 
     @Test
     void load_sweep() throws IOException {
+        runSweep(false, "load_sweep");
+    }
+
+    /**
+     * Same sweep, but with the experimental {@link SlowStartConcurrencyLimiter} enabled. Writes to
+     * {@code load_sweep_slowstart.{png,txt}} so the default-limiter baseline is preserved for comparison.
+     */
+    @Test
+    void load_sweep_slow_start() throws IOException {
+        runSweep(true, "load_sweep_slowstart");
+    }
+
+    private static void runSweep(boolean slowStartEnabled, String outputBaseName) throws IOException {
+        boolean previousSlowStart = ConcurrencyLimiters.slowStartEnabled();
+        ConcurrencyLimiters.setSlowStartEnabled(slowStartEnabled);
+        try {
+            sweep(outputBaseName);
+        } finally {
+            ConcurrencyLimiters.setSlowStartEnabled(previousSlowStart);
+        }
+    }
+
+    private static void sweep(String outputBaseName) throws IOException {
         double[] offeredRps = toDoubles(OFFERED_RPS);
 
         Map<Strategy, double[]> p99LatencyMs = new LinkedHashMap<>();
@@ -116,18 +139,34 @@ final class LoadSweepTest {
             log.info("Swept {} across {} load levels", strategy, OFFERED_RPS.length);
         }
 
-        // Client-perceived latency spans ~3 orders of magnitude (steady-state ms to backlog-queue minutes under
-        // sustained overload), so the latency knee is only legible on a log Y axis.
-        XYChart latencyChart =
-                kneeChart("p99 client latency vs offered load", "p99 latency (ms)", offeredRps, p99LatencyMs, true);
-        XYChart goodputChart = kneeChart("goodput vs offered load", "goodput (200s/sec)", offeredRps, goodput, false);
-        XYChart successChart =
-                kneeChart("success rate vs offered load", "success (%)", offeredRps, successPercent, false);
+        String txtPath = "src/test/resources/" + outputBaseName + ".txt";
+        String pngPath = "src/test/resources/" + outputBaseName + ".png";
+        String summary = table.toString();
+        String onDisk = Files.exists(Paths.get(txtPath))
+                ? new String(Files.readAllBytes(Paths.get(txtPath)), StandardCharsets.UTF_8)
+                : "";
 
-        String pngPath = "src/test/resources/load_sweep.png";
-        SimulationMetricsReporter.png(pngPath, List.of(latencyChart, goodputChart, successChart));
-        Files.write(
-                Paths.get("src/test/resources/load_sweep.txt"), table.toString().getBytes(StandardCharsets.UTF_8));
+        if (System.getenv().containsKey("CI")) {
+            // Never regenerate files on CI: the deterministic summary is asserted against the checked-in .txt, but the
+            // rendered .png is not byte-stable across machines/JVMs (font metrics differ), so rewriting it would dirty
+            // the working tree and break publishing. Fail loudly instead so a real data change is regenerated locally.
+            assertThat(onDisk)
+                    .describedAs("Run tests locally to update checked-in file: %s", txtPath)
+                    .isEqualTo(summary);
+        } else if (!summary.equals(onDisk) || !Files.exists(Paths.get(pngPath))) {
+            // Only regenerate the (slow, non-deterministic) PNG when the deterministic summary actually changed.
+            Files.write(Paths.get(txtPath), summary.getBytes(StandardCharsets.UTF_8));
+
+            // Client-perceived latency spans ~3 orders of magnitude (steady-state ms to backlog-queue minutes under
+            // sustained overload), so the latency knee is only legible on a log Y axis.
+            XYChart latencyChart =
+                    kneeChart("p99 client latency vs offered load", "p99 latency (ms)", offeredRps, p99LatencyMs, true);
+            XYChart goodputChart =
+                    kneeChart("goodput vs offered load", "goodput (200s/sec)", offeredRps, goodput, false);
+            XYChart successChart =
+                    kneeChart("success rate vs offered load", "success (%)", offeredRps, successPercent, false);
+            SimulationMetricsReporter.png(pngPath, List.of(latencyChart, goodputChart, successChart));
+        }
 
         double[] unlimited = p99LatencyMs.get(Strategy.UNLIMITED_ROUND_ROBIN);
         assertThat(unlimited[unlimited.length - 1])

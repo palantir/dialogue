@@ -86,6 +86,11 @@ interface Config {
         return Optional.empty();
     }
 
+    @Value.Default
+    default Optional<Boolean> concurrencyLimiterSlowStart() {
+        return Optional.empty();
+    }
+
     @Value.Check
     default void check() {
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");
