@@ -34,8 +34,10 @@ import java.io.InputStream;
 import java.util.Optional;
 
 /**
- * Wraps a user-supplied {@link ConjureRuntime} to override {@link BodySerDe#errorParameterFormat()}. Since
- * {@link ConjureRuntime} is an interface, we can't mutate the caller's instance (passed via {@code withRuntime}).
+ * Wraps a user-supplied {@link ConjureRuntime} such that deserializers will throw an exception upon reading
+ * more bytes than the specified limit.
+ * <p>
+ * Since {@link ConjureRuntime} is an interface, we can't mutate the caller's instance (passed via {@code withRuntime}).
  */
 final class ResponseSizeLimitingConjureRuntime implements ConjureRuntime {
     private final ConjureRuntime delegate;

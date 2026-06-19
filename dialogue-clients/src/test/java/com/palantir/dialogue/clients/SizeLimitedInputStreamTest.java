@@ -30,6 +30,10 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
+/**
+ * Tests all the different InputStream read methods against various cases (e.g. reading fewer/more/exactly as many bytes
+ * as the configured limit, as well as when the stream has less/more/equals as many bytes as the configured limit).
+ */
 public class SizeLimitedInputStreamTest {
 
     private static final int BYTES_LIMIT = 1024;

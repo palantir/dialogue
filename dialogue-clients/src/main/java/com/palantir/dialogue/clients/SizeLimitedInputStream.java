@@ -23,7 +23,11 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * TODO
+ * Wrapper class that limits the number of bytes read from an underlying {@link InputStream}.
+ * Upon reading more bytes than the specified limit, a {@link SafeIllegalStateException} is thrown.
+ * <p>
+ * This does not account for skipped bytes, the goal being to protect against memory consumption from reading too many
+ * bytes.
  */
 final class SizeLimitedInputStream extends FilterInputStream {
 
@@ -34,6 +38,12 @@ final class SizeLimitedInputStream extends FilterInputStream {
         super(in);
         this.maxBytes = maxBytes;
     }
+
+    // We only need to override the below two methods, because all other read methods delegate to them
+    // All read methods are tested in SizeLimitedInputStreamTest to confirm this
+    // Note that this does not cover new read methods that could be added in the future which may not delegate to the
+    // below methods, but we can't protect against this as far as I know, and it's highly unlikely that this will
+    // happen
 
     @Override
     public int read() throws IOException {
