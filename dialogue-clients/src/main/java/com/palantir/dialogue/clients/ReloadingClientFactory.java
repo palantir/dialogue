@@ -115,6 +115,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Refreshable<ServicesConfigBlock> scb();
 
         @Value.Default
+        default long maxResponseSize() {
+            return -1L;
+        }
+
+        @Value.Default
         default ConjureRuntime baseRuntime() {
             return DefaultConjureRuntime.builder().build();
         }
@@ -125,10 +130,15 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         // error serialization format.
         @Value.Derived
         default ConjureRuntime runtime() {
-            return conjureErrorParameterFormat()
-                    .<ConjureRuntime>map(
-                            format -> new ErrorSerializationFormatSettingConjureRuntime(baseRuntime(), format))
-                    .orElseGet(this::baseRuntime);
+            ConjureRuntime runtime = baseRuntime();
+            if (maxResponseSize() > -1) {
+                runtime = new ResponseSizeLimitingConjureRuntime(runtime, maxResponseSize());
+            }
+            if (conjureErrorParameterFormat().isPresent()) {
+                runtime = new ErrorSerializationFormatSettingConjureRuntime(
+                        runtime, conjureErrorParameterFormat().get());
+            }
+            return runtime;
         }
 
         @Value.Default
@@ -416,6 +426,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public ReloadingFactory withDeadlineEnforcement(boolean deadlineEnforcementEnabled) {
         return new ReloadingClientFactory(params.withDeadlineEnforcement(deadlineEnforcementEnabled), cache);
+    }
+
+    @Override
+    public ReloadingFactory withMaxResponseSize(long maxResponseSize) {
+        return new ReloadingClientFactory(params.withMaxResponseSize(maxResponseSize), cache);
     }
 
     @Override

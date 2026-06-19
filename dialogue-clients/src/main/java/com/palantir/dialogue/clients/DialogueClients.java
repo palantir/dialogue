@@ -209,6 +209,12 @@ public final class DialogueClients {
          */
         ReloadingFactory withDeadlineEnforcement(boolean deadlineEnforcementEnabled);
 
+        /**
+         * Configures the maximum size of responses that will be accepted.
+         * Any response received by a server, which exceeds this size, will throw an exception.
+         */
+        ReloadingFactory withMaxResponseSize(long maxResponseSize);
+
         StickyChannelFactory getStickyChannels(String serviceName);
 
         @Beta

@@ -17,12 +17,14 @@
 package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
@@ -33,10 +35,13 @@ import com.palantir.dialogue.DialogueService;
 import com.palantir.dialogue.DialogueServiceFactory;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
+import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.ReloadingClientFactory.LiveReloadingChannel;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -144,6 +149,34 @@ class ReloadingClientFactoryTest {
 
         assertThat(service.runtime().bodySerDe().errorParameterFormat())
                 .contains(ConjureErrorParameterFormat.JSON_FORMAT);
+    }
+
+    @Test
+    void withMaxResponseSize_deserializers_respects_max_size() {
+        ChannelCache mockCache = mock(ChannelCache.class);
+        ImmutableReloadingParams params = ImmutableReloadingParams.builder()
+                .scb(Refreshable.only(ServicesConfigBlock.builder().build()))
+                .build();
+        ReloadingClientFactory factory = new ReloadingClientFactory(params, mockCache);
+
+        ReloadingFactory modifiedFactory = factory.withMaxResponseSize(128L);
+
+        RuntimeCapturingService service = modifiedFactory.get(RuntimeCapturingService.class, "foo");
+
+        assertThat(service.runtime()
+                        .bodySerDe()
+                        .deserializer(TypeMarker.of(String.class))
+                        .deserialize(TestResponse.withBody("\"test\"")
+                                .withHeader(HttpHeaders.CONTENT_TYPE, "application/json")))
+                .isEqualTo("test");
+
+        assertThatException()
+                .isThrownBy(() -> service.runtime()
+                        .bodySerDe()
+                        .deserializer(TypeMarker.of(String.class))
+                        .deserialize(TestResponse.withBody("\"" + "test".repeat(1280) + "\"")
+                                .withHeader(HttpHeaders.CONTENT_TYPE, "application/json")))
+                .isInstanceOf(SafeIllegalStateException.class);
     }
 
     @DialogueService(RuntimeCapturingService.Factory.class)
