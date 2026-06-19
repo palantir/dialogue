@@ -52,7 +52,7 @@ com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.37.0 (2 c
 
 com.palantir.conjure.java.runtime:keystores:8.37.0 (2 constraints: 671972de)
 
-com.palantir.deadlines:deadlines:0.22.0 (1 constraints: 36052d3b)
+com.palantir.deadlines:deadlines:0.23.0 (1 constraints: 3705303b)
 
 com.palantir.goethe:goethe:0.24.0 (1 constraints: 3805333b)
 
@@ -64,21 +64,21 @@ com.palantir.refreshable:refreshable:2.13.0 (2 constraints: 4f1956db)
 
 com.palantir.ri:resource-identifier:2.19.0 (2 constraints: 60152edb)
 
-com.palantir.safe-logging:logger:3.16.0 (14 constraints: 58e17d1c)
+com.palantir.safe-logging:logger:3.16.0 (14 constraints: 59e1d91d)
 
 com.palantir.safe-logging:logger-slf4j:3.16.0 (1 constraints: 350e9950)
 
 com.palantir.safe-logging:logger-spi:3.16.0 (2 constraints: 791e18b1)
 
-com.palantir.safe-logging:preconditions:3.16.0 (21 constraints: b45366f3)
+com.palantir.safe-logging:preconditions:3.16.0 (21 constraints: b55357f5)
 
-com.palantir.safe-logging:safe-logging:3.16.0 (20 constraints: 0f450e92)
+com.palantir.safe-logging:safe-logging:3.16.0 (20 constraints: 10450794)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.9.0 (1 constraints: 0b050636)
 
 com.palantir.tokens:auth-tokens:4.6.0 (3 constraints: 8e27dc2d)
 
-com.palantir.tracing:tracing:6.35.0 (3 constraints: b6245ffd)
+com.palantir.tracing:tracing:6.35.0 (3 constraints: b72493fd)
 
 com.palantir.tracing:tracing-api:6.35.0 (2 constraints: 1512f518)
 
@@ -90,13 +90,13 @@ com.palantir.tritium:tritium-core:0.131.0 (1 constraints: 6d10a6b2)
 
 com.palantir.tritium:tritium-ids:0.131.0 (1 constraints: fe0f9aa6)
 
-com.palantir.tritium:tritium-metrics:0.131.0 (3 constraints: 8a242908)
+com.palantir.tritium:tritium-metrics:0.131.0 (3 constraints: 8b245c08)
 
-com.palantir.tritium:tritium-registry:0.131.0 (6 constraints: 7a682d57)
+com.palantir.tritium:tritium-registry:0.131.0 (6 constraints: 7b688f57)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
-io.dropwizard.metrics:metrics-core:4.2.39 (6 constraints: bc6120b7)
+io.dropwizard.metrics:metrics-core:4.2.39 (6 constraints: bd61adb7)
 
 io.smallrye.common:smallrye-common-annotation:2.14.0 (1 constraints: f20d0944)
 
