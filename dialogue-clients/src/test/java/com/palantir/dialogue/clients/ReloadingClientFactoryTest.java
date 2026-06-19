@@ -51,7 +51,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ReloadingClientFactoryTest {
-    private final DefaultConjureRuntime runtime =
+    private final DefaultConjureRuntime defaultRuntime =
             DefaultConjureRuntime.builder().build();
 
     interface Foo extends Channel, EndpointChannelFactory {}
@@ -73,7 +73,7 @@ class ReloadingClientFactoryTest {
 
     @Test
     void plain_codegen_uses_the_EndpointChannelFactory_channel() {
-        SampleServiceBlocking.of((Channel) channel, runtime);
+        SampleServiceBlocking.of((Channel) channel, defaultRuntime);
 
         // ensure we use the bind method
         verify(channel, atLeastOnce()).endpoint(any());
@@ -81,7 +81,7 @@ class ReloadingClientFactoryTest {
 
     @Test
     void plain_codegen_uses_the_EndpointChannelFactory_factory() {
-        SampleServiceBlocking.of((EndpointChannelFactory) channel, runtime);
+        SampleServiceBlocking.of((EndpointChannelFactory) channel, defaultRuntime);
 
         // ensure we use the bind method
         verify(channel, atLeastOnce()).endpoint(any());
@@ -89,8 +89,9 @@ class ReloadingClientFactoryTest {
 
     @Test
     void live_reloading_wrapper_still_uses_the_EndpointChannelFactory_channel() {
-        LiveReloadingChannel live = new LiveReloadingChannel(Refreshable.create(channel), runtime.clients());
-        assertThat(SampleServiceAsync.of((Channel) live, runtime).getMyAlias()).isNotDone();
+        LiveReloadingChannel live = new LiveReloadingChannel(Refreshable.create(channel), defaultRuntime.clients());
+        assertThat(SampleServiceAsync.of((Channel) live, defaultRuntime).getMyAlias())
+                .isNotDone();
 
         // ensure we use the bind method
         verify(channel, atLeastOnce()).endpoint(any());
@@ -98,8 +99,9 @@ class ReloadingClientFactoryTest {
 
     @Test
     void live_reloading_wrapper_still_uses_the_EndpointChannelFactory_factory() {
-        LiveReloadingChannel live = new LiveReloadingChannel(Refreshable.only(channel), runtime.clients());
-        assertThat(SampleServiceAsync.of((EndpointChannelFactory) live, runtime).getMyAlias())
+        LiveReloadingChannel live = new LiveReloadingChannel(Refreshable.only(channel), defaultRuntime.clients());
+        assertThat(SampleServiceAsync.of((EndpointChannelFactory) live, defaultRuntime)
+                        .getMyAlias())
                 .isNotDone();
 
         // ensure we use the bind method
@@ -108,41 +110,29 @@ class ReloadingClientFactoryTest {
 
     @Test
     void withConjureErrorParameterSerializationFormat_wraps_runtime_with_specified_format() {
-        ChannelCache mockCache = mock(ChannelCache.class);
-        ImmutableReloadingParams params = ImmutableReloadingParams.builder()
-                .scb(Refreshable.only(ServicesConfigBlock.builder().build()))
-                .build();
-        ReloadingClientFactory factory = new ReloadingClientFactory(params, mockCache);
+        ReloadingClientFactory factory = getFactory();
 
         // Get the original runtime
-        ConjureRuntime originalRuntime = params.runtime();
+        ConjureRuntime originalRuntime = getRuntime(factory);
         assertThat(originalRuntime.bodySerDe().errorParameterFormat()).isEmpty();
 
         // Set the error parameter format to JSON
         ReloadingFactory modifiedFactory =
                 factory.withConjureErrorParameterFormat(ConjureErrorParameterFormat.JSON_FORMAT);
 
-        // Call get
-        RuntimeCapturingService service = modifiedFactory.get(RuntimeCapturingService.class, "foo");
+        ConjureRuntime modifiedRuntime = getRuntime(modifiedFactory);
 
-        assertThat(service.runtime().bodySerDe().errorParameterFormat())
+        assertThat(modifiedRuntime.bodySerDe().errorParameterFormat())
                 .contains(ConjureErrorParameterFormat.JSON_FORMAT);
 
         // Verify that the original runtime is unchanged
-        RuntimeCapturingService originalService = factory.get(RuntimeCapturingService.class, "foo");
-        assertThat(originalService.runtime().bodySerDe().errorParameterFormat()).isEmpty();
+        assertThat(getRuntime(factory).bodySerDe().errorParameterFormat()).isEmpty();
     }
 
     @Test
     void withRuntime_after_withConjureErrorParameterFormat_preserves_format() {
-        ChannelCache mockCache = mock(ChannelCache.class);
-        ImmutableReloadingParams params = ImmutableReloadingParams.builder()
-                .scb(Refreshable.only(ServicesConfigBlock.builder().build()))
-                .build();
-        ReloadingClientFactory factory = new ReloadingClientFactory(params, mockCache);
-
-        ReloadingFactory modifiedFactory = factory.withConjureErrorParameterFormat(
-                        ConjureErrorParameterFormat.JSON_FORMAT)
+        ReloadingFactory modifiedFactory = getFactory()
+                .withConjureErrorParameterFormat(ConjureErrorParameterFormat.JSON_FORMAT)
                 .withRuntime(DefaultConjureRuntime.builder().build());
 
         RuntimeCapturingService service = modifiedFactory.get(RuntimeCapturingService.class, "foo");
@@ -153,30 +143,38 @@ class ReloadingClientFactoryTest {
 
     @Test
     void withMaxResponseSize_deserializers_respects_max_size() {
+        ReloadingFactory factory = getFactory().withMaxResponseSize(128L);
+
+        ConjureRuntime runtime = getRuntime(factory);
+
+        assertThat(deserializeString(runtime, "\"test\"")).isEqualTo("test");
+
+        assertThatException()
+                .isThrownBy(() -> deserializeString(runtime, "\"" + "test".repeat(1280) + "\""))
+                .isInstanceOf(SafeIllegalStateException.class);
+    }
+
+    private static ReloadingClientFactory getFactory() {
         ChannelCache mockCache = mock(ChannelCache.class);
         ImmutableReloadingParams params = ImmutableReloadingParams.builder()
                 .scb(Refreshable.only(ServicesConfigBlock.builder().build()))
                 .build();
-        ReloadingClientFactory factory = new ReloadingClientFactory(params, mockCache);
+        return new ReloadingClientFactory(params, mockCache);
+    }
 
-        ReloadingFactory modifiedFactory = factory.withMaxResponseSize(128L);
+    private static ConjureRuntime getRuntime(ReloadingFactory factory) {
+        RuntimeCapturingService service = factory.get(RuntimeCapturingService.class, "foo");
+        return service.runtime();
+    }
 
-        RuntimeCapturingService service = modifiedFactory.get(RuntimeCapturingService.class, "foo");
+    private static String deserializeString(ConjureRuntime runtime, String body) {
+        return deserialize(runtime, body, new TypeMarker<>() {});
+    }
 
-        assertThat(service.runtime()
-                        .bodySerDe()
-                        .deserializer(TypeMarker.of(String.class))
-                        .deserialize(TestResponse.withBody("\"test\"")
-                                .withHeader(HttpHeaders.CONTENT_TYPE, "application/json")))
-                .isEqualTo("test");
-
-        assertThatException()
-                .isThrownBy(() -> service.runtime()
-                        .bodySerDe()
-                        .deserializer(TypeMarker.of(String.class))
-                        .deserialize(TestResponse.withBody("\"" + "test".repeat(1280) + "\"")
-                                .withHeader(HttpHeaders.CONTENT_TYPE, "application/json")))
-                .isInstanceOf(SafeIllegalStateException.class);
+    private static <T> T deserialize(ConjureRuntime runtime, String body, TypeMarker<T> type) {
+        return runtime.bodySerDe()
+                .deserializer(type)
+                .deserialize(TestResponse.withBody(body).withHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
     }
 
     @DialogueService(RuntimeCapturingService.Factory.class)
