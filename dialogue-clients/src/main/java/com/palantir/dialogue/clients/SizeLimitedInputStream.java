@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.clients;
 
-import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -49,7 +48,7 @@ final class SizeLimitedInputStream extends FilterInputStream {
     public int read() throws IOException {
         int read = super.read();
         if (read != -1 && bytesRead++ > maxBytes) {
-            throw new SafeIllegalStateException("Exceeded maximum allowed bytes read", SafeArg.of("limit", maxBytes));
+            throw new ResponseSizeTooLargeException(maxBytes);
         }
         return read;
     }
@@ -60,8 +59,7 @@ final class SizeLimitedInputStream extends FilterInputStream {
         if (count > 0) {
             bytesRead += count;
             if (bytesRead > maxBytes) {
-                throw new SafeIllegalStateException(
-                        "Exceeded maximum allowed bytes read", SafeArg.of("limit", maxBytes));
+                throw new ResponseSizeTooLargeException(maxBytes);
             }
         }
         return count;

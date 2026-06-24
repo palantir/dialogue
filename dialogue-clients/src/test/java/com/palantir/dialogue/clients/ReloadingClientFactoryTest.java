@@ -28,6 +28,8 @@ import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
+import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
@@ -41,7 +43,6 @@ import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.ReloadingClientFactory.LiveReloadingChannel;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -151,7 +152,28 @@ class ReloadingClientFactoryTest {
 
         assertThatException()
                 .isThrownBy(() -> deserializeString(runtime, "\"" + "test".repeat(1280) + "\""))
-                .isInstanceOf(SafeIllegalStateException.class);
+                .isInstanceOf(ResponseSizeTooLargeException.class);
+    }
+
+    @Test
+    void withMaxResponseSize_deserializers_respects_max_size_for_errors() {
+        ReloadingFactory factory = getFactory().withMaxResponseSize(128L);
+
+        ConjureRuntime runtime = getRuntime(factory);
+
+        assertThatException()
+                .isThrownBy(() -> deserializeError(runtime, "{\"errorCode\":\"errorCode\",\"errorName\":\"test\"}"))
+                .isInstanceOf(RemoteException.class)
+                .extracting(e -> ((RemoteException) e).getError())
+                .isEqualTo(SerializableError.builder()
+                        .errorCode("errorCode")
+                        .errorName("test")
+                        .build());
+
+        assertThatException()
+                .isThrownBy(() -> deserializeError(
+                        runtime, "{\"errorCode\":\"errorCode\",\"errorName\":\"" + "test".repeat(1280) + "\"}"))
+                .isInstanceOf(ResponseSizeTooLargeException.class);
     }
 
     private static ReloadingClientFactory getFactory() {
@@ -168,13 +190,17 @@ class ReloadingClientFactoryTest {
     }
 
     private static String deserializeString(ConjureRuntime runtime, String body) {
-        return deserialize(runtime, body, new TypeMarker<>() {});
+        return deserialize(runtime, 200, body, new TypeMarker<>() {});
     }
 
-    private static <T> T deserialize(ConjureRuntime runtime, String body, TypeMarker<T> type) {
-        return runtime.bodySerDe()
-                .deserializer(type)
-                .deserialize(TestResponse.withBody(body).withHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
+    private static void deserializeError(ConjureRuntime runtime, String body) {
+        deserialize(runtime, 400, body, new TypeMarker<>() {});
+    }
+
+    private static <T> T deserialize(ConjureRuntime runtime, int code, String body, TypeMarker<T> type) {
+        TestResponse response = TestResponse.withBody(body).withHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+        response.code(code);
+        return runtime.bodySerDe().deserializer(type).deserialize(response);
     }
 
     @DialogueService(RuntimeCapturingService.Factory.class)

@@ -28,6 +28,7 @@ import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -211,7 +212,11 @@ public final class DialogueClients {
 
         /**
          * Configures the maximum size of responses that will be accepted.
-         * Any response received by a server, which exceeds this size, will throw an exception.
+         * Any response received by a server exceeding this size and which dialogue attempts to deserialize will throw
+         * a {@link ResponseSizeTooLargeException}.
+         *
+         * This does not impact responses returning {@link InputStream},
+         * which are not actually deserialized by dialogue.
          */
         ReloadingFactory withMaxResponseSize(long maxResponseSize);
 

@@ -63,6 +63,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -115,8 +116,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Refreshable<ServicesConfigBlock> scb();
 
         @Value.Default
-        default long maxResponseSize() {
-            return -1L;
+        default OptionalLong maxResponseSize() {
+            return OptionalLong.empty();
         }
 
         @Value.Default
@@ -133,8 +134,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Value.Derived
         default ConjureRuntime runtime() {
             ConjureRuntime runtime = baseRuntime();
-            if (maxResponseSize() > -1) {
-                runtime = new ResponseSizeLimitingConjureRuntime(runtime, maxResponseSize());
+            if (maxResponseSize().isPresent()) {
+                runtime = new ResponseSizeLimitingConjureRuntime(
+                        runtime, maxResponseSize().getAsLong());
             }
             if (conjureErrorParameterFormat().isPresent()) {
                 runtime = new ErrorSerializationFormatSettingConjureRuntime(
@@ -432,6 +434,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public ReloadingFactory withMaxResponseSize(long maxResponseSize) {
+        Preconditions.checkArgument(maxResponseSize > 0, "maxResponseSize must be positive");
         return new ReloadingClientFactory(params.withMaxResponseSize(maxResponseSize), cache);
     }
 
