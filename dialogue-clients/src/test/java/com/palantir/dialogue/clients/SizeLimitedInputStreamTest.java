@@ -19,7 +19,6 @@ package com.palantir.dialogue.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatException;
 
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -128,7 +127,7 @@ public class SizeLimitedInputStreamTest {
             if (available.size > BYTES_LIMIT && toRead > BYTES_LIMIT) {
                 assertThatException()
                         .isThrownBy(() -> readDesired(readBytes, stream, toRead))
-                        .isInstanceOf(SafeIllegalStateException.class);
+                        .isInstanceOf(ResponseSizeTooLargeException.class);
             } else {
                 assertThat(readDesired(readBytes, stream, toRead))
                         .isEqualTo(Math.min(Math.min(toRead, BYTES_LIMIT), available.size));
