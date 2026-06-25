@@ -18,21 +18,21 @@ com.fasterxml.jackson.datatype:jackson-datatype-joda:2.21.4 (1 constraints: 7f1c
 
 com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.4 (1 constraints: 7f1c9ba4)
 
-com.github.ben-manes.caffeine:caffeine:3.2.4 (3 constraints: 06289434)
+com.github.ben-manes.caffeine:caffeine:3.2.4 (2 constraints: bc17cc4e)
 
 com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
-com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
+com.google.code.findbugs:jsr305:3.0.2 (10 constraints: 24a6381c)
 
-com.google.errorprone:error_prone_annotations:2.49.0 (19 constraints: 382f0311)
+com.google.errorprone:error_prone_annotations:2.49.0 (18 constraints: b61ecbc1)
 
-com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
+com.google.guava:failureaccess:1.0.2 (1 constraints: 150ae2b4)
 
-com.google.guava:guava:33.6.0-jre (18 constraints: f43f64c8)
+com.google.guava:guava:33.4.0-android (17 constraints: a92f061f)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
-com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
+com.google.j2objc:j2objc-annotations:3.0.0 (1 constraints: 150aeab4)
 
 com.palantir.common:streams:2.11.0 (1 constraints: 3605323b)
 
@@ -64,15 +64,15 @@ com.palantir.refreshable:refreshable:2.14.0 (2 constraints: 511995db)
 
 com.palantir.ri:resource-identifier:2.19.0 (2 constraints: 60152edb)
 
-com.palantir.safe-logging:logger:3.16.0 (14 constraints: 5ae1dd1e)
+com.palantir.safe-logging:logger:3.16.0 (13 constraints: e0d02708)
 
 com.palantir.safe-logging:logger-slf4j:3.16.0 (1 constraints: 350e9950)
 
 com.palantir.safe-logging:logger-spi:3.16.0 (2 constraints: 791e18b1)
 
-com.palantir.safe-logging:preconditions:3.16.0 (21 constraints: b653f0f6)
+com.palantir.safe-logging:preconditions:3.16.0 (20 constraints: 3c4314f0)
 
-com.palantir.safe-logging:safe-logging:3.16.0 (20 constraints: 10450794)
+com.palantir.safe-logging:safe-logging:3.16.0 (19 constraints: 9634af46)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.10.0 (1 constraints: 3305233b)
 
@@ -84,19 +84,17 @@ com.palantir.tracing:tracing-api:6.36.0 (2 constraints: 17122119)
 
 com.palantir.tritium:tritium-api:0.131.0 (2 constraints: 8b1f7cf3)
 
-com.palantir.tritium:tritium-caffeine:0.131.0 (1 constraints: 67059740)
-
 com.palantir.tritium:tritium-core:0.131.0 (1 constraints: 6d10a6b2)
 
 com.palantir.tritium:tritium-ids:0.131.0 (1 constraints: fe0f9aa6)
 
-com.palantir.tritium:tritium-metrics:0.131.0 (3 constraints: 8b245c08)
+com.palantir.tritium:tritium-metrics:0.131.0 (2 constraints: e5135b8a)
 
-com.palantir.tritium:tritium-registry:0.131.0 (6 constraints: 7b688f57)
+com.palantir.tritium:tritium-registry:0.131.0 (5 constraints: d557a021)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
-io.dropwizard.metrics:metrics-core:4.2.39 (6 constraints: bd61adb7)
+io.dropwizard.metrics:metrics-core:4.2.39 (5 constraints: 3a51ff2d)
 
 io.smallrye.common:smallrye-common-annotation:2.14.0 (1 constraints: f20d0944)
 
@@ -114,54 +112,6 @@ io.smallrye.common:smallrye-common-os:2.4.0 (1 constraints: b10e835a)
 
 io.smallrye.common:smallrye-common-ref:2.4.0 (1 constraints: b10e835a)
 
-# Run ./gradlew writeVersionsLocks to regenerate this file
-com.fasterxml.jackson.core:jackson-annotations:2.18.2 (8 constraints: 1485cdb7)
-com.fasterxml.jackson.core:jackson-core:2.18.2 (11 constraints: 8be5cc00)
-com.fasterxml.jackson.core:jackson-databind:2.18.2 (15 constraints: 8e31d7bd)
-com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.18.2 (1 constraints: 831caaa4)
-com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.18.2 (1 constraints: 831caaa4)
-com.fasterxml.jackson.datatype:jackson-datatype-guava:2.18.2 (1 constraints: 831caaa4)
-com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.18.2 (1 constraints: 831caaa4)
-com.fasterxml.jackson.datatype:jackson-datatype-joda:2.18.2 (1 constraints: 831caaa4)
-com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.2 (1 constraints: 831caaa4)
-com.github.ben-manes.caffeine:caffeine:3.2.0 (2 constraints: bb17f94d)
-com.google.auto:auto-common:1.2.1 (1 constraints: 17120ffb)
-com.google.code.findbugs:jsr305:3.0.2 (14 constraints: 49e26143)
-com.google.errorprone:error_prone_annotations:2.7.1 (17 constraints: 07102aec)
-com.google.guava:failureaccess:1.0.2 (1 constraints: 150ae2b4)
-com.google.guava:guava:33.4.0-android (17 constraints: 172fc441)
-com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
-com.google.j2objc:j2objc-annotations:3.0.0 (1 constraints: 150aeab4)
-com.palantir.common:streams:2.4.0 (1 constraints: 08050136)
-com.palantir.conjure.java:conjure-lib:8.41.0 (1 constraints: ab07a87e)
-com.palantir.conjure.java.api:errors:2.58.0 (2 constraints: 6515d2db)
-com.palantir.conjure.java.api:service-config:2.58.0 (2 constraints: 601992dd)
-com.palantir.conjure.java.api:ssl-config:2.58.0 (4 constraints: 0e3f04a3)
-com.palantir.conjure.java.runtime:client-config:8.17.0 (1 constraints: 4205683b)
-com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.17.0 (1 constraints: 861cc9a4)
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.17.0 (2 constraints: 6216970f)
-com.palantir.conjure.java.runtime:keystores:8.17.0 (2 constraints: 6319f0dd)
-com.palantir.goethe:goethe:0.14.0 (1 constraints: 37052f3b)
-com.palantir.javapoet:javapoet:0.6.0 (2 constraints: c81064d1)
-com.palantir.nylon:nylon-threads:0.4.0 (1 constraints: 0c10fa91)
-com.palantir.refreshable:refreshable:2.5.0 (2 constraints: f1188fb2)
-com.palantir.ri:resource-identifier:2.8.0 (2 constraints: fc1495b7)
-com.palantir.safe-logging:logger:3.7.0 (12 constraints: 4ec09cd5)
-com.palantir.safe-logging:logger-slf4j:3.7.0 (1 constraints: 050e6842)
-com.palantir.safe-logging:logger-spi:3.7.0 (2 constraints: 191ea27b)
-com.palantir.safe-logging:preconditions:3.7.0 (18 constraints: 03250acd)
-com.palantir.safe-logging:safe-logging:3.7.0 (17 constraints: 8f168d3a)
-com.palantir.safethreadlocalrandom:safe-thread-local-random:0.3.0 (1 constraints: 0505f435)
-com.palantir.tokens:auth-tokens:3.18.0 (3 constraints: 2628868e)
-com.palantir.tracing:tracing:6.20.0 (2 constraints: 5416db0d)
-com.palantir.tracing:tracing-api:6.20.0 (2 constraints: 0912eb17)
-com.palantir.tritium:tritium-api:0.96.0 (2 constraints: 3f1f48be)
-com.palantir.tritium:tritium-core:0.96.0 (1 constraints: 47105ea2)
-com.palantir.tritium:tritium-ids:0.96.0 (1 constraints: d20fb696)
-com.palantir.tritium:tritium-metrics:0.96.0 (1 constraints: 4105553b)
-com.palantir.tritium:tritium-registry:0.96.0 (4 constraints: 2b46fa8f)
-com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
-io.dropwizard.metrics:metrics-core:4.2.30 (4 constraints: d3425911)
 javax.annotation:javax.annotation-api:1.3.2 (1 constraints: 0805fb35)
 
 joda-time:joda-time:2.12.7 (1 constraints: 2f16b1f1)
@@ -172,10 +122,8 @@ org.apache.httpcomponents.core5:httpcore5:5.4 (3 constraints: e7292513)
 
 org.apache.httpcomponents.core5:httpcore5-h2:5.4 (1 constraints: df12c515)
 
-org.apache.httpcomponents.client5:httpclient5:5.3.1 (1 constraints: 0b050e36)
-org.apache.httpcomponents.core5:httpcore5:5.3.3 (3 constraints: a42a81aa)
-org.apache.httpcomponents.core5:httpcore5-h2:5.3.3 (1 constraints: 3f130d3c)
-org.checkerframework:checker-qual:3.43.0 (3 constraints: 2727263b)
+org.checkerframework:checker-qual:3.43.0 (1 constraints: 4c0a4abf)
+
 org.derive4j:derive4j-annotation:1.1.1 (1 constraints: 0505f435)
 
 org.eclipse.collections:eclipse-collections:13.0.0 (1 constraints: 1c1091a9)
@@ -192,7 +140,7 @@ org.jboss.threads:jboss-threads:3.9.2 (3 constraints: a8285de8)
 
 org.jetbrains:annotations:26.1.0 (4 constraints: 14352e3a)
 
-org.jspecify:jspecify:1.0.0 (18 constraints: 16142698)
+org.jspecify:jspecify:1.0.0 (16 constraints: b3f9efa4)
 
 org.mpierce.metrics.reservoir:hdrhistogram-metrics-reservoir:1.1.3 (1 constraints: 0d10f991)
 
