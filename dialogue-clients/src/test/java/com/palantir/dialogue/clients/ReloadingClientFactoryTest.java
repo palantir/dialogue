@@ -18,6 +18,7 @@ package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatException;
+import static org.assertj.core.api.Fail.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -31,12 +32,16 @@ import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.DialogueService;
 import com.palantir.dialogue.DialogueServiceFactory;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
+import com.palantir.dialogue.ExceptionDeserializerArgs;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
@@ -44,9 +49,17 @@ import com.palantir.dialogue.clients.ReloadingClientFactory.LiveReloadingChannel
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.refreshable.Refreshable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -142,27 +155,95 @@ class ReloadingClientFactoryTest {
                 .contains(ConjureErrorParameterFormat.JSON_FORMAT);
     }
 
-    @Test
-    void withMaxResponseSize_deserializers_respects_max_size() {
+    private static <T> ExceptionDeserializerArgs<T> exceptionDeserializerArgs(TypeMarker<T> type) {
+        return ExceptionDeserializerArgs.<T>builder().returnType(type).build();
+    }
+
+    enum Deserializers {
+        BASIC,
+        WITH_EXCEPTION_ARGS,
+        EMPTY,
+        EMPTY_WITH_EXCEPTION_ARGS,
+        INPUT_STREAM,
+        INPUT_STREAM_WITH_EXCEPTION_ARGS,
+        OPTIONAL_INPUT_STREAM,
+        OPTIONAL_INPUT_STREAM_WITH_EXCEPTION_ARGS;
+
+        private static <T> Deserializer<T> unwrap(Deserializer<Optional<T>> deserializer) {
+            return new Deserializer<>() {
+                @Override
+                public T deserialize(Response response) {
+                    return deserializer.deserialize(response).get();
+                }
+
+                @Override
+                public Optional<String> accepts() {
+                    return deserializer.accepts();
+                }
+            };
+        }
+
+        public Deserializer<?> deserializer(ConjureRuntime runtime) {
+            BodySerDe bodySerDe = runtime.bodySerDe();
+            return switch (this) {
+                case BASIC -> bodySerDe.deserializer(new TypeMarker<String>() {});
+                case WITH_EXCEPTION_ARGS ->
+                    bodySerDe.deserializer(exceptionDeserializerArgs(new TypeMarker<String>() {}));
+                case EMPTY -> bodySerDe.emptyBodyDeserializer();
+                case EMPTY_WITH_EXCEPTION_ARGS ->
+                    bodySerDe.emptyBodyDeserializer(exceptionDeserializerArgs(new TypeMarker<>() {}));
+                case INPUT_STREAM -> bodySerDe.inputStreamDeserializer();
+                case INPUT_STREAM_WITH_EXCEPTION_ARGS ->
+                    bodySerDe.inputStreamDeserializer(exceptionDeserializerArgs(new TypeMarker<>() {}));
+                case OPTIONAL_INPUT_STREAM -> unwrap(bodySerDe.optionalInputStreamDeserializer());
+                case OPTIONAL_INPUT_STREAM_WITH_EXCEPTION_ARGS ->
+                    unwrap(bodySerDe.optionalInputStreamDeserializer(exceptionDeserializerArgs(new TypeMarker<>() {})));
+            };
+        }
+    }
+
+    private static Stream<Deserializers> alwaysLimitingDeserializers() {
+        return Stream.of(Deserializers.BASIC, Deserializers.WITH_EXCEPTION_ARGS);
+    }
+
+    private static Stream<Deserializers> errorLimitingDeserializers() {
+        return Arrays.stream(Deserializers.values());
+    }
+
+    private static Stream<Deserializers> inputStreamDeserializers() {
+        return Stream.of(
+                Deserializers.INPUT_STREAM,
+                Deserializers.INPUT_STREAM_WITH_EXCEPTION_ARGS,
+                Deserializers.OPTIONAL_INPUT_STREAM,
+                Deserializers.OPTIONAL_INPUT_STREAM_WITH_EXCEPTION_ARGS);
+    }
+
+    @ParameterizedTest
+    @MethodSource("alwaysLimitingDeserializers")
+    void withMaxResponseSize_deserializers_respects_max_size(Deserializers arg) {
         ReloadingFactory factory = getFactory().withMaxResponseSize(128L);
 
         ConjureRuntime runtime = getRuntime(factory);
 
-        assertThat(deserializeString(runtime, "\"test\"")).isEqualTo("test");
+        Deserializer<String> deserializer = (Deserializer<String>) arg.deserializer(runtime);
+        assertThat(deserialize(deserializer, "\"test\"")).isEqualTo("test");
 
         assertThatException()
-                .isThrownBy(() -> deserializeString(runtime, "\"" + "test".repeat(1280) + "\""))
+                .isThrownBy(() -> deserialize(deserializer, "\"" + "test".repeat(1280) + "\""))
                 .isInstanceOf(ResponseSizeTooLargeException.class);
     }
 
-    @Test
-    void withMaxResponseSize_deserializers_respects_max_size_for_errors() {
+    @ParameterizedTest
+    @MethodSource("errorLimitingDeserializers")
+    void withMaxResponseSize_deserializers_respects_max_size_for_errors(Deserializers arg) {
         ReloadingFactory factory = getFactory().withMaxResponseSize(128L);
 
         ConjureRuntime runtime = getRuntime(factory);
 
+        Deserializer<?> deserializer = arg.deserializer(runtime);
         assertThatException()
-                .isThrownBy(() -> deserializeError(runtime, "{\"errorCode\":\"errorCode\",\"errorName\":\"test\"}"))
+                .isThrownBy(
+                        () -> deserializeError(deserializer, "{\"errorCode\":\"errorCode\",\"errorName\":\"test\"}"))
                 .isInstanceOf(RemoteException.class)
                 .extracting(e -> ((RemoteException) e).getError())
                 .isEqualTo(SerializableError.builder()
@@ -172,8 +253,29 @@ class ReloadingClientFactoryTest {
 
         assertThatException()
                 .isThrownBy(() -> deserializeError(
-                        runtime, "{\"errorCode\":\"errorCode\",\"errorName\":\"" + "test".repeat(1280) + "\"}"))
+                        deserializer, "{\"errorCode\":\"errorCode\",\"errorName\":\"" + "test".repeat(1280) + "\"}"))
                 .isInstanceOf(ResponseSizeTooLargeException.class);
+    }
+
+    @ParameterizedTest
+    @MethodSource("inputStreamDeserializers")
+    void withMaxResponseSize_deserializers_ignores_max_size_for_input_streams(Deserializers arg) throws IOException {
+        ReloadingFactory factory = getFactory().withMaxResponseSize(128L);
+
+        ConjureRuntime runtime = getRuntime(factory);
+
+        Deserializer<InputStream> deserializer = (Deserializer<InputStream>) arg.deserializer(runtime);
+        String shortString = "test";
+        try (InputStream deserialized = deserialize(deserializer, "application/octet-stream", 200, shortString)) {
+            assertThat(new String(deserialized.readAllBytes(), StandardCharsets.UTF_8))
+                    .isEqualTo(shortString);
+        }
+
+        String longString = "test".repeat(1280);
+        try (InputStream deserialized = deserialize(deserializer, "application/octet-stream", 200, longString)) {
+            assertThat(new String(deserialized.readAllBytes(), StandardCharsets.UTF_8))
+                    .isEqualTo(longString);
+        }
     }
 
     private static ReloadingClientFactory getFactory() {
@@ -189,18 +291,19 @@ class ReloadingClientFactoryTest {
         return service.runtime();
     }
 
-    private static String deserializeString(ConjureRuntime runtime, String body) {
-        return deserialize(runtime, 200, body, new TypeMarker<>() {});
+    private static void deserializeError(Deserializer<?> deserializer, String body) {
+        deserialize(deserializer, "application/json", 400, body);
+        fail("Should have thrown an exception upon deserializing");
     }
 
-    private static void deserializeError(ConjureRuntime runtime, String body) {
-        deserialize(runtime, 400, body, new TypeMarker<>() {});
+    private static <T> T deserialize(Deserializer<T> deserializer, String body) {
+        return deserialize(deserializer, "application/json", 200, body);
     }
 
-    private static <T> T deserialize(ConjureRuntime runtime, int code, String body, TypeMarker<T> type) {
-        TestResponse response = TestResponse.withBody(body).withHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+    private static <T> T deserialize(Deserializer<T> deserializer, String contentType, int code, String body) {
+        TestResponse response = TestResponse.withBody(body).withHeader(HttpHeaders.CONTENT_TYPE, contentType);
         response.code(code);
-        return runtime.bodySerDe().deserializer(type).deserialize(response);
+        return deserializer.deserialize(response);
     }
 
     @DialogueService(RuntimeCapturingService.Factory.class)

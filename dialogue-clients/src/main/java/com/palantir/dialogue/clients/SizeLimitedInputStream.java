@@ -31,6 +31,7 @@ import java.io.InputStream;
 final class SizeLimitedInputStream extends FilterInputStream {
 
     private final long maxBytes;
+
     private long bytesRead = 0;
 
     SizeLimitedInputStream(InputStream in, long maxBytes) {

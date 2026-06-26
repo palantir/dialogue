@@ -18,6 +18,7 @@ package com.palantir.dialogue.clients;
 
 import com.google.common.collect.ListMultimap;
 import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
+import com.palantir.conjure.java.dialogue.serde.ErrorDecoder;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Clients;
@@ -84,49 +85,56 @@ final class ResponseSizeLimitingConjureRuntime implements ConjureRuntime {
 
         @Override
         public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
-            return new ResponseSizeLimitingDeserializer<>(delegate.deserializer(type), maxResponseSize);
+            return ResponseSizeLimitingDeserializer.alwaysLimit(delegate.deserializer(type), maxResponseSize);
         }
 
         @Override
         public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
-            return new ResponseSizeLimitingDeserializer<>(
+            return ResponseSizeLimitingDeserializer.alwaysLimit(
                     delegate.deserializer(exceptionDeserializerArgs), maxResponseSize);
         }
 
         @Override
         public Deserializer<Void> emptyBodyDeserializer() {
-            return new ResponseSizeLimitingDeserializer<>(delegate.emptyBodyDeserializer(), maxResponseSize);
+            // Even if we expect no response, we could get an error, so this needs to be wrapped as well
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(delegate.emptyBodyDeserializer(), maxResponseSize);
         }
 
         @Override
         public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
-            return new ResponseSizeLimitingDeserializer<>(
+            // Even if we expect no response, we could get an error, so this needs to be wrapped as well
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(
                     delegate.emptyBodyDeserializer(exceptionDeserializerArgs), maxResponseSize);
         }
 
-        // Note: we don't apply the limit to input stream deserializers, since they are not directly deserialized
+        // Note: we don't apply the limit when returning input streams, since they are not directly deserialized
         // and could be trivially limited by the callers if desired
+        // However, we do apply the limit when the response is actually an error, since that is deserialized
 
         @Override
         public Deserializer<InputStream> inputStreamDeserializer() {
-            return delegate.inputStreamDeserializer();
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(
+                    delegate.inputStreamDeserializer(), maxResponseSize);
         }
 
         @Override
         public Deserializer<InputStream> inputStreamDeserializer(
                 ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
-            return delegate.inputStreamDeserializer(exceptionDeserializerArgs);
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(
+                    delegate.inputStreamDeserializer(exceptionDeserializerArgs), maxResponseSize);
         }
 
         @Override
         public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer() {
-            return delegate.optionalInputStreamDeserializer();
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(
+                    delegate.optionalInputStreamDeserializer(), maxResponseSize);
         }
 
         @Override
         public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
                 ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
-            return delegate.optionalInputStreamDeserializer(exceptionDeserializerArgs);
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(
+                    delegate.optionalInputStreamDeserializer(exceptionDeserializerArgs), maxResponseSize);
         }
 
         @Override
@@ -138,15 +146,30 @@ final class ResponseSizeLimitingConjureRuntime implements ConjureRuntime {
     private static final class ResponseSizeLimitingDeserializer<T> implements Deserializer<T> {
         private final Deserializer<T> delegate;
         private final long maxResponseSize;
+        private final boolean onlyLimitErrors;
 
-        ResponseSizeLimitingDeserializer(Deserializer<T> delegate, long maxResponseSize) {
+        private ResponseSizeLimitingDeserializer(
+                Deserializer<T> delegate, long maxResponseSize, boolean onlyLimitErrors) {
             this.delegate = delegate;
             this.maxResponseSize = maxResponseSize;
+            this.onlyLimitErrors = onlyLimitErrors;
+        }
+
+        static <T> ResponseSizeLimitingDeserializer<T> alwaysLimit(Deserializer<T> delegate, long limit) {
+            return new ResponseSizeLimitingDeserializer<>(delegate, limit, false);
+        }
+
+        static <T> ResponseSizeLimitingDeserializer<T> onlyLimitErrors(Deserializer<T> delegate, long limit) {
+            return new ResponseSizeLimitingDeserializer<>(delegate, limit, true);
         }
 
         @Override
         public T deserialize(Response response) {
-            return delegate.deserialize(new ResponseSizeLimitingResponse(response, maxResponseSize));
+            if (onlyLimitErrors && !ErrorDecoder.INSTANCE.isError(response)) {
+                return delegate.deserialize(response);
+            } else {
+                return delegate.deserialize(new ResponseSizeLimitingResponse(response, maxResponseSize));
+            }
         }
 
         @Override
