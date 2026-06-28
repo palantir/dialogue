@@ -298,7 +298,7 @@ public final class Request {
                         Multimaps.newListMultimap(new TreeMap<>(String.CASE_INSENSITIVE_ORDER), MAP_VALUE_FACTORY);
                 if (!headerParams.isEmpty()) {
                     // Outperforms mutable.putAll(headerParams)
-                    headerParams.forEach(mutable::put);
+                    headerParams.entries().forEach(e -> mutable.put(e.getKey(), e.getValue()));
                 }
                 headerParams = mutable;
             }

@@ -169,25 +169,6 @@ Metrics for deadlines.
     - `sub-100s`: Original deadline budget was less than 100 seconds.
     - `above-100s`: Original deadline budget was 100 seconds or more.
 
-## Tritium Caffeine
-
-`com.palantir.tritium:tritium-caffeine`
-
-### cache
-Cache statistic metrics
-- `cache.request` (meter): Count of cache requests
-  - `cache`
-  - `result` values (`hit`,`miss`)
-- `cache.load` (timer): Count of successful cache loads
-  - `cache`
-  - `result` values (`success`,`failure`)
-- `cache.eviction` tagged `cache`, `cause` (meter): Count of evicted entries
-- `cache.eviction.weight` tagged `cache`, `cause` (meter): Count of evicted weights
-- `cache.estimated.size` tagged `cache` (gauge): Approximate number of entries in this cache
-- `cache.weighted.size` tagged `cache` (gauge): Approximate accumulated weight of entries in this cache
-- `cache.maximum.size` tagged `cache` (gauge): Maximum number of cache entries cache can hold if limited
-- `cache.stats.disabled` tagged `cache` (meter): Meter marked when `CaffeineCacheStats.registerCache` is called on a cache that does not record stats using `caffeineBuilder.recordStats()`.
-
 ## Tritium Metrics
 
 `com.palantir.tritium:tritium-metrics`

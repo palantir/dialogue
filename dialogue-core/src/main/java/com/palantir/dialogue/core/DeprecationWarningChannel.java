@@ -17,9 +17,9 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.base.Suppliers;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -47,8 +47,10 @@ import org.immutables.value.Value;
 final class DeprecationWarningChannel implements EndpointChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(DeprecationWarningChannel.class);
     // Static cache avoids poor interactions with the jaxrs shim and consumers which recreate clients too aggressively.
+    @SuppressWarnings("checkstyle:IllegalType")
     private static final Cache<LoggingRateLimiterKey, Object> loggingRateLimiter =
-            Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
+            CacheBuilder.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
+
     private static final Object SENTINEL = new Object();
 
     private final EndpointChannel delegate;
@@ -76,7 +78,7 @@ final class DeprecationWarningChannel implements EndpointChannel {
 
     private FutureCallback<Response> createCallback(String channelName, Endpoint endpoint) {
         // lazily create meter metric name only if deprecated endpoint is accessed
-        Supplier<Meter> meterSupplier = Suppliers.memoize(() -> metrics.deprecations(endpoint.serviceName()));
+        Supplier<Meter> meterSupplier = Suppliers.memoize(() -> metrics.deprecations(endpoint.serviceName()))::get;
         return DialogueFutures.onSuccess(response -> {
             if (response == null) {
                 return;

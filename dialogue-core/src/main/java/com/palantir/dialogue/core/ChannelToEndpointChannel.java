@@ -16,8 +16,9 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -27,14 +28,20 @@ import java.util.function.Function;
 
 final class ChannelToEndpointChannel implements Channel {
 
+    @SuppressWarnings("checkstyle:IllegalType")
     private final LoadingCache<Endpoint, Channel> cache;
 
     ChannelToEndpointChannel(Function<Endpoint, Channel> loader) {
-        this.cache = Caffeine.newBuilder().weakKeys().maximumSize(10_000).build(loader::apply);
+        this.cache = CacheBuilder.newBuilder().weakKeys().maximumSize(10_000).build(new CacheLoader<>() {
+            @Override
+            public Channel load(Endpoint key) {
+                return loader.apply(key);
+            }
+        });
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return cache.get(endpoint).execute(endpoint, request);
+        return cache.getUnchecked(endpoint).execute(endpoint, request);
     }
 }

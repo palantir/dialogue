@@ -166,7 +166,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                 .setPath(getPath(target));
 
         // Fill headers
-        request.headerParams().forEach(builder::addHeader);
+        request.headerParams().entries().forEach(e -> builder.addHeader(e.getKey(), e.getValue()));
 
         if (request.body().isPresent()) {
             Preconditions.checkArgument(

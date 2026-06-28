@@ -70,7 +70,7 @@ final class LazilyInitializedEncoding implements Encoding {
         private final Supplier<Serializer<T>> delegate;
 
         LazilyInitializedSerializer(Supplier<Serializer<T>> delegate) {
-            this.delegate = Suppliers.memoize(delegate::get);
+            this.delegate = Suppliers.memoize(delegate::get)::get;
         }
 
         @Override
@@ -89,7 +89,7 @@ final class LazilyInitializedEncoding implements Encoding {
         private final Supplier<Deserializer<T>> delegate;
 
         LazilyInitializedDeserializer(Supplier<Deserializer<T>> delegate) {
-            this.delegate = Suppliers.memoize(delegate::get);
+            this.delegate = Suppliers.memoize(delegate::get)::get;
         }
 
         @Override

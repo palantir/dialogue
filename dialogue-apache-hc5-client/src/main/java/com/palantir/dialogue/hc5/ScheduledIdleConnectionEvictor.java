@@ -51,7 +51,7 @@ final class ScheduledIdleConnectionEvictor {
                                     .setDaemon(true)
                                     .build(),
                             EXECUTOR_NAME)),
-                    EXECUTOR_NAME));
+                    EXECUTOR_NAME))::get;
 
     static ScheduledFuture<?> schedule(ConnPoolControl<?> connectionManager, Duration delayBetweenChecks) {
         return schedule(connectionManager, delayBetweenChecks, sharedScheduler.get());

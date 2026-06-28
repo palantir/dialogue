@@ -310,7 +310,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
             @Override
             public StickyChannelSession session() {
-                Supplier<Channel> channelSupplier = Suppliers.memoize(this::getStickyChannel);
+                Supplier<Channel> channelSupplier = Suppliers.memoize(this::getStickyChannel)::get;
                 return new StickyChannelSession() {
                     @Override
                     public Channel getStickyChannel() {
@@ -604,7 +604,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         private final Supplier<Refreshable<U>> delegate;
 
         LazilyMappedRefreshable(Refreshable<T> refreshable, Function<? super T, U> function) {
-            delegate = Suppliers.memoize(() -> refreshable.map(function));
+            delegate = Suppliers.memoize(() -> refreshable.map(function))::get;
         }
 
         @Override

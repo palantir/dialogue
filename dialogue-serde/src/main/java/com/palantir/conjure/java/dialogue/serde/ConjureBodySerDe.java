@@ -16,10 +16,11 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.CaffeineSpec;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Suppliers;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheBuilderSpec;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -63,7 +64,11 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
     private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
     private final Deserializer<Void> emptyBodyDeserializer;
+
+    @SuppressWarnings("checkstyle:IllegalType")
     private final LoadingCache<Type, Serializer<?>> serializers;
+
+    @SuppressWarnings("checkstyle:IllegalType")
     private final LoadingCache<Type, Deserializer<?>> deserializers;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
 
@@ -75,7 +80,7 @@ final class ConjureBodySerDe implements BodySerDe {
     ConjureBodySerDe(
             List<WeightedEncoding> rawEncodings,
             EmptyContainerDeserializer emptyContainerDeserializer,
-            CaffeineSpec cacheSpec) {
+            CacheBuilderSpec cacheSpec) {
         List<WeightedEncoding> encodings = decorateEncodings(rawEncodings);
         this.encodingsSortedByWeight = sortByWeight(encodings);
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
@@ -93,6 +98,21 @@ final class ConjureBodySerDe implements BodySerDe {
         this.emptyBodyDeserializer = new EmptyBodyDeserializer(ExceptionDeserializingErrorDecoder.withoutExceptions());
         // Class unloading: Not supported, Jackson keeps strong references to the types
         // it sees: https://github.com/FasterXML/jackson-databind/issues/489
+        this.serializers = CacheBuilder.from(cacheSpec).build(new CacheLoader<>() {
+            @Override
+            public Serializer<?> load(Type type) {
+                return new EncodingSerializerRegistry<>(defaultEncoding, TypeMarker.of(type));
+            }
+        });
+        this.deserializers = CacheBuilder.from(cacheSpec).build(new CacheLoader<>() {
+            @Override
+            public Deserializer<?> load(Type type) {
+                return new EncodingDeserializerRegistry<>(
+                        encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, TypeMarker.of(type));
+            }
+        });
+
+        // TODO(jellis): fix
         this.serializers = Caffeine.from(cacheSpec)
                 .build(type -> new EncodingSerializerRegistry<>(defaultEncoding, TypeMarker.of(type)));
         this.deserializers = Caffeine.from(cacheSpec)
@@ -153,13 +173,13 @@ final class ConjureBodySerDe implements BodySerDe {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Serializer<T> serializer(TypeMarker<T> token) {
-        return (Serializer<T>) serializers.get(token.getType());
+        return (Serializer<T>) serializers.getUnchecked(token.getType());
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(TypeMarker<T> token) {
-        return (Deserializer<T>) deserializers.get(token.getType());
+        return (Deserializer<T>) deserializers.getUnchecked(token.getType());
     }
 
     @Override
@@ -310,7 +330,7 @@ final class ConjureBodySerDe implements BodySerDe {
                     .collect(ImmutableList.toImmutableList());
             this.errorDecoder = errorDecoder;
             this.token = token;
-            this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(token));
+            this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(token))::get;
             // Encodings are applied to the accept header in the order of preference based on the provided list.
             this.acceptValue =
                     Optional.of(encodings.stream().map(Encoding::getContentType).collect(Collectors.joining(", ")));

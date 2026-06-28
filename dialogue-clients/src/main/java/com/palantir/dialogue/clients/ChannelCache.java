@@ -16,9 +16,10 @@
 
 package com.palantir.dialogue.clients;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.DialogueChannel;
@@ -69,11 +70,18 @@ final class ChannelCache {
      */
     private final Map<String, ApacheCacheEntry> apacheCache = new ConcurrentHashMap<>();
 
-    private final LoadingCache<ChannelCacheKey, DialogueChannel> channelCache = Caffeine.newBuilder()
+    @SuppressWarnings("checkstyle:IllegalType")
+    private final LoadingCache<ChannelCacheKey, DialogueChannel> channelCache = CacheBuilder.newBuilder()
             .maximumSize(MAX_CACHED_CHANNELS)
             // Avoid holding onto old targets, which is now more common as we bind to resolved IP addresses
             .weakValues()
-            .build(this::createNonLiveReloadingChannel);
+            .build(new CacheLoader<>() {
+                @Override
+                public DialogueChannel load(ChannelCacheKey key) {
+                    return createNonLiveReloadingChannel(key);
+                }
+            });
+
     private final int instanceNumber;
 
     private ChannelCache() {
@@ -118,7 +126,7 @@ final class ChannelCache {
             @Safe String channelName,
             Optional<OverrideHostIndex> overrideHostIndex) {
         if (log.isWarnEnabled()) {
-            long estimatedSize = channelCache.estimatedSize();
+            long estimatedSize = channelCache.size();
             if (estimatedSize >= MAX_CACHED_CHANNELS * 0.75) {
                 log.warn(
                         "channelCache nearing capacity - possible bug? {} {} {}",
@@ -128,7 +136,7 @@ final class ChannelCache {
             }
         }
 
-        return channelCache.get(ImmutableChannelCacheKey.builder()
+        return channelCache.getUnchecked(ImmutableChannelCacheKey.builder()
                 .from(reloadingParams)
                 .blockingExecutor(reloadingParams.blockingExecutor())
                 .serviceConf(serviceConf)
@@ -251,7 +259,7 @@ final class ChannelCache {
                 + ", apacheCache.size=" + apacheCache.size()
                 // Channel names are safe-loggable
                 + ", apacheCache=" + apacheCache.keySet()
-                + ", channelCache.size=" + channelCache.estimatedSize() + "/" + MAX_CACHED_CHANNELS
+                + ", channelCache.size=" + channelCache.size() + "/" + MAX_CACHED_CHANNELS
                 + ", channelCache="
                 // Channel names are safe-loggable
                 + channelCache.asMap().keySet().stream()

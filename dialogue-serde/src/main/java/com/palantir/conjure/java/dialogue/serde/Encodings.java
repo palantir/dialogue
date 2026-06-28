@@ -33,7 +33,7 @@ public final class Encodings {
     private Encodings() {}
 
     private static final Supplier<ObjectMapper> JSON_MAPPER =
-            Suppliers.memoize(() -> configure(ObjectMappers.newClientObjectMapper()));
+            Suppliers.memoize(() -> configure(ObjectMappers.newClientObjectMapper()))::get;
 
     private abstract static class AbstractJacksonEncoding implements Encoding {
 

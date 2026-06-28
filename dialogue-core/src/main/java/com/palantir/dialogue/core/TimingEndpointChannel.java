@@ -17,8 +17,8 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Timer;
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.base.Suppliers;
+import com.google.common.base.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.RateLimiter;
@@ -60,13 +60,13 @@ final class TimingEndpointChannel implements EndpointChannel {
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
                 .status("success")
-                .build());
+                .build())::get;
         this.failureTimer = Suppliers.memoize(() -> metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
                 .status("failure")
-                .build());
+                .build())::get;
     }
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {

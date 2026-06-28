@@ -53,7 +53,7 @@ public final class BlockingChannelAdapter {
                             .setNameFormat("dialogue-blocking-channel-%d")
                             .setDaemon(true)
                             .build(),
-                    "dialogue-blocking-channel"))));
+                    "dialogue-blocking-channel"))))::get;
 
     public static Channel of(BlockingChannel blockingChannel) {
         return of(blockingChannel, blockingExecutor.get());

@@ -16,9 +16,9 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
+import com.google.common.base.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
@@ -80,7 +80,7 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
 
         private Sticky(ImmutableList<? extends EndpointChannelFactory> channels, BalancedScoreTracker tracker) {
             this.channels = channels;
-            this.getSingleBestChannel = Suppliers.memoize(tracker::getSingleBestChannelByScore);
+            this.getSingleBestChannel = Suppliers.memoize(tracker::getSingleBestChannelByScore)::get;
         }
 
         @Override

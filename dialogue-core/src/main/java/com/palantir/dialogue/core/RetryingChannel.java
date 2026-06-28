@@ -84,7 +84,7 @@ final class RetryingChannel implements EndpointChannel {
                             .setNameFormat(SCHEDULER_NAME + "-%d")
                             .setDaemon(true)
                             .build(),
-                    SCHEDULER_NAME)));
+                    SCHEDULER_NAME)))::get;
 
     @SuppressWarnings("UnnecessaryLambda") // no allocations
     private static final BiFunction<Endpoint, Response, Throwable> qosThrowable = (_endpoint, response) ->
@@ -183,12 +183,12 @@ final class RetryingChannel implements EndpointChannel {
                 .requestRetry()
                 .channelName(channelName)
                 .reason("serverError")
-                .build());
+                .build())::get;
         this.retryDueToQosResponse = Suppliers.memoize(() -> dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
                 .reason("qosResponse")
-                .build());
+                .build())::get;
         this.retryDueToThrowable = throwable -> dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
