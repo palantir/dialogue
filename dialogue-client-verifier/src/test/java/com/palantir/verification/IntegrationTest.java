@@ -70,6 +70,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class IntegrationTest {
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("BinaryReturnTypeTest", "0.0.0"));
@@ -180,7 +181,7 @@ public class IntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"false", "true"})
+    @ValueSource(booleans = {true, false})
     public void input_stream_response_sizes_are_not_limited(boolean gzippedResponse) throws IOException {
         String content = "a".repeat(MAX_RESPONSE_SIZE * 2);
 
@@ -197,7 +198,7 @@ public class IntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"false", "true"})
+    @ValueSource(booleans = {true, false})
     public void optional_input_stream_response_sizes_are_not_limited(boolean gzippedResponse) throws IOException {
         String content = "a".repeat(MAX_RESPONSE_SIZE * 2);
 
