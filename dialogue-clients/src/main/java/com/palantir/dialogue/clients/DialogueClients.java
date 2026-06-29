@@ -211,7 +211,9 @@ public final class DialogueClients {
         ReloadingFactory withDeadlineEnforcement(boolean deadlineEnforcementEnabled);
 
         /**
-         * Configures the maximum size of responses that will be accepted.
+         * Configures the maximum size of response bodies (i.e. headers and other parts of the response are not limited)
+         * that will be accepted.
+         *
          * Any response received by a server exceeding this size and which dialogue attempts to deserialize will throw
          * a {@link ResponseSizeTooLargeException}.
          *
