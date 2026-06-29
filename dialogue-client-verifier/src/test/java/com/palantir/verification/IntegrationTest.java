@@ -46,6 +46,7 @@ import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.util.Headers;
+import io.undertow.util.HttpString;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -150,7 +151,7 @@ public class IntegrationTest {
 
     @ParameterizedTest
     @CsvSource({"false, false", "false, true", "true,  false", "true,  true"})
-    public void limiting_response_size(boolean belowLimit, boolean gzippedResponse) throws IOException {
+    public void limiting_response_size(boolean belowLimit, boolean gzippedResponse) {
         // We surround the content with quotes, so the response size is 2 more than the content
         String content = "a".repeat(belowLimit ? MAX_RESPONSE_SIZE - 2 : MAX_RESPONSE_SIZE - 1);
 
@@ -178,6 +179,24 @@ public class IntegrationTest {
                     .isThrownBy(() -> blockingMaxResponseSize.getMyAlias())
                     .isInstanceOf(ResponseSizeTooLargeException.class);
         }
+    }
+
+    @Test
+    public void response_size_limit_does_not_include_headers() {
+        // We surround the content with quotes, so the response size is 2 more than the content
+        String content = "a".repeat(MAX_RESPONSE_SIZE - 2);
+
+        String jsonContent = "\"" + content + "\"";
+
+        undertowHandler = Response.builder()
+                .putHeaders(Headers.USER_AGENT, "fake".repeat(1280))
+                .contents(jsonContent)
+                .buildHandler();
+
+        AliasOfOptional response = blockingMaxResponseSize.getMyAlias();
+
+        assertThat(response.get()).isPresent();
+        assertThat(response.get()).hasValue(content);
     }
 
     @ParameterizedTest
@@ -216,7 +235,7 @@ public class IntegrationTest {
 
     @ParameterizedTest
     @CsvSource({"false, false", "false, true", "true,  false", "true,  true"})
-    public void limiting_response_size_for_errors(boolean belowLimit, boolean gzippedResponse) throws IOException {
+    public void limiting_response_size_for_errors(boolean belowLimit, boolean gzippedResponse) {
         String content = "{\"errorCode\":\"errorCode\",\"errorName\":\"" + "test".repeat(belowLimit ? 1 : 128) + "\"}";
 
         undertowHandler = Response.builder()
@@ -389,9 +408,13 @@ public class IntegrationTest {
             }
         }
 
+        Map<HttpString, String> headers();
+
         @Value.Derived
         default HttpHandler handler() {
             return exchange -> {
+                headers().forEach(exchange.getResponseHeaders()::put);
+
                 exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, contentType());
                 exchange.setStatusCode(code());
 
