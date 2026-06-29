@@ -64,6 +64,10 @@ services:
           body: SampleObject
         returns: SampleObject
 
+      getBinary:
+        http: GET /getBinary
+        returns: binary
+
       getOptionalBinary:
         http: GET /getOptionalBinary
         returns: optional<binary>
