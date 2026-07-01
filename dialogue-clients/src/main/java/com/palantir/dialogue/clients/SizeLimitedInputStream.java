@@ -16,14 +16,13 @@
 
 package com.palantir.dialogue.clients;
 
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
 /**
  * Wrapper class that limits the number of bytes read from an underlying {@link InputStream}.
- * Upon reading more bytes than the specified limit, a {@link SafeIllegalStateException} is thrown.
+ * Upon reading more bytes than the specified limit, a {@link ResponseSizeTooLargeException} is thrown.
  * <p>
  * This does not account for skipped bytes, the goal being to protect against memory consumption from reading too many
  * bytes.

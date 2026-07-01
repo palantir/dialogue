@@ -174,7 +174,7 @@ final class ResponseSizeLimitingConjureRuntime implements ConjureRuntime {
 
         @Override
         public Optional<String> accepts() {
-            return Optional.empty();
+            return delegate.accepts();
         }
     }
 
