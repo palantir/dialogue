@@ -17,6 +17,7 @@
 package com.palantir.verification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.base.Stopwatch;
@@ -30,8 +31,11 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
+import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
+import com.palantir.dialogue.clients.ResponseSizeTooLargeException;
 import com.palantir.dialogue.example.AliasOfAliasOfOptional;
 import com.palantir.dialogue.example.AliasOfOptional;
 import com.palantir.dialogue.example.SampleServiceAsync;
@@ -42,24 +46,32 @@ import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.util.Headers;
+import io.undertow.util.HttpString;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.zip.GZIPOutputStream;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
+import org.immutables.value.Value;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class IntegrationTest {
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("BinaryReturnTypeTest", "0.0.0"));
@@ -68,9 +80,12 @@ public class IntegrationTest {
             Paths.get("../dialogue-core/src/test/resources/keyStore.jks"),
             "keystore");
 
+    private static final int MAX_RESPONSE_SIZE = 128;
+
     private Undertow undertow;
     private HttpHandler undertowHandler;
     private SampleServiceBlocking blocking;
+    private SampleServiceBlocking blockingMaxResponseSize;
     private SampleServiceAsync async;
 
     @BeforeEach
@@ -92,6 +107,9 @@ public class IntegrationTest {
 
         blocking = factory.getNonReloading(SampleServiceBlocking.class, config);
         async = factory.getNonReloading(SampleServiceAsync.class, config);
+
+        blockingMaxResponseSize =
+                factory.withMaxResponseSize(MAX_RESPONSE_SIZE).getNonReloading(SampleServiceBlocking.class, config);
     }
 
     @Test
@@ -129,6 +147,128 @@ public class IntegrationTest {
 
         assertThat(maybeBinary).isPresent();
         assertThat(maybeBinary.get()).hasSameContentAs(asInputStream("Hello, world"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, false", "false, true", "true,  false", "true,  true"})
+    public void limiting_response_size(boolean belowLimit, boolean gzippedResponse) {
+        // We surround the content with quotes, so the response size is 2 more than the content
+        String content = "a".repeat(belowLimit ? MAX_RESPONSE_SIZE - 2 : MAX_RESPONSE_SIZE - 1);
+
+        String jsonContent = "\"" + content + "\"";
+
+        Response wireResponse = Response.builder()
+                .gzipped(gzippedResponse)
+                .contents(jsonContent)
+                .build();
+
+        if (gzippedResponse) {
+            // Even if the gzipped response itself is below the limit, we are measuring the response size after
+            // decompression, since the goal is to protect against memory consumption upon deserialization
+            assertThat(wireResponse.wireContents().length).isLessThan(MAX_RESPONSE_SIZE);
+        }
+        undertowHandler = wireResponse.handler();
+
+        if (belowLimit) {
+            AliasOfOptional response = blockingMaxResponseSize.getMyAlias();
+
+            assertThat(response.get()).isPresent();
+            assertThat(response.get()).hasValue(content);
+        } else {
+            assertThatException()
+                    .isThrownBy(() -> blockingMaxResponseSize.getMyAlias())
+                    .isInstanceOf(ResponseSizeTooLargeException.class);
+        }
+    }
+
+    @Test
+    public void response_size_limit_does_not_include_headers() {
+        // We surround the content with quotes, so the response size is 2 more than the content
+        String content = "a".repeat(MAX_RESPONSE_SIZE - 2);
+
+        String jsonContent = "\"" + content + "\"";
+
+        undertowHandler = Response.builder()
+                .putHeaders(Headers.USER_AGENT, "fake".repeat(1280))
+                .contents(jsonContent)
+                .buildHandler();
+
+        AliasOfOptional response = blockingMaxResponseSize.getMyAlias();
+
+        assertThat(response.get()).isPresent();
+        assertThat(response.get()).hasValue(content);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void input_stream_response_sizes_are_not_limited(boolean gzippedResponse) throws IOException {
+        String content = "a".repeat(MAX_RESPONSE_SIZE * 2);
+
+        undertowHandler = Response.builder()
+                .contentType("application/octet-stream")
+                .gzipped(gzippedResponse)
+                .contents(content)
+                .buildHandler();
+
+        // Even if we are above the limit, input streams can still properly deserialize
+        try (InputStream response = blockingMaxResponseSize.getBinary()) {
+            assertThat(response).hasContent(content);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void optional_input_stream_response_sizes_are_not_limited(boolean gzippedResponse) throws IOException {
+        String content = "a".repeat(MAX_RESPONSE_SIZE * 2);
+
+        undertowHandler = Response.builder()
+                .contentType("application/octet-stream")
+                .gzipped(gzippedResponse)
+                .contents(content)
+                .buildHandler();
+
+        // Even if we are above the limit, input streams can still properly deserialize
+        try (InputStream response = blockingMaxResponseSize.getOptionalBinary().get()) {
+            assertThat(response).hasContent(content);
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, false", "false, true", "true,  false", "true,  true"})
+    public void limiting_response_size_for_errors(boolean belowLimit, boolean gzippedResponse) {
+        String content = "{\"errorCode\":\"errorCode\",\"errorName\":\"" + "test".repeat(belowLimit ? 1 : 128) + "\"}";
+
+        undertowHandler = Response.builder()
+                .code(400)
+                .gzipped(gzippedResponse)
+                .contents(content)
+                .buildHandler();
+
+        // No matter where we get the exception from, it should be limited if above the limit,
+        // even if a non-error response would not be limited
+        Map<String, ThrowingCallable> cases = Map.of(
+                "json", () -> blockingMaxResponseSize.getMyAlias(),
+                "empty", () -> blockingMaxResponseSize.voidToVoid(),
+                "input stream", () -> blockingMaxResponseSize.getBinary(),
+                "optional input stream", () -> blockingMaxResponseSize.getOptionalBinary());
+        cases.forEach((description, callable) -> {
+            if (belowLimit) {
+                assertThatException()
+                        .describedAs(description)
+                        .isThrownBy(callable)
+                        .isInstanceOf(RemoteException.class)
+                        .extracting(e -> ((RemoteException) e).getError())
+                        .isEqualTo(SerializableError.builder()
+                                .errorCode("errorCode")
+                                .errorName("test")
+                                .build());
+            } else {
+                assertThatException()
+                        .describedAs(description)
+                        .isThrownBy(callable)
+                        .isInstanceOf(ResponseSizeTooLargeException.class);
+            }
+        });
     }
 
     @Test
@@ -229,19 +369,75 @@ public class IntegrationTest {
     }
 
     private void set204Response() {
-        undertowHandler = exchange -> exchange.setStatusCode(204);
+        undertowHandler = Response.builder().code(204).contents("").buildHandler();
     }
 
     private void setBinaryGzipResponse(String stringToCompress) {
-        undertowHandler = exchange -> {
-            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/octet-stream");
-            Preconditions.checkArgument(exchange.getRequestHeaders().contains(Headers.ACCEPT_ENCODING));
-            Preconditions.checkArgument(exchange.getRequestHeaders()
-                    .getFirst(Headers.ACCEPT_ENCODING)
-                    .contains("gzip"));
-            exchange.getResponseHeaders().put(Headers.CONTENT_ENCODING, "gzip");
-            exchange.getOutputStream().write(gzipCompress(stringToCompress));
-        };
+        undertowHandler = Response.builder()
+                .contentType("application/octet-stream")
+                .gzipped(true)
+                .contents(stringToCompress)
+                .buildHandler();
+    }
+
+    @Value.Immutable
+    interface Response {
+        @Value.Default
+        default int code() {
+            return 200;
+        }
+
+        @Value.Default
+        default String contentType() {
+            return "application/json";
+        }
+
+        @Value.Default
+        default boolean gzipped() {
+            return false;
+        }
+
+        String contents();
+
+        @Value.Derived
+        default byte[] wireContents() {
+            try {
+                return gzipped() ? gzipCompress(contents()) : contents().getBytes(StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        Map<HttpString, String> headers();
+
+        @Value.Derived
+        default HttpHandler handler() {
+            return exchange -> {
+                headers().forEach(exchange.getResponseHeaders()::put);
+
+                exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, contentType());
+                exchange.setStatusCode(code());
+
+                if (gzipped()) {
+                    Preconditions.checkArgument(exchange.getRequestHeaders().contains(Headers.ACCEPT_ENCODING));
+                    Preconditions.checkArgument(exchange.getRequestHeaders()
+                            .getFirst(Headers.ACCEPT_ENCODING)
+                            .contains("gzip"));
+                    exchange.getResponseHeaders().put(Headers.CONTENT_ENCODING, "gzip");
+                }
+                exchange.getOutputStream().write(wireContents());
+            };
+        }
+
+        static Builder builder() {
+            return new Builder();
+        }
+
+        final class Builder extends ImmutableResponse.Builder {
+            public HttpHandler buildHandler() {
+                return build().handler();
+            }
+        }
     }
 
     @AfterEach

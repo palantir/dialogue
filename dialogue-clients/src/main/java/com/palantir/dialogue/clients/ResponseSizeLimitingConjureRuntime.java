@@ -1,0 +1,222 @@
+/*
+ * (c) Copyright 2026 Palantir Technologies Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.palantir.dialogue.clients;
+
+import com.google.common.collect.ListMultimap;
+import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
+import com.palantir.conjure.java.dialogue.serde.ErrorDecoder;
+import com.palantir.dialogue.BinaryRequestBody;
+import com.palantir.dialogue.BodySerDe;
+import com.palantir.dialogue.Clients;
+import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.ExceptionDeserializerArgs;
+import com.palantir.dialogue.PlainSerDe;
+import com.palantir.dialogue.RequestBody;
+import com.palantir.dialogue.Response;
+import com.palantir.dialogue.ResponseAttachments;
+import com.palantir.dialogue.Serializer;
+import com.palantir.dialogue.TypeMarker;
+import java.io.InputStream;
+import java.util.Optional;
+
+/**
+ * Wraps a user-supplied {@link ConjureRuntime} such that deserializers will throw an exception upon reading
+ * more bytes than the specified limit.
+ * <p>
+ * Since {@link ConjureRuntime} is an interface, we can't mutate the caller's instance (passed via {@code withRuntime}).
+ */
+final class ResponseSizeLimitingConjureRuntime implements ConjureRuntime {
+    private final ConjureRuntime delegate;
+    private final BodySerDe bodySerDe;
+
+    ResponseSizeLimitingConjureRuntime(ConjureRuntime delegate, long maxResponseSize) {
+        this.delegate = delegate;
+        this.bodySerDe = new ResponseSizeLimitingBodySerDe(delegate.bodySerDe(), maxResponseSize);
+    }
+
+    @Override
+    public BodySerDe bodySerDe() {
+        return bodySerDe;
+    }
+
+    @Override
+    public PlainSerDe plainSerDe() {
+        return delegate.plainSerDe();
+    }
+
+    @Override
+    public Clients clients() {
+        return delegate.clients();
+    }
+
+    private static final class ResponseSizeLimitingBodySerDe implements BodySerDe {
+        private final BodySerDe delegate;
+        private final long maxResponseSize;
+
+        ResponseSizeLimitingBodySerDe(BodySerDe delegate, long maxResponseSize) {
+            this.delegate = delegate;
+            this.maxResponseSize = maxResponseSize;
+        }
+
+        @Override
+        public Optional<ConjureErrorParameterFormat> errorParameterFormat() {
+            return delegate.errorParameterFormat();
+        }
+
+        @Override
+        public <T> Serializer<T> serializer(TypeMarker<T> type) {
+            return delegate.serializer(type);
+        }
+
+        @Override
+        public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
+            return ResponseSizeLimitingDeserializer.alwaysLimit(delegate.deserializer(type), maxResponseSize);
+        }
+
+        @Override
+        public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
+            return ResponseSizeLimitingDeserializer.alwaysLimit(
+                    delegate.deserializer(exceptionDeserializerArgs), maxResponseSize);
+        }
+
+        @Override
+        public Deserializer<Void> emptyBodyDeserializer() {
+            // Even if we expect no response, we could get an error, so this needs to be wrapped as well
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(delegate.emptyBodyDeserializer(), maxResponseSize);
+        }
+
+        @Override
+        public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
+            // Even if we expect no response, we could get an error, so this needs to be wrapped as well
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(
+                    delegate.emptyBodyDeserializer(exceptionDeserializerArgs), maxResponseSize);
+        }
+
+        // Note: we don't apply the limit when returning input streams, since they are not directly deserialized
+        // and could be trivially limited by the callers if desired
+        // However, we do apply the limit when the response is actually an error, since that is deserialized
+
+        @Override
+        public Deserializer<InputStream> inputStreamDeserializer() {
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(
+                    delegate.inputStreamDeserializer(), maxResponseSize);
+        }
+
+        @Override
+        public Deserializer<InputStream> inputStreamDeserializer(
+                ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(
+                    delegate.inputStreamDeserializer(exceptionDeserializerArgs), maxResponseSize);
+        }
+
+        @Override
+        public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer() {
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(
+                    delegate.optionalInputStreamDeserializer(), maxResponseSize);
+        }
+
+        @Override
+        public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
+                ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
+            return ResponseSizeLimitingDeserializer.onlyLimitErrors(
+                    delegate.optionalInputStreamDeserializer(exceptionDeserializerArgs), maxResponseSize);
+        }
+
+        @Override
+        public RequestBody serialize(BinaryRequestBody value) {
+            return delegate.serialize(value);
+        }
+    }
+
+    private static final class ResponseSizeLimitingDeserializer<T> implements Deserializer<T> {
+        private final Deserializer<T> delegate;
+        private final long maxResponseSize;
+        private final boolean onlyLimitErrors;
+
+        private ResponseSizeLimitingDeserializer(
+                Deserializer<T> delegate, long maxResponseSize, boolean onlyLimitErrors) {
+            this.delegate = delegate;
+            this.maxResponseSize = maxResponseSize;
+            this.onlyLimitErrors = onlyLimitErrors;
+        }
+
+        static <T> ResponseSizeLimitingDeserializer<T> alwaysLimit(Deserializer<T> delegate, long limit) {
+            return new ResponseSizeLimitingDeserializer<>(delegate, limit, false);
+        }
+
+        static <T> ResponseSizeLimitingDeserializer<T> onlyLimitErrors(Deserializer<T> delegate, long limit) {
+            return new ResponseSizeLimitingDeserializer<>(delegate, limit, true);
+        }
+
+        @Override
+        public T deserialize(Response response) {
+            if (onlyLimitErrors && !ErrorDecoder.INSTANCE.isError(response)) {
+                return delegate.deserialize(response);
+            } else {
+                return delegate.deserialize(new ResponseSizeLimitingResponse(response, maxResponseSize));
+            }
+        }
+
+        @Override
+        public Optional<String> accepts() {
+            return delegate.accepts();
+        }
+    }
+
+    private static final class ResponseSizeLimitingResponse implements Response {
+        private final Response delegate;
+        private final SizeLimitedInputStream limitedBody;
+
+        ResponseSizeLimitingResponse(Response delegate, long maxResponseSize) {
+            this.delegate = delegate;
+            this.limitedBody = new SizeLimitedInputStream(delegate.body(), maxResponseSize);
+        }
+
+        @Override
+        public InputStream body() {
+            return limitedBody;
+        }
+
+        @Override
+        public int code() {
+            return delegate.code();
+        }
+
+        @Override
+        public ListMultimap<String, String> headers() {
+            return delegate.headers();
+        }
+
+        @Override
+        public Optional<String> getFirstHeader(String header) {
+            return delegate.getFirstHeader(header);
+        }
+
+        @Override
+        public ResponseAttachments attachments() {
+            return delegate.attachments();
+        }
+
+        @Override
+        public void close() {
+            // This will close the underlying body input stream as well as needed
+            // We don't need to close the SizeLimitedInputStream wrapper itself
+            delegate.close();
+        }
+    }
+}

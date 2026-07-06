@@ -28,6 +28,7 @@ import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -208,6 +209,18 @@ public final class DialogueClients {
          * The default factory will use a "defer" enforcement strategy.
          */
         ReloadingFactory withDeadlineEnforcement(boolean deadlineEnforcementEnabled);
+
+        /**
+         * Configures the maximum size of response bodies (i.e. headers and other parts of the response are not limited)
+         * that will be accepted.
+         *
+         * Any response received by a server exceeding this size and which dialogue attempts to deserialize will throw
+         * a {@link ResponseSizeTooLargeException}.
+         *
+         * This does not impact responses returning {@link InputStream},
+         * which are not actually deserialized by dialogue.
+         */
+        ReloadingFactory withMaxResponseSize(long maxResponseSize);
 
         StickyChannelFactory getStickyChannels(String serviceName);
 

@@ -42,6 +42,9 @@ dependencies {
     testImplementation 'com.palantir.safe-logging:logger'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
+
+    testAnnotationProcessor 'org.immutables:value'
+    testCompileOnly 'org.immutables:value::annotations'
 }
 
 subprojects {

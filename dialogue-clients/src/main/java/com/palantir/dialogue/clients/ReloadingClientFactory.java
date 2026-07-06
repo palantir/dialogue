@@ -63,6 +63,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -115,20 +116,33 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Refreshable<ServicesConfigBlock> scb();
 
         @Value.Default
+        default OptionalLong maxResponseSize() {
+            return OptionalLong.empty();
+        }
+
+        @Value.Default
         default ConjureRuntime baseRuntime() {
             return DefaultConjureRuntime.builder().build();
         }
 
         Optional<ConjureErrorParameterFormat> conjureErrorParameterFormat();
 
-        // ConjureRuntime is an interface: we can't mutate it so instead we use a delegating wrapper to update the
-        // error serialization format.
+        // ConjureRuntime is an interface: we can't mutate it so instead we use delegating wrappers to update the
+        // various settings we want
+        // We also can't actually set it directly in baseRuntime, because it does not get recomputed when
+        //   withXXX is called on the immutable params class
         @Value.Derived
         default ConjureRuntime runtime() {
-            return conjureErrorParameterFormat()
-                    .<ConjureRuntime>map(
-                            format -> new ErrorSerializationFormatSettingConjureRuntime(baseRuntime(), format))
-                    .orElseGet(this::baseRuntime);
+            ConjureRuntime runtime = baseRuntime();
+            if (maxResponseSize().isPresent()) {
+                runtime = new ResponseSizeLimitingConjureRuntime(
+                        runtime, maxResponseSize().getAsLong());
+            }
+            if (conjureErrorParameterFormat().isPresent()) {
+                runtime = new ErrorSerializationFormatSettingConjureRuntime(
+                        runtime, conjureErrorParameterFormat().get());
+            }
+            return runtime;
         }
 
         @Value.Default
@@ -416,6 +430,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public ReloadingFactory withDeadlineEnforcement(boolean deadlineEnforcementEnabled) {
         return new ReloadingClientFactory(params.withDeadlineEnforcement(deadlineEnforcementEnabled), cache);
+    }
+
+    @Override
+    public ReloadingFactory withMaxResponseSize(long maxResponseSize) {
+        Preconditions.checkArgument(maxResponseSize > 0, "maxResponseSize must be positive");
+        return new ReloadingClientFactory(params.withMaxResponseSize(maxResponseSize), cache);
     }
 
     @Override
