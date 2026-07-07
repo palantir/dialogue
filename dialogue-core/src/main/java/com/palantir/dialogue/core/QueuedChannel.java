@@ -122,7 +122,9 @@ final class QueuedChannel implements Channel {
     private final AtomicInteger inFlight = new AtomicInteger();
 
     // The timeout budget is shared across both queue layers via a Request attachment (see QueueTimeoutAttachments).
+    @Safe
     private final OptionalLong queueTimeoutNanos;
+
     private final Ticker clock;
 
     @Nullable
@@ -320,6 +322,37 @@ final class QueuedChannel implements Channel {
     }
 
     /**
+     * Schedules a timeout task based on the expiration already stamped on the request attachment.
+     */
+    @Nullable
+    private ScheduledFuture<?> scheduleTimeoutFromExpiration(
+            Request request,
+            SettableFuture<Response> responseFuture,
+            DetachedSpan span,
+            IdempotentTimerContext timer,
+            QueueSizeAccounting accounting) {
+        if (queueTimeoutNanos.isEmpty() || scheduler == null) {
+            return null;
+        }
+        Long expirationNanos = QueueTimeoutAttachments.getExpiration(request);
+        if (expirationNanos == null) {
+            return null;
+        }
+        long delayNanos = expirationNanos - clock.read();
+        if (delayNanos <= 0) {
+            // The timeout is already reached, so we fail immediately. The queue-size decrement is safe to request
+            // unconditionally: on initial enqueue the entry has not been counted yet (maybeExecute returns early,
+            // before incrementing), so it is a no-op; on re-queue the entry is counted and gets decremented here.
+            failWithQueueTimeout(responseFuture, span, timer, accounting);
+            return null;
+        }
+        // When the timeout fires, failWithQueueTimeout proactively decrements the queue size, so the queue size
+        // reflects only live requests rather than lingering until the next scheduleNextTask() drain pops the entry.
+        return scheduler.schedule(
+                () -> failWithQueueTimeout(responseFuture, span, timer, accounting), delayNanos, TimeUnit.NANOSECONDS);
+    }
+
+    /**
      * Fails the given future with a queue timeout exception and performs the same terminal cleanup as a normal
      * dequeue: it decrements the queue size (at most once, and only if the entry was counted) and eagerly completes
      * the span and stops the timer. Doing this eagerly avoids waiting for the next {@link #scheduleNextTask()} drain
@@ -335,10 +368,7 @@ final class QueuedChannel implements Channel {
             DetachedSpan span,
             IdempotentTimerContext timer,
             QueueSizeAccounting accounting) {
-        if (responseFuture.setException(new SafeRuntimeException(
-                "Request queued for longer than queue timeout",
-                SafeArg.of("channelName", channelName),
-                SafeArg.of("queueTimeoutNanos", queueTimeoutNanos)))) {
+        if (responseFuture.setException(new QueueTimeoutException(channelName, queueTimeoutNanos))) {
             queueTimeoutCounter.get().inc();
         }
         completeAndDecrement(Optional.empty(), span, timer, accounting);
@@ -524,37 +554,6 @@ final class QueuedChannel implements Channel {
                 .from(original)
                 .timeoutFuture(Optional.ofNullable(newTimeout))
                 .build();
-    }
-
-    /**
-     * Schedules a timeout task based on the expiration already stamped on the request attachment.
-     */
-    @Nullable
-    private ScheduledFuture<?> scheduleTimeoutFromExpiration(
-            Request request,
-            SettableFuture<Response> responseFuture,
-            DetachedSpan span,
-            IdempotentTimerContext timer,
-            QueueSizeAccounting accounting) {
-        if (queueTimeoutNanos.isEmpty() || scheduler == null) {
-            return null;
-        }
-        Long expirationNanos = QueueTimeoutAttachments.getExpiration(request);
-        if (expirationNanos == null) {
-            return null;
-        }
-        long delayNanos = expirationNanos - clock.read();
-        if (delayNanos <= 0) {
-            // The timeout is already reached, so we fail immediately. The queue-size decrement is safe to request
-            // unconditionally: on initial enqueue the entry has not been counted yet (maybeExecute returns early,
-            // before incrementing), so it is a no-op; on re-queue the entry is counted and gets decremented here.
-            failWithQueueTimeout(responseFuture, span, timer, accounting);
-            return null;
-        }
-        // When the timeout fires, failWithQueueTimeout proactively decrements the queue size, so the queue size
-        // reflects only live requests rather than lingering until the next scheduleNextTask() drain pops the entry.
-        return scheduler.schedule(
-                () -> failWithQueueTimeout(responseFuture, span, timer, accounting), delayNanos, TimeUnit.NANOSECONDS);
     }
 
     /**

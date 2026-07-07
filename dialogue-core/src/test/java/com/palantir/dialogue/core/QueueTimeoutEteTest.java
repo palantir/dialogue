@@ -121,7 +121,7 @@ class QueueTimeoutEteTest {
                         .as("each queued request is failed with a queue timeout")
                         .failsWithin(Duration.ZERO)
                         .withThrowableThat()
-                        .withMessageContaining("queue timeout");
+                        .withCauseInstanceOf(QueueTimeoutException.class);
             }
         }
 
@@ -232,7 +232,10 @@ class QueueTimeoutEteTest {
             // between failing it and decrementing the size.)
             Awaitility.waitAtMost(QUEUE_TIMEOUT.multipliedBy(2))
                     .untilAsserted(() -> assertThat(endpointQueued.getCount()).isEqualTo(0));
-            assertThat(request2).failsWithin(Duration.ZERO).withThrowableThat().withMessageContaining("queue timeout");
+            assertThat(request2)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(QueueTimeoutException.class);
 
             // request1 is still on the wire, unaffected
             assertThat(request1).isNotDone();
@@ -295,7 +298,10 @@ class QueueTimeoutEteTest {
             // instead stay pending while the retried attempt re-queued, and this await would time out.
             Awaitility.waitAtMost(QUEUE_TIMEOUT.multipliedBy(2))
                     .untilAsserted(() -> assertThat(queued).isDone());
-            assertThat(queued).failsWithin(Duration.ZERO).withThrowableThat().withMessageContaining("queue timeout");
+            assertThat(queued)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(QueueTimeoutException.class);
 
             for (int i = 0; i < SATURATING_REQUESTS; i++) {
                 wire.completeOldest();

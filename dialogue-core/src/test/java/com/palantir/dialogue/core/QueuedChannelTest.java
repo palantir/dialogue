@@ -625,7 +625,7 @@ public class QueuedChannelTest {
             assertThat(callerFuture)
                     .failsWithin(Duration.ZERO)
                     .withThrowableThat()
-                    .withMessageContaining("queue timeout");
+                    .withCauseInstanceOf(QueueTimeoutException.class);
             assertThat(instrumentation.requestsQueued().getCount())
                     .as("the timeout task proactively decrements the queue size")
                     .isEqualTo(0);
@@ -806,7 +806,7 @@ public class QueuedChannelTest {
             assertThat(callerFuture)
                     .failsWithin(Duration.ZERO)
                     .withThrowableThat()
-                    .withMessageContaining("queue timeout");
+                    .withCauseInstanceOf(QueueTimeoutException.class);
             assertThat(instrumentation.requestsQueued().getCount())
                     .as("re-queued entry is cleaned up proactively when its timeout fires")
                     .isEqualTo(0);
@@ -915,7 +915,10 @@ public class QueuedChannelTest {
             assertThat(future)
                     .as("expiration already passed, so the request fails on enqueue")
                     .isDone();
-            assertThat(future).failsWithin(Duration.ZERO).withThrowableThat().withMessageContaining("queue timeout");
+            assertThat(future)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(QueueTimeoutException.class);
             assertThat(instrumentation.requestsQueued().getCount())
                     .as("a request that fails immediately is never counted in the queue")
                     .isEqualTo(0);
