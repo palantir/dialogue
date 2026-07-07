@@ -84,7 +84,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     .map(OptionalLong::of)
                     .orElseGet(OptionalLong::empty);
             this.clock = cf.ticker();
-            this.scheduler = queueTimeoutNanos.isPresent() ? QueuedChannel.sharedTimeoutScheduler.get() : null;
+            this.scheduler = QueuedChannel.timeoutScheduler(queueTimeoutNanos);
         }
 
         @Override

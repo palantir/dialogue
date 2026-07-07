@@ -19,6 +19,8 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -45,6 +47,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.awaitility.Awaitility;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -63,6 +66,26 @@ class QueueTimeoutEteTest {
     private static final String HOST_B = "http://hostB:8080";
     private static final String HOST_C = "http://hostC:8080";
     private static final Duration QUEUE_TIMEOUT = Duration.ofSeconds(1);
+    // The AIMD concurrency limit each host/endpoint starts at; sending this many concurrent requests saturates a
+    // single host and forces the next request to queue.
+    private static final int SATURATING_REQUESTS =
+            (int) CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.INITIAL_LIMIT;
+
+    // Consecutive dropped responses needed to drive an AIMD limit from its initial value down to the MIN_LIMIT floor.
+    private static final int DROPS_TO_REACH_FLOOR = dropsToReachAimdFloor();
+
+    private static int dropsToReachAimdFloor() {
+        double ratio = CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.BACKOFF_RATIO;
+        double limit = CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.INITIAL_LIMIT;
+        int drops = 0;
+        while (limit > CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.MIN_LIMIT) {
+            // Note: this mirrors logic in LimitUpdater.DROPPED. If that logic is changed, this will need to be updated
+            // as well.
+            limit = Math.max(CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.MIN_LIMIT, Math.floor(limit * ratio));
+            drops++;
+        }
+        return drops;
+    }
 
     @Nested
     class ChannelQueueTimeout {
@@ -75,8 +98,8 @@ class QueueTimeoutEteTest {
             DialogueChannel channel = buildChannel(wire, metrics, HOST_A, HOST_B, HOST_C);
             Counter queueSize = DialogueClientMetrics.of(metrics).requestsQueued("test");
 
-            // Saturate all host-level AIMD limits (20 per host × 3 hosts = 60)
-            for (int i = 0; i < 60; i++) {
+            // Saturate all three hosts' AIMD limits.
+            for (int i = 0; i < 3 * SATURATING_REQUESTS; i++) {
                 channel.execute(ENDPOINT, Request.builder().build());
             }
             assertThat(queueSize.getCount()).isEqualTo(0);
@@ -91,23 +114,15 @@ class QueueTimeoutEteTest {
             }
             assertThat(queueSize.getCount()).isEqualTo(5);
 
-            // Each queued request is failed once its timeout elapses.
-            Awaitility.waitAtMost(QUEUE_TIMEOUT.multipliedBy(2)).untilAsserted(() -> {
-                for (ListenableFuture<Response> future : queued) {
-                    assertThat(future).isDone();
-                }
-            });
+            Awaitility.waitAtMost(QUEUE_TIMEOUT.multipliedBy(2))
+                    .untilAsserted(() -> assertThat(queueSize.getCount()).isEqualTo(0));
             for (ListenableFuture<Response> future : queued) {
                 assertThat(future)
+                        .as("each queued request is failed with a queue timeout")
                         .failsWithin(Duration.ZERO)
                         .withThrowableThat()
                         .withMessageContaining("queue timeout");
             }
-
-            // The queue size is decremented proactively when each timeout fires, without waiting for the next
-            // scheduleNextTask drain to pop the timed-out entries.
-            Awaitility.waitAtMost(QUEUE_TIMEOUT.multipliedBy(2))
-                    .untilAsserted(() -> assertThat(queueSize.getCount()).isEqualTo(0));
         }
 
         @Test
@@ -122,23 +137,23 @@ class QueueTimeoutEteTest {
                     .queueTimeout(QUEUE_TIMEOUT)
                     .build();
 
-            // Saturate the host-level limit (AIMD starts at 20)
-            for (int i = 0; i < 20; i++) {
+            // Saturate the host-level limit.
+            for (int i = 0; i < SATURATING_REQUESTS; i++) {
                 channel.execute(ENDPOINT, Request.builder().build());
             }
-            assertThat(wire.pending()).hasSize(20);
+            assertThat(wire.pending()).hasSize(SATURATING_REQUESTS);
 
-            // 21st request enters the channel queue
+            // The next request enters the channel queue
             ListenableFuture<Response> queued =
                     channel.execute(ENDPOINT, Request.builder().build());
             assertThat(queued).isNotDone();
-            assertThat(wire.pending()).as("Queued, not on wire").hasSize(20);
+            assertThat(wire.pending()).as("Queued, not on wire").hasSize(SATURATING_REQUESTS);
 
             // Complete one -> frees a permit -> queued request is dispatched (timeout cancelled)
             wire.completeOldest();
             assertThat(wire.pending())
                     .as("Queued request should have been dispatched")
-                    .hasSize(20);
+                    .hasSize(SATURATING_REQUESTS);
 
             // Wait well past the original timeout (double it) so a non-cancelled timeout would have decisively
             // fired. The dispatched request is wired to a never-completing wire future, so the only way it could
@@ -178,9 +193,8 @@ class QueueTimeoutEteTest {
                     .queueTimeout(QUEUE_TIMEOUT)
                     .build();
 
-            // Drive the endpoint AIMD limit down to its floor of 1. Each non-custom 429 multiplies the limit by 0.9,
-            // so dropping from the initial 20 to 1 takes ~28 steps; 50 is comfortably more than enough.
-            for (int i = 0; i < 50; i++) {
+            // Drive the endpoint AIMD limit down to its MIN_LIMIT floor with a run of non-custom 429s.
+            for (int i = 0; i < DROPS_TO_REACH_FLOOR; i++) {
                 ListenableFuture<Response> resp =
                         channel.execute(ENDPOINT, Request.builder().build());
                 assertThat(resp).isDone();
@@ -211,14 +225,14 @@ class QueueTimeoutEteTest {
                     .as("request2 should be counted in the endpoint queue, not the host queue")
                     .isEqualTo(1);
 
-            // Wait for timeout, request2 should be failed
-            Awaitility.waitAtMost(QUEUE_TIMEOUT.multipliedBy(2))
-                    .untilAsserted(() -> assertThat(request2).isDone());
-            assertThat(request2).failsWithin(Duration.ZERO).withThrowableThat().withMessageContaining("queue timeout");
-
-            // The endpoint queue size is decremented proactively when the timeout fires.
+            // The timeout task fails request2 and then decrements the endpoint queue size, both on the scheduler
+            // thread. Since the decrement runs just after the failure, waiting for the queue size to return to 0 is
+            // the strongest single signal that the timeout has fully fired; by the time it does, request2 is already
+            // failed. (Waiting on request2 alone would be racy: it could be observed done while the timeout task is
+            // between failing it and decrementing the size.)
             Awaitility.waitAtMost(QUEUE_TIMEOUT.multipliedBy(2))
                     .untilAsserted(() -> assertThat(endpointQueued.getCount()).isEqualTo(0));
+            assertThat(request2).failsWithin(Duration.ZERO).withThrowableThat().withMessageContaining("queue timeout");
 
             // request1 is still on the wire, unaffected
             assertThat(request1).isNotDone();
@@ -237,13 +251,14 @@ class QueueTimeoutEteTest {
             AtomicInteger wireHitCount = new AtomicInteger();
             WireChannel wire = new WireChannel() {
                 @Override
+                @NonNull
                 public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
                     wireHitCount.incrementAndGet();
                     return super.execute(endpoint, request);
                 }
             };
 
-            // Build with retries enabled (and no backoff, so a retry would re-dispatch immediately)
+            DefaultTaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
             ClientConfiguration config = ClientConfiguration.builder()
                     .from(ClientConfigurations.of(ServiceConfiguration.builder()
                             .addUris(HOST_A)
@@ -251,7 +266,9 @@ class QueueTimeoutEteTest {
                             .build()))
                     .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
                     .userAgent(USER_AGENT)
+                    .taggedMetricRegistry(metrics)
                     .maxNumRetries(3)
+                    // no backoff, so a retry would re-dispatch immediately
                     .backoffSlotSize(Duration.ZERO)
                     .build();
 
@@ -264,7 +281,7 @@ class QueueTimeoutEteTest {
                     .build();
 
             // Saturate the host-level limit so the next request must queue.
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < SATURATING_REQUESTS; i++) {
                 channel.execute(ENDPOINT, Request.builder().build());
             }
             int wireHitsAfterSaturation = wireHitCount.get();
@@ -280,17 +297,106 @@ class QueueTimeoutEteTest {
                     .untilAsserted(() -> assertThat(queued).isDone());
             assertThat(queued).failsWithin(Duration.ZERO).withThrowableThat().withMessageContaining("queue timeout");
 
-            // Free every permit by completing the in-flight requests. Checking wireHitCount alone is not enough:
-            // while all hosts are saturated a retried request would simply re-queue (never reaching the wire), so
-            // the count would be unchanged whether or not a retry happened. Freeing capacity forces the question —
-            // a retried attempt would now be dispatched to the wire, whereas a non-retried timeout leaves it
-            // untouched.
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < SATURATING_REQUESTS; i++) {
                 wire.completeOldest();
             }
             assertThat(wireHitCount.get())
                     .as("A queue timeout must not be retried, so freeing capacity yields no new wire hit")
                     .isEqualTo(wireHitsAfterSaturation);
+
+            // Corroborate via the retry metric: RetryingChannel records no retry for the queue timeout.
+            long retryCount = metrics.getMetrics().entrySet().stream()
+                    .filter(entry -> entry.getKey().safeName().equals("dialogue.client.request.retry"))
+                    .mapToLong(entry -> ((Meter) entry.getValue()).getCount())
+                    .sum();
+            assertThat(retryCount).as("queue timeouts are not retryable").isZero();
+        }
+    }
+
+    @Nested
+    class RetryResetsBudget {
+
+        private static final Duration LONG_TIMEOUT = Duration.ofHours(1);
+
+        @Test
+        @SuppressWarnings("FutureReturnValueIgnored")
+        void retried_request_gets_a_fresh_queue_timeout_budget() {
+            ManualTicker ticker = new ManualTicker();
+            AtomicInteger wireCalls = new AtomicInteger();
+            Queue<SettableFuture<Response>> held = new ConcurrentLinkedQueue<>();
+            Channel wire = (_endpoint, _request) -> {
+                // The 21st call will be a 429 to trigger a retry. Every other call (the saturating requests, and the
+                // retry if it re-dispatches) is held pending to keep host capacity occupied.
+                if (wireCalls.incrementAndGet() == SATURATING_REQUESTS + 1) {
+                    return Futures.immediateFuture(new TestResponse().code(429));
+                }
+                SettableFuture<Response> future = SettableFuture.create();
+                held.add(future);
+                return future;
+            };
+
+            ClientConfiguration config = ClientConfiguration.builder()
+                    .from(ClientConfigurations.of(ServiceConfiguration.builder()
+                            .addUris(HOST_A)
+                            .security(SSL_CONFIG)
+                            .build()))
+                    .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                    .userAgent(USER_AGENT)
+                    .maxNumRetries(3)
+                    // Zero backoff so the retry re-executes synchronously when the 429 is observed.
+                    .backoffSlotSize(Duration.ZERO)
+                    .build();
+
+            DialogueChannel channel = DialogueChannel.builder()
+                    .channelName("retry-resets-budget")
+                    .clientConfiguration(config)
+                    .factory(_args -> wire)
+                    .maxQueueSize(100)
+                    .queueTimeout(LONG_TIMEOUT)
+                    .ticker(ticker)
+                    .build();
+
+            // Saturate the host-level AIMD limit so the next request must queue.
+            for (int i = 0; i < SATURATING_REQUESTS; i++) {
+                channel.execute(ENDPOINT, Request.builder().build());
+            }
+
+            // The request we're testing queues at ticker=0, stamping expiration = 0 + LONG_TIMEOUT.
+            Request retried = Request.builder().build();
+            ListenableFuture<Response> future = channel.execute(ENDPOINT, retried);
+            assertThat(future).isNotDone();
+            assertThat(QueueTimeoutAttachments.getExpiration(retried))
+                    .as("first attempt stamps expiration at ticker.read() + timeout")
+                    .isEqualTo(LONG_TIMEOUT.toNanos());
+
+            // Advance partway into the budget before the retry
+            Duration elapsedBeforeRetry = Duration.ofMinutes(30);
+            ticker.advance(elapsedBeforeRetry);
+
+            // Free one permit: the queued request dispatches, the wire returns 429, and RetryingChannel retries
+            // synchronously. The host stays saturated (the 429 drops the AIMD limit below the in-flight count), so the
+            // retry re-queues and, because attempt 1's expiration was cleared on completion, it *should* stamp a
+            // new expiration from the current (advanced 30m) clock.
+            held.poll().set(new TestResponse().code(200));
+
+            assertThat(future).as("the request is retried").isNotDone();
+            assertThat(QueueTimeoutAttachments.getExpiration(retried))
+                    .as("retry re-queues with a fresh budget", elapsedBeforeRetry, LONG_TIMEOUT)
+                    .isEqualTo(elapsedBeforeRetry.plus(LONG_TIMEOUT).toNanos());
+        }
+    }
+
+    // Ticker whose time only advances when explicitly told to.
+    private static final class ManualTicker implements Ticker {
+        private long nanos;
+
+        @Override
+        public long read() {
+            return nanos;
+        }
+
+        void advance(Duration duration) {
+            nanos += duration.toNanos();
         }
     }
 

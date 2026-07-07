@@ -61,13 +61,31 @@ public class QueuedChannelTest {
 
     private static QueuedChannel createQueue(LimitedChannel delegate, int maxQueueSize) {
         String channelName = "my-channel";
-        return new QueuedChannel(
+        return createQueue(
                 delegate,
                 channelName,
                 "queue-type",
                 QueuedChannel.channelInstrumentation(
                         DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), channelName),
                 maxQueueSize);
+    }
+
+    // Builds a QueuedChannel with no queue timeout configured: empty budget, system ticker, and no scheduler.
+    private static QueuedChannel createQueue(
+            LimitedChannel delegate,
+            String channelName,
+            String queueType,
+            QueuedChannelInstrumentation instrumentation,
+            int maxQueueSize) {
+        return new QueuedChannel(
+                delegate,
+                channelName,
+                queueType,
+                instrumentation,
+                maxQueueSize,
+                OptionalLong.empty(),
+                Ticker.systemTicker(),
+                null);
     }
 
     @Test
@@ -275,7 +293,7 @@ public class QueuedChannelTest {
         };
         QueuedChannelInstrumentation instrumentation = QueuedChannel.channelInstrumentation(
                 DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "channel");
-        QueuedChannel queued = new QueuedChannel(delegateChannel, "channel", "queue-type", instrumentation, 100_000);
+        QueuedChannel queued = createQueue(delegateChannel, "channel", "queue-type", instrumentation, 100_000);
 
         assertThat(settableResponses).isEmpty();
         assertThat(instrumentation.requestsQueued().getCount()).isZero();
@@ -317,7 +335,7 @@ public class QueuedChannelTest {
         };
         QueuedChannelInstrumentation instrumentation = QueuedChannel.channelInstrumentation(
                 DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "channel");
-        QueuedChannel queued = new QueuedChannel(delegateChannel, "channel", "queue-type", instrumentation, 100_000);
+        QueuedChannel queued = createQueue(delegateChannel, "channel", "queue-type", instrumentation, 100_000);
 
         assertThat(settableResponses).isEmpty();
         assertThat(instrumentation.requestsQueued().getCount()).isZero();
@@ -411,7 +429,7 @@ public class QueuedChannelTest {
         };
         QueuedChannelInstrumentation instrumentation = QueuedChannel.channelInstrumentation(
                 DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "channel");
-        QueuedChannel queued = new QueuedChannel(delegateChannel, "channel", "queue-type", instrumentation, 100_000);
+        QueuedChannel queued = createQueue(delegateChannel, "channel", "queue-type", instrumentation, 100_000);
 
         assertThat(settableResponses).isEmpty();
         assertThat(instrumentation.requestsQueued().getCount()).isZero();
@@ -523,7 +541,7 @@ public class QueuedChannelTest {
         };
         QueuedChannelInstrumentation instrumentation = QueuedChannel.channelInstrumentation(
                 DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "channel");
-        QueuedChannel queued = new QueuedChannel(delegateChannel, "channel", "queue-type", instrumentation, 100_000);
+        QueuedChannel queued = createQueue(delegateChannel, "channel", "queue-type", instrumentation, 100_000);
 
         assertThat(settableResponses).isEmpty();
         assertThat(instrumentation.requestsQueued().getCount()).isZero();
@@ -612,10 +630,29 @@ public class QueuedChannelTest {
                     .as("the timeout task proactively decrements the queue size")
                     .isEqualTo(0);
 
-            // The deque still holds the timed-out entry; the next drain pops it
+            // The timed-out entry still sits in the deque, already decremented by the proactive timeout. Prove the
+            // queue recovers: enqueue a fresh request behind the dead entry (size 0 -> 1), then free capacity and
+            // drain. The drain must discard the timed-out entry (without double-decrementing the metric below zero) and
+            // dispatch the live request, returning the metric to 0.
+            ListenableFuture<Response> liveFuture =
+                    queuedChannel.execute(TestEndpoint.POST, Request.builder().build());
+            assertThat(liveFuture).isNotDone();
+            assertThat(instrumentation.requestsQueued().getCount())
+                    .as("fresh request is queued behind the dead entry")
+                    .isEqualTo(1);
+
             delegate.setAccepting(true);
             queuedChannel.schedule();
-            assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(0);
+            assertThat(instrumentation.requestsQueued().getCount())
+                    .as("timed-out entry discarded and live request dispatched, leaving an empty queue")
+                    .isEqualTo(0);
+
+            // Completing the live request's wire call confirms it was actually dispatched.
+            delegate.lastDispatched(); // setInFlightRequest's dispatch
+            SettableFuture<Response> liveWire = delegate.lastDispatched();
+            assertThat(liveWire).isNotNull();
+            liveWire.set(new TestResponse().code(200));
+            assertThat(liveFuture).succeedsWithin(Duration.ZERO);
         }
 
         @Test
@@ -624,10 +661,16 @@ public class QueuedChannelTest {
 
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
             assertThat(callerFuture).isNotDone();
+            assertThat(instrumentation.requestsQueued().getCount())
+                    .as("request is queued")
+                    .isEqualTo(1);
 
             // Dispatch the queued request, which cancels its timeout task.
             delegate.setAccepting(true);
             queuedChannel.schedule();
+            assertThat(instrumentation.requestsQueued().getCount())
+                    .as("dispatch dequeued the request")
+                    .isEqualTo(0);
 
             // Advance past the timeout. The cancelled task must not fire.
             scheduler.tick(QUEUE_TIMEOUT_NANOS * 2, TimeUnit.NANOSECONDS);
@@ -635,6 +678,9 @@ public class QueuedChannelTest {
             assertThat(callerFuture)
                     .as("dispatch cancelled the timeout, so firing the scheduler is a no-op")
                     .isNotDone();
+            assertThat(instrumentation.requestsQueued().getCount())
+                    .as("queue remains empty")
+                    .isEqualTo(0);
         }
 
         @Test
@@ -675,9 +721,11 @@ public class QueuedChannelTest {
 
         @Test
         void late_timeout_losing_dispatch_race_closes_wire_response() {
-            // This test covers the race: the scheduled timeout begins executing just before scheduleNextTask cancels
-            // it, and wins after the request has already been dispatched. In that case the caller future is failed with
-            // the timeout, and the (now orphaned) wire response must be closed rather than leaked.
+            // Covers the losing dispatch race. On dispatch, scheduleNextTask calls timeoutFuture.cancel(false) to stop
+            // the timeout — but cancel(false) cannot stop a task that has *already begun executing* on the scheduler
+            // thread. So even though the request is dispatched, an already-running timeout task can still run to
+            // completion and fail the caller future. When that happens the dispatched wire response is orphaned and
+            // must be closed rather than leaked. (This is why the caller future ends up failed despite the dispatch.)
             setInFlightRequest();
 
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
@@ -687,11 +735,12 @@ public class QueuedChannelTest {
             delegate.setAccepting(true);
             queuedChannel.schedule();
 
-            // Model the lost race: the timeout fires after dispatch. failWithQueueTimeout (invoked directly here,
-            // bypassing the dispatch-time cancel) fails the already-dispatched caller future.
+            // Model that race by invoking the timeout task body directly, as if it had already started running before
+            // the dispatch-time cancel(false) fired (so the cancel was a no-op and could not stop it).
             simulateTimeout(callerFuture);
             assertThat(callerFuture)
-                    .as("Timeout won the race, so the caller future is failed")
+                    .as("the timeout task ran to completion despite the dispatch-time cancel (cancel(false) cannot stop"
+                            + " an already-running task), so the caller future is failed with the timeout")
                     .isDone();
 
             // Pop the first request from the queue which was used to set inFlight > 0.
@@ -830,9 +879,6 @@ public class QueuedChannelTest {
         @Test
         void requeue_preserves_original_expiration() {
             setInFlightRequest();
-
-            // Initial enqueue at ticker=0 stamps the expiration at 0 + timeout. The delegate is rejecting, so the
-            // request stays queued.
             Request req = Request.builder().build();
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, req);
             Long originalExpiration = QueueTimeoutAttachments.getExpiration(req);
@@ -855,54 +901,24 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void endpoint_queue_fails_immediately_when_budget_exhausted() {
-            AtomicBoolean accepting = new AtomicBoolean(false);
-            LimitedChannel rejectingDelegate = (_endpoint, _request, limitEnforcement) -> {
-                if (!accepting.get() && limitEnforcement.enforceLimits()) {
-                    return Optional.empty();
-                }
-                return Optional.of(SettableFuture.create());
-            };
+        void request_with_already_expired_attachment_fails_immediately() {
+            setInFlightRequest();
 
-            QueuedChannelInstrumentation exhaustedInstrumentation = QueuedChannel.channelInstrumentation(
-                    DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "exhausted");
-
-            QueuedChannel queue1 = new QueuedChannel(
-                    rejectingDelegate,
-                    "exhausted",
-                    "channel",
-                    exhaustedInstrumentation,
-                    QUEUE_SIZE,
-                    OptionalLong.of(QUEUE_TIMEOUT_NANOS),
-                    ticker,
-                    scheduler);
-            QueuedChannel queue2 = new QueuedChannel(
-                    rejectingDelegate,
-                    "exhausted",
-                    "endpoint",
-                    exhaustedInstrumentation,
-                    QUEUE_SIZE,
-                    OptionalLong.of(QUEUE_TIMEOUT_NANOS),
-                    ticker,
-                    scheduler);
-
-            // Get inFlight > 0
-            accepting.set(true);
-            queue1.execute(TestEndpoint.POST, Request.builder().build());
-            queue2.execute(TestEndpoint.POST, Request.builder().build());
-            accepting.set(false);
-
-            // Enqueue in queue1 to stamp expiration
-            Request sharedRequest = Request.builder().build();
-            queue1.execute(TestEndpoint.POST, sharedRequest);
-
-            // Advance ticker past the entire budget
+            // Stamp an expiration on the request, then advance the clock past it.
+            Request expired = Request.builder().build();
+            QueueTimeoutAttachments.setExpirationIfAbsent(expired, ticker.read() + QUEUE_TIMEOUT_NANOS);
             ticker.advance(Duration.ofNanos(QUEUE_TIMEOUT_NANOS + 1));
 
-            // Enqueue same request in queue2 so expiration is in the past and the request fails immediately
-            ListenableFuture<Response> future2 = queue2.execute(TestEndpoint.POST, sharedRequest);
-            assertThat(future2).as("Budget exhausted in queue1").isDone();
-            assertThat(future2).failsWithin(Duration.ZERO).withThrowableThat().withMessageContaining("queue timeout");
+            // The delegate is rejecting (inFlight > 0), so the request reaches the queueing path, sees the expired
+            // attachment, and fails immediately instead of being enqueued.
+            ListenableFuture<Response> future = queuedChannel.execute(TestEndpoint.POST, expired);
+            assertThat(future)
+                    .as("expiration already passed, so the request fails on enqueue")
+                    .isDone();
+            assertThat(future).failsWithin(Duration.ZERO).withThrowableThat().withMessageContaining("queue timeout");
+            assertThat(instrumentation.requestsQueued().getCount())
+                    .as("a request that fails immediately is never counted in the queue")
+                    .isEqualTo(0);
         }
 
         @Test
@@ -973,10 +989,15 @@ public class QueuedChannelTest {
             assertThat(future2Wire)
                     .as("future2 should have been handed to the delegate")
                     .isNotNull();
-            future2Wire.set(new TestResponse().code(200));
+            // Use a distinctive status code so the assertion proves future2 carries *this* wire call's response,
+            // not merely that it completed successfully.
+            future2Wire.set(new TestResponse().code(202));
             assertThat(future2)
-                    .as("future2 completes via its dispatched wire call, confirming it was dispatched")
-                    .succeedsWithin(Duration.ZERO);
+                    .as("future2 completes with the response from its dispatched wire call, confirming it was"
+                            + " dispatched")
+                    .succeedsWithin(Duration.ZERO)
+                    .extracting(Response::code)
+                    .isEqualTo(202);
         }
 
         // Gets inFlight > 0 to avoid DANGEROUS_BYPASS_LIMITS on subsequent requests
@@ -987,13 +1008,16 @@ public class QueuedChannelTest {
         }
 
         // Directly invokes the timeout action on a specific queued request, modelling the timeout task body running.
+        // A fresh, uncounted QueueSizeAccounting is passed so the decrement is a no-op here; the real entry's queue
+        // size is reconciled by the subsequent drain in these tests.
         private void simulateTimeout(ListenableFuture<Response> future) {
             queuedChannel.failWithQueueTimeout(
                     (SettableFuture<Response>) future,
                     DetachedSpan.start("test"),
                     new QueuedChannel.IdempotentTimerContext(DialogueClientMetrics.of(new DefaultTaggedMetricRegistry())
                             .requestQueuedTime("test")
-                            .time()));
+                            .time()),
+                    queuedChannel.new QueueSizeAccounting());
         }
 
         // Ticker whose time only advances when explicitly told to.
