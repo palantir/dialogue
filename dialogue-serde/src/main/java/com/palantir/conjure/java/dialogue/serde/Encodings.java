@@ -69,7 +69,13 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure JSON wire format. */
     public static Encoding json() {
-        return new AbstractJacksonEncoding(JSON_MAPPER.get()) {
+        return json(false);
+    }
+
+    /** Like {@link #json()}, optionally enabling Jackson optimization modules (Blackbird) on the client mapper. */
+    public static Encoding json(boolean useOptimizations) {
+        ObjectMapper mapper = useOptimizations ? configure(ObjectMappers.newClientJsonMapper(true)) : JSON_MAPPER.get();
+        return new AbstractJacksonEncoding(mapper) {
             private static final String CONTENT_TYPE = "application/json";
 
             @Override
@@ -86,7 +92,12 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure CBOR wire format. */
     public static Encoding cbor() {
-        return new AbstractJacksonEncoding(configure(ObjectMappers.newCborClientObjectMapper())) {
+        return cbor(false);
+    }
+
+    /** Like {@link #cbor()}, optionally enabling Jackson optimization modules (Blackbird) on the client mapper. */
+    public static Encoding cbor(boolean useOptimizations) {
+        return new AbstractJacksonEncoding(configure(ObjectMappers.newClientCborMapper(useOptimizations))) {
             private static final String CONTENT_TYPE = "application/cbor";
 
             @Override
@@ -103,7 +114,12 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure Smile wire format. */
     public static Encoding smile() {
-        return new AbstractJacksonEncoding(configure(ObjectMappers.newSmileClientObjectMapper())) {
+        return smile(false);
+    }
+
+    /** Like {@link #smile()}, optionally enabling Jackson optimization modules (Blackbird) on the client mapper. */
+    public static Encoding smile(boolean useOptimizations) {
+        return new AbstractJacksonEncoding(configure(ObjectMappers.newClientSmileMapper(useOptimizations))) {
             private static final String CONTENT_TYPE = "application/x-jackson-smile";
 
             @Override
