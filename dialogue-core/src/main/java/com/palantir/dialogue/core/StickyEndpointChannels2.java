@@ -30,7 +30,6 @@ import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
 import java.time.Duration;
 import java.util.OptionalLong;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -70,9 +69,6 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         private final OptionalLong queueTimeoutNanos;
         private final Ticker clock;
 
-        @Nullable
-        private final ScheduledExecutorService scheduler;
-
         private QueueOverrideSupplier(Config cf, LimitedChannel nodeSelectionChannel) {
             this.channelName = cf.channelName();
             this.maxQueueSize = cf.maxQueueSize();
@@ -84,7 +80,6 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     .map(OptionalLong::of)
                     .orElseGet(OptionalLong::empty);
             this.clock = cf.ticker();
-            this.scheduler = QueuedChannel.timeoutScheduler(queueTimeoutNanos);
         }
 
         @Override
@@ -97,8 +92,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     queuedChannelInstrumentation,
                     stickyLimitedChannel,
                     queueTimeoutNanos,
-                    clock,
-                    scheduler);
+                    clock);
         }
     }
 

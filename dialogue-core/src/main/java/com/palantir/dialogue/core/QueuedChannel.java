@@ -169,8 +169,7 @@ final class QueuedChannel implements Channel {
             QueuedChannelInstrumentation queuedChannelInstrumentation,
             LimitedChannel delegate,
             OptionalLong queueTimeoutNanos,
-            Ticker clock,
-            @Nullable ScheduledExecutorService scheduler) {
+            Ticker clock) {
         return new QueuedChannel(
                 delegate,
                 channelName,
@@ -179,7 +178,7 @@ final class QueuedChannel implements Channel {
                 maxQueueSize,
                 queueTimeoutNanos,
                 clock,
-                scheduler);
+                timeoutScheduler(queueTimeoutNanos));
     }
 
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
