@@ -165,7 +165,7 @@ public class IntegrationTest {
         if (gzippedResponse) {
             // Even if the gzipped response itself is below the limit, we are measuring the response size after
             // decompression, since the goal is to protect against memory consumption upon deserialization
-            assertThat(wireResponse.wireContents().length).isLessThan(MAX_RESPONSE_SIZE);
+            assertThat(wireResponse.wireContents()).hasSizeLessThan(MAX_RESPONSE_SIZE);
         }
         undertowHandler = wireResponse.handler();
 
