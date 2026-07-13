@@ -772,7 +772,8 @@ final class SimulationTest {
         String txtSection = buildTxtSection();
         String images = buildImagesTable();
         String report = String.format(
-                "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n", txtSection, images);
+                "# Report%n<!-- Run SimulationTest and LoadSweepTest to regenerate this report. -->%n%s%n%n%s%n",
+                txtSection, images);
         Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
     }
 
