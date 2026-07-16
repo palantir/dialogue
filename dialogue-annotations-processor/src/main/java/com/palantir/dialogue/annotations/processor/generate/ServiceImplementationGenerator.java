@@ -24,6 +24,8 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
+import com.palantir.dialogue.annotations.InputStreamDeserializer;
+import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.ArgumentType;
@@ -50,6 +52,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Modifier;
 
@@ -153,7 +156,7 @@ public final class ServiceImplementationGenerator {
                 .build();
     }
 
-    private static FieldSpec serializer(
+    private FieldSpec serializer(
             ArgumentDefinition argumentDefinition, TypeName serializerType, String serializerFieldName) {
         TypeName className = ArgumentTypes.caseOf(argumentDefinition.argType())
                 .primitive((typeName, _parameterSerializerMethodName) -> typeName)
@@ -163,10 +166,24 @@ public final class ServiceImplementationGenerator {
                 .otherwiseEmpty()
                 .orElseThrow(() -> new SafeIllegalStateException(
                         "Unsupported argument type for serializer", SafeArg.of("type", argumentDefinition.argType())));
-        ParameterizedTypeName deserializerType = ParameterizedTypeName.get(ClassName.get(Serializer.class), className);
-        return FieldSpec.builder(deserializerType, serializerFieldName)
+        ParameterizedTypeName wrappedSerializerType =
+                ParameterizedTypeName.get(ClassName.get(Serializer.class), className);
+
+        final CodeBlock initializer;
+        if (acceptsConjureBodySerDe(serializerType)) {
+            initializer = CodeBlock.of(
+                    "new $T($L.bodySerDe()).serializerFor(new $T<$T>() {})",
+                    serializerType,
+                    serviceDefinition.conjureRuntimeArgName(),
+                    TypeMarker.class,
+                    className);
+        } else {
+            initializer = CodeBlock.of(
+                    "new $T().serializerFor(new $T<$T>() {})", serializerType, TypeMarker.class, className);
+        }
+        return FieldSpec.builder(wrappedSerializerType, serializerFieldName)
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T().serializerFor(new $T<$T>() {})", serializerType, TypeMarker.class, className)
+                .initializer(initializer)
                 .build();
     }
 
@@ -178,22 +195,42 @@ public final class ServiceImplementationGenerator {
         ParameterizedTypeName deserializerType =
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
 
-        CodeBlock realDeserializer = CodeBlock.of(
-                "new $T<>(new $T(), new $T()).deserializerFor(new $T<$T>() {})",
-                ErrorHandlingDeserializerFactory.class,
-                deserializerFactoryType,
-                errorDecoderType,
-                TypeMarker.class,
-                innerType);
-        CodeBlock voidDeserializer = CodeBlock.of(
-                "new $T($L.bodySerDe().emptyBodyDeserializer(), new $T())",
-                ErrorHandlingVoidDeserializer.class,
-                serviceDefinition.conjureRuntimeArgName(),
-                errorDecoderType);
+        final CodeBlock deserializer;
+        if (type.isVoid()) {
+            deserializer = CodeBlock.of(
+                    "new $T($L.bodySerDe().emptyBodyDeserializer(), new $T())",
+                    ErrorHandlingVoidDeserializer.class,
+                    serviceDefinition.conjureRuntimeArgName(),
+                    errorDecoderType);
+        } else if (acceptsConjureBodySerDe(deserializerFactoryType)) {
+            deserializer = CodeBlock.of(
+                    "new $T<>(new $T($L.bodySerDe()), new $T()).deserializerFor(new $T<$T>() {})",
+                    ErrorHandlingDeserializerFactory.class,
+                    deserializerFactoryType,
+                    serviceDefinition.conjureRuntimeArgName(),
+                    errorDecoderType,
+                    TypeMarker.class,
+                    innerType);
+        } else {
+            deserializer = CodeBlock.of(
+                    "new $T<>(new $T(), new $T()).deserializerFor(new $T<$T>() {})",
+                    ErrorHandlingDeserializerFactory.class,
+                    deserializerFactoryType,
+                    errorDecoderType,
+                    TypeMarker.class,
+                    innerType);
+        }
         return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer(type.isVoid() ? voidDeserializer : realDeserializer)
+                .initializer(deserializer)
                 .build());
+    }
+
+    private static final Set<TypeName> TYPES_ACCEPTING_CONJURE_BODY_SERDE =
+            Set.of(TypeName.get(Json.class), TypeName.get(InputStreamDeserializer.class));
+
+    private static boolean acceptsConjureBodySerDe(TypeName type) {
+        return TYPES_ACCEPTING_CONJURE_BODY_SERDE.contains(type.withoutAnnotations());
     }
 
     private static FieldSpec encoder(ParameterEncoderType type) {
