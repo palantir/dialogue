@@ -681,6 +681,17 @@ public class QueuedChannelTest {
             assertThat(instrumentation.requestsQueued().getCount())
                     .as("queue remains empty")
                     .isEqualTo(0);
+
+            // When the server responds, the caller must receive that response and not a delayed queue timeout.
+            delegate.lastDispatched(); // setInFlightRequest's dispatch
+            SettableFuture<Response> wire = delegate.lastDispatched();
+            assertThat(wire).isNotNull();
+            wire.set(new TestResponse().code(200));
+            assertThat(callerFuture)
+                    .as("caller receives the real wire response, not a delayed timeout")
+                    .succeedsWithin(Duration.ZERO)
+                    .extracting(Response::code)
+                    .isEqualTo(200);
         }
 
         @Test

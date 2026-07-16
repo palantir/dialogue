@@ -89,13 +89,10 @@ com.palantir.tritium:tritium-caffeine:0.134.0 (1 constraints: 6a05a040)
 com.palantir.tritium:tritium-core:0.134.0 (1 constraints: 7010afb2)
 
 com.palantir.tritium:tritium-ids:0.134.0 (1 constraints: fc0f94a6)
-com.palantir.tritium:tritium-ids:0.133.0 (1 constraints: fc0f94a6)
 
 com.palantir.tritium:tritium-metrics:0.134.0 (3 constraints: 9424180a)
 
 com.palantir.tritium:tritium-registry:0.134.0 (6 constraints: 8568305b)
-com.palantir.tritium:tritium-registry:0.134.0 (6 constraints: 82680a5a)
-com.palantir.tritium:tritium-registry:0.133.0 (6 constraints: 7f68be58)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 

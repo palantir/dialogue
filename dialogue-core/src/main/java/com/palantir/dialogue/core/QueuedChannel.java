@@ -96,6 +96,10 @@ final class QueuedChannel implements Channel {
         return queueTimeoutNanos.isPresent() ? sharedTimeoutScheduler.get() : null;
     }
 
+    private static OptionalLong toNanos(Optional<Duration> queueTimeout) {
+        return queueTimeout.map(Duration::toNanos).map(OptionalLong::of).orElseGet(OptionalLong::empty);
+    }
+
     private final Deque<DeferredCall> queuedCalls;
     private final NeverThrowLimitedChannel delegate;
 
@@ -136,6 +140,27 @@ final class QueuedChannel implements Channel {
             @Safe String queueType,
             QueuedChannelInstrumentation metrics,
             int maxQueueSize,
+            Optional<Duration> queueTimeout,
+            Ticker clock) {
+        this(
+                delegate,
+                channelName,
+                queueType,
+                metrics,
+                maxQueueSize,
+                toNanos(queueTimeout),
+                clock,
+                timeoutScheduler(toNanos(queueTimeout)));
+    }
+
+    /** Visible for testing so a deterministic scheduler can be injected. */
+    @VisibleForTesting
+    QueuedChannel(
+            LimitedChannel delegate,
+            @Safe String channelName,
+            @Safe String queueType,
+            QueuedChannelInstrumentation metrics,
+            int maxQueueSize,
             OptionalLong queueTimeoutNanos,
             Ticker clock,
             @Nullable ScheduledExecutorService scheduler) {
@@ -168,22 +193,13 @@ final class QueuedChannel implements Channel {
             int maxQueueSize,
             QueuedChannelInstrumentation queuedChannelInstrumentation,
             LimitedChannel delegate,
-            OptionalLong queueTimeoutNanos,
+            Optional<Duration> queueTimeout,
             Ticker clock) {
         return new QueuedChannel(
-                delegate,
-                channelName,
-                "sticky",
-                queuedChannelInstrumentation,
-                maxQueueSize,
-                queueTimeoutNanos,
-                clock,
-                timeoutScheduler(queueTimeoutNanos));
+                delegate, channelName, "sticky", queuedChannelInstrumentation, maxQueueSize, queueTimeout, clock);
     }
 
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
-        OptionalLong timeoutNanos =
-                cf.queueTimeout().map(Duration::toNanos).map(OptionalLong::of).orElseGet(OptionalLong::empty);
         return new QueuedChannel(
                 delegate,
                 cf.channelName(),
@@ -191,14 +207,11 @@ final class QueuedChannel implements Channel {
                 channelInstrumentation(
                         DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
                 cf.maxQueueSize(),
-                timeoutNanos,
-                cf.ticker(),
-                timeoutScheduler(timeoutNanos));
+                cf.queueTimeout(),
+                cf.ticker());
     }
 
     static QueuedChannel create(Config cf, Endpoint endpoint, LimitedChannel delegate) {
-        OptionalLong timeoutNanos =
-                cf.queueTimeout().map(Duration::toNanos).map(OptionalLong::of).orElseGet(OptionalLong::empty);
         return new QueuedChannel(
                 delegate,
                 cf.channelName(),
@@ -209,9 +222,8 @@ final class QueuedChannel implements Channel {
                         endpoint.serviceName(),
                         endpoint.endpointName()),
                 cf.maxQueueSize(),
-                timeoutNanos,
-                cf.ticker(),
-                timeoutScheduler(timeoutNanos));
+                cf.queueTimeout(),
+                cf.ticker());
     }
 
     @Override
@@ -409,18 +421,19 @@ final class QueuedChannel implements Channel {
     }
 
     final class QueueSizeAccounting {
-        private final AtomicBoolean incremented = new AtomicBoolean(false);
+        private volatile boolean incremented = false;
         private final AtomicBoolean decremented = new AtomicBoolean(false);
 
         int incrementAndGet() {
+            Preconditions.checkState(!decremented.get(), "Queue size was incremented after it was already decremented");
             int newSize = incrementQueueSize();
-            incremented.set(true);
+            incremented = true;
             return newSize;
         }
 
         /** Decrements the queue size iff it was incremented and has not already been decremented. */
         void decrementIfCounted() {
-            if (incremented.get() && decremented.compareAndSet(false, true)) {
+            if (incremented && decremented.compareAndSet(false, true)) {
                 decrementQueueSize();
             }
         }
