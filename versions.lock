@@ -52,7 +52,7 @@ com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.38.0 (2 c
 
 com.palantir.conjure.java.runtime:keystores:8.38.0 (2 constraints: 6919b1de)
 
-com.palantir.deadlines:deadlines:0.23.0 (1 constraints: 3705303b)
+com.palantir.deadlines:deadlines:0.24.0 (1 constraints: 3805333b)
 
 com.palantir.goethe:goethe:0.25.0 (1 constraints: 3905363b)
 
@@ -64,21 +64,21 @@ com.palantir.refreshable:refreshable:2.14.0 (2 constraints: 511995db)
 
 com.palantir.ri:resource-identifier:2.20.0 (2 constraints: 5915a2d9)
 
-com.palantir.safe-logging:logger:3.17.0 (14 constraints: 61e1de25)
+com.palantir.safe-logging:logger:3.17.0 (14 constraints: 62e13a27)
 
 com.palantir.safe-logging:logger-slf4j:3.17.0 (1 constraints: 360e9c50)
 
 com.palantir.safe-logging:logger-spi:3.17.0 (2 constraints: 7b1e4eb1)
 
-com.palantir.safe-logging:preconditions:3.17.0 (21 constraints: c4532211)
+com.palantir.safe-logging:preconditions:3.17.0 (21 constraints: c5531313)
 
-com.palantir.safe-logging:safe-logging:3.17.0 (20 constraints: 1f4593ad)
+com.palantir.safe-logging:safe-logging:3.17.0 (20 constraints: 20458caf)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.10.0 (1 constraints: 3305233b)
 
 com.palantir.tokens:auth-tokens:4.7.0 (3 constraints: 9327b82e)
 
-com.palantir.tracing:tracing:6.36.0 (3 constraints: b924f4fd)
+com.palantir.tracing:tracing:6.36.0 (3 constraints: ba2428fe)
 
 com.palantir.tracing:tracing-api:6.36.0 (2 constraints: 17122119)
 
@@ -90,9 +90,9 @@ com.palantir.tritium:tritium-core:0.134.0 (1 constraints: 7010afb2)
 
 com.palantir.tritium:tritium-ids:0.134.0 (1 constraints: fe0f9aa6)
 
-com.palantir.tritium:tritium-metrics:0.134.0 (3 constraints: 91247f09)
+com.palantir.tritium:tritium-metrics:0.134.0 (3 constraints: 9424180a)
 
-com.palantir.tritium:tritium-registry:0.134.0 (6 constraints: 8468735b)
+com.palantir.tritium:tritium-registry:0.134.0 (6 constraints: 8768995c)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
