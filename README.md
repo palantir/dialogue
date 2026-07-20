@@ -215,6 +215,33 @@ backpressure in the form of 429 status QoS responses. Permits are decreased afte
 
 Endpoint limits are based on failures that are coupled to an individual endpoint.
 
+#### Queue timeout
+
+As shown above, requests that arrive while every relevant concurrency limiter is exhausted wait in a FIFO queue until
+a permit becomes available. By default a request stays queued until a permit frees up or its overall deadline / read
+timeout expires. The **queue timeout** places a separate bound on how long a request may wait *in the queue* — distinct
+from the read timeout, which only starts once a request has been dispatched to a host.
+
+When a request exceeds the queue timeout it fails immediately to the caller (it is **not** retried), and the
+`dialogue.client.request.queue.timeout` counter (tagged `channel-name`) is incremented. Time spent waiting in the queue
+is recorded by the `dialogue.client.request.queued.time` timer.
+
+Configure it in code via `withQueueTimeout(Duration)` on the client factory, or per service via the `queue-timeout` field
+of `ServiceConfiguration` (the `queue-timeout` key in service-discovery config). When both are set, the per-service
+`queue-timeout` wins; the code-supplied value is used only when the service-configuration field is absent.
+
+There is no default queue timeout. Setting one trades tolerance of bursts for faster failure:
+
+- **Set it** to shed load and fail fast when a dependency is saturated, rather than letting requests
+  accumulate in the queue. Deep queues consume memory, add latency to every request behind them, and can turn a brief
+  dependency blip into a long recovery once the backlog drains. Failing fast is preferable when a late response is
+  worthless to the caller.
+- **Leave it unset** when a dependency's slowness is expected to be short-lived and callers would rather
+  wait than see errors — for example background tasks, or endpoints where completing late is still useful.
+
+You can inspect observed queue times (`dialogue.client.request.queued.time`) to check your services current
+queueing behavior and better select a value, if needed.
+
 ### Node selection strategies
 When configured with multiple uris, Dialogue has several strategies for choosing which upstream to route requests to.
 The default strategy is `PIN_UNTIL_ERROR`, although users can choose alternatives such as `ROUND_ROBIN` when building a ClientConfiguration

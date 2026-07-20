@@ -66,6 +66,10 @@ interface AugmentClientConfig {
 
     Optional<HostEventsSink> hostEventsSink();
 
+    /**
+     * The provided value will only be respected if the corresponding field in {@link ServiceConfiguration}
+     * is absent.
+     */
     Optional<Duration> queueTimeout();
 
     static ClientConfiguration getClientConf(ServiceConfiguration serviceConfig, AugmentClientConfig augment) {
@@ -90,7 +94,10 @@ interface AugmentClientConfig {
         augment.serverQoS().ifPresent(builder::serverQoS);
         augment.retryOnTimeout().ifPresent(builder::retryOnTimeout);
         augment.hostEventsSink().ifPresent(builder::hostEventsSink);
-        augment.queueTimeout().ifPresent(builder::queueTimeout);
+
+        if (serviceConfig.queueTimeout().isEmpty()) {
+            augment.queueTimeout().ifPresent(builder::queueTimeout);
+        }
 
         return builder.build();
     }
