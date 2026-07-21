@@ -227,7 +227,7 @@ When a request exceeds the queue timeout it fails immediately to the caller (it 
 is recorded by the `dialogue.client.request.queued.time` timer.
 
 Configure it in code via `withQueueTimeout(Duration)` on the client factory, or per service via the `queue-timeout` field
-of `ServiceConfiguration` (the `queue-timeout` key in service-discovery config). When both are set, the per-service
+of `ServiceConfiguration`. When both are set, the per-service
 `queue-timeout` wins; the code-supplied value is used only when the service-configuration field is absent.
 
 There is no default queue timeout. Setting one trades tolerance of bursts for faster failure:
