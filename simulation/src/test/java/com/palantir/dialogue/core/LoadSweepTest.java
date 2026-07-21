@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.knowm.xchart.XYChart;
 import org.knowm.xchart.XYChartBuilder;
@@ -55,7 +56,7 @@ final class LoadSweepTest {
     // In-flight requests a single node serves before its response time cliffs to 5x.
     private static final int SLOWDOWN_CAPACITY_PER_NODE = 10;
 
-    // In-flight requests a single node serves before it starts shedding with 429s.a
+    // In-flight requests a single node serves before it starts shedding with 429s.
     private static final int SHED_CAPACITY_PER_NODE = 20;
 
     private static final Duration BEST_CASE_RESPONSE = Duration.ofMillis(60);
@@ -148,6 +149,13 @@ final class LoadSweepTest {
                 .as("p99 latency at the highest offered load should exceed that at the lowest (the knee)")
                 .isGreaterThan(unlimited[0]);
         assertThat(Paths.get(pngPath)).exists();
+    }
+
+    @AfterAll
+    static void afterClass() throws IOException {
+        // Rebuild the aggregate report so it captures this class's fresh load_sweep.txt regardless of whether
+        // SimulationTest ran, or in which order. See SimulationReport.
+        SimulationReport.regenerate();
     }
 
     private static Benchmark.BenchmarkResult runOnce(Strategy strategy, int rps) {

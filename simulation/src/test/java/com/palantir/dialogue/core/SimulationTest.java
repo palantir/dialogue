@@ -33,7 +33,6 @@ import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -46,7 +45,6 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -768,57 +766,6 @@ final class SimulationTest {
 
     @AfterAll
     public static void afterClass() throws IOException {
-        // squish all txt files together into one markdown report so that github displays diffs
-        String txtSection = buildTxtSection();
-        String images = buildImagesTable();
-        String report = String.format(
-                "# Report%n<!-- Run SimulationTest and LoadSweepTest to regenerate this report. -->%n%s%n%n%s%n",
-                txtSection, images);
-        Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String buildTxtSection() throws IOException {
-        try (Stream<Path> list = Files.list(Paths.get("src/test/resources/txt"))) {
-            List<Path> files = list.filter(p -> !p.toString().endsWith("report.md"))
-                    .sorted(Comparator.comparing(Path::getFileName))
-                    .collect(Collectors.toList());
-
-            return files.stream()
-                    .filter(p -> p.toString().endsWith("txt"))
-                    .map(p -> {
-                        try {
-                            return String.format(
-                                    "%70s:\t%s%n",
-                                    p.getFileName().toString(),
-                                    new String(Files.readAllBytes(p), StandardCharsets.UTF_8));
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    })
-                    .collect(Collectors.joining("", "```\n", "```\n"));
-        }
-    }
-
-    private static String buildImagesTable() throws IOException {
-        try (Stream<Path> files = Files.list(Paths.get("src/test/resources"))) {
-            return files.filter(
-                            p -> p.toString().endsWith("png") && !p.toString().endsWith(".prev.png"))
-                    .sorted(Comparator.comparing(Path::getFileName))
-                    .map(p -> {
-                        String githubLfsUrl = "https://media.githubusercontent.com/media/palantir/dialogue/develop/"
-                                + "simulation/src/test/resources/"
-                                + p.getFileName();
-                        return String.format(
-                                "%n## `%s`%n"
-                                        + "<table><tr><th>develop</th><th>current</th></tr>%n"
-                                        + "<tr>"
-                                        + "<td><image width=400 src=\"%s\" /></td>"
-                                        + "<td><image width=400 src=\"%s\" /></td>"
-                                        + "</tr>"
-                                        + "</table>%n%n",
-                                p.getFileName().toString().replaceAll("\\.png", ""), githubLfsUrl, p.getFileName());
-                    })
-                    .collect(Collectors.joining());
-        }
+        SimulationReport.regenerate();
     }
 }
