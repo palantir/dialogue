@@ -68,7 +68,6 @@ allprojects {
     version rootProject.version
 
     repositories {
-        mavenLocal()
         mavenCentral() { metadataSources { mavenPom(); ignoreGradleMetadataRedirection() } }
     }
     configurations.all {
@@ -111,22 +110,4 @@ subprojects {
 
 jdks {
     daemonTarget = 21
-}
-
-// Force conjure-java-api and conjure-java-runtime to the RC builds. The RC versions sort below the
-// released 2.72.0 / 8.36.0 that conjure-lib transitively requires, so this is a downgrade past a hard
-// requirement and a strict constraint can't satisfy it. A hard force is required to override the
-// platform alignment.
-allprojects {
-    configurations.all {
-        resolutionStrategy {
-            force 'com.palantir.conjure.java.api:errors:2.72.0-rc1'
-            force 'com.palantir.conjure.java.api:service-config:2.72.0-rc1'
-            force 'com.palantir.conjure.java.api:ssl-config:2.72.0-rc1'
-            force 'com.palantir.conjure.java.runtime:client-config:8.36.0-rc1'
-            force 'com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.36.0-rc1'
-            force 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.36.0-rc1'
-            force 'com.palantir.conjure.java.runtime:keystores:8.36.0-rc1'
-        }
-    }
 }
