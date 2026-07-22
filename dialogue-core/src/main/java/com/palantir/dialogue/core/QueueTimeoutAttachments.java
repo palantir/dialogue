@@ -29,6 +29,8 @@ import javax.annotation.Nullable;
  */
 final class QueueTimeoutAttachments {
     private static final RequestAttachmentKey<Long> QUEUE_EXPIRATION_NANOS = RequestAttachmentKey.create(Long.class);
+    private static final RequestAttachmentKey<DeadlineExpiration> DEADLINE_EXPIRATION =
+            RequestAttachmentKey.create(DeadlineExpiration.class);
 
     private QueueTimeoutAttachments() {}
 
@@ -46,4 +48,20 @@ final class QueueTimeoutAttachments {
     static @Nullable Long getExpiration(Request request) {
         return request.attachments().getOrDefault(QUEUE_EXPIRATION_NANOS, null);
     }
+
+    static void setDeadlineExpirationIfAbsent(Request request, @Nullable Long expirationNanos) {
+        request.attachments().putIfAbsent(DEADLINE_EXPIRATION, new DeadlineExpiration(expirationNanos));
+    }
+
+    static boolean isDeadlineResolved(Request request) {
+        return request.attachments().getOrDefault(DEADLINE_EXPIRATION, null) != null;
+    }
+
+    static @Nullable Long getDeadlineExpiration(Request request) {
+        DeadlineExpiration expiration = request.attachments().getOrDefault(DEADLINE_EXPIRATION, null);
+        return expiration == null ? null : expiration.expirationNanos();
+    }
+
+    // The wrapper distinguishes an unresolved deadline from a resolved request with no deadline.
+    private record DeadlineExpiration(@Nullable Long expirationNanos) {}
 }
