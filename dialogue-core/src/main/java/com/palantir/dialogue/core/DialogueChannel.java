@@ -38,6 +38,7 @@ import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -173,6 +174,12 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        @VisibleForTesting
+        Builder queueTimeout(Duration value) {
+            builder.queueTimeout(Optional.of(value));
+            return this;
+        }
+
         @CheckReturnValue
         public DialogueChannel build() {
             Config cf = builder.build();
@@ -217,7 +224,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             LimitedChannel stickyValidationChannel = new StickyValidationChannel(nodeSelectionChannel);
 
-            Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
+            QueuedChannel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
             EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
 
             Supplier<Channel> stickyChannelSupplier =

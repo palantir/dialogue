@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -27,6 +28,8 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
+import java.time.Duration;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -63,6 +66,8 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         private final int maxQueueSize;
         private final QueuedChannelInstrumentation queuedChannelInstrumentation;
         private final LimitedChannel nodeSelectionChannel;
+        private final Optional<Duration> queueTimeout;
+        private final Ticker clock;
 
         private QueueOverrideSupplier(Config cf, LimitedChannel nodeSelectionChannel) {
             this.channelName = cf.channelName();
@@ -70,6 +75,8 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
             this.queuedChannelInstrumentation = QueuedChannel.stickyInstrumentation(
                     DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), channelName);
             this.nodeSelectionChannel = nodeSelectionChannel;
+            this.queueTimeout = cf.queueTimeout();
+            this.clock = cf.ticker();
         }
 
         @Override
@@ -77,7 +84,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
             LimitedChannel stickyLimitedChannel =
                     StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, channelName);
             return QueuedChannel.createForSticky(
-                    channelName, maxQueueSize, queuedChannelInstrumentation, stickyLimitedChannel);
+                    channelName, maxQueueSize, queuedChannelInstrumentation, stickyLimitedChannel, queueTimeout, clock);
         }
     }
 

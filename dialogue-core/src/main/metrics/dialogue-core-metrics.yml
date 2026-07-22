@@ -66,6 +66,10 @@ namespaces:
         type: counter
         tags: [ channel-name ]
         docs: Number of sticky queued requests waiting to try to be executed.
+      request.queue.timeout:
+        type: counter
+        tags: [channel-name]
+        docs: Count of requests that are failed due to queue timeout.
       request.queued.time:
         type: timer
         tags: [channel-name]

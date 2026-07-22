@@ -28,6 +28,7 @@ import com.palantir.conjure.java.config.ssl.TrustContext;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
+import java.time.Duration;
 import java.util.Optional;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -65,6 +66,12 @@ interface AugmentClientConfig {
 
     Optional<HostEventsSink> hostEventsSink();
 
+    /**
+     * The provided value will only be respected if the corresponding field in {@link ServiceConfiguration}
+     * is absent.
+     */
+    Optional<Duration> queueTimeout();
+
     static ClientConfiguration getClientConf(ServiceConfiguration serviceConfig, AugmentClientConfig augment) {
         TrustContextFactory trustContextFactory = buildTrustContextFactory(augment.securityProvider());
         ClientConfiguration.Builder builder =
@@ -87,6 +94,10 @@ interface AugmentClientConfig {
         augment.serverQoS().ifPresent(builder::serverQoS);
         augment.retryOnTimeout().ifPresent(builder::retryOnTimeout);
         augment.hostEventsSink().ifPresent(builder::hostEventsSink);
+
+        if (serviceConfig.queueTimeout().isEmpty()) {
+            augment.queueTimeout().ifPresent(builder::queueTimeout);
+        }
 
         return builder.build();
     }

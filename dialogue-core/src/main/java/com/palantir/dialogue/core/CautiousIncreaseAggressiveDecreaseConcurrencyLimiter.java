@@ -44,9 +44,16 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
     private static final SafeLogger log =
             SafeLoggerFactory.get(CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class);
-    private static final double INITIAL_LIMIT = 20;
-    private static final double BACKOFF_RATIO = .9D;
-    private static final double MIN_LIMIT = 1;
+
+    @VisibleForTesting
+    static final double INITIAL_LIMIT = 20;
+
+    @VisibleForTesting
+    static final double BACKOFF_RATIO = .9D;
+
+    @VisibleForTesting
+    static final double MIN_LIMIT = 1;
+
     private static final double MAX_LIMIT = 1_000_000D;
 
     private final AtomicDouble limit = new AtomicDouble(INITIAL_LIMIT);
