@@ -60,17 +60,17 @@ com.palantir.javapoet:javapoet:0.17.0 (2 constraints: 3111b6ee)
 
 com.palantir.nylon:nylon-threads:0.12.0 (1 constraints: 3b1032a2)
 
-com.palantir.refreshable:refreshable:2.14.0 (2 constraints: 511995db)
+com.palantir.refreshable:refreshable:2.15.0 (2 constraints: 5219d1db)
 
 com.palantir.ri:resource-identifier:2.20.0 (2 constraints: 51158bd9)
 
-com.palantir.safe-logging:logger:3.17.0 (14 constraints: 62e13a27)
+com.palantir.safe-logging:logger:3.17.0 (14 constraints: 63e13e28)
 
 com.palantir.safe-logging:logger-slf4j:3.17.0 (1 constraints: 360e9c50)
 
 com.palantir.safe-logging:logger-spi:3.17.0 (2 constraints: 7b1e4eb1)
 
-com.palantir.safe-logging:preconditions:3.17.0 (21 constraints: c5531313)
+com.palantir.safe-logging:preconditions:3.17.0 (21 constraints: c653ac14)
 
 com.palantir.safe-logging:safe-logging:3.17.0 (20 constraints: 20458caf)
 
