@@ -26,6 +26,8 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.palantir.deadlines.Deadlines;
+import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -91,13 +93,16 @@ final class QueuedChannel implements Channel {
                             .build(),
                     TIMEOUT_SCHEDULER_NAME)));
 
-    @Nullable
-    static ScheduledExecutorService timeoutScheduler(OptionalLong queueTimeoutNanos) {
-        return queueTimeoutNanos.isPresent() ? sharedTimeoutScheduler.get() : null;
-    }
-
     private static OptionalLong toNanos(Optional<Duration> queueTimeout) {
         return queueTimeout.map(Duration::toNanos).map(OptionalLong::of).orElseGet(OptionalLong::empty);
+    }
+
+    private static Optional<Duration> enforcedRemainingDeadline() {
+        Optional<Enforcement> enforcement = Deadlines.getEnforcement();
+        if (enforcement.isEmpty() || enforcement.get() != Enforcement.ENFORCE) {
+            return Optional.empty();
+        }
+        return Deadlines.getRemainingDeadline();
     }
 
     private final Deque<DeferredCall> queuedCalls;
@@ -115,7 +120,8 @@ final class QueuedChannel implements Channel {
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
     private final Supplier<Counter> queueSizeCounter;
-    private final Supplier<Counter> queueTimeoutCounter;
+    private final Supplier<Counter> deadlineTimeoutCounter;
+    private final Supplier<Counter> configuredTimeoutCounter;
     private final Timer queuedTime;
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
     // Metrics aren't reported until the queue is first used, allowing per-endpoint queues to
@@ -128,6 +134,8 @@ final class QueuedChannel implements Channel {
     // The timeout budget is shared across both queue layers via a Request attachment (see QueueTimeoutAttachments).
     @Safe
     private final OptionalLong queueTimeoutNanos;
+
+    private final Supplier<Optional<Duration>> remainingDeadline;
 
     private final Ticker clock;
 
@@ -150,7 +158,8 @@ final class QueuedChannel implements Channel {
                 maxQueueSize,
                 toNanos(queueTimeout),
                 clock,
-                timeoutScheduler(toNanos(queueTimeout)));
+                sharedTimeoutScheduler.get(),
+                QueuedChannel::enforcedRemainingDeadline);
     }
 
     /** Visible for testing so a deterministic scheduler can be injected. */
@@ -164,6 +173,29 @@ final class QueuedChannel implements Channel {
             OptionalLong queueTimeoutNanos,
             Ticker clock,
             @Nullable ScheduledExecutorService scheduler) {
+        this(
+                delegate,
+                channelName,
+                queueType,
+                metrics,
+                maxQueueSize,
+                queueTimeoutNanos,
+                clock,
+                scheduler,
+                QueuedChannel::enforcedRemainingDeadline);
+    }
+
+    @VisibleForTesting
+    QueuedChannel(
+            LimitedChannel delegate,
+            @Safe String channelName,
+            @Safe String queueType,
+            QueuedChannelInstrumentation metrics,
+            int maxQueueSize,
+            OptionalLong queueTimeoutNanos,
+            Ticker clock,
+            @Nullable ScheduledExecutorService scheduler,
+            Supplier<Optional<Duration>> remainingDeadline) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
         this.queueType = queueType;
@@ -171,12 +203,15 @@ final class QueuedChannel implements Channel {
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
         this.queueTimeoutNanos = queueTimeoutNanos;
+        this.remainingDeadline = remainingDeadline;
         this.clock = clock;
         this.scheduler = scheduler;
         // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
         // zero interactions because they support both increment and decrement operations.
         this.queueSizeCounter = Suppliers.memoize(metrics::requestsQueued);
-        this.queueTimeoutCounter = Suppliers.memoize(metrics::requestQueueTimeout);
+        this.deadlineTimeoutCounter = Suppliers.memoize(() -> metrics.requestQueueTimeout(QueueTimeoutSource.DEADLINE));
+        this.configuredTimeoutCounter =
+                Suppliers.memoize(() -> metrics.requestQueueTimeout(QueueTimeoutSource.CONFIGURED));
         this.queuedTime = metrics.requestQueuedTime();
         this.limitedResultSupplier = () -> {
             List<SafeArg<?>> safeArgs = new ArrayList<>(metrics.queueFullSafeArgs());
@@ -324,12 +359,22 @@ final class QueuedChannel implements Channel {
             DetachedSpan span,
             IdempotentTimerContext timer,
             QueueSizeAccounting accounting) {
-        if (queueTimeoutNanos.isEmpty()) {
-            return null;
-        }
-        Preconditions.checkNotNull(scheduler, "Scheduler must be present when queue timeouts are enabled");
-        QueueTimeoutAttachments.setExpirationIfAbsent(request, clock.read() + queueTimeoutNanos.getAsLong());
+        initializeTimeoutExpirations(request);
         return scheduleTimeoutFromExpiration(request, responseFuture, span, timer, accounting);
+    }
+
+    private void initializeTimeoutExpirations(Request request) {
+        if (queueTimeoutNanos.isPresent()) {
+            QueueTimeoutAttachments.setExpirationIfAbsent(request, clock.read() + queueTimeoutNanos.getAsLong());
+        }
+        if (!QueueTimeoutAttachments.isDeadlineResolved(request)) {
+            // Read trace-local state on the initial caller thread, then reuse it across queue layers and retries.
+            Long deadlineExpirationNanos = remainingDeadline
+                    .get()
+                    .map(remaining -> clock.read() + remaining.toNanos())
+                    .orElse(null);
+            QueueTimeoutAttachments.setDeadlineExpirationIfAbsent(request, deadlineExpirationNanos);
+        }
     }
 
     /**
@@ -342,26 +387,43 @@ final class QueuedChannel implements Channel {
             DetachedSpan span,
             IdempotentTimerContext timer,
             QueueSizeAccounting accounting) {
-        if (queueTimeoutNanos.isEmpty() || scheduler == null) {
+        Optional<EffectiveExpiration> maybeExpiration = effectiveExpiration(request);
+        if (maybeExpiration.isEmpty()) {
             return null;
         }
-        Long expirationNanos = QueueTimeoutAttachments.getExpiration(request);
-        if (expirationNanos == null) {
-            return null;
-        }
-        long delayNanos = expirationNanos - clock.read();
+        EffectiveExpiration expiration = maybeExpiration.get();
+        long delayNanos = expiration.expirationNanos() - clock.read();
         if (delayNanos <= 0) {
             // The timeout is already reached, so we fail immediately. The queue-size decrement is safe to request
             // unconditionally: on initial enqueue the entry has not been counted yet (maybeExecute returns early,
             // before incrementing), so it is a no-op; on re-queue the entry is counted and gets decremented here.
-            failWithQueueTimeout(responseFuture, span, timer, accounting);
+            failWithQueueTimeout(expiration.source(), responseFuture, span, timer, accounting);
             return null;
         }
+        ScheduledExecutorService timeoutScheduler =
+                Preconditions.checkNotNull(scheduler, "Scheduler must be present when a queue timeout is scheduled");
         // When the timeout fires, failWithQueueTimeout proactively decrements the queue size, so the queue size
         // reflects only live requests rather than lingering until the next scheduleNextTask() drain pops the entry.
-        return scheduler.schedule(
-                () -> failWithQueueTimeout(responseFuture, span, timer, accounting), delayNanos, TimeUnit.NANOSECONDS);
+        return timeoutScheduler.schedule(
+                () -> failWithQueueTimeout(expiration.source(), responseFuture, span, timer, accounting),
+                delayNanos,
+                TimeUnit.NANOSECONDS);
     }
+
+    private Optional<EffectiveExpiration> effectiveExpiration(Request request) {
+        Long configuredExpiration = QueueTimeoutAttachments.getExpiration(request);
+        Long deadlineExpiration = QueueTimeoutAttachments.getDeadlineExpiration(request);
+        if (deadlineExpiration == null) {
+            return Optional.ofNullable(configuredExpiration)
+                    .map(value -> new EffectiveExpiration(value, QueueTimeoutSource.CONFIGURED));
+        }
+        if (configuredExpiration == null || deadlineExpiration <= configuredExpiration) {
+            return Optional.of(new EffectiveExpiration(deadlineExpiration, QueueTimeoutSource.DEADLINE));
+        }
+        return Optional.of(new EffectiveExpiration(configuredExpiration, QueueTimeoutSource.CONFIGURED));
+    }
+
+    private record EffectiveExpiration(long expirationNanos, QueueTimeoutSource source) {}
 
     /**
      * Fails the given future with a queue timeout exception and performs the same terminal cleanup as a normal
@@ -375,14 +437,19 @@ final class QueuedChannel implements Channel {
      */
     @VisibleForTesting
     void failWithQueueTimeout(
+            QueueTimeoutSource source,
             SettableFuture<Response> responseFuture,
             DetachedSpan span,
             IdempotentTimerContext timer,
             QueueSizeAccounting accounting) {
-        if (responseFuture.setException(new QueueTimeoutException(channelName, queueTimeoutNanos))) {
-            queueTimeoutCounter.get().inc();
+        if (responseFuture.setException(new QueueTimeoutException(channelName, source, queueTimeoutNanos))) {
+            timeoutCounter(source).get().inc();
         }
         completeAndDecrement(Optional.empty(), span, timer, accounting);
+    }
+
+    private Supplier<Counter> timeoutCounter(QueueTimeoutSource source) {
+        return source == QueueTimeoutSource.DEADLINE ? deadlineTimeoutCounter : configuredTimeoutCounter;
     }
 
     private void onCompletion() {
@@ -694,7 +761,14 @@ final class QueuedChannel implements Channel {
 
         List<SafeArg<?>> queueFullSafeArgs();
 
-        Counter requestQueueTimeout();
+        Counter requestQueueTimeout(QueueTimeoutSource source);
+    }
+
+    private static DialogueClientMetrics.RequestQueueTimeout_Source metricSource(QueueTimeoutSource source) {
+        return switch (source) {
+            case DEADLINE -> DialogueClientMetrics.RequestQueueTimeout_Source.DEADLINE;
+            case CONFIGURED -> DialogueClientMetrics.RequestQueueTimeout_Source.CONFIGURED;
+        };
     }
 
     static QueuedChannelInstrumentation channelInstrumentation(DialogueClientMetrics metrics, String channelName) {
@@ -715,8 +789,11 @@ final class QueuedChannel implements Channel {
             }
 
             @Override
-            public Counter requestQueueTimeout() {
-                return metrics.requestQueueTimeout(channelName);
+            public Counter requestQueueTimeout(QueueTimeoutSource source) {
+                return metrics.requestQueueTimeout()
+                        .channelName(channelName)
+                        .source(metricSource(source))
+                        .build();
             }
         };
     }
@@ -741,8 +818,11 @@ final class QueuedChannel implements Channel {
             }
 
             @Override
-            public Counter requestQueueTimeout() {
-                return metrics.requestQueueTimeout(channelName);
+            public Counter requestQueueTimeout(QueueTimeoutSource source) {
+                return metrics.requestQueueTimeout()
+                        .channelName(channelName)
+                        .source(metricSource(source))
+                        .build();
             }
         });
     }
@@ -774,8 +854,11 @@ final class QueuedChannel implements Channel {
             }
 
             @Override
-            public Counter requestQueueTimeout() {
-                return metrics.requestQueueTimeout(channelName);
+            public Counter requestQueueTimeout(QueueTimeoutSource source) {
+                return metrics.requestQueueTimeout()
+                        .channelName(channelName)
+                        .source(metricSource(source))
+                        .build();
             }
         };
     }
@@ -785,13 +868,17 @@ final class QueuedChannel implements Channel {
         private final Supplier<Counter> requestsQueuedSupplier;
         private final Supplier<Timer> requestQueuedTimeSupplier;
         private final Supplier<List<SafeArg<?>>> queueFullSafeArgs;
-        private final Supplier<Counter> requestQueueTimeoutSupplier;
+        private final Supplier<Counter> deadlineTimeoutSupplier;
+        private final Supplier<Counter> configuredTimeoutSupplier;
 
         MemoizedQueuedChannelInstrumentation(QueuedChannelInstrumentation delegate) {
             this.requestsQueuedSupplier = Suppliers.memoize(delegate::requestsQueued);
             this.requestQueuedTimeSupplier = Suppliers.memoize(delegate::requestQueuedTime);
             this.queueFullSafeArgs = Suppliers.memoize(delegate::queueFullSafeArgs);
-            this.requestQueueTimeoutSupplier = Suppliers.memoize(delegate::requestQueueTimeout);
+            this.deadlineTimeoutSupplier =
+                    Suppliers.memoize(() -> delegate.requestQueueTimeout(QueueTimeoutSource.DEADLINE));
+            this.configuredTimeoutSupplier =
+                    Suppliers.memoize(() -> delegate.requestQueueTimeout(QueueTimeoutSource.CONFIGURED));
         }
 
         @Override
@@ -810,8 +897,8 @@ final class QueuedChannel implements Channel {
         }
 
         @Override
-        public Counter requestQueueTimeout() {
-            return requestQueueTimeoutSupplier.get();
+        public Counter requestQueueTimeout(QueueTimeoutSource source) {
+            return (source == QueueTimeoutSource.DEADLINE ? deadlineTimeoutSupplier : configuredTimeoutSupplier).get();
         }
     }
 

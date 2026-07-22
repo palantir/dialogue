@@ -32,8 +32,12 @@ final class QueueTimeoutException extends RuntimeException implements SafeLoggab
 
     private final List<Arg<?>> args;
 
-    QueueTimeoutException(@Safe String channelName, @Safe OptionalLong queueTimeoutNanos) {
-        this(List.of(SafeArg.of("channelName", channelName), SafeArg.of("queueTimeoutNanos", queueTimeoutNanos)));
+    QueueTimeoutException(
+            @Safe String channelName, @Safe QueueTimeoutSource source, @Safe OptionalLong configuredQueueTimeoutNanos) {
+        this(List.of(
+                SafeArg.of("channelName", channelName),
+                SafeArg.of("queueTimeoutSource", source.tagValue()),
+                SafeArg.of("configuredQueueTimeoutNanos", configuredQueueTimeoutNanos)));
     }
 
     private QueueTimeoutException(List<Arg<?>> args) {
