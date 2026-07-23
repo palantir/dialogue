@@ -52,7 +52,7 @@ com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.39.0 (2 c
 
 com.palantir.conjure.java.runtime:keystores:8.39.0 (2 constraints: 6b19f0de)
 
-com.palantir.deadlines:deadlines:0.24.0 (1 constraints: 3805333b)
+com.palantir.deadlines:deadlines:0.25.0 (1 constraints: 3905363b)
 
 com.palantir.goethe:goethe:0.25.0 (1 constraints: 3905363b)
 
@@ -78,7 +78,7 @@ com.palantir.safethreadlocalrandom:safe-thread-local-random:0.11.0 (1 constraint
 
 com.palantir.tokens:auth-tokens:4.7.0 (3 constraints: 9327b82e)
 
-com.palantir.tracing:tracing:6.37.0 (3 constraints: bc2489fe)
+com.palantir.tracing:tracing:6.37.0 (3 constraints: bd24bdfe)
 
 com.palantir.tracing:tracing-api:6.37.0 (2 constraints: 19124d19)
 
