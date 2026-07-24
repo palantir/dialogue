@@ -21,6 +21,13 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.Deadlines;
 import com.palantir.deadlines.Deadlines.Enforcement;
@@ -32,6 +39,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.tracing.CloseableTracer;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -99,6 +107,63 @@ class DeadlineAdvertisementChannelTest {
                         });
             });
         }
+    }
+
+    @Test
+    void dialogue_channel_retry_advertises_remaining_deadline_when_initial_response_completes_outside_trace() {
+        Duration readTimeout = Duration.ofMinutes(1);
+        Duration inboundDeadline = Duration.ofSeconds(5);
+        SettableFuture<Response> initialResponse = SettableFuture.create();
+        List<Request> requests = new ArrayList<>();
+        Channel wire = (_endpoint, request) -> {
+            requests.add(request);
+            return requests.size() == 1
+                    ? initialResponse
+                    : Futures.immediateFuture(new TestResponse().code(200));
+        };
+        ClientConfiguration clientConfiguration = ClientConfiguration.builder()
+                .from(ClientConfigurations.of(ServiceConfiguration.builder()
+                        .addUris("http://localhost")
+                        .security(SslConfiguration.of(
+                                Paths.get("src/test/resources/trustStore.jks"),
+                                Paths.get("src/test/resources/keyStore.jks"),
+                                "keystore"))
+                        .build()))
+                .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                .userAgent(UserAgent.of(UserAgent.Agent.of("test", "1.0.0")))
+                .readTimeout(readTimeout)
+                .maxNumRetries(1)
+                .backoffSlotSize(Duration.ZERO)
+                .build();
+        DialogueChannel channel = DialogueChannel.builder()
+                .channelName("test")
+                .clientConfiguration(clientConfiguration)
+                .factory(_args -> wire)
+                .deadlineEnforcement(Optional.of(true))
+                .build();
+
+        ListenableFuture<Response> result;
+        try (CloseableTracer tracer = CloseableTracer.startSpan("test")) {
+            Request inboundRequest = Request.builder()
+                    .putHeaderParams(DeadlinesHttpHeaders.EXPECT_WITHIN, "5")
+                    .build();
+            Deadlines.parseFromRequest(
+                    Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
+            result = channel.execute(TestEndpoint.GET, Request.builder().build());
+        }
+
+        // SettableFuture runs direct callbacks on the completing thread. Completing outside the trace models an
+        // asynchronous transport response whose retry is initiated without the caller's trace-local state.
+        initialResponse.set(new TestResponse().code(429));
+
+        assertThat(result).succeedsWithin(Duration.ZERO);
+        assertThat(requests).hasSize(2);
+        assertThat(advertisedDeadline(requests.get(0)))
+                .as("the initial attempt uses the enforced inbound deadline")
+                .isLessThanOrEqualTo(inboundDeadline);
+        assertThat(advertisedDeadline(requests.get(1)))
+                .as("the retry retains the logical call's deadline even though it executes outside the trace")
+                .isLessThanOrEqualTo(inboundDeadline);
     }
 
     @Test
@@ -276,6 +341,13 @@ class DeadlineAdvertisementChannelTest {
         ListenableFuture<Response> response =
                 channel.execute(TestEndpoint.GET, Request.builder().build());
         assertThat(response).succeedsWithin(Duration.ofSeconds(1)).isSameAs(normalResponse);
+    }
+
+    private static Duration advertisedDeadline(Request request) {
+        String value = request.headerParams()
+                .get(DeadlinesHttpHeaders.EXPECT_WITHIN)
+                .get(0);
+        return Duration.ofNanos((long) (Double.parseDouble(value) * 1e9d));
     }
 
     private enum Decoder implements RequestDecodingAdapter<Request> {
