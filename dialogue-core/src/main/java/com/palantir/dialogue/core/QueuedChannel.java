@@ -26,8 +26,6 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.palantir.deadlines.Deadlines;
-import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -97,14 +95,6 @@ final class QueuedChannel implements Channel {
         return queueTimeout.map(Duration::toNanos).map(OptionalLong::of).orElseGet(OptionalLong::empty);
     }
 
-    private static Optional<Duration> enforcedRemainingDeadline() {
-        Optional<Enforcement> enforcement = Deadlines.getEnforcement();
-        if (enforcement.isEmpty() || enforcement.get() != Enforcement.ENFORCE) {
-            return Optional.empty();
-        }
-        return Deadlines.getRemainingDeadline();
-    }
-
     private final Deque<DeferredCall> queuedCalls;
     private final NeverThrowLimitedChannel delegate;
 
@@ -135,8 +125,6 @@ final class QueuedChannel implements Channel {
     @Safe
     private final OptionalLong queueTimeoutNanos;
 
-    private final Supplier<Optional<Duration>> remainingDeadline;
-
     private final Ticker clock;
 
     @Nullable
@@ -158,8 +146,7 @@ final class QueuedChannel implements Channel {
                 maxQueueSize,
                 toNanos(queueTimeout),
                 clock,
-                sharedTimeoutScheduler.get(),
-                QueuedChannel::enforcedRemainingDeadline);
+                sharedTimeoutScheduler.get());
     }
 
     /** Visible for testing so a deterministic scheduler can be injected. */
@@ -173,29 +160,6 @@ final class QueuedChannel implements Channel {
             OptionalLong queueTimeoutNanos,
             Ticker clock,
             @Nullable ScheduledExecutorService scheduler) {
-        this(
-                delegate,
-                channelName,
-                queueType,
-                metrics,
-                maxQueueSize,
-                queueTimeoutNanos,
-                clock,
-                scheduler,
-                QueuedChannel::enforcedRemainingDeadline);
-    }
-
-    @VisibleForTesting
-    QueuedChannel(
-            LimitedChannel delegate,
-            @Safe String channelName,
-            @Safe String queueType,
-            QueuedChannelInstrumentation metrics,
-            int maxQueueSize,
-            OptionalLong queueTimeoutNanos,
-            Ticker clock,
-            @Nullable ScheduledExecutorService scheduler,
-            Supplier<Optional<Duration>> remainingDeadline) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
         this.queueType = queueType;
@@ -203,7 +167,6 @@ final class QueuedChannel implements Channel {
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
         this.queueTimeoutNanos = queueTimeoutNanos;
-        this.remainingDeadline = remainingDeadline;
         this.clock = clock;
         this.scheduler = scheduler;
         // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
@@ -321,7 +284,8 @@ final class QueuedChannel implements Channel {
         // response future completes the attachment is cleared and the retry's next enqueue stamps a brand-new
         // expiration rather than inheriting this attempt's remaining budget.
         if (queueTimeoutNanos.isPresent()) {
-            DialogueFutures.addDirectListener(responseFuture, () -> QueueTimeoutAttachments.clearExpiration(request));
+            DialogueFutures.addDirectListener(
+                    responseFuture, () -> QueueTimeoutAttachments.clearConfiguredExpiration(request));
         }
 
         DeferredCall components = DeferredCall.builder()
@@ -359,35 +323,7 @@ final class QueuedChannel implements Channel {
             DetachedSpan span,
             IdempotentTimerContext timer,
             QueueSizeAccounting accounting) {
-        initializeTimeoutExpirations(request);
-        return scheduleTimeoutFromExpiration(request, responseFuture, span, timer, accounting);
-    }
-
-    private void initializeTimeoutExpirations(Request request) {
-        if (queueTimeoutNanos.isPresent()) {
-            QueueTimeoutAttachments.setExpirationIfAbsent(request, clock.read() + queueTimeoutNanos.getAsLong());
-        }
-        if (!QueueTimeoutAttachments.isDeadlineResolved(request)) {
-            // Read trace-local state on the initial caller thread, then reuse it across queue layers and retries.
-            Long deadlineExpirationNanos = remainingDeadline
-                    .get()
-                    .map(remaining -> clock.read() + remaining.toNanos())
-                    .orElse(null);
-            QueueTimeoutAttachments.setDeadlineExpirationIfAbsent(request, deadlineExpirationNanos);
-        }
-    }
-
-    /**
-     * Schedules a timeout task based on the expiration already stamped on the request attachment.
-     */
-    @Nullable
-    private ScheduledFuture<?> scheduleTimeoutFromExpiration(
-            Request request,
-            SettableFuture<Response> responseFuture,
-            DetachedSpan span,
-            IdempotentTimerContext timer,
-            QueueSizeAccounting accounting) {
-        Optional<EffectiveExpiration> maybeExpiration = effectiveExpiration(request);
+        Optional<EffectiveExpiration> maybeExpiration = initializeAndGetEffectiveExpiration(request);
         if (maybeExpiration.isEmpty()) {
             return null;
         }
@@ -410,8 +346,11 @@ final class QueuedChannel implements Channel {
                 TimeUnit.NANOSECONDS);
     }
 
-    private Optional<EffectiveExpiration> effectiveExpiration(Request request) {
-        Long configuredExpiration = QueueTimeoutAttachments.getExpiration(request);
+    private Optional<EffectiveExpiration> initializeAndGetEffectiveExpiration(Request request) {
+        Long configuredExpiration = queueTimeoutNanos.isPresent()
+                ? QueueTimeoutAttachments.getOrInitializeConfiguredExpiration(
+                        request, clock.read() + queueTimeoutNanos.getAsLong())
+                : null;
         Long deadlineExpiration = QueueTimeoutAttachments.getDeadlineExpiration(request);
         if (deadlineExpiration == null) {
             return Optional.ofNullable(configuredExpiration)
@@ -443,13 +382,11 @@ final class QueuedChannel implements Channel {
             IdempotentTimerContext timer,
             QueueSizeAccounting accounting) {
         if (responseFuture.setException(new QueueTimeoutException(channelName, source, queueTimeoutNanos))) {
-            timeoutCounter(source).get().inc();
+            (source == QueueTimeoutSource.DEADLINE ? deadlineTimeoutCounter : configuredTimeoutCounter)
+                    .get()
+                    .inc();
         }
         completeAndDecrement(Optional.empty(), span, timer, accounting);
-    }
-
-    private Supplier<Counter> timeoutCounter(QueueTimeoutSource source) {
-        return source == QueueTimeoutSource.DEADLINE ? deadlineTimeoutCounter : configuredTimeoutCounter;
     }
 
     private void onCompletion() {
@@ -627,7 +564,7 @@ final class QueuedChannel implements Channel {
      */
     private DeferredCall addTimeoutOnRequeue(DeferredCall original) {
         @Nullable
-        ScheduledFuture<?> newTimeout = scheduleTimeoutFromExpiration(
+        ScheduledFuture<?> newTimeout = scheduleQueueTimeout(
                 original.request(), original.response(), original.span(), original.timer(), original.accounting());
         return DeferredCall.builder()
                 .from(original)
