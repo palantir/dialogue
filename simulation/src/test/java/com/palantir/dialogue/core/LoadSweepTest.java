@@ -27,11 +27,13 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.knowm.xchart.XYChart;
 import org.knowm.xchart.XYChartBuilder;
@@ -43,59 +45,33 @@ import org.slf4j.LoggerFactory;
 /**
  * Finds a server's saturation "knee" by sweeping the load against a resource-constrained server.
  *
- * <p>For each {@link Strategy} we emit three curves with offered load on the X axis (written to
- * {@code load_sweep.png}, raw numbers to {@code load_sweep.txt}):
- * <ol>
- *     <li>p99 client-perceived latency in <b>milliseconds</b>
- *     <li>goodput - successful (200) responses per second
- *     <li>success rate as a percentage
- * </ol>
+ * For each {@link Strategy} we emit three curves with offered load on the X axis (written to {@code load_sweep.png}, raw numbers to {@code load_sweep.txt}):
+ *  - p99 client-perceived latency in milliseconds
+ *  - goodput - successful (200) responses per second
+ *  - success rate as a percentage
  */
 final class LoadSweepTest {
     private static final Logger log = LoggerFactory.getLogger(LoadSweepTest.class);
 
-    /** In-flight requests a single node serves before its response time cliffs to 5x. */
+    // In-flight requests a single node serves before its response time cliffs to 5x.
     private static final int SLOWDOWN_CAPACITY_PER_NODE = 10;
 
-    /** In-flight requests a single node serves before it starts shedding with 429s. */
+    // In-flight requests a single node serves before it starts shedding with 429s.
     private static final int SHED_CAPACITY_PER_NODE = 20;
 
     private static final Duration BEST_CASE_RESPONSE = Duration.ofMillis(60);
 
-    /** How long we offer load at each rate before letting the system drain. */
+    // How long we offer load at each rate before letting the system drain.
     private static final Duration WINDOW = Duration.ofSeconds(20);
 
-    /** Safety net so an overloaded run can't hang forever draining its backlog. */
+    // Safety net so an overloaded run can't hang forever draining its backlog.
     private static final Duration ABORT_AFTER = Duration.ofMinutes(5);
 
-    /** Offered request rates (req/s); chosen to bracket the ~2-node knee around 150-200 rps. */
+    // Offered request rates (req/s); chosen to bracket the ~2-node knee around 150-200 rps.
     private static final int[] OFFERED_RPS = {25, 50, 75, 100, 125, 150, 175, 200, 250, 300, 400, 500};
 
     @Test
     void load_sweep() throws IOException {
-        runSweep(false, "load_sweep");
-    }
-
-    /**
-     * Same sweep, but with the experimental {@link SlowStartConcurrencyLimiter} enabled. Writes to
-     * {@code load_sweep_slowstart.{png,txt}} so the default-limiter baseline is preserved for comparison.
-     */
-    @Test
-    void load_sweep_slow_start() throws IOException {
-        runSweep(true, "load_sweep_slowstart");
-    }
-
-    private static void runSweep(boolean slowStartEnabled, String outputBaseName) throws IOException {
-        boolean previousSlowStart = ConcurrencyLimiters.slowStartEnabled();
-        ConcurrencyLimiters.setSlowStartEnabled(slowStartEnabled);
-        try {
-            sweep(outputBaseName);
-        } finally {
-            ConcurrencyLimiters.setSlowStartEnabled(previousSlowStart);
-        }
-    }
-
-    private static void sweep(String outputBaseName) throws IOException {
         double[] offeredRps = toDoubles(OFFERED_RPS);
 
         Map<Strategy, double[]> p99LatencyMs = new LinkedHashMap<>();
@@ -103,7 +79,8 @@ final class LoadSweepTest {
         Map<Strategy, double[]> successPercent = new LinkedHashMap<>();
 
         StringBuilder table = new StringBuilder();
-        table.append(String.format("%-40s %6s %10s %12s %9s%n", "strategy", "rps", "p99_ms", "goodput/s", "success%"));
+        table.append(String.format(
+                Locale.ROOT, "%-40s %6s %10s %12s %9s%n", "strategy", "rps", "p99_ms", "goodput/s", "success%"));
 
         for (Strategy strategy : Strategy.values()) {
             double[] p99 = new double[OFFERED_RPS.length];
@@ -130,7 +107,8 @@ final class LoadSweepTest {
                         .as("strategy=%s rps=%s success%%", strategy, rps)
                         .isBetween(0d, 100d);
 
-                table.append(String.format("%-40s %6d %10.1f %12.1f %9.1f%n", strategy, rps, p99Ms, good, successPct));
+                table.append(String.format(
+                        Locale.ROOT, "%-40s %6d %10.1f %12.1f %9.1f%n", strategy, rps, p99Ms, good, successPct));
             }
 
             p99LatencyMs.put(strategy, p99);
@@ -139,26 +117,24 @@ final class LoadSweepTest {
             log.info("Swept {} across {} load levels", strategy, OFFERED_RPS.length);
         }
 
-        String txtPath = "src/test/resources/" + outputBaseName + ".txt";
-        String pngPath = "src/test/resources/" + outputBaseName + ".png";
+        String txtPath = "src/test/resources/txt/load_sweep.txt";
+        String pngPath = "src/test/resources/load_sweep.png";
         String summary = table.toString();
         String onDisk = Files.exists(Paths.get(txtPath))
                 ? new String(Files.readAllBytes(Paths.get(txtPath)), StandardCharsets.UTF_8)
                 : "";
 
         if (System.getenv().containsKey("CI")) {
-            // Never regenerate files on CI: the deterministic summary is asserted against the checked-in .txt, but the
-            // rendered .png is not byte-stable across machines/JVMs (font metrics differ), so rewriting it would dirty
-            // the working tree and break publishing. Fail loudly instead so a real data change is regenerated locally.
+            // Don't regenerate files on CI: the summary is asserted against the checked-in .txt, but the rendered .png
+            // may not be byte-stable across machines, so rewriting it would dirty the working tree and break
+            // publishing.
             assertThat(onDisk)
                     .describedAs("Run tests locally to update checked-in file: %s", txtPath)
                     .isEqualTo(summary);
         } else if (!summary.equals(onDisk) || !Files.exists(Paths.get(pngPath))) {
-            // Only regenerate the (slow, non-deterministic) PNG when the deterministic summary actually changed.
+            // Only regenerate the PNG when the deterministic summary actually changed.
             Files.write(Paths.get(txtPath), summary.getBytes(StandardCharsets.UTF_8));
 
-            // Client-perceived latency spans ~3 orders of magnitude (steady-state ms to backlog-queue minutes under
-            // sustained overload), so the latency knee is only legible on a log Y axis.
             XYChart latencyChart =
                     kneeChart("p99 client latency vs offered load", "p99 latency (ms)", offeredRps, p99LatencyMs, true);
             XYChart goodputChart =
@@ -175,7 +151,13 @@ final class LoadSweepTest {
         assertThat(Paths.get(pngPath)).exists();
     }
 
-    @SuppressWarnings("for-rollout:deprecation")
+    @AfterAll
+    static void afterClass() throws IOException {
+        // Rebuild the aggregate report so it captures this class's fresh load_sweep.txt regardless of whether
+        // SimulationTest ran, or in which order. See SimulationReport.
+        SimulationReport.regenerate();
+    }
+
     private static Benchmark.BenchmarkResult runOnce(Strategy strategy, int rps) {
         Simulation simulation = new Simulation();
         Channel client = strategy.getChannel(simulation, twoNodes(simulation));

@@ -1,5 +1,5 @@
 # Report
-<!-- Run SimulationTest to regenerate this report. -->
+<!-- Run SimulationTest and LoadSweepTest to regenerate this report. -->
 ```
                 all_nodes_500[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=73.9%	client_mean=PT4.23716S     	server_cpu=PT20M          	client_received=2000/2000	server_resps=2000	codes={200=1477, 500=523}
 client=0 endpoint	client_mean=PT3.548823529S 
@@ -240,6 +240,44 @@ client=6 endpoint	client_mean=PT2.868401639S
 client=7 endpoint	client_mean=PT2.84015625S  
 client=8 endpoint	client_mean=PT2.748721804S 
 client=9 endpoint	client_mean=PT2.755373134S 
+
+                                                        load_sweep.txt:	strategy                                    rps     p99_ms    goodput/s  success%
+CONCURRENCY_LIMITER_ROUND_ROBIN              25       66.0         25.0     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN              50       72.0         49.9     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN              75       78.0         74.8     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN             100       90.0         99.6     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN             125       96.0        124.5     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN             150      114.0        149.2     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN             175     6959.9        129.9     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN             200    10883.9        129.3     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN             250    19176.0        129.5     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN             300    27706.7        130.2     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN             400    44029.5        130.5     100.0
+CONCURRENCY_LIMITER_ROUND_ROBIN             500    60004.6        130.6     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR          25       72.0         25.0     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR          50       90.0         49.8     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR          75      114.0         74.6     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR         100    10908.6         65.3     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR         125    19414.0         65.2     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR         150    27459.1         65.1     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR         175    35790.9         65.3     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR         200    43987.0         65.2     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR         250    60025.6         65.3     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR         300    75722.3         65.3     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR         400   106888.5         65.5     100.0
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR         500   137709.4         65.5     100.0
+UNLIMITED_ROUND_ROBIN                        25       66.0         25.0     100.0
+UNLIMITED_ROUND_ROBIN                        50       72.0         49.9     100.0
+UNLIMITED_ROUND_ROBIN                        75       78.0         74.8     100.0
+UNLIMITED_ROUND_ROBIN                       100       90.0         99.6     100.0
+UNLIMITED_ROUND_ROBIN                       125       96.0        124.5     100.0
+UNLIMITED_ROUND_ROBIN                       150      114.0        149.2     100.0
+UNLIMITED_ROUND_ROBIN                       175     4738.8          8.3       5.7
+UNLIMITED_ROUND_ROBIN                       200     4728.0          6.7       4.0
+UNLIMITED_ROUND_ROBIN                       250     4740.0          5.5       2.7
+UNLIMITED_ROUND_ROBIN                       300     4734.6          4.7       1.9
+UNLIMITED_ROUND_ROBIN                       400     4738.8          3.8       1.2
+UNLIMITED_ROUND_ROBIN                       500     4732.8          3.8       0.9
 
                 one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT2.667606696S 	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
 client=0 endpoint	client_mean=PT2.667606696S 

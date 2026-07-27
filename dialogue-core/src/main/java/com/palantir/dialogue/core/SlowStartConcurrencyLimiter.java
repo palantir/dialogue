@@ -27,8 +27,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Experimental concurrency limiter that adds a TCP-style <em>slow start</em> phase in front of the additive-increase
- * multiplicative-decrease (AIMD) behavior of {@link CautiousIncreaseAggressiveDecreaseConcurrencyLimiter}.
+ * Experimental concurrency limiter that adds a TCP-style slow start phase in front of the AIMD behavior of
+ * {@link CautiousIncreaseAggressiveDecreaseConcurrencyLimiter}.
+ *
+ * Deliberately not applied to sticky channels, which keep AIMD: {@link Behavior#STICKY} suppresses the server
+ * congestion signals (QoS/5xx/IOException) this ramp relies on.
  */
 final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
 
@@ -41,10 +44,11 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
     private final AtomicDouble limit = new AtomicDouble(INITIAL_LIMIT);
 
     /**
-     * The limit below which we ramp up exponentially and at/above which we probe cautiously (AIMD).
-     * Starts at {@link #MAX_LIMIT} so the very first ramp grows quickly until the first {@code dropped()} signal.
+     * Whether the limiter is still in its initial exponential slow-start ramp. Starts true and switches to
+     * false on the first {@code dropped()} signal, after which the limiter behaves as pure AIMD for the rest
+     * of its life.
      */
-    private final AtomicDouble slowStartThreshold = new AtomicDouble(MAX_LIMIT);
+    private volatile boolean inSlowStart = true;
 
     private final AtomicInteger inFlight = new AtomicInteger();
 
@@ -64,7 +68,7 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
     }
 
     @Override
-    @Nullable // avoiding java.util.Optional because this method is on the hot path
+    @Nullable // avoiding Optional because this method is on the hot path
     public Permit acquire(LimitEnforcement limitEnforcement) {
         AtomicInteger localInFlight = inFlight;
 
@@ -87,15 +91,6 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
 
         Permit(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;
-        }
-
-        boolean isOnlyInFlight() {
-            return inFlightSnapshot == 1;
-        }
-
-        @VisibleForTesting
-        int inFlightSnapshot() {
-            return inFlightSnapshot;
         }
 
         @Override
@@ -151,10 +146,7 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
             if (inFlightSnapshot < Math.floor(snapshot * BACKOFF_RATIO)) {
                 return snapshot;
             }
-            // ~Exponential growth when the limit is below the slowStartThreshold, and linear otherwise.
-            // There are > 0.9*limit requests in flight. Per round-trip time, if there are ~limit successes, the limit
-            // has grown 2x when it's under the slowStartThreshold, and 1 when greater.
-            double increment = snapshot < slowStartThreshold.get() ? 1D : 1D / snapshot;
+            double increment = inSlowStart ? 1D : 1D / snapshot;
             double newLimit = Math.min(MAX_LIMIT, snapshot + increment);
             if (localLimit.compareAndSet(snapshot, newLimit)) {
                 return newLimit;
@@ -172,8 +164,8 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
                 break;
             }
         }
-        // End slow start: probe cautiously at/above where the server pushed back
-        slowStartThreshold.set(newLimit);
+        // Leave slow start permanently: from the first congestion signal onward we probe cautiously (AIMD).
+        inSlowStart = false;
         return newLimit;
     }
 
@@ -183,8 +175,8 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
     }
 
     @VisibleForTesting
-    double getSlowStartThreshold() {
-        return slowStartThreshold.get();
+    boolean isInSlowStart() {
+        return inSlowStart;
     }
 
     @Override
@@ -194,7 +186,7 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
 
     @Override
     public String toString() {
-        return "SlowStartConcurrencyLimiter{limit=" + limit + ", slowStartThreshold=" + slowStartThreshold
-                + ", inFlight=" + inFlight + '}';
+        return "SlowStartConcurrencyLimiter{limit=" + limit + ", inSlowStart=" + inSlowStart + ", inFlight=" + inFlight
+                + '}';
     }
 }
