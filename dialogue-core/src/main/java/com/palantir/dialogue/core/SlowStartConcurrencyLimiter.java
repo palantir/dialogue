@@ -155,6 +155,11 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
     }
 
     private double decreaseLimit() {
+        // Publish the phase transition before the reduced limit. A concurrent success may either complete its
+        // slow-start increase before this decrease or observe AIMD mode, but it cannot apply a slow-start increase to
+        // the already-reduced limit.
+        inSlowStart = false;
+
         AtomicDouble localLimit = limit;
         double newLimit;
         while (true) {
@@ -164,8 +169,6 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
                 break;
             }
         }
-        // Leave slow start permanently: from the first congestion signal onward we probe cautiously (AIMD).
-        inSlowStart = false;
         return newLimit;
     }
 
@@ -180,7 +183,7 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
     }
 
     @Override
-    public int getInFlight() {
+    public int getInflight() {
         return inFlight.get();
     }
 

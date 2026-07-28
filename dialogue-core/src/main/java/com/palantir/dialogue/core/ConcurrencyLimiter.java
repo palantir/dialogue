@@ -34,7 +34,7 @@ interface ConcurrencyLimiter {
     double getLimit();
 
     /** The current number of in-flight permits. */
-    int getInFlight();
+    int getInflight();
 
     void setChannelNameForLogging(String value);
 

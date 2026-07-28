@@ -63,7 +63,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         }
 
         // Limit reached, cannot acquire permit
-        assertThat(limiter.getInFlight()).isEqualTo((int) max);
+        assertThat(limiter.getInflight()).isEqualTo((int) max);
         assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isNull();
 
         // Release one permit, can acquire new permit.
@@ -103,18 +103,18 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
 
         assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isNull();
         assertThat(limiter.acquire(LimitEnforcement.DANGEROUS_BYPASS_LIMITS)).isNotNull();
-        assertThat(limiter.getInFlight()).isEqualTo((int) (max + 1));
+        assertThat(limiter.getInflight()).isEqualTo((int) (max + 1));
     }
 
     @ParameterizedTest
     @EnumSource(Behavior.class)
     public void ignore_releasesPermit(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
-        assertThat(limiter.getInFlight()).isEqualTo(0);
+        assertThat(limiter.getInflight()).isEqualTo(0);
         Permit permit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
-        assertThat(limiter.getInFlight()).isEqualTo(1);
+        assertThat(limiter.getInflight()).isEqualTo(1);
         permit.ignore();
-        assertThat(limiter.getInFlight()).isEqualTo(0);
+        assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
     @ParameterizedTest
@@ -130,11 +130,11 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     @EnumSource(Behavior.class)
     public void dropped_releasesPermit(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
-        assertThat(limiter.getInFlight()).isEqualTo(0);
+        assertThat(limiter.getInflight()).isEqualTo(0);
         Permit permit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
-        assertThat(limiter.getInFlight()).isEqualTo(1);
+        assertThat(limiter.getInflight()).isEqualTo(1);
         permit.dropped();
-        assertThat(limiter.getInFlight()).isEqualTo(0);
+        assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
     @ParameterizedTest
@@ -150,11 +150,11 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     @EnumSource(Behavior.class)
     public void success_releasesPermit(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
-        assertThat(limiter.getInFlight()).isEqualTo(0);
+        assertThat(limiter.getInflight()).isEqualTo(0);
         Permit permit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
-        assertThat(limiter.getInFlight()).isEqualTo(1);
+        assertThat(limiter.getInflight()).isEqualTo(1);
         permit.success();
-        assertThat(limiter.getInFlight()).isEqualTo(0);
+        assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
     @ParameterizedTest

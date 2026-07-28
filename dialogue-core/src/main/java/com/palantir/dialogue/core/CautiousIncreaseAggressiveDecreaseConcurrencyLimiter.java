@@ -74,7 +74,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter implements Conc
     }
 
     /**
-     * Returns a new request permit if the number of {@link #getInFlight in-flight} permits is smaller than the
+     * Returns a new request permit if the number of {@link #getInflight in-flight} permits is smaller than the
      * current {@link #getLimit upper limit} of allowed concurrent permits. The caller is responsible for
      * eventually releasing the permit by calling exactly one of the {@link Permit#ignore}, {@link Permit#dropped},
      * or {@link Permit#success} methods.
@@ -214,7 +214,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter implements Conc
     }
 
     /**
-     * Returns the current concurrency limit, i.e., the maximum number of concurrent {@link #getInFlight in-flight}
+     * Returns the current concurrency limit, i.e., the maximum number of concurrent {@link #getInflight in-flight}
      * permits such that another permit can be {@link #acquire acquired}.
      */
     @Override
@@ -227,7 +227,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter implements Conc
      * either of ignore/dropped/success.
      */
     @Override
-    public int getInFlight() {
+    public int getInflight() {
         return inFlight.get();
     }
 

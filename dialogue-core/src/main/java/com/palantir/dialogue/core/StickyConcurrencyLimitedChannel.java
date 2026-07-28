@@ -87,7 +87,7 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
         if (log.isDebugEnabled()) {
             log.debug(
                     "Sending {}/{} on {}",
-                    SafeArg.of("inflight", limiter.getInFlight()),
+                    SafeArg.of("inflight", limiter.getInflight()),
                     SafeArg.of("max", limiter.getLimit()),
                     SafeArg.of("channel", channelNameForLogging));
         }

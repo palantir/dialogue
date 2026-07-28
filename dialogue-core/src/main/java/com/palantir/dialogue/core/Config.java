@@ -93,8 +93,8 @@ interface Config {
     }
 
     @Value.Default
-    default Optional<Boolean> concurrencyLimiterSlowStart() {
-        return Optional.empty();
+    default boolean concurrencyLimiterSlowStart() {
+        return false;
     }
 
     @Value.Check

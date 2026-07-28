@@ -167,7 +167,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         Optional<Boolean> deadlineEnforcement();
 
-        Optional<Boolean> concurrencyLimiterSlowStart();
+        @Value.Default
+        default boolean concurrencyLimiterSlowStart() {
+            return false;
+        }
     }
 
     @Override

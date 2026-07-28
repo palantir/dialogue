@@ -150,11 +150,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
-        /**
-         * Experimental: select whether the slow-start concurrency limiter is used. Absent leaves the JVM-wide default
-         * (see {@link ConcurrencyLimiters#slowStartEnabled()}) in effect.
-         */
-        public Builder concurrencyLimiterSlowStart(Optional<Boolean> concurrencyLimiterSlowStart) {
+        /** Experimental: select whether the slow-start concurrency limiter is used. Disabled by default. */
+        public Builder concurrencyLimiterSlowStart(boolean concurrencyLimiterSlowStart) {
             builder.concurrencyLimiterSlowStart(concurrencyLimiterSlowStart);
             return this;
         }
@@ -282,11 +279,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         }
                         LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
                                 unlimited,
-                                cf.channelName(),
+                                cf,
                                 uriIndexForInstrumentation,
                                 endpoint,
-                                endpointChannelState.get(endpoint),
-                                ConcurrencyLimitedChannel.slowStartEnabled(cf));
+                                endpointChannelState.get(endpoint));
                         // Note that because the queue is recreated when nodes are refreshed, it's critical that
                         // the queue can force at least one request through at a time using the behavior introduced
                         // by https://github.com/palantir/dialogue/pull/2422

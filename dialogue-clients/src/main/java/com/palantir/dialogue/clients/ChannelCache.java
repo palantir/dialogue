@@ -282,7 +282,7 @@ final class ChannelCache {
 
         Optional<Boolean> deadlineEnforcement();
 
-        Optional<Boolean> concurrencyLimiterSlowStart();
+        boolean concurrencyLimiterSlowStart();
     }
 
     @Unsafe

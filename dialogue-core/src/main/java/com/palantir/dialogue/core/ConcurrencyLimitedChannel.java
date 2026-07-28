@@ -53,8 +53,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                     CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
                     () -> new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL));
 
-    // Experimental slow-start limiters, selected by ConcurrencyLimiters#slowStartEnabled. Kept under separate state
-    // keys so flipping the flag picks up the alternate implementation without clobbering the default limiter's state.
+    // Experimental slow-start limiters. Kept under separate state keys so selecting the alternate implementation does
+    // not clobber the default limiter's state.
     @VisibleForTesting
     static final ChannelState.Key<SlowStartConcurrencyLimiter> HOST_SPECIFIC_SLOW_START_STATE_KEY =
             new ChannelState.Key<>(
@@ -85,23 +85,18 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      * Metrics are not reported by this component per-endpoint, only by the per-endpoint queue.
      */
     static LimitedChannel createForEndpoint(
-            Channel channel,
-            String channelName,
-            int uriIndex,
-            Endpoint endpoint,
-            ChannelState endpointChannelState,
-            boolean useSlowStart) {
-        ConcurrencyLimiter limiter = useSlowStart
+            Channel channel, Config cf, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
+        ConcurrencyLimiter limiter = slowStartEnabled(cf)
                 ? endpointChannelState.getState(ENDPOINT_SPECIFIC_SLOW_START_STATE_KEY)
                 : endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
-                new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint);
+                new EndpointConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, endpoint);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
         return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
     }
 
     static boolean slowStartEnabled(Config cf) {
-        return cf.concurrencyLimiterSlowStart().orElseGet(ConcurrencyLimiters::slowStartEnabled);
+        return cf.concurrencyLimiterSlowStart();
     }
 
     ConcurrencyLimitedChannel(
@@ -131,7 +126,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         if (log.isDebugEnabled()) {
             log.debug(
                     "Sending {}/{} on {}",
-                    SafeArg.of("inflight", limiter.getInFlight()),
+                    SafeArg.of("inflight", limiter.getInflight()),
                     SafeArg.of("max", limiter.getLimit()),
                     SafeArg.of("channel", channelNameForLogging));
         }
@@ -184,7 +179,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                             .channelName(channelName)
                             .hostIndex(Integer.toString(uriIndex))
                             .buildMetricName(),
-                    ConcurrencyLimiter::getInFlight,
+                    ConcurrencyLimiter::getInflight,
                     LongStream::sum,
                     limiter);
         }
