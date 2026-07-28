@@ -76,9 +76,7 @@ public enum Strategy {
     }
 
     private Channel refreshingChannel(
-            Simulation sim,
-            Supplier<Map<String, SimulationServer>> channelSupplier,
-            boolean slowStartEnabled) {
+            Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier, boolean slowStartEnabled) {
         return RefreshingChannelFactory.RefreshingChannel.create(
                 channelSupplier, channels -> dialogueChannelWithDefaults(sim, channels, slowStartEnabled));
     }
