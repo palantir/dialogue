@@ -96,7 +96,6 @@ import org.slf4j.LoggerFactory;
  *     <li>Drastic slowdown with revert: One node suddenly starts taking 10 seconds to return (but not throwing errors)
  *     <li>All nodes return 500s briefly (ideally clients could queue up if they're willing to wait)
  *     <li>Black hole: one node just starts accepting requests but never returning responses
- *     <li>TODO: Low traffic with interspersed spikes of traffic. This reflects the behavior seen on fusili by contour-backend-multiplexer. Or maybe in general user-compute flows where users sporadically launch compute things(?)
  * </ol>
  */
 @Execution(ExecutionMode.CONCURRENT)

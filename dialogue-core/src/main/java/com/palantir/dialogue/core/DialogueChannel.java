@@ -20,6 +20,7 @@ import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -151,6 +152,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         /** Experimental: select whether the slow-start concurrency limiter is used. Disabled by default. */
+        @Beta
         public Builder concurrencyLimiterSlowStart(boolean concurrencyLimiterSlowStart) {
             builder.concurrencyLimiterSlowStart(concurrencyLimiterSlowStart);
             return this;

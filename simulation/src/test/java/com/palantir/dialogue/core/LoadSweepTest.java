@@ -72,7 +72,7 @@ final class LoadSweepTest {
 
     @Test
     void load_sweep() throws IOException {
-        runSweep(false, "load_sweep");
+        sweep(false, "load_sweep");
     }
 
     /**
@@ -81,11 +81,7 @@ final class LoadSweepTest {
      */
     @Test
     void load_sweep_slow_start() throws IOException {
-        runSweep(true, "load_sweep_slowstart");
-    }
-
-    private static void runSweep(boolean slowStartEnabled, String outputBaseName) throws IOException {
-        sweep(slowStartEnabled, outputBaseName);
+        sweep(true, "load_sweep_slowstart");
     }
 
     private static void sweep(boolean slowStartEnabled, String outputBaseName) throws IOException {
