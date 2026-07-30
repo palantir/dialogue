@@ -73,13 +73,17 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      * Metrics are not reported by this component per-endpoint, only by the per-endpoint queue.
      */
     static LimitedChannel createForEndpoint(
-            Channel channel, String channelName, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
+            Channel channel, Config cf, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
                 endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
-                new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint);
+                new EndpointConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, endpoint);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
         return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
+    }
+
+    static boolean slowStartEnabled(Config cf) {
+        return cf.concurrencyLimiterSlowStart();
     }
 
     ConcurrencyLimitedChannel(

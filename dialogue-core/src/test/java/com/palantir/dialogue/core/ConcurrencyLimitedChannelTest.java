@@ -117,12 +117,12 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     public void testReuseCachedLimiterState_endpoint() {
-        String channelName = "channel";
         ChannelState state = new ChannelState();
+        Config config = mock(Config.class);
+        when(config.channelName()).thenReturn("channel");
 
         // create two channels for the same endpoint, which should re-use the same AIMD state
-        LimitedChannel forEndpoint =
-                ConcurrencyLimitedChannel.createForEndpoint(delegate, channelName, 0, endpoint, state);
+        LimitedChannel forEndpoint = ConcurrencyLimitedChannel.createForEndpoint(delegate, config, 0, endpoint, state);
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
                 state.getState(ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_STATE_KEY);
 
@@ -132,8 +132,7 @@ public class ConcurrencyLimitedChannelTest {
         assertThat(limiter.getInflight()).isEqualTo(1);
 
         // different uriIndex has no impact on whether state is shared, as indexes will shuffle when nodes go down
-        LimitedChannel forEndpoint2 =
-                ConcurrencyLimitedChannel.createForEndpoint(delegate, channelName, 1, endpoint, state);
+        LimitedChannel forEndpoint2 = ConcurrencyLimitedChannel.createForEndpoint(delegate, config, 1, endpoint, state);
         forEndpoint2.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
 
         assertThat(limiter.getInflight()).isEqualTo(2);
