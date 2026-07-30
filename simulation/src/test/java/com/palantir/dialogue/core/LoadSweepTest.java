@@ -72,6 +72,19 @@ final class LoadSweepTest {
 
     @Test
     void load_sweep() throws IOException {
+        sweep(false, "load_sweep");
+    }
+
+    /**
+     * Same sweep, but with the experimental {@link SlowStartConcurrencyLimiter} enabled. Writes to
+     * {@code load_sweep_slowstart.{png,txt}} so the default-limiter baseline is preserved for comparison.
+     */
+    @Test
+    void load_sweep_slow_start() throws IOException {
+        sweep(true, "load_sweep_slowstart");
+    }
+
+    private static void sweep(boolean slowStartEnabled, String outputBaseName) throws IOException {
         double[] offeredRps = toDoubles(OFFERED_RPS);
 
         Map<Strategy, double[]> p99LatencyMs = new LinkedHashMap<>();
@@ -89,7 +102,7 @@ final class LoadSweepTest {
 
             for (int i = 0; i < OFFERED_RPS.length; i++) {
                 int rps = OFFERED_RPS[i];
-                Benchmark.BenchmarkResult result = runOnce(strategy, rps);
+                Benchmark.BenchmarkResult result = runOnce(strategy, rps, slowStartEnabled);
 
                 double p99Ms = result.clientHistogram().get99thPercentile() / 1_000_000d;
                 double endSeconds = result.endTime().toNanos() / 1_000_000_000d;
@@ -117,8 +130,8 @@ final class LoadSweepTest {
             log.info("Swept {} across {} load levels", strategy, OFFERED_RPS.length);
         }
 
-        String txtPath = "src/test/resources/txt/load_sweep.txt";
-        String pngPath = "src/test/resources/load_sweep.png";
+        String txtPath = "src/test/resources/txt/" + outputBaseName + ".txt";
+        String pngPath = "src/test/resources/" + outputBaseName + ".png";
         String summary = table.toString();
         String onDisk = Files.exists(Paths.get(txtPath))
                 ? new String(Files.readAllBytes(Paths.get(txtPath)), StandardCharsets.UTF_8)
@@ -158,9 +171,9 @@ final class LoadSweepTest {
         SimulationReport.regenerate();
     }
 
-    private static Benchmark.BenchmarkResult runOnce(Strategy strategy, int rps) {
+    private static Benchmark.BenchmarkResult runOnce(Strategy strategy, int rps, boolean slowStartEnabled) {
         Simulation simulation = new Simulation();
-        Channel client = strategy.getChannel(simulation, twoNodes(simulation));
+        Channel client = strategy.getChannel(simulation, twoNodes(simulation), slowStartEnabled);
         return Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(rps)

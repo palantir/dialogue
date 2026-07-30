@@ -45,12 +45,17 @@ public enum Strategy {
     }
 
     public Channel getChannel(Simulation simulation, Supplier<Map<String, SimulationServer>> servers) {
-        return refreshingChannel(simulation, servers);
+        return refreshingChannel(simulation, servers, false);
+    }
+
+    Channel getChannel(
+            Simulation simulation, Supplier<Map<String, SimulationServer>> servers, boolean slowStartEnabled) {
+        return refreshingChannel(simulation, servers, slowStartEnabled);
     }
 
     public Supplier<Channel> getSticky2NonReloading(Simulation simulation, Map<String, SimulationServer> servers) {
         Preconditions.checkArgument(servers.size() == 1, "Only one server supported");
-        return dialogueChannelWithDefaults(simulation, servers).stickyChannels();
+        return dialogueChannelWithDefaults(simulation, servers, false).stickyChannels();
     }
 
     private static void concurrencyLimiter(ClientConfiguration.Builder configBuilder) {
@@ -70,12 +75,14 @@ public enum Strategy {
                 .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS);
     }
 
-    private Channel refreshingChannel(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
+    private Channel refreshingChannel(
+            Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier, boolean slowStartEnabled) {
         return RefreshingChannelFactory.RefreshingChannel.create(
-                channelSupplier, channels -> dialogueChannelWithDefaults(sim, channels));
+                channelSupplier, channels -> dialogueChannelWithDefaults(sim, channels, slowStartEnabled));
     }
 
-    private DialogueChannel dialogueChannelWithDefaults(Simulation sim, Map<String, SimulationServer> channelSupplier) {
+    private DialogueChannel dialogueChannelWithDefaults(
+            Simulation sim, Map<String, SimulationServer> channelSupplier, boolean slowStartEnabled) {
         ClientConfiguration.Builder confBuilder = ClientConfiguration.builder()
                 .uris(channelSupplier.keySet())
                 .from(STUB_CONFIG)
@@ -88,6 +95,7 @@ public enum Strategy {
                 .random(sim.pseudoRandom())
                 .scheduler(sim.scheduler())
                 .ticker(sim.clock())
+                .concurrencyLimiterSlowStart(slowStartEnabled)
                 .build();
     }
 
