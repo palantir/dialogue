@@ -53,13 +53,27 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                     CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class,
                     () -> new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL));
 
+    // Experimental slow-start limiters. Kept under separate state keys so selecting the alternate implementation does
+    // not clobber the default limiter's state.
+    @VisibleForTesting
+    static final ChannelState.Key<SlowStartConcurrencyLimiter> HOST_SPECIFIC_SLOW_START_STATE_KEY =
+            new ChannelState.Key<>(
+                    SlowStartConcurrencyLimiter.class, () -> new SlowStartConcurrencyLimiter(Behavior.HOST_LEVEL));
+
+    @VisibleForTesting
+    static final ChannelState.Key<SlowStartConcurrencyLimiter> ENDPOINT_SPECIFIC_SLOW_START_STATE_KEY =
+            new ChannelState.Key<>(
+                    SlowStartConcurrencyLimiter.class, () -> new SlowStartConcurrencyLimiter(Behavior.ENDPOINT_LEVEL));
+
     private final NeverThrowChannel delegate;
     private final ConcurrencyLimiter limiter;
     private final String channelNameForLogging;
 
     static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex, ChannelState hostSpecificState) {
         TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-        ConcurrencyLimiter limiter = hostSpecificState.getState(HOST_SPECIFIC_STATE_KEY);
+        ConcurrencyLimiter limiter = slowStartEnabled(cf)
+                ? hostSpecificState.getState(HOST_SPECIFIC_SLOW_START_STATE_KEY)
+                : hostSpecificState.getState(HOST_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
@@ -72,7 +86,9 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      */
     static LimitedChannel createForEndpoint(
             Channel channel, Config cf, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
-        ConcurrencyLimiter limiter = endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY);
+        ConcurrencyLimiter limiter = slowStartEnabled(cf)
+                ? endpointChannelState.getState(ENDPOINT_SPECIFIC_SLOW_START_STATE_KEY)
+                : endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new EndpointConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, endpoint);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
