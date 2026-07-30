@@ -22,8 +22,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
-import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit;
+import com.palantir.dialogue.core.ConcurrencyLimiter.Permit;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -55,13 +54,12 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                     () -> new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL));
 
     private final NeverThrowChannel delegate;
-    private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
+    private final ConcurrencyLimiter limiter;
     private final String channelNameForLogging;
 
     static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex, ChannelState hostSpecificState) {
         TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
-                hostSpecificState.getState(HOST_SPECIFIC_STATE_KEY);
+        ConcurrencyLimiter limiter = hostSpecificState.getState(HOST_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
@@ -74,8 +72,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      */
     static LimitedChannel createForEndpoint(
             Channel channel, Config cf, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
-        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
-                endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY);
+        ConcurrencyLimiter limiter = endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new EndpointConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, endpoint);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
@@ -87,9 +84,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     ConcurrencyLimitedChannel(
-            Channel delegate,
-            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
-            ConcurrencyLimitedChannelInstrumentation instrumentation) {
+            Channel delegate, ConcurrencyLimiter limiter, ConcurrencyLimitedChannelInstrumentation instrumentation) {
         this.delegate = new NeverThrowChannel(delegate);
         this.limiter = limiter;
         this.channelNameForLogging = instrumentation.channelNameForLogging();
@@ -100,7 +95,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         @Nullable Permit maybePermit = limiter.acquire(limitEnforcement);
         if (maybePermit != null) {
-            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit;
+            Permit permit = maybePermit;
             logPermitAcquired();
             ListenableFuture<Response> result = delegate.execute(endpoint, request);
             DialogueFutures.addDirectCallback(result, permit);
@@ -146,10 +141,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         private final String channelNameForLogging;
 
         HostConcurrencyLimitedChannelInstrumentation(
-                String channelName,
-                int uriIndex,
-                CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
-                TaggedMetricRegistry taggedMetrics) {
+                String channelName, int uriIndex, ConcurrencyLimiter limiter, TaggedMetricRegistry taggedMetrics) {
             if (uriIndex == -1) {
                 throw new SafeIllegalArgumentException(
                         "uriIndex must be specified", SafeArg.of("channel-name", channelName));
@@ -162,7 +154,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                             .channelName(channelName)
                             .hostIndex(Integer.toString(uriIndex))
                             .buildMetricName(),
-                    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter::getLimit,
+                    ConcurrencyLimiter::getLimit,
                     doubleStream -> doubleStream.min().orElse(0D),
                     limiter);
             DialogueInternalWeakReducingGauge.getOrCreate(
@@ -171,7 +163,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                             .channelName(channelName)
                             .hostIndex(Integer.toString(uriIndex))
                             .buildMetricName(),
-                    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter::getInflight,
+                    ConcurrencyLimiter::getInflight,
                     LongStream::sum,
                     limiter);
         }

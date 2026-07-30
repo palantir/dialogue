@@ -30,7 +30,6 @@ import com.palantir.conjure.java.api.errors.QosReasons;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TestResponseQosEncoder;
-import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import java.io.IOException;
