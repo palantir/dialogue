@@ -58,21 +58,21 @@ com.palantir.goethe:goethe:0.26.0 (1 constraints: 3a05393b)
 
 com.palantir.javapoet:javapoet:0.18.0 (2 constraints: 3211ddee)
 
-com.palantir.nylon:nylon-threads:0.12.0 (1 constraints: 3b1032a2)
+com.palantir.nylon:nylon-threads:0.14.0 (1 constraints: 3d1038a2)
 
 com.palantir.refreshable:refreshable:2.16.0 (2 constraints: 53190ddc)
 
 com.palantir.ri:resource-identifier:2.20.0 (2 constraints: 51158bd9)
 
-com.palantir.safe-logging:logger:3.17.0 (14 constraints: 68e1f22e)
+com.palantir.safe-logging:logger:3.17.0 (14 constraints: 6de13931)
 
 com.palantir.safe-logging:logger-slf4j:3.17.0 (1 constraints: 360e9c50)
 
 com.palantir.safe-logging:logger-spi:3.17.0 (2 constraints: 7b1e4eb1)
 
-com.palantir.safe-logging:preconditions:3.17.0 (21 constraints: cc531921)
+com.palantir.safe-logging:preconditions:3.17.0 (21 constraints: d253b424)
 
-com.palantir.safe-logging:safe-logging:3.17.0 (20 constraints: 264593bb)
+com.palantir.safe-logging:safe-logging:3.17.0 (20 constraints: 2b4582be)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.12.0 (1 constraints: 3505293b)
 
@@ -82,17 +82,17 @@ com.palantir.tracing:tracing:6.38.0 (3 constraints: bf241eff)
 
 com.palantir.tracing:tracing-api:6.38.0 (2 constraints: 1b127919)
 
-com.palantir.tritium:tritium-api:0.134.0 (2 constraints: 911f1bf4)
+com.palantir.tritium:tritium-api:0.135.0 (2 constraints: 931f50f4)
 
-com.palantir.tritium:tritium-caffeine:0.134.0 (1 constraints: 6a05a040)
+com.palantir.tritium:tritium-caffeine:0.135.0 (1 constraints: 6b05a340)
 
-com.palantir.tritium:tritium-core:0.134.0 (1 constraints: 7010afb2)
+com.palantir.tritium:tritium-core:0.135.0 (1 constraints: 7110b2b2)
 
-com.palantir.tritium:tritium-ids:0.134.0 (1 constraints: fe0f9aa6)
+com.palantir.tritium:tritium-ids:0.135.0 (1 constraints: fe0f9aa6)
 
-com.palantir.tritium:tritium-metrics:0.134.0 (3 constraints: 9424180a)
+com.palantir.tritium:tritium-metrics:0.135.0 (3 constraints: 9624790a)
 
-com.palantir.tritium:tritium-registry:0.134.0 (6 constraints: 8d68d460)
+com.palantir.tritium:tritium-registry:0.135.0 (6 constraints: 90682062)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
