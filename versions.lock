@@ -1,22 +1,22 @@
 # Run ./gradlew writeVersionsLocks to regenerate this file. Blank lines are to minimize merge conflicts.
 
-com.fasterxml.jackson.core:jackson-annotations:2.21 (10 constraints: 44b470ae)
+com.fasterxml.jackson.core:jackson-annotations:2.22 (10 constraints: 49b4adb4)
 
-com.fasterxml.jackson.core:jackson-core:2.21.4 (11 constraints: 5fe5a0c9)
+com.fasterxml.jackson.core:jackson-core:2.22.1 (11 constraints: 4de54cb3)
 
-com.fasterxml.jackson.core:jackson-databind:2.21.4 (15 constraints: 5631465d)
+com.fasterxml.jackson.core:jackson-databind:2.22.1 (15 constraints: 4631b03a)
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.21.4 (1 constraints: 7f1c9ba4)
+com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.22.1 (1 constraints: 7f1c9ba4)
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.21.4 (1 constraints: 7f1c9ba4)
+com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.22.1 (1 constraints: 7f1c9ba4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-guava:2.21.4 (1 constraints: 7f1c9ba4)
+com.fasterxml.jackson.datatype:jackson-datatype-guava:2.22.1 (1 constraints: 7f1c9ba4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.21.4 (1 constraints: 7f1c9ba4)
+com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.22.1 (1 constraints: 7f1c9ba4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-joda:2.21.4 (1 constraints: 7f1c9ba4)
+com.fasterxml.jackson.datatype:jackson-datatype-joda:2.22.1 (1 constraints: 7f1c9ba4)
 
-com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.4 (1 constraints: 7f1c9ba4)
+com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22.1 (1 constraints: 7f1c9ba4)
 
 com.github.ben-manes.caffeine:caffeine:3.2.4 (3 constraints: 06289434)
 
@@ -36,7 +36,7 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.13.0 (1 constraints: 3805383b)
 
-com.palantir.conjure.java:conjure-lib:8.83.0 (2 constraints: 3824677b)
+com.palantir.conjure.java:conjure-lib:8.84.0 (2 constraints: 3924b97b)
 
 com.palantir.conjure.java.api:errors:2.76.0 (3 constraints: 8729dd16)
 
@@ -152,7 +152,7 @@ org.wildfly.common:wildfly-common:2.0.1 (2 constraints: 591adc48)
 
 [Test dependencies]
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.4 (1 constraints: 3b053a3b)
+com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.22.1 (1 constraints: 3b053a3b)
 
 com.google.auto.value:auto-value-annotations:1.11.0 (2 constraints: d01cd319)
 
