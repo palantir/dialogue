@@ -4,7 +4,7 @@ com.fasterxml.jackson.core:jackson-annotations:2.22 (10 constraints: 4bb4beb6)
 
 com.fasterxml.jackson.core:jackson-core:2.22.1 (11 constraints: 4be564ae)
 
-com.fasterxml.jackson.core:jackson-databind:2.22.1 (15 constraints: 44311a34)
+com.fasterxml.jackson.core:jackson-databind:2.22.1 (15 constraints: 4031ce2f)
 
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.22.1 (1 constraints: 7f1c9ba4)
 
@@ -38,11 +38,11 @@ com.palantir.common:streams:2.13.0 (1 constraints: 3805383b)
 
 com.palantir.conjure.java:conjure-lib:8.84.0 (2 constraints: 3924b97b)
 
-com.palantir.conjure.java.api:errors:2.76.0 (3 constraints: 8729dd16)
+com.palantir.conjure.java.api:errors:2.77.0 (3 constraints: 88294817)
 
-com.palantir.conjure.java.api:service-config:2.76.0 (2 constraints: 611999dd)
+com.palantir.conjure.java.api:service-config:2.77.0 (2 constraints: 6219d5dd)
 
-com.palantir.conjure.java.api:ssl-config:2.76.0 (4 constraints: 103f47a3)
+com.palantir.conjure.java.api:ssl-config:2.77.0 (4 constraints: 123f5fa4)
 
 com.palantir.conjure.java.runtime:client-config:8.39.0 (1 constraints: 4605763b)
 
