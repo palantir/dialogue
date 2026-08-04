@@ -543,6 +543,38 @@ client=7 endpoint	client_mean=PT0.000001S
 client=8 endpoint	client_mean=PT0.000001S    
 client=9 endpoint	client_mean=PT0.000001S    
 
+                                                         wrr_study.txt:	== utilization sweep (node a fixed at 0.5, node b swept) ==
+strategy                                b_util a_share(fixed=0.5)
+WEIGHTED_ROUND_ROBIN                      0.10          0.275
+CONCURRENCY_LIMITER_ROUND_ROBIN           0.10          0.502
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR       0.10          0.493
+WEIGHTED_ROUND_ROBIN                      0.30          0.413
+CONCURRENCY_LIMITER_ROUND_ROBIN           0.30          0.502
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR       0.30          0.493
+WEIGHTED_ROUND_ROBIN                      0.50          0.504
+CONCURRENCY_LIMITER_ROUND_ROBIN           0.50          0.502
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR       0.50          0.493
+WEIGHTED_ROUND_ROBIN                      0.70          0.568
+CONCURRENCY_LIMITER_ROUND_ROBIN           0.70          0.502
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR       0.70          0.493
+WEIGHTED_ROUND_ROBIN                      0.90          0.618
+CONCURRENCY_LIMITER_ROUND_ROBIN           0.90          0.502
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR       0.90          0.493
+
+== slow (non-erroring) degraded node, sparse clients (3 healthy slowdown=50, 1 degraded slowdown=5; 600 rps, 100 clients) ==
+  baseline (count)   success=100.0%  mean= 117.8ms  p99=   300ms  serverResponses=  54000  degradedShare=0.188
+  pin-until-error    success=100.0%  mean= 145.2ms  p99=   300ms  serverResponses=  54000  degradedShare=0.317
+  weighted (util)    success=100.0%  mean=  95.5ms  p99=   300ms  serverResponses=  54000  degradedShare=0.080
+== reported-load shock (shifter 0.2 -> 0.9 at 60s; steady 0.2; 250 rps, 8 clients, 120s) ==
+  shifter share if it stays idle  = 0.504
+  shifter share when it goes busy = 0.370
+
+== fixed utilization: idle=0.2 busy=0.8 (share of traffic to the idle node) ==
+  baseline (count)  idle_share=0.500
+  pin-until-error   idle_share=0.496
+  weighted (util)   idle_share=0.730
+
+
 ```
 
 
@@ -672,6 +704,11 @@ client=9 endpoint	client_mean=PT0.000001S
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/one_endpoint_dies_on_each_server[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="one_endpoint_dies_on_each_server[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
 
 
+## `reported_load_shock`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/reported_load_shock.png" /></td><td><image width=400 src="reported_load_shock.png" /></td></tr></table>
+
+
 ## `server_side_rate_limits[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
 <table><tr><th>develop</th><th>current</th></tr>
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/server_side_rate_limits[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td><td><image width=400 src="server_side_rate_limits[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td></tr></table>
@@ -760,6 +797,21 @@ client=9 endpoint	client_mean=PT0.000001S
 ## `slow_503s_then_revert[UNLIMITED_ROUND_ROBIN]`
 <table><tr><th>develop</th><th>current</th></tr>
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/slow_503s_then_revert[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="slow_503s_then_revert[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `slow_node_baseline`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/slow_node_baseline.png" /></td><td><image width=400 src="slow_node_baseline.png" /></td></tr></table>
+
+
+## `slow_node_pin_until_error`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/slow_node_pin_until_error.png" /></td><td><image width=400 src="slow_node_pin_until_error.png" /></td></tr></table>
+
+
+## `slow_node_wrr`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/slow_node_wrr.png" /></td><td><image width=400 src="slow_node_wrr.png" /></td></tr></table>
 
 
 ## `slowdown_and_error_thresholds[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`

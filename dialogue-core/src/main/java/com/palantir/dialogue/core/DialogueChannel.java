@@ -175,6 +175,12 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         @VisibleForTesting
+        Builder nodeSelectionStrategyOverride(DialogueNodeSelectionStrategy value) {
+            builder.nodeSelectionStrategyOverride(Optional.of(value));
+            return this;
+        }
+
+        @VisibleForTesting
         Builder queueTimeout(Duration value) {
             builder.queueTimeout(Optional.of(value));
             return this;

@@ -20,11 +20,14 @@ import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.QosReason.DueTo;
 import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
+import com.palantir.conjure.java.api.orca.OrcaLoadReport;
+import com.palantir.conjure.java.api.orca.OrcaLoadReports;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import org.jspecify.annotations.Nullable;
 
 /** Utility functionality for {@link Response} handling. */
@@ -33,6 +36,8 @@ final class Responses {
 
     @VisibleForTesting
     static final String PROXY_UPSTREAM_REQUEST_ATTEMPTS = "Proxy-Upstream-Request-Attempts";
+
+    private static final OrcaLoadReports.OrcaResponseDecodingAdapter<Response> ORCA_ADAPTER = Response::getFirstHeader;
 
     static boolean isRetryOther(@Nullable Response response) {
         // Note that a 308 status may be a non-retryable signal, for instance google sometimes
@@ -114,6 +119,23 @@ final class Responses {
             }
         }
         return 0;
+    }
+
+    /**
+     * Reads the server-reported utilization from the ORCA {@code endpoint-load-metrics}
+     * {@link Response#headers() header}, preferring {@link OrcaLoadReport#applicationUtilization()} and falling back
+     * to {@link OrcaLoadReport#cpuUtilization()}. Returns empty when the header is missing or cannot be parsed;
+     * decoding is defensive (see {@link OrcaLoadReports#parseFromResponse}).
+     *
+     * TODO(PM): think about how to actually populate this and what the scale should be. Should the scale be enforced?
+     */
+    static OptionalDouble parseUtilization(Response response) {
+        Optional<OrcaLoadReport> maybeReport = OrcaLoadReports.parseFromResponse(response, ORCA_ADAPTER);
+        if (maybeReport.isEmpty()) {
+            return OptionalDouble.empty();
+        }
+        OrcaLoadReport report = maybeReport.get();
+        return report.applicationUtilization().isPresent() ? report.applicationUtilization() : report.cpuUtilization();
     }
 
     private Responses() {}

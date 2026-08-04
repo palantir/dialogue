@@ -35,8 +35,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.OptionalDouble;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import org.jspecify.annotations.Nullable;
@@ -63,12 +65,31 @@ final class BalancedScoreTracker {
 
     BalancedScoreTracker(
             int channelCount, Random random, Ticker ticker, TaggedMetricRegistry taggedMetrics, String channelName) {
+        this(channelCount, random, ticker, taggedMetrics, channelName, false);
+    }
+
+    /**
+     * @param trackUtilization when true, per-host server-reported utilization is parsed from the ORCA
+     *     {@code endpoint-load-metrics} response header and retained (see {@link ChannelScoreInfo#usableUtilization}).
+     *     This is used by {@link WeightedRoundRobinNodeSelectionStrategyChannel}; it does not affect the
+     *     {@link ScoreSnapshot} score used by {@link BalancedNodeSelectionStrategyChannel}.
+     */
+    BalancedScoreTracker(
+            int channelCount,
+            Random random,
+            Ticker ticker,
+            TaggedMetricRegistry taggedMetrics,
+            String channelName,
+            boolean trackUtilization) {
         Preconditions.checkState(channelCount >= 1, "At least one channel required");
         this.random = random;
         this.clock = ticker;
         this.channelStats = IntStream.range(0, channelCount)
                 .mapToObj(index -> new ChannelScoreInfo(
-                        index, clock, PerHostObservability.create(channelCount, taggedMetrics, channelName, index)))
+                        index,
+                        clock,
+                        trackUtilization,
+                        PerHostObservability.create(channelCount, taggedMetrics, channelName, index)))
                 .collect(ImmutableList.toImmutableList());
 
         registerGauges(taggedMetrics, channelName, channelStats);
@@ -123,6 +144,8 @@ final class BalancedScoreTracker {
     public static final class ChannelScoreInfo implements FutureCallback<Response> {
         private final int hostIndex;
         private final PerHostObservability observability;
+        private final Ticker clock;
+        private final boolean trackUtilization;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
 
@@ -133,8 +156,18 @@ final class BalancedScoreTracker {
          */
         private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
-        ChannelScoreInfo(int hostIndex, Ticker clock, PerHostObservability observability) {
+        /** Sentinel meaning "no reading is currently in effect". */
+        private static final long UTILIZATION_NON_EMPTY_UNSET = Long.MIN_VALUE;
+
+        private static final UtilizationState NO_UTILIZATION =
+                new UtilizationState(Double.NaN, UTILIZATION_NON_EMPTY_UNSET, 0);
+
+        private final AtomicReference<UtilizationState> utilizationState = new AtomicReference<>(NO_UTILIZATION);
+
+        ChannelScoreInfo(int hostIndex, Ticker clock, boolean trackUtilization, PerHostObservability observability) {
             this.hostIndex = hostIndex;
+            this.clock = clock;
+            this.trackUtilization = trackUtilization;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.observability = observability;
         }
@@ -157,6 +190,23 @@ final class BalancedScoreTracker {
             inflight.decrementAndGet();
             if (response == null) {
                 return;
+            }
+            if (trackUtilization) {
+                // Record utilization regardless of status code — a shedding node still advertises its load.
+                OptionalDouble reported = Responses.parseUtilization(response);
+                if (reported.isPresent()) {
+                    long now = clock.read();
+                    double reportedUtilization = reported.getAsDouble();
+                    utilizationState.getAndUpdate(previous -> {
+                        if (!Double.isNaN(previous.utilization) && now < previous.updatedNanos) {
+                            return previous;
+                        }
+                        long nonEmptySinceNanos = previous.nonEmptySinceNanos == UTILIZATION_NON_EMPTY_UNSET
+                                ? now
+                                : previous.nonEmptySinceNanos;
+                        return new UtilizationState(reportedUtilization, nonEmptySinceNanos, now);
+                    });
+                }
             }
             if (Responses.isQosDueToCustom(response)) {
                 // The server has marked this QoS exception as something that the balanced score
@@ -183,6 +233,49 @@ final class BalancedScoreTracker {
 
         public int channelIndex() {
             return hostIndex;
+        }
+
+        int inflight() {
+            return inflight.get();
+        }
+
+        /** Decayed recent-failure reservoir value (see {@link #recentFailuresReservoir}). */
+        double recentFailures() {
+            return recentFailuresReservoir.get();
+        }
+
+        /**
+         * The server-reported utilization to trust right now, or empty when the caller should fall back (to the peer
+         * average). Empty when no reading has been observed, when the last reading is older than {@code expiryNanos}
+         * (stale — also re-arms the blackout so a later report must prove itself again), or while the node is still
+         * within {@code blackoutNanos} of its first reading. Mirrors gRFC A58's {@code GetWeight}.
+         */
+        OptionalDouble usableUtilization(long nowNanos, long expiryNanos, long blackoutNanos) {
+            UtilizationState state = utilizationState.get();
+            if (Double.isNaN(state.utilization)) {
+                return OptionalDouble.empty();
+            }
+            if (nowNanos - state.updatedNanos > expiryNanos) {
+                utilizationState.compareAndSet(state, NO_UTILIZATION);
+                return OptionalDouble.empty();
+            }
+            long nonEmptySince = state.nonEmptySinceNanos;
+            if (nonEmptySince == UTILIZATION_NON_EMPTY_UNSET || nowNanos - nonEmptySince < blackoutNanos) {
+                return OptionalDouble.empty();
+            }
+            return OptionalDouble.of(state.utilization);
+        }
+
+        private static final class UtilizationState {
+            private final double utilization;
+            private final long nonEmptySinceNanos;
+            private final long updatedNanos;
+
+            UtilizationState(double utilization, long nonEmptySinceNanos, long updatedNanos) {
+                this.utilization = utilization;
+                this.nonEmptySinceNanos = nonEmptySinceNanos;
+                this.updatedNanos = updatedNanos;
+            }
         }
 
         @Override

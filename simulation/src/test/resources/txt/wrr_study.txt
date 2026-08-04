@@ -1,0 +1,31 @@
+== utilization sweep (node a fixed at 0.5, node b swept) ==
+strategy                                b_util a_share(fixed=0.5)
+WEIGHTED_ROUND_ROBIN                      0.10          0.275
+CONCURRENCY_LIMITER_ROUND_ROBIN           0.10          0.502
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR       0.10          0.493
+WEIGHTED_ROUND_ROBIN                      0.30          0.413
+CONCURRENCY_LIMITER_ROUND_ROBIN           0.30          0.502
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR       0.30          0.493
+WEIGHTED_ROUND_ROBIN                      0.50          0.504
+CONCURRENCY_LIMITER_ROUND_ROBIN           0.50          0.502
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR       0.50          0.493
+WEIGHTED_ROUND_ROBIN                      0.70          0.568
+CONCURRENCY_LIMITER_ROUND_ROBIN           0.70          0.502
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR       0.70          0.493
+WEIGHTED_ROUND_ROBIN                      0.90          0.618
+CONCURRENCY_LIMITER_ROUND_ROBIN           0.90          0.502
+CONCURRENCY_LIMITER_PIN_UNTIL_ERROR       0.90          0.493
+
+== slow (non-erroring) degraded node, sparse clients (3 healthy slowdown=50, 1 degraded slowdown=5; 600 rps, 100 clients) ==
+  baseline (count)   success=100.0%  mean= 117.8ms  p99=   300ms  serverResponses=  54000  degradedShare=0.188
+  pin-until-error    success=100.0%  mean= 145.2ms  p99=   300ms  serverResponses=  54000  degradedShare=0.317
+  weighted (util)    success=100.0%  mean=  95.5ms  p99=   300ms  serverResponses=  54000  degradedShare=0.080
+== reported-load shock (shifter 0.2 -> 0.9 at 60s; steady 0.2; 250 rps, 8 clients, 120s) ==
+  shifter share if it stays idle  = 0.504
+  shifter share when it goes busy = 0.370
+
+== fixed utilization: idle=0.2 busy=0.8 (share of traffic to the idle node) ==
+  baseline (count)  idle_share=0.500
+  pin-until-error   idle_share=0.496
+  weighted (util)   idle_share=0.730
+

@@ -105,7 +105,9 @@ final class SimulationTest {
     @SuppressWarnings("for-rollout:deprecation")
     @Inherited
     @Retention(RetentionPolicy.RUNTIME)
-    @EnumSource(Strategy.class)
+    // WEIGHTED_ROUND_ROBIN is exercised in WeightedRoundRobinSimulationTest; excluded here so existing goldens
+    // are untouched.
+    @EnumSource(value = Strategy.class, mode = EnumSource.Mode.EXCLUDE, names = "WEIGHTED_ROUND_ROBIN")
     @ParameterizedTest(
             name = ParameterizedTest.DISPLAY_NAME_PLACEHOLDER + "[" + ParameterizedTest.ARGUMENTS_PLACEHOLDER + "]")
     @interface SimulationCase {}

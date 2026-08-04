@@ -83,6 +83,10 @@ final class LoadSweepTest {
                 Locale.ROOT, "%-40s %6s %10s %12s %9s%n", "strategy", "rps", "p99_ms", "goodput/s", "success%"));
 
         for (Strategy strategy : Strategy.values()) {
+            if (strategy == Strategy.WEIGHTED_ROUND_ROBIN) {
+                // Exercised in WeightedRoundRobinSimulationTest; excluded here to keep the sweep goldens stable.
+                continue;
+            }
             double[] p99 = new double[OFFERED_RPS.length];
             double[] gp = new double[OFFERED_RPS.length];
             double[] success = new double[OFFERED_RPS.length];

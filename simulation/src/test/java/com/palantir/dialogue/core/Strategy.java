@@ -35,13 +35,23 @@ import java.util.function.Supplier;
 public enum Strategy {
     CONCURRENCY_LIMITER_ROUND_ROBIN(Strategy::concurrencyLimiter),
     CONCURRENCY_LIMITER_PIN_UNTIL_ERROR(Strategy::pinUntilError),
-    UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin);
+    UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin),
+    // Uses the same client config as CONCURRENCY_LIMITER_ROUND_ROBIN (the BALANCED baseline) so comparisons are fair;
+    // the node-selection strategy is forced to WEIGHTED_ROUND_ROBIN via the test-only override, since it has no
+    // user-configurable NodeSelectionStrategy value (production reaches it via a server-advertised header).
+    WEIGHTED_ROUND_ROBIN(Strategy::concurrencyLimiter, DialogueNodeSelectionStrategy.WEIGHTED_ROUND_ROBIN);
 
     private static final ClientConfiguration STUB_CONFIG = stubConfig();
     private final Consumer<ClientConfiguration.Builder> applyConfig;
+    private final DialogueNodeSelectionStrategy nodeSelectionOverride;
 
     Strategy(Consumer<ClientConfiguration.Builder> applyConfig) {
+        this(applyConfig, null);
+    }
+
+    Strategy(Consumer<ClientConfiguration.Builder> applyConfig, DialogueNodeSelectionStrategy nodeSelectionOverride) {
         this.applyConfig = applyConfig;
+        this.nodeSelectionOverride = nodeSelectionOverride;
     }
 
     public Channel getChannel(Simulation simulation, Supplier<Map<String, SimulationServer>> servers) {
@@ -81,14 +91,17 @@ public enum Strategy {
                 .from(STUB_CONFIG)
                 .taggedMetricRegistry(sim.taggedMetrics());
         applyConfig.accept(confBuilder);
-        return DialogueChannel.builder()
+        DialogueChannel.Builder builder = DialogueChannel.builder()
                 .channelName(SimulationUtils.CHANNEL_NAME)
                 .clientConfiguration(confBuilder.build())
                 .factory(args -> channelSupplier.get(args.uri()))
                 .random(sim.pseudoRandom())
                 .scheduler(sim.scheduler())
-                .ticker(sim.clock())
-                .build();
+                .ticker(sim.clock());
+        if (nodeSelectionOverride != null) {
+            builder.nodeSelectionStrategyOverride(nodeSelectionOverride);
+        }
+        return builder.build();
     }
 
     private static ClientConfiguration stubConfig() {
