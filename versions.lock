@@ -1,10 +1,10 @@
 # Run ./gradlew writeVersionsLocks to regenerate this file. Blank lines are to minimize merge conflicts.
 
-com.fasterxml.jackson.core:jackson-annotations:2.22 (10 constraints: 4ab4d5b4)
+com.fasterxml.jackson.core:jackson-annotations:2.22 (10 constraints: 4bb4beb6)
 
-com.fasterxml.jackson.core:jackson-core:2.22.1 (11 constraints: 4de54cb3)
+com.fasterxml.jackson.core:jackson-core:2.22.1 (11 constraints: 4be564ae)
 
-com.fasterxml.jackson.core:jackson-databind:2.22.1 (15 constraints: 4631b03a)
+com.fasterxml.jackson.core:jackson-databind:2.22.1 (15 constraints: 44311a34)
 
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.22.1 (1 constraints: 7f1c9ba4)
 
@@ -152,7 +152,7 @@ org.wildfly.common:wildfly-common:2.0.1 (2 constraints: 591adc48)
 
 [Test dependencies]
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.22.1 (1 constraints: 3b053a3b)
+com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.22.1 (1 constraints: 39053a3b)
 
 com.google.auto.value:auto-value-annotations:1.11.0 (2 constraints: d01cd319)
 
