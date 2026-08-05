@@ -1,10 +1,10 @@
 # Run ./gradlew writeVersionsLocks to regenerate this file. Blank lines are to minimize merge conflicts.
 
-com.fasterxml.jackson.core:jackson-annotations:2.22 (10 constraints: 4bb4beb6)
+com.fasterxml.jackson.core:jackson-annotations:2.22 (10 constraints: 4cb4bfb6)
 
 com.fasterxml.jackson.core:jackson-core:2.22.1 (11 constraints: 4be564ae)
 
-com.fasterxml.jackson.core:jackson-databind:2.22.1 (15 constraints: 4031ce2f)
+com.fasterxml.jackson.core:jackson-databind:2.22.1 (15 constraints: 3e31ce2f)
 
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.22.1 (1 constraints: 7f1c9ba4)
 
@@ -64,19 +64,19 @@ com.palantir.refreshable:refreshable:2.16.0 (2 constraints: 53190ddc)
 
 com.palantir.ri:resource-identifier:2.21.0 (2 constraints: 5215bdd9)
 
-com.palantir.safe-logging:logger:3.17.0 (14 constraints: 6de13931)
+com.palantir.safe-logging:logger:3.17.0 (14 constraints: 6ee11432)
 
 com.palantir.safe-logging:logger-slf4j:3.17.0 (1 constraints: 360e9c50)
 
 com.palantir.safe-logging:logger-spi:3.17.0 (2 constraints: 7b1e4eb1)
 
-com.palantir.safe-logging:preconditions:3.17.0 (21 constraints: d253b424)
+com.palantir.safe-logging:preconditions:3.17.0 (21 constraints: d353be25)
 
 com.palantir.safe-logging:safe-logging:3.17.0 (20 constraints: 2b4582be)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.12.0 (1 constraints: 3505293b)
 
-com.palantir.tokens:auth-tokens:4.7.0 (3 constraints: 9327b82e)
+com.palantir.tokens:auth-tokens:4.8.0 (3 constraints: 94271e2f)
 
 com.palantir.tracing:tracing:6.38.0 (3 constraints: bf241eff)
 
