@@ -18,16 +18,11 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.palantir.conjure.java.api.orca.OrcaLoadReport;
-import com.palantir.conjure.java.api.orca.OrcaLoadReports;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import org.junit.jupiter.api.Test;
 
 class ResponsesTest {
-
-    // OrcaLoadReports owns this header name internally; duplicated here only to write a raw malformed value.
-    private static final String LOAD_METRICS_HEADER = "endpoint-load-metrics";
 
     @Test
     void proxyUpstreamRequestAttempts_missing() {
@@ -79,41 +74,44 @@ class ResponsesTest {
     }
 
     @Test
-    void utilization_prefersApplicationOverCpu() {
-        try (Response response = responseWith(OrcaLoadReport.builder()
-                .applicationUtilization(0.7)
-                .cpuUtilization(0.2)
-                .build())) {
-            assertThat(Responses.parseUtilization(response)).hasValue(0.7);
+    void utilization_valid() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, "0.75")) {
+            assertThat(Responses.parseUtilization(response)).hasValue(0.75);
         }
     }
 
     @Test
-    void utilization_fallsBackToCpu() {
-        try (Response response =
-                responseWith(OrcaLoadReport.builder().cpuUtilization(0.42).build())) {
-            assertThat(Responses.parseUtilization(response)).hasValue(0.42);
+    void utilization_fullyLoaded() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, "1.00")) {
+            assertThat(Responses.parseUtilization(response)).hasValue(1.0);
         }
     }
 
     @Test
-    void utilization_mayExceedOne() {
-        try (Response response = responseWith(
-                OrcaLoadReport.builder().applicationUtilization(1.5).build())) {
-            assertThat(Responses.parseUtilization(response)).hasValue(1.5);
+    void utilization_trimmed() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, " 0.5 ")) {
+            assertThat(Responses.parseUtilization(response)).hasValue(0.5);
         }
     }
 
     @Test
     void utilization_garbage() {
-        try (Response response = new TestResponse().withHeader(LOAD_METRICS_HEADER, "not a valid report")) {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, "not a number")) {
             assertThat(Responses.parseUtilization(response)).isEmpty();
         }
     }
 
-    private static TestResponse responseWith(OrcaLoadReport report) {
-        TestResponse response = new TestResponse().code(200);
-        OrcaLoadReports.encodeToResponse(report, response, (resp, name, value) -> resp.withHeader(name, value));
-        return response;
+    @Test
+    void utilization_negative() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, "-0.5")) {
+            assertThat(Responses.parseUtilization(response)).isEmpty();
+        }
+    }
+
+    @Test
+    void utilization_nonFinite() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, "Infinity")) {
+            assertThat(Responses.parseUtilization(response)).isEmpty();
+        }
     }
 }

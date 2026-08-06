@@ -20,8 +20,6 @@ import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.QosReason.DueTo;
 import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
-import com.palantir.conjure.java.api.orca.OrcaLoadReport;
-import com.palantir.conjure.java.api.orca.OrcaLoadReports;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -37,7 +35,8 @@ final class Responses {
     @VisibleForTesting
     static final String PROXY_UPSTREAM_REQUEST_ATTEMPTS = "Proxy-Upstream-Request-Attempts";
 
-    private static final OrcaLoadReports.OrcaResponseDecodingAdapter<Response> ORCA_ADAPTER = Response::getFirstHeader;
+    @VisibleForTesting
+    static final String UTILIZATION_HEADER = "X-Witchcraft-Utilization";
 
     static boolean isRetryOther(@Nullable Response response) {
         // Note that a 308 status may be a non-retryable signal, for instance google sometimes
@@ -122,20 +121,29 @@ final class Responses {
     }
 
     /**
-     * Reads the server-reported utilization from the ORCA {@code endpoint-load-metrics}
-     * {@link Response#headers() header}, preferring {@link OrcaLoadReport#applicationUtilization()} and falling back
-     * to {@link OrcaLoadReport#cpuUtilization()}. Returns empty when the header is missing or cannot be parsed;
-     * decoding is defensive (see {@link OrcaLoadReports#parseFromResponse}).
-     *
-     * TODO(PM): think about how to actually populate this and what the scale should be. Should the scale be enforced?
+     * Reads the server-reported utilization from the {@value #UTILIZATION_HEADER} {@link Response#headers() header}:
+     * a decimal in {@code [0, 1]} where higher means more loaded, computed by the server (see witchcraft's
+     * {@code UtilizationHandler}). Returns empty when the header is missing, unparseable, negative, or non-finite;
+     * parsing is defensive because a bad value from one node must not disrupt node selection.
      */
     static OptionalDouble parseUtilization(Response response) {
-        Optional<OrcaLoadReport> maybeReport = OrcaLoadReports.parseFromResponse(response, ORCA_ADAPTER);
-        if (maybeReport.isEmpty()) {
+        Optional<String> maybeHeader = response.getFirstHeader(UTILIZATION_HEADER);
+        if (maybeHeader.isEmpty()) {
             return OptionalDouble.empty();
         }
-        OrcaLoadReport report = maybeReport.get();
-        return report.applicationUtilization().isPresent() ? report.applicationUtilization() : report.cpuUtilization();
+        String value = maybeHeader.get();
+        double utilization;
+        try {
+            utilization = Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            log.warn("Failed to parse utilization header, ignoring", SafeArg.of("utilization", value), e);
+            return OptionalDouble.empty();
+        }
+        if (!Double.isFinite(utilization) || utilization < 0) {
+            log.warn("Received an unexpected utilization value, ignoring", SafeArg.of("utilization", value));
+            return OptionalDouble.empty();
+        }
+        return OptionalDouble.of(utilization);
     }
 
     private Responses() {}

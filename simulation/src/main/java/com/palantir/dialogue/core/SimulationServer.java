@@ -22,8 +22,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.conjure.java.api.orca.OrcaLoadReport;
-import com.palantir.conjure.java.api.orca.OrcaLoadReports;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -236,7 +234,7 @@ final class SimulationServer implements Channel {
         }
 
         /**
-         * Advertise a fixed server-reported utilization on every response via the ORCA {@code endpoint-load-metrics}
+         * Advertise a fixed server-reported utilization on every response via the {@code X-Witchcraft-Utilization}
          * header. Open-loop: the reported value is independent of the load the server actually receives.
          */
         public ServerHandler reportUtilization(double applicationUtilization) {
@@ -315,12 +313,7 @@ final class SimulationServer implements Channel {
 
     private static void stampUtilization(Response response, double utilization) {
         if (response instanceof TestResponse testResponse) {
-            OrcaLoadReports.encodeToResponse(
-                    OrcaLoadReport.builder()
-                            .applicationUtilization(Math.max(0.0, utilization))
-                            .build(),
-                    testResponse,
-                    (resp, name, value) -> resp.withHeader(name, value));
+            testResponse.withHeader(Responses.UTILIZATION_HEADER, Double.toString(Math.max(0.0, utilization)));
         }
     }
 

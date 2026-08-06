@@ -40,8 +40,6 @@ com.palantir.conjure.java:conjure-lib:8.83.0 (2 constraints: 3824677b)
 
 com.palantir.conjure.java.api:errors:2.76.0 (3 constraints: 8729dd16)
 
-com.palantir.conjure.java.api:orca:999 (1 constraints: c104512c)
-
 com.palantir.conjure.java.api:service-config:2.76.0 (2 constraints: 611999dd)
 
 com.palantir.conjure.java.api:ssl-config:2.76.0 (4 constraints: 103f47a3)
@@ -72,7 +70,7 @@ com.palantir.safe-logging:logger-slf4j:3.17.0 (1 constraints: 360e9c50)
 
 com.palantir.safe-logging:logger-spi:3.17.0 (2 constraints: 7b1e4eb1)
 
-com.palantir.safe-logging:preconditions:3.17.0 (22 constraints: a162ea19)
+com.palantir.safe-logging:preconditions:3.17.0 (21 constraints: cc531921)
 
 com.palantir.safe-logging:safe-logging:3.17.0 (20 constraints: 264593bb)
 
@@ -134,7 +132,7 @@ org.eclipse.collections:eclipse-collections-api:13.0.0 (2 constraints: fa22df26)
 
 org.hdrhistogram:HdrHistogram:2.2.2 (1 constraints: 0e100092)
 
-org.immutables:value:2.12.2 (3 constraints: d323b5cf)
+org.immutables:value:2.12.2 (2 constraints: 0215eec1)
 
 org.jboss.logging:jboss-logging:3.6.1.Final (7 constraints: c283b7cb)
 

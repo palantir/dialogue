@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Studies the server-reported-utilization {@link Strategy#WEIGHTED_ROUND_ROBIN} strategy against the count-balancing
  * {@link Strategy#CONCURRENCY_LIMITER_ROUND_ROBIN} baseline. The mock {@link SimulationServer}s advertise a utilization
- * via the ORCA {@code endpoint-load-metrics} header (see {@link SimulationServer.ServerHandler#reportUtilization} and
+ * via the {@code X-Witchcraft-Utilization} header (see {@link SimulationServer.ServerHandler#reportUtilization} and
  * {@link SimulationServer.ServerHandler#utilizationFromCapacity}) — only the number is mocked; the real client parsing
  * and selection code runs.
  *

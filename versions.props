@@ -5,7 +5,6 @@ com.google.guava:guava = 33.6.0-jre
 com.google.testing.compile:compile-testing = 0.23.0
 com.palantir.common:streams = 2.13.0
 com.palantir.conjure.java.api:* = 2.76.0
-com.palantir.conjure.java.api:orca = 999
 com.palantir.conjure.java:* = 8.83.0
 com.palantir.conjure.java.runtime:* = 8.39.0
 com.palantir.conjure:conjure = 4.60.0

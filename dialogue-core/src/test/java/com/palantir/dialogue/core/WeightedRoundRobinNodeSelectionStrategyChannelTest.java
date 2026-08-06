@@ -22,8 +22,6 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.conjure.java.api.orca.OrcaLoadReport;
-import com.palantir.conjure.java.api.orca.OrcaLoadReports;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -180,13 +178,9 @@ class WeightedRoundRobinNodeSelectionStrategyChannelTest {
     }
 
     private static Optional<ListenableFuture<Response>> respond(int code, double applicationUtilization) {
-        TestResponse response = new TestResponse().code(code);
-        OrcaLoadReports.encodeToResponse(
-                OrcaLoadReport.builder()
-                        .applicationUtilization(applicationUtilization)
-                        .build(),
-                response,
-                (resp, name, value) -> resp.withHeader(name, value));
+        TestResponse response = new TestResponse()
+                .code(code)
+                .withHeader(Responses.UTILIZATION_HEADER, Double.toString(applicationUtilization));
         return Optional.of(Futures.immediateFuture(response));
     }
 

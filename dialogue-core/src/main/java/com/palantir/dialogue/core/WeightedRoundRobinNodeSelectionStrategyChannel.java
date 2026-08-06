@@ -32,16 +32,14 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Optional;
-import java.util.OptionalDouble;
 import java.util.Random;
 import java.util.stream.IntStream;
+import org.jspecify.annotations.Nullable;
 
 /**
- * Chooses nodes weighted by the load each server reports about itself via the ORCA
- * {@code endpoint-load-metrics} response header (see {@link Responses#parseUtilization}). Where
+ * Chooses nodes weighted by the load each server reports about itself via the
+ * {@code X-Witchcraft-Utilization} response header (see {@link Responses#parseUtilization}). Where
  * {@link BalancedNodeSelectionStrategyChannel} balances request <i>count</i>, this balances server-reported
  * <i>load</i>, so it can route away from a node that is degraded (less capacity, a slow dependency, or resource-heavy
  * background work) even when that node is not receiving more requests than other available nodes.
@@ -72,10 +70,6 @@ import java.util.stream.IntStream;
  */
 final class WeightedRoundRobinNodeSelectionStrategyChannel implements LimitedChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(WeightedRoundRobinNodeSelectionStrategyChannel.class);
-
-    private static final Comparator<WeightSnapshot> BY_KEY_DESCENDING = Comparator.comparingDouble(
-                    (WeightSnapshot snapshot) -> snapshot.key)
-            .reversed();
 
     // Tunable knobs — starting values, to be settled empirically via WeightedRoundRobinSimulationTest.
     // epsilon caps the maximum weight (an idle node reporting 0 gets 1/epsilon) and prevents division by zero.
@@ -117,68 +111,65 @@ final class WeightedRoundRobinNodeSelectionStrategyChannel implements LimitedCha
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        WeightSnapshot[] order = weightedRandomOrder();
-        for (WeightSnapshot snapshot : order) {
-            Optional<ListenableFuture<Response>> maybe =
-                    StickyAttachments.maybeAddStickyToken(snapshot.channel, endpoint, request, limitEnforcement);
-            if (maybe.isPresent()) {
-                return maybe;
+        long nowNanos = clock.read();
+        double fallbackUtilization = fallbackUtilization(nowNanos);
+        int selectedIndex = selectWeightedIndex(nowNanos, fallbackUtilization, null);
+        Optional<ListenableFuture<Response>> maybe =
+                StickyAttachments.maybeAddStickyToken(channels.get(selectedIndex), endpoint, request, limitEnforcement);
+        if (maybe.isPresent()) {
+            return maybe;
+        }
+
+        boolean[] attempted = new boolean[channels.size()];
+        attempted[selectedIndex] = true;
+        for (int attempt = 1; attempt < channels.size(); attempt++) {
+            selectedIndex = selectWeightedIndex(nowNanos, fallbackUtilization, attempted);
+            attempted[selectedIndex] = true;
+            Optional<ListenableFuture<Response>> fallbackResult = StickyAttachments.maybeAddStickyToken(
+                    channels.get(selectedIndex), endpoint, request, limitEnforcement);
+            if (fallbackResult.isPresent()) {
+                return fallbackResult;
             }
         }
         return Optional.empty();
     }
 
-    /**
-     * Returns the hosts in a random order weighted by each host's current weight, so the first accepting host is a
-     * weighted-random choice. Snapshotting into value objects (like {@link BalancedScoreTracker.ScoreSnapshot}) keeps
-     * the ordering stable even if utilization/failure counters change mid-sort.
-     */
-    private WeightSnapshot[] weightedRandomOrder() {
-        long nowNanos = clock.read();
-        int size = channels.size();
-
-        // Pass 1: which hosts have a utilization reading we currently trust (fresh and past its blackout)? Hosts that
-        // don't will fall back to the average of the trusted ones, so a stale/new node is never made to look better
-        // than its busy peers (see class doc).
-        OptionalDouble[] trustedUtilizations = new OptionalDouble[size];
+    private double fallbackUtilization(long nowNanos) {
         double trustedSum = 0;
         int trustedCount = 0;
-        for (int i = 0; i < size; i++) {
-            OptionalDouble utilization =
-                    channels.get(i).channelInfo.usableUtilization(nowNanos, UTILIZATION_EXPIRY_NANOS, BLACKOUT_NANOS);
-            trustedUtilizations[i] = utilization;
-            if (utilization.isPresent()) {
-                trustedSum += utilization.getAsDouble();
+        for (WeightedChannel channel : channels) {
+            double utilization =
+                    channel.channelInfo.usableUtilization(nowNanos, UTILIZATION_EXPIRY_NANOS, BLACKOUT_NANOS);
+            if (!Double.isNaN(utilization)) {
+                trustedSum += utilization;
                 trustedCount++;
             }
         }
-        double fallbackUtilization = trustedCount > 0 ? trustedSum / trustedCount : NEUTRAL_UTILIZATION;
-
-        // Pass 2: compute each host's weight and a random key ordering it.
-        WeightSnapshot[] snapshots = new WeightSnapshot[size];
-        for (int i = 0; i < size; i++) {
-            WeightedChannel channel = channels.get(i);
-            double utilization = trustedUtilizations[i].orElse(fallbackUtilization);
-            double effectiveLoad = utilization + FAILURE_UTILIZATION_SCALE * channel.channelInfo.recentFailures();
-            double weight = 1.0 / (effectiveLoad + EPSILON);
-            // Efraimidis-Spirakis weighted random sampling without replacement: draw key = ln(u)/weight and order by
-            // descending key. This yields a permutation in which each host's chance of coming first is proportional
-            // to its weight. Using the log form keeps it numerically stable across a wide weight range.
-            double key = Math.log(random.nextDouble()) / weight;
-            snapshots[i] = new WeightSnapshot(key, channel);
-        }
-        Arrays.sort(snapshots, BY_KEY_DESCENDING);
-        return snapshots;
+        return trustedCount > 0 ? trustedSum / trustedCount : NEUTRAL_UTILIZATION;
     }
 
-    private static final class WeightSnapshot {
-        private final double key;
-        private final WeightedChannel channel;
-
-        WeightSnapshot(double key, WeightedChannel channel) {
-            this.key = key;
-            this.channel = channel;
+    private int selectWeightedIndex(long nowNanos, double fallbackUtilization, boolean @Nullable [] attempted) {
+        double totalWeight = 0;
+        int selectedIndex = -1;
+        for (int i = 0; i < channels.size(); i++) {
+            if (attempted != null && attempted[i]) {
+                continue;
+            }
+            WeightedChannel channel = channels.get(i);
+            double utilization =
+                    channel.channelInfo.usableUtilization(nowNanos, UTILIZATION_EXPIRY_NANOS, BLACKOUT_NANOS);
+            if (Double.isNaN(utilization)) {
+                utilization = fallbackUtilization;
+            }
+            double effectiveLoad = utilization + FAILURE_UTILIZATION_SCALE * channel.channelInfo.recentFailures();
+            double weight = 1.0 / (effectiveLoad + EPSILON);
+            totalWeight += weight;
+            // Keep this host with weight / totalWeight probability, producing one proportional choice in one pass.
+            if (random.nextDouble() * totalWeight < weight) {
+                selectedIndex = i;
+            }
         }
+        return selectedIndex;
     }
 
     private static final class WeightedChannel implements LimitedChannel {

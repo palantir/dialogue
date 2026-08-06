@@ -69,8 +69,8 @@ final class BalancedScoreTracker {
     }
 
     /**
-     * @param trackUtilization when true, per-host server-reported utilization is parsed from the ORCA
-     *     {@code endpoint-load-metrics} response header and retained (see {@link ChannelScoreInfo#usableUtilization}).
+     * @param trackUtilization when true, per-host server-reported utilization is parsed from the
+     *     {@code X-Witchcraft-Utilization} response header and retained (see {@link ChannelScoreInfo#usableUtilization}).
      *     This is used by {@link WeightedRoundRobinNodeSelectionStrategyChannel}; it does not affect the
      *     {@link ScoreSnapshot} score used by {@link BalancedNodeSelectionStrategyChannel}.
      */
@@ -186,6 +186,7 @@ final class BalancedScoreTracker {
         }
 
         @Override
+        @SuppressWarnings("checkstyle:CyclomaticComplexity")
         public void onSuccess(@Nullable Response response) {
             inflight.decrementAndGet();
             if (response == null) {
@@ -245,25 +246,25 @@ final class BalancedScoreTracker {
         }
 
         /**
-         * The server-reported utilization to trust right now, or empty when the caller should fall back (to the peer
-         * average). Empty when no reading has been observed, when the last reading is older than {@code expiryNanos}
-         * (stale — also re-arms the blackout so a later report must prove itself again), or while the node is still
-         * within {@code blackoutNanos} of its first reading. Mirrors gRFC A58's {@code GetWeight}.
+         * The server-reported utilization to trust right now, or {@link Double#NaN} when the caller should fall back
+         * to the peer average. Falls back when no reading has been observed, when the last reading is older than
+         * {@code expiryNanos} (stale — also re-arms the blackout so a later report must prove itself again), or while
+         * the node is still within {@code blackoutNanos} of its first reading. Mirrors gRFC A58's {@code GetWeight}.
          */
-        OptionalDouble usableUtilization(long nowNanos, long expiryNanos, long blackoutNanos) {
+        double usableUtilization(long nowNanos, long expiryNanos, long blackoutNanos) {
             UtilizationState state = utilizationState.get();
             if (Double.isNaN(state.utilization)) {
-                return OptionalDouble.empty();
+                return Double.NaN;
             }
             if (nowNanos - state.updatedNanos > expiryNanos) {
                 utilizationState.compareAndSet(state, NO_UTILIZATION);
-                return OptionalDouble.empty();
+                return Double.NaN;
             }
             long nonEmptySince = state.nonEmptySinceNanos;
             if (nonEmptySince == UTILIZATION_NON_EMPTY_UNSET || nowNanos - nonEmptySince < blackoutNanos) {
-                return OptionalDouble.empty();
+                return Double.NaN;
             }
-            return OptionalDouble.of(state.utilization);
+            return state.utilization;
         }
 
         private static final class UtilizationState {
