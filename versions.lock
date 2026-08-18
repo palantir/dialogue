@@ -24,17 +24,17 @@ com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.50.0 (19 constraints: 1a2f70ca)
+com.google.errorprone:error_prone_annotations:2.50.0 (19 constraints: 142f67b9)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.7.1-jre (18 constraints: fa3f5ad5)
+com.google.guava:guava:33.7.1-jre (18 constraints: fb3fead7)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
 com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
-com.palantir.common:streams:2.13.0 (1 constraints: 3805383b)
+com.palantir.common:streams:2.14.0 (1 constraints: 39053b3b)
 
 com.palantir.conjure.java:conjure-lib:8.84.0 (2 constraints: 3b24bf7b)
 
@@ -70,9 +70,9 @@ com.palantir.safe-logging:logger-slf4j:3.18.0 (1 constraints: 370e9f50)
 
 com.palantir.safe-logging:logger-spi:3.18.0 (2 constraints: 7d1e84b1)
 
-com.palantir.safe-logging:preconditions:3.18.0 (21 constraints: d9535433)
+com.palantir.safe-logging:preconditions:3.18.0 (21 constraints: da53f036)
 
-com.palantir.safe-logging:safe-logging:3.18.0 (20 constraints: 3345f5cd)
+com.palantir.safe-logging:safe-logging:3.18.0 (20 constraints: 344567d1)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.13.0 (1 constraints: 36052c3b)
 
@@ -140,7 +140,7 @@ org.jboss.threads:jboss-threads:3.9.2 (3 constraints: a8285de8)
 
 org.jetbrains:annotations:26.1.0 (4 constraints: 14352e3a)
 
-org.jspecify:jspecify:1.0.1 (18 constraints: 1714ed9a)
+org.jspecify:jspecify:1.0.1 (18 constraints: 18143e9d)
 
 org.mpierce.metrics.reservoir:hdrhistogram-metrics-reservoir:1.1.3 (1 constraints: 0d10f991)
 
