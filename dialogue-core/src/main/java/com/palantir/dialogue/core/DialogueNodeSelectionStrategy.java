@@ -32,6 +32,7 @@ enum DialogueNodeSelectionStrategy {
     PIN_UNTIL_ERROR,
     PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
     BALANCED,
+    WEIGHTED_ROUND_ROBIN,
     UNKNOWN;
 
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueNodeSelectionStrategy.class);
@@ -56,6 +57,9 @@ enum DialogueNodeSelectionStrategy {
         }
         if ("BALANCED".equalsIgnoreCase(string)) {
             return BALANCED;
+        }
+        if ("WEIGHTED_ROUND_ROBIN".equalsIgnoreCase(string)) {
+            return WEIGHTED_ROUND_ROBIN;
         }
         log.info("Received unknown selection strategy {}", SafeArg.of("strategy", string));
         return UNKNOWN;

@@ -103,7 +103,9 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
         return new NodeSelectionStrategyChannel(
                 NodeSelectionStrategyChannel::getFirstKnownStrategy,
-                DialogueNodeSelectionStrategy.of(cf.clientConf().nodeSelectionStrategy()),
+                cf.nodeSelectionStrategyOverride()
+                        .orElseGet(() ->
+                                DialogueNodeSelectionStrategy.of(cf.clientConf().nodeSelectionStrategy())),
                 cf.channelName(),
                 cf.random(),
                 cf.ticker(),
@@ -164,6 +166,12 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
                 return channelBuilder
                         .channel(new BalancedNodeSelectionStrategyChannel(channels, random, tick, metrics, channelName))
+                        .build();
+            }
+            case WEIGHTED_ROUND_ROBIN -> {
+                return channelBuilder
+                        .channel(new WeightedRoundRobinNodeSelectionStrategyChannel(
+                                channels, random, tick, metrics, channelName))
                         .build();
             }
             case UNKNOWN -> {}

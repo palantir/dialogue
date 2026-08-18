@@ -192,6 +192,8 @@ final class SimulationServer implements Channel {
         private Function<SimulationServer, Response> responseFunction;
         private ResponseTimeFunction responseTimeFunction;
 
+        private UtilizationFunction utilizationFunction;
+
         public Optional<ListenableFuture<Response>> maybeExecute(
                 SimulationServer server, Endpoint endpoint, Request _request) {
             if (predicate != null && !predicate.test(endpoint)) {
@@ -204,6 +206,9 @@ final class SimulationServer implements Channel {
                     .schedule(
                             () -> {
                                 Response response = responseFunction.apply(server);
+                                if (utilizationFunction != null) {
+                                    stampUtilization(response, utilizationFunction.getUtilization(server));
+                                }
                                 return wrapWithCloseInstrumentation(response, server);
                             },
                             responseTime.toNanos(),
@@ -226,6 +231,28 @@ final class SimulationServer implements Channel {
         public ServerHandler responseTime(ResponseTimeFunction func) {
             this.responseTimeFunction = func;
             return this;
+        }
+
+        /**
+         * Advertise a fixed server-reported utilization on every response via the {@code X-Witchcraft-Utilization}
+         * header. Open-loop: the reported value is independent of the load the server actually receives.
+         */
+        public ServerHandler reportUtilization(double applicationUtilization) {
+            return reportUtilization(_server -> applicationUtilization);
+        }
+
+        /** Advertise a server-computed utilization on every response (see {@link #reportUtilization(double)}). */
+        public ServerHandler reportUtilization(UtilizationFunction func) {
+            this.utilizationFunction = func;
+            return this;
+        }
+
+        /**
+         * Closed-loop utilization: reports {@code activeRequests / capacity}, so the advertised load reflects the
+         * traffic the server is actually receiving. Values may exceed one when the server is oversubscribed.
+         */
+        public ServerHandler utilizationFromCapacity(int capacity) {
+            return reportUtilization(server -> (double) server.activeRequests.getCount() / capacity);
         }
     }
 
@@ -278,6 +305,16 @@ final class SimulationServer implements Channel {
 
     interface ResponseTimeFunction {
         Duration getResponseTime(SimulationServer server);
+    }
+
+    interface UtilizationFunction {
+        double getUtilization(SimulationServer server);
+    }
+
+    private static void stampUtilization(Response response, double utilization) {
+        if (response instanceof TestResponse testResponse) {
+            testResponse.withHeader(Responses.UTILIZATION_HEADER, Double.toString(Math.max(0.0, utilization)));
+        }
     }
 
     private static Response wrapWithCloseInstrumentation(Response delegate, SimulationServer sim) {

@@ -65,4 +65,53 @@ class ResponsesTest {
             assertThat(Responses.getProxyUpstreamRequestAttempts(response)).isZero();
         }
     }
+
+    @Test
+    void utilization_missing() {
+        try (Response response = new TestResponse()) {
+            assertThat(Responses.parseUtilization(response)).isEmpty();
+        }
+    }
+
+    @Test
+    void utilization_valid() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, "0.75")) {
+            assertThat(Responses.parseUtilization(response)).hasValue(0.75);
+        }
+    }
+
+    @Test
+    void utilization_fullyLoaded() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, "1.00")) {
+            assertThat(Responses.parseUtilization(response)).hasValue(1.0);
+        }
+    }
+
+    @Test
+    void utilization_trimmed() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, " 0.5 ")) {
+            assertThat(Responses.parseUtilization(response)).hasValue(0.5);
+        }
+    }
+
+    @Test
+    void utilization_garbage() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, "not a number")) {
+            assertThat(Responses.parseUtilization(response)).isEmpty();
+        }
+    }
+
+    @Test
+    void utilization_negative() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, "-0.5")) {
+            assertThat(Responses.parseUtilization(response)).isEmpty();
+        }
+    }
+
+    @Test
+    void utilization_nonFinite() {
+        try (Response response = new TestResponse().withHeader(Responses.UTILIZATION_HEADER, "Infinity")) {
+            assertThat(Responses.parseUtilization(response)).isEmpty();
+        }
+    }
 }

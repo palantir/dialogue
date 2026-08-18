@@ -25,6 +25,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import org.jspecify.annotations.Nullable;
 
 /** Utility functionality for {@link Response} handling. */
@@ -33,6 +34,9 @@ final class Responses {
 
     @VisibleForTesting
     static final String PROXY_UPSTREAM_REQUEST_ATTEMPTS = "Proxy-Upstream-Request-Attempts";
+
+    @VisibleForTesting
+    static final String UTILIZATION_HEADER = "X-Witchcraft-Utilization";
 
     static boolean isRetryOther(@Nullable Response response) {
         // Note that a 308 status may be a non-retryable signal, for instance google sometimes
@@ -114,6 +118,32 @@ final class Responses {
             }
         }
         return 0;
+    }
+
+    /**
+     * Reads the server-reported utilization from the {@value #UTILIZATION_HEADER} {@link Response#headers() header}:
+     * a decimal in {@code [0, 1]} where higher means more loaded, computed by the server (see witchcraft's
+     * {@code UtilizationHandler}). Returns empty when the header is missing, unparseable, negative, or non-finite;
+     * parsing is defensive because a bad value from one node must not disrupt node selection.
+     */
+    static OptionalDouble parseUtilization(Response response) {
+        Optional<String> maybeHeader = response.getFirstHeader(UTILIZATION_HEADER);
+        if (maybeHeader.isEmpty()) {
+            return OptionalDouble.empty();
+        }
+        String value = maybeHeader.get();
+        double utilization;
+        try {
+            utilization = Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            log.warn("Failed to parse utilization header, ignoring", SafeArg.of("utilization", value), e);
+            return OptionalDouble.empty();
+        }
+        if (!Double.isFinite(utilization) || utilization < 0) {
+            log.warn("Received an unexpected utilization value, ignoring", SafeArg.of("utilization", value));
+            return OptionalDouble.empty();
+        }
+        return OptionalDouble.of(utilization);
     }
 
     private Responses() {}

@@ -82,6 +82,14 @@ interface Config {
 
     OptionalInt overrideSingleHostIndex();
 
+    /**
+     * Test-only override for the initial node-selection strategy, used to select strategies (e.g.
+     * {@link DialogueNodeSelectionStrategy#WEIGHTED_ROUND_ROBIN}) that have no user-configurable
+     * {@link com.palantir.conjure.java.client.config.NodeSelectionStrategy} value and are otherwise only reachable
+     * via a server-advertised header. When empty, the strategy is derived from {@link #clientConf()} as usual.
+     */
+    Optional<DialogueNodeSelectionStrategy> nodeSelectionStrategyOverride();
+
     @Value.Default
     default Optional<Boolean> deadlineEnforcement() {
         return Optional.empty();

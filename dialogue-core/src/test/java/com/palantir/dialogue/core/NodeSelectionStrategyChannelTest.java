@@ -90,4 +90,29 @@ class NodeSelectionStrategyChannelTest {
                 .updateAndGet(eq(ImmutableList.of(
                         DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));
     }
+
+    @Test
+    void server_can_advertise_weighted_round_robin() {
+        ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+        channel = new NodeSelectionStrategyChannel(
+                strategySelector,
+                DialogueNodeSelectionStrategy.BALANCED,
+                channelName,
+                pseudo,
+                clock,
+                new DefaultTaggedMetricRegistry(),
+                channels);
+
+        when(channel1.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(Optional.of(Futures.immediateFuture(
+                        new TestResponse().code(200).withHeader("Node-Selection-Strategy", "WEIGHTED_ROUND_ROBIN"))));
+
+        assertThat(channel.maybeExecute(null, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED))
+                .isPresent();
+        verify(strategySelector, times(1))
+                .updateAndGet(eq(ImmutableList.of(DialogueNodeSelectionStrategy.WEIGHTED_ROUND_ROBIN)));
+        assertThat(channel.toString())
+                .as("the server-advertised strategy should have swapped in the weighted round robin channel")
+                .contains("WeightedRoundRobinNodeSelectionStrategyChannel");
+    }
 }
