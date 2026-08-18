@@ -85,7 +85,7 @@ client=lowload endpoint	client_mean=PT0.107475425S
 client=burst endpoint	client_mean=PT1.788809696S 
 client=lowload endpoint	client_mean=PT0.20490083S  
 
-    burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN]_exponential_ramp.txt:	success=100.0%	client_mean=PT0.914754261S 	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
+burst_then_low_load[CONCURRENCY_LIMITER_ROUND_ROBIN]_exponential_ramp.txt:	success=100.0%	client_mean=PT0.914754261S 	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
 client=burst endpoint	client_mean=PT1.076210029S 
 client=lowload endpoint	client_mean=PT0.107475425S 
 
@@ -93,7 +93,7 @@ client=lowload endpoint	client_mean=PT0.107475425S
 client=burst endpoint	client_mean=PT0.1S         
 client=lowload endpoint	client_mean=PT0.1S         
 
-              burst_then_low_load[UNLIMITED_ROUND_ROBIN]_exponential_ramp.txt:	success=100.0%	client_mean=PT0.1S         	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
+       burst_then_low_load[UNLIMITED_ROUND_ROBIN]_exponential_ramp.txt:	success=100.0%	client_mean=PT0.1S         	server_cpu=PT2M           	client_received=1200/1200	server_resps=1200	codes={200=1200}
 client=burst endpoint	client_mean=PT0.1S         
 client=lowload endpoint	client_mean=PT0.1S         
 
@@ -279,7 +279,7 @@ UNLIMITED_ROUND_ROBIN                       300     4734.6          4.7       1.
 UNLIMITED_ROUND_ROBIN                       400     4738.8          3.8       1.2
 UNLIMITED_ROUND_ROBIN                       500     4732.8          3.8       0.9
 
-                                              load_sweep_exponential_ramp.txt:	strategy                                    rps     p99_ms    goodput/s  success%
+                                       load_sweep_exponential_ramp.txt:	strategy                                    rps     p99_ms    goodput/s  success%
 CONCURRENCY_LIMITER_ROUND_ROBIN              25       66.0         25.0     100.0
 CONCURRENCY_LIMITER_ROUND_ROBIN              50       72.0         49.9     100.0
 CONCURRENCY_LIMITER_ROUND_ROBIN              75       78.0         74.8     100.0
@@ -320,19 +320,19 @@ UNLIMITED_ROUND_ROBIN                       500     4732.8          3.8       0.
                 one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT2.667606696S 	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
 client=0 endpoint	client_mean=PT2.667606696S 
 
-      one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_exponential_ramp.txt:	success=100.0%	client_mean=PT1.639825596S 	server_cpu=PT2M30.45S     	client_received=1000/1000	server_resps=1003	codes={200=1000}
+one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_exponential_ramp.txt:	success=100.0%	client_mean=PT1.639825596S 	server_cpu=PT2M30.45S     	client_received=1000/1000	server_resps=1003	codes={200=1000}
 client=0 endpoint	client_mean=PT1.639825596S 
 
                     one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.579726259S 	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
 client=0 endpoint	client_mean=PT1.579726259S 
 
-          one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN]_exponential_ramp.txt:	success=100.0%	client_mean=PT1.097365192S 	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
+   one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN]_exponential_ramp.txt:	success=100.0%	client_mean=PT1.097365192S 	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
 client=0 endpoint	client_mean=PT1.097365192S 
 
                               one_big_spike[UNLIMITED_ROUND_ROBIN].txt:	success=99.9%	client_mean=PT1.220762244S 	server_cpu=PT8M28.2S      	client_received=1000/1000	server_resps=3388	codes={200=999, 429=1}
 client=0 endpoint	client_mean=PT1.220762244S 
 
-                    one_big_spike[UNLIMITED_ROUND_ROBIN]_exponential_ramp.txt:	success=99.9%	client_mean=PT1.220762244S 	server_cpu=PT8M28.2S      	client_received=1000/1000	server_resps=3388	codes={200=999, 429=1}
+             one_big_spike[UNLIMITED_ROUND_ROBIN]_exponential_ramp.txt:	success=99.9%	client_mean=PT1.220762244S 	server_cpu=PT8M28.2S      	client_received=1000/1000	server_resps=3388	codes={200=999, 429=1}
 client=0 endpoint	client_mean=PT1.220762244S 
 
 one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=66.0%	client_mean=PT2.0668656S   	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1651, 500=849}
@@ -577,6 +577,78 @@ client=6 endpoint	client_mean=PT21.737197865S
 client=7 endpoint	client_mean=PT20.383746516S
 client=8 endpoint	client_mean=PT21.132447937S
 client=9 endpoint	client_mean=PT21.815683512S
+
+              thundering_herd[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT2.522127132S 	server_cpu=PT25M          	client_received=10000/10000	server_resps=10000	codes={200=10000}
+client=0 endpoint	client_mean=PT2.456149203S 
+client=1 endpoint	client_mean=PT2.467817907S 
+client=2 endpoint	client_mean=PT2.554470551S 
+client=3 endpoint	client_mean=PT2.538334469S 
+client=4 endpoint	client_mean=PT2.615447161S 
+client=5 endpoint	client_mean=PT2.573912182S 
+client=6 endpoint	client_mean=PT2.400767113S 
+client=7 endpoint	client_mean=PT2.501161528S 
+client=8 endpoint	client_mean=PT2.506219259S 
+client=9 endpoint	client_mean=PT2.586225456S 
+
+thundering_herd[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_exponential_ramp.txt:	success=100.0%	client_mean=PT1.494178757S 	server_cpu=PT25M3.45S     	client_received=10000/10000	server_resps=10023	codes={200=10000}
+client=0 endpoint	client_mean=PT1.51363528S  
+client=1 endpoint	client_mean=PT1.429625982S 
+client=2 endpoint	client_mean=PT1.465910537S 
+client=3 endpoint	client_mean=PT1.459121285S 
+client=4 endpoint	client_mean=PT1.589164374S 
+client=5 endpoint	client_mean=PT1.471934564S 
+client=6 endpoint	client_mean=PT1.403793473S 
+client=7 endpoint	client_mean=PT1.542153748S 
+client=8 endpoint	client_mean=PT1.449485597S 
+client=9 endpoint	client_mean=PT1.603270348S 
+
+                  thundering_herd[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.436936954S 	server_cpu=PT25M          	client_received=10000/10000	server_resps=10000	codes={200=10000}
+client=0 endpoint	client_mean=PT1.394743988S 
+client=1 endpoint	client_mean=PT1.400308395S 
+client=2 endpoint	client_mean=PT1.459006394S 
+client=3 endpoint	client_mean=PT1.446690204S 
+client=4 endpoint	client_mean=PT1.493579633S 
+client=5 endpoint	client_mean=PT1.468456436S 
+client=6 endpoint	client_mean=PT1.36304775S  
+client=7 endpoint	client_mean=PT1.423803275S 
+client=8 endpoint	client_mean=PT1.427105449S 
+client=9 endpoint	client_mean=PT1.479671704S 
+
+ thundering_herd[CONCURRENCY_LIMITER_ROUND_ROBIN]_exponential_ramp.txt:	success=100.0%	client_mean=PT1.008862017S 	server_cpu=PT25M6S        	client_received=10000/10000	server_resps=10040	codes={200=10000}
+client=0 endpoint	client_mean=PT0.96372858S  
+client=1 endpoint	client_mean=PT0.950881443S 
+client=2 endpoint	client_mean=PT1.074395929S 
+client=3 endpoint	client_mean=PT1.042582141S 
+client=4 endpoint	client_mean=PT1.058748453S 
+client=5 endpoint	client_mean=PT1.024643894S 
+client=6 endpoint	client_mean=PT0.962614379S 
+client=7 endpoint	client_mean=PT0.947367515S 
+client=8 endpoint	client_mean=PT0.984195093S 
+client=9 endpoint	client_mean=PT1.066380165S 
+
+                            thundering_herd[UNLIMITED_ROUND_ROBIN].txt:	success=77.4%	client_mean=PT2.56966833S  	server_cpu=PT2H3M55.35S   	client_received=10000/10000	server_resps=49569	codes={200=7739, 429=2261}
+client=0 endpoint	client_mean=PT2.566268766S 
+client=1 endpoint	client_mean=PT2.574886299S 
+client=2 endpoint	client_mean=PT2.546461191S 
+client=3 endpoint	client_mean=PT2.571566475S 
+client=4 endpoint	client_mean=PT2.582251467S 
+client=5 endpoint	client_mean=PT2.583222887S 
+client=6 endpoint	client_mean=PT2.550660882S 
+client=7 endpoint	client_mean=PT2.581192492S 
+client=8 endpoint	client_mean=PT2.571986122S 
+client=9 endpoint	client_mean=PT2.566563325S 
+
+           thundering_herd[UNLIMITED_ROUND_ROBIN]_exponential_ramp.txt:	success=77.4%	client_mean=PT2.56966833S  	server_cpu=PT2H3M55.35S   	client_received=10000/10000	server_resps=49569	codes={200=7739, 429=2261}
+client=0 endpoint	client_mean=PT2.566268766S 
+client=1 endpoint	client_mean=PT2.574886299S 
+client=2 endpoint	client_mean=PT2.546461191S 
+client=3 endpoint	client_mean=PT2.571566475S 
+client=4 endpoint	client_mean=PT2.582251467S 
+client=5 endpoint	client_mean=PT2.583222887S 
+client=6 endpoint	client_mean=PT2.550660882S 
+client=7 endpoint	client_mean=PT2.581192492S 
+client=8 endpoint	client_mean=PT2.571986122S 
+client=9 endpoint	client_mean=PT2.566563325S 
 
               uncommon_flakes[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9900, 500=100}
 client=0 endpoint	client_mean=PT0.000001S    
@@ -896,6 +968,36 @@ client=9 endpoint	client_mean=PT0.000001S
 ## `slowdown_and_error_thresholds[UNLIMITED_ROUND_ROBIN]`
 <table><tr><th>develop</th><th>current</th></tr>
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/slowdown_and_error_thresholds[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="slowdown_and_error_thresholds[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `thundering_herd[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/thundering_herd[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td><td><image width=400 src="thundering_herd[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td></tr></table>
+
+
+## `thundering_herd[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_exponential_ramp`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/thundering_herd[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_exponential_ramp.png" /></td><td><image width=400 src="thundering_herd[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]_exponential_ramp.png" /></td></tr></table>
+
+
+## `thundering_herd[CONCURRENCY_LIMITER_ROUND_ROBIN]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/thundering_herd[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td><td><image width=400 src="thundering_herd[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `thundering_herd[CONCURRENCY_LIMITER_ROUND_ROBIN]_exponential_ramp`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/thundering_herd[CONCURRENCY_LIMITER_ROUND_ROBIN]_exponential_ramp.png" /></td><td><image width=400 src="thundering_herd[CONCURRENCY_LIMITER_ROUND_ROBIN]_exponential_ramp.png" /></td></tr></table>
+
+
+## `thundering_herd[UNLIMITED_ROUND_ROBIN]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/thundering_herd[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="thundering_herd[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `thundering_herd[UNLIMITED_ROUND_ROBIN]_exponential_ramp`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/thundering_herd[UNLIMITED_ROUND_ROBIN]_exponential_ramp.png" /></td><td><image width=400 src="thundering_herd[UNLIMITED_ROUND_ROBIN]_exponential_ramp.png" /></td></tr></table>
 
 
 ## `uncommon_flakes[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`

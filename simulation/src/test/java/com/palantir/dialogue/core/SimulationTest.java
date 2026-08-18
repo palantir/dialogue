@@ -521,6 +521,57 @@ final class SimulationTest {
     }
 
     /**
+     * Many independent clients ramping simultaneously against a shared, capacity-limited downstream. This is the
+     * pathological case raised in review for {@link ExponentialRampConcurrencyLimiter}: N clients all start at the
+     * initial limit at the same instant (e.g. a DNS change spins up fresh {@code ChannelState}s across the fleet) and
+     * ramp in lockstep. Because the ramp is exponential and congestion feedback (429) only arrives a round-trip later,
+     * aggregate in-flight can overshoot the server's capacity before any client observes a drop, and the whole herd
+     * then backs off together. We compare against AIMD - whose gentler ramp overshoots less - to see how much extra
+     * shedding the herd induces and whether it converges to a lower limit.
+     */
+    @SimulationCase
+    public void thundering_herd(Strategy strategy) {
+        thunderingHerd(strategy, false);
+    }
+
+    @SimulationCase
+    public void thundering_herd_exponential_ramp(Strategy strategy) {
+        thunderingHerd(strategy, true);
+    }
+
+    private void thunderingHerd(Strategy strategy, boolean exponentialRampEnabled) {
+        // Aggregate capacity of 1000 across two nodes. With 10 clients each starting at the initial limit of 20
+        // (aggregate 200), there is real spare capacity to discover (fair share ~100/client), but because the whole
+        // herd ramps at once the exponential doublings (aggregate ~200 -> 400 -> 800 -> 1600) overshoot the shared
+        // 1000 capacity in a single round trip before any 429 feedback returns. AIMD creeps up ~1 permit/round-trip
+        // and approaches capacity gently. This exposes how much extra shedding the synchronized ramp induces.
+        int numClients = 10;
+        int capacityPerNode = 500;
+        servers = servers(
+                SimulationServer.builder()
+                        .serverName("node1")
+                        .simulation(simulation)
+                        .handler(h ->
+                                h.respond200UntilCapacity(429, capacityPerNode).responseTime(Duration.ofMillis(150)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("node2")
+                        .simulation(simulation)
+                        .handler(h ->
+                                h.respond200UntilCapacity(429, capacityPerNode).responseTime(Duration.ofMillis(150)))
+                        .build());
+
+        st = strategy;
+        result = Benchmark.builder()
+                .simulation(simulation)
+                .requestsPerSecond(30_000) // fire the whole burst within a few ms so every client ramps at once
+                .numRequests(10_000)
+                .clients(numClients, _i -> strategy.getChannel(simulation, servers, exponentialRampEnabled))
+                .abortAfter(Duration.ofSeconds(60))
+                .run();
+    }
+
+    /**
      * A burst of load followed by a long tail of light load, against an effectively infinite-capacity server
      * (constant latency at any concurrency, never emits QoS/errors).
      */
