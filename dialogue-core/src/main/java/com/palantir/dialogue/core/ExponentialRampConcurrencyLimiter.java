@@ -27,15 +27,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Experimental concurrency limiter that adds a TCP-style slow start phase in front of the AIMD behavior of
+ * Experimental concurrency limiter that adds an initial exponential ramp phase in front of the AIMD behavior of
  * {@link CautiousIncreaseAggressiveDecreaseConcurrencyLimiter}.
  *
  * Deliberately not applied to sticky channels, which keep AIMD: {@link Behavior#STICKY} suppresses the server
  * congestion signals (QoS/5xx/IOException) this ramp relies on.
  */
-final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
+final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
 
-    private static final SafeLogger log = SafeLoggerFactory.get(SlowStartConcurrencyLimiter.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(ExponentialRampConcurrencyLimiter.class);
     private static final double INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
     private static final double MIN_LIMIT = 1;
@@ -44,11 +44,10 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
     private final AtomicDouble limit = new AtomicDouble(INITIAL_LIMIT);
 
     /**
-     * Whether the limiter is still in its initial exponential slow-start ramp. Starts true and switches to
-     * false on the first {@code dropped()} signal, after which the limiter behaves as pure AIMD for the rest
-     * of its life.
+     * Whether the limiter is still in its initial exponential ramp. Starts true and switches to false on the first
+     * {@code dropped()} signal, after which the limiter behaves as pure AIMD for the rest of its life.
      */
-    private volatile boolean inSlowStart = true;
+    private volatile boolean inExponentialRamp = true;
 
     private final AtomicInteger inFlight = new AtomicInteger();
 
@@ -58,7 +57,7 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
     // Volatile because it may be set from a different thread than the one emitting the log line.
     private volatile String channelNameForLogging = "unknown";
 
-    SlowStartConcurrencyLimiter(Behavior behavior) {
+    ExponentialRampConcurrencyLimiter(Behavior behavior) {
         this.behavior = behavior;
     }
 
@@ -146,7 +145,7 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
             if (inFlightSnapshot < Math.floor(snapshot * BACKOFF_RATIO)) {
                 return snapshot;
             }
-            double increment = inSlowStart ? 1D : 1D / snapshot;
+            double increment = inExponentialRamp ? 1D : 1D / snapshot;
             double newLimit = Math.min(MAX_LIMIT, snapshot + increment);
             if (localLimit.compareAndSet(snapshot, newLimit)) {
                 return newLimit;
@@ -156,9 +155,9 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
 
     private double decreaseLimit() {
         // Publish the phase transition before the reduced limit. A concurrent success may either complete its
-        // slow-start increase before this decrease or observe AIMD mode, but it cannot apply a slow-start increase to
-        // the already-reduced limit.
-        inSlowStart = false;
+        // exponential-ramp increase before this decrease or observe AIMD mode, but it cannot apply an exponential-ramp
+        // increase to the already-reduced limit.
+        inExponentialRamp = false;
 
         AtomicDouble localLimit = limit;
         double newLimit;
@@ -178,8 +177,8 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
     }
 
     @VisibleForTesting
-    boolean isInSlowStart() {
-        return inSlowStart;
+    boolean isInExponentialRamp() {
+        return inExponentialRamp;
     }
 
     @Override
@@ -189,7 +188,7 @@ final class SlowStartConcurrencyLimiter implements ConcurrencyLimiter {
 
     @Override
     public String toString() {
-        return "SlowStartConcurrencyLimiter{limit=" + limit + ", inSlowStart=" + inSlowStart + ", inFlight=" + inFlight
-                + '}';
+        return "ExponentialRampConcurrencyLimiter{limit=" + limit + ", inExponentialRamp=" + inExponentialRamp
+                + ", inFlight=" + inFlight + '}';
     }
 }

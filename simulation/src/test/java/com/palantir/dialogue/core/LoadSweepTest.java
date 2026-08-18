@@ -76,15 +76,15 @@ final class LoadSweepTest {
     }
 
     /**
-     * Same sweep, but with the experimental {@link SlowStartConcurrencyLimiter} enabled. Writes to
-     * {@code load_sweep_slowstart.{png,txt}} so the default-limiter baseline is preserved for comparison.
+     * Same sweep, but with the experimental {@link ExponentialRampConcurrencyLimiter} enabled. Writes to
+     * {@code load_sweep_exponential_ramp.{png,txt}} so the default-limiter baseline is preserved for comparison.
      */
     @Test
-    void load_sweep_slow_start() throws IOException {
-        sweep(true, "load_sweep_slowstart");
+    void load_sweep_exponential_ramp() throws IOException {
+        sweep(true, "load_sweep_exponential_ramp");
     }
 
-    private static void sweep(boolean slowStartEnabled, String outputBaseName) throws IOException {
+    private static void sweep(boolean exponentialRampEnabled, String outputBaseName) throws IOException {
         double[] offeredRps = toDoubles(OFFERED_RPS);
 
         Map<Strategy, double[]> p99LatencyMs = new LinkedHashMap<>();
@@ -102,7 +102,7 @@ final class LoadSweepTest {
 
             for (int i = 0; i < OFFERED_RPS.length; i++) {
                 int rps = OFFERED_RPS[i];
-                Benchmark.BenchmarkResult result = runOnce(strategy, rps, slowStartEnabled);
+                Benchmark.BenchmarkResult result = runOnce(strategy, rps, exponentialRampEnabled);
 
                 double p99Ms = result.clientHistogram().get99thPercentile() / 1_000_000d;
                 double endSeconds = result.endTime().toNanos() / 1_000_000_000d;
@@ -171,9 +171,9 @@ final class LoadSweepTest {
         SimulationReport.regenerate();
     }
 
-    private static Benchmark.BenchmarkResult runOnce(Strategy strategy, int rps, boolean slowStartEnabled) {
+    private static Benchmark.BenchmarkResult runOnce(Strategy strategy, int rps, boolean exponentialRampEnabled) {
         Simulation simulation = new Simulation();
-        Channel client = strategy.getChannel(simulation, twoNodes(simulation), slowStartEnabled);
+        Channel client = strategy.getChannel(simulation, twoNodes(simulation), exponentialRampEnabled);
         return Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(rps)

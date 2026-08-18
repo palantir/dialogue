@@ -93,7 +93,7 @@ interface Config {
     }
 
     @Value.Default
-    default boolean concurrencyLimiterSlowStart() {
+    default boolean concurrencyLimiterExponentialRamp() {
         return false;
     }
 

@@ -492,11 +492,11 @@ final class SimulationTest {
     }
 
     @SimulationCase
-    public void one_big_spike_slow_start(Strategy strategy) {
+    public void one_big_spike_exponential_ramp(Strategy strategy) {
         oneBigSpike(strategy, true);
     }
 
-    private void oneBigSpike(Strategy strategy, boolean slowStartEnabled) {
+    private void oneBigSpike(Strategy strategy, boolean exponentialRampEnabled) {
         int capacity = 100;
         servers = servers(
                 SimulationServer.builder()
@@ -515,7 +515,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(30_000) // fire off a ton of requests very quickly
                 .numRequests(1000)
-                .client(strategy.getChannel(simulation, servers, slowStartEnabled))
+                .client(strategy.getChannel(simulation, servers, exponentialRampEnabled))
                 .abortAfter(Duration.ofSeconds(10))
                 .run();
     }
@@ -530,11 +530,11 @@ final class SimulationTest {
     }
 
     @SimulationCase
-    public void burst_then_low_load_slow_start(Strategy strategy) {
+    public void burst_then_low_load_exponential_ramp(Strategy strategy) {
         burstThenLowLoad(strategy, true);
     }
 
-    private void burstThenLowLoad(Strategy strategy, boolean slowStartEnabled) {
+    private void burstThenLowLoad(Strategy strategy, boolean exponentialRampEnabled) {
         servers = servers(SimulationServer.builder()
                 .serverName("high_capacity")
                 .simulation(simulation)
@@ -542,7 +542,7 @@ final class SimulationTest {
                 .handler(h -> h.response(200).responseTime(Duration.ofMillis(100)))
                 .build());
 
-        Channel client = strategy.getChannel(simulation, servers, slowStartEnabled);
+        Channel client = strategy.getChannel(simulation, servers, exponentialRampEnabled);
 
         Benchmark builder = Benchmark.builder().simulation(simulation);
         // Two endpoint channels over the *same* client channel, so the burst and the trailing low load share
@@ -765,10 +765,10 @@ final class SimulationTest {
         String longSummary = longSummaryBuilder.toString();
 
         String testName = testInfo.getTestMethod().get().getName();
-        boolean slowStart = testName.endsWith("_slow_start");
+        boolean exponentialRamp = testName.endsWith("_exponential_ramp");
         String reportTestName =
-                slowStart ? testName.substring(0, testName.length() - "_slow_start".length()) : testName;
-        String methodName = reportTestName + "[" + st + "]" + (slowStart ? "_slowstart" : "");
+                exponentialRamp ? testName.substring(0, testName.length() - "_exponential_ramp".length()) : testName;
+        String methodName = reportTestName + "[" + st + "]" + (exponentialRamp ? "_exponential_ramp" : "");
         writeReportFiles(longSummary, clientMeanMillis, serverCpu, methodName);
 
         assertThat(result.responsesLeaked())

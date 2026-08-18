@@ -107,7 +107,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 params.taggedMetrics())))
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
                 .deadlineEnforcement(params.deadlineEnforcement())
-                .concurrencyLimiterSlowStart(params.concurrencyLimiterSlowStart())
+                .concurrencyLimiterExponentialRamp(params.concurrencyLimiterExponentialRamp())
                 .build();
     }
 
@@ -168,7 +168,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Optional<Boolean> deadlineEnforcement();
 
         @Value.Default
-        default boolean concurrencyLimiterSlowStart() {
+        default boolean concurrencyLimiterExponentialRamp() {
             return false;
         }
     }
@@ -458,8 +458,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public ReloadingFactory withConcurrencyLimiterSlowStart(boolean enabled) {
-        return new ReloadingClientFactory(params.withConcurrencyLimiterSlowStart(enabled), cache);
+    public ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled) {
+        return new ReloadingClientFactory(params.withConcurrencyLimiterExponentialRamp(enabled), cache);
     }
 
     @Override

@@ -25,9 +25,10 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-final class SlowStartConcurrencyLimiterTest {
+final class ExponentialRampConcurrencyLimiterTest {
 
-    private final SlowStartConcurrencyLimiter limiter = new SlowStartConcurrencyLimiter(Behavior.HOST_LEVEL);
+    private final ExponentialRampConcurrencyLimiter limiter =
+            new ExponentialRampConcurrencyLimiter(Behavior.HOST_LEVEL);
 
     @Test
     void increasesLimitByOne() {
@@ -40,12 +41,12 @@ final class SlowStartConcurrencyLimiterTest {
     @Test
     void firstDropPermanentlySwitchesToAimd() {
         limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).onFailure(new IOException("failure"));
-        assertThat(limiter.isInSlowStart()).isFalse();
+        assertThat(limiter.isInExponentialRamp()).isFalse();
         assertThat(limiter.getLimit()).isEqualTo(18D);
         List<ConcurrencyLimiter.Permit> permits = acquire(16);
         permits.get(permits.size() - 1).onSuccess(new TestResponse().code(200));
         assertThat(limiter.getLimit()).isEqualTo(18D + 1D / 18D);
-        assertThat(limiter.isInSlowStart()).isFalse();
+        assertThat(limiter.isInExponentialRamp()).isFalse();
     }
 
     private List<ConcurrencyLimiter.Permit> acquire(int count) {

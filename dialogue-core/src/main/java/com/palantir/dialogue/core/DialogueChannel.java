@@ -151,10 +151,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
-        /** Experimental: select whether the slow-start concurrency limiter is used. Disabled by default. */
+        /** Experimental: select whether the exponential-ramp concurrency limiter is used. Disabled by default. */
         @Beta
-        public Builder concurrencyLimiterSlowStart(boolean concurrencyLimiterSlowStart) {
-            builder.concurrencyLimiterSlowStart(concurrencyLimiterSlowStart);
+        public Builder concurrencyLimiterExponentialRamp(boolean concurrencyLimiterExponentialRamp) {
+            builder.concurrencyLimiterExponentialRamp(concurrencyLimiterExponentialRamp);
             return this;
         }
 

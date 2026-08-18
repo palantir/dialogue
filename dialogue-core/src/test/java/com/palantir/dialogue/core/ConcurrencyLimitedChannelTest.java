@@ -96,7 +96,7 @@ public class ConcurrencyLimitedChannelTest {
         Config config = mock(Config.class);
         when(config.clientConf()).thenReturn(clientConfig);
         when(config.channelName()).thenReturn("channel");
-        when(config.concurrencyLimiterSlowStart()).thenReturn(false);
+        when(config.concurrencyLimiterExponentialRamp()).thenReturn(false);
 
         // create two channels for the same host, which should re-use the same AIMD state
 
@@ -116,18 +116,18 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     @Test
-    public void testExplicitlyUsesSlowStartLimiter_host() {
+    public void testExplicitlyUsesExponentialRampLimiter_host() {
         ChannelState state = new ChannelState();
         ClientConfiguration clientConfig = mock(ClientConfiguration.class);
         when(clientConfig.taggedMetricRegistry()).thenReturn(new DefaultTaggedMetricRegistry());
         Config config = mock(Config.class);
         when(config.clientConf()).thenReturn(clientConfig);
         when(config.channelName()).thenReturn("channel");
-        when(config.concurrencyLimiterSlowStart()).thenReturn(true);
+        when(config.concurrencyLimiterExponentialRamp()).thenReturn(true);
 
         LimitedChannel forHost = ConcurrencyLimitedChannel.createForHost(config, delegate, 0, state);
-        SlowStartConcurrencyLimiter limiter =
-                state.getState(ConcurrencyLimitedChannel.HOST_SPECIFIC_SLOW_START_STATE_KEY);
+        ExponentialRampConcurrencyLimiter limiter =
+                state.getState(ConcurrencyLimitedChannel.HOST_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY);
 
         forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
 
@@ -139,7 +139,7 @@ public class ConcurrencyLimitedChannelTest {
         ChannelState state = new ChannelState();
         Config config = mock(Config.class);
         when(config.channelName()).thenReturn("channel");
-        when(config.concurrencyLimiterSlowStart()).thenReturn(false);
+        when(config.concurrencyLimiterExponentialRamp()).thenReturn(false);
 
         // create two channels for the same endpoint, which should re-use the same AIMD state
         LimitedChannel forEndpoint = ConcurrencyLimitedChannel.createForEndpoint(delegate, config, 0, endpoint, state);
@@ -159,15 +159,15 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     @Test
-    public void testExplicitlyUsesSlowStartLimiter_endpoint() {
+    public void testExplicitlyUsesExponentialRampLimiter_endpoint() {
         ChannelState state = new ChannelState();
         Config config = mock(Config.class);
         when(config.channelName()).thenReturn("channel");
-        when(config.concurrencyLimiterSlowStart()).thenReturn(true);
+        when(config.concurrencyLimiterExponentialRamp()).thenReturn(true);
 
         LimitedChannel forEndpoint = ConcurrencyLimitedChannel.createForEndpoint(delegate, config, 0, endpoint, state);
-        SlowStartConcurrencyLimiter limiter =
-                state.getState(ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_SLOW_START_STATE_KEY);
+        ExponentialRampConcurrencyLimiter limiter =
+                state.getState(ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY);
 
         forEndpoint.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
 

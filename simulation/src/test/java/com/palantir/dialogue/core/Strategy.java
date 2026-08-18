@@ -49,8 +49,8 @@ public enum Strategy {
     }
 
     Channel getChannel(
-            Simulation simulation, Supplier<Map<String, SimulationServer>> servers, boolean slowStartEnabled) {
-        return refreshingChannel(simulation, servers, slowStartEnabled);
+            Simulation simulation, Supplier<Map<String, SimulationServer>> servers, boolean exponentialRampEnabled) {
+        return refreshingChannel(simulation, servers, exponentialRampEnabled);
     }
 
     public Supplier<Channel> getSticky2NonReloading(Simulation simulation, Map<String, SimulationServer> servers) {
@@ -76,13 +76,13 @@ public enum Strategy {
     }
 
     private Channel refreshingChannel(
-            Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier, boolean slowStartEnabled) {
+            Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier, boolean exponentialRampEnabled) {
         return RefreshingChannelFactory.RefreshingChannel.create(
-                channelSupplier, channels -> dialogueChannelWithDefaults(sim, channels, slowStartEnabled));
+                channelSupplier, channels -> dialogueChannelWithDefaults(sim, channels, exponentialRampEnabled));
     }
 
     private DialogueChannel dialogueChannelWithDefaults(
-            Simulation sim, Map<String, SimulationServer> channelSupplier, boolean slowStartEnabled) {
+            Simulation sim, Map<String, SimulationServer> channelSupplier, boolean exponentialRampEnabled) {
         ClientConfiguration.Builder confBuilder = ClientConfiguration.builder()
                 .uris(channelSupplier.keySet())
                 .from(STUB_CONFIG)
@@ -95,7 +95,7 @@ public enum Strategy {
                 .random(sim.pseudoRandom())
                 .scheduler(sim.scheduler())
                 .ticker(sim.clock())
-                .concurrencyLimiterSlowStart(slowStartEnabled)
+                .concurrencyLimiterExponentialRamp(exponentialRampEnabled)
                 .build();
     }
 
