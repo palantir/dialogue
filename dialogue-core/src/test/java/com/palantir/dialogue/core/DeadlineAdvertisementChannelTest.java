@@ -27,6 +27,7 @@ import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.deadlines.Deadlines.RequestDecodingAdapter;
 import com.palantir.deadlines.DeadlinesHttpHeaders;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.DialogueCallOptions;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
@@ -173,6 +174,32 @@ class DeadlineAdvertisementChannelTest {
                 assertThat(request.headerParams().asMap())
                         .containsEntry(DeadlinesHttpHeaders.EXPECT_WITHIN_ENFORCED, List.of("false"));
             });
+        }
+    }
+
+    @Test
+    void request_can_override_client_deadline_enforcement() {
+        try (CloseableTracer tracer = CloseableTracer.startSpan("test")) {
+            List<Request> requests = new ArrayList<>();
+            Channel delegate = (_endpoint, request) -> {
+                requests.add(request);
+                return Futures.immediateCancelledFuture();
+            };
+
+            Request inboundRequest =
+                    Request.builder().putHeaderParams("Expect-Within", "0").build();
+            Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
+
+            Request request = Request.builder().build();
+            DialogueCallOptions.builder().deadlineEnforcement(false).build().attachTo(request);
+            Channel channel = DeadlineAdvertisementChannel.create(delegate, Duration.ofSeconds(10), Optional.of(true));
+
+            assertThat(channel.execute(TestEndpoint.GET, request)).isCancelled();
+            assertThat(requests)
+                    .singleElement()
+                    .satisfies(actualRequest -> assertThat(
+                                    actualRequest.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN_ENFORCED))
+                            .containsExactly("false"));
         }
     }
 

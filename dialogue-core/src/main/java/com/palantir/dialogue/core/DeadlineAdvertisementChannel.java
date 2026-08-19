@@ -23,6 +23,7 @@ import com.palantir.deadlines.DeadlineExpiredReasons;
 import com.palantir.deadlines.Deadlines;
 import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.DialogueCallOptions;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -64,7 +65,13 @@ final class DeadlineAdvertisementChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Request.Builder requestBuilder = Request.builder().from(request);
         try {
-            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE, enforcement);
+            Deadlines.encodeToRequest(
+                    readTimeout,
+                    requestBuilder,
+                    RequestBuilderEncodingAdapter.INSTANCE,
+                    DialogueCallOptions.deadlineEnforcement(request)
+                            .map(value -> value ? Enforcement.ENFORCE : Enforcement.DISABLE)
+                            .orElse(enforcement));
         } catch (DeadlineExpiredException e) {
             return Futures.immediateFailedFuture(e);
         }

@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
@@ -32,6 +33,10 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.clients.ConjureClients;
+import com.palantir.dialogue.ConfigurableDialogueClient;
+import com.palantir.dialogue.DialogueCallOptions;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
@@ -50,6 +55,8 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.security.Provider;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -75,6 +82,27 @@ class DialogueClientsTest {
             .putServices(
                     "zero-uris-service", PartialServiceConfiguration.builder().build())
             .build();
+
+    @Test
+    void call_options_flow_from_derived_client_to_request() {
+        List<Optional<Boolean>> deadlineEnforcement = new ArrayList<>();
+        EndpointChannelFactory endpointChannelFactory = _endpoint -> request -> {
+            deadlineEnforcement.add(DialogueCallOptions.deadlineEnforcement(request));
+            return Futures.immediateCancelledFuture();
+        };
+        TestClient client = TestClient.of(endpointChannelFactory);
+
+        assertThat(client.call()).isCancelled();
+        assertThat(DialogueClients.withCallOptions(
+                                client,
+                                DialogueCallOptions.builder()
+                                        .deadlineEnforcement(false)
+                                        .build())
+                        .call())
+                .isCancelled();
+
+        assertThat(deadlineEnforcement).containsExactly(Optional.empty(), Optional.of(false));
+    }
 
     @Test
     void sensible_errors_if_service_does_not_exist_in_scb() {
@@ -224,6 +252,25 @@ class DialogueClientsTest {
             } catch (RuntimeException e) {
                 // don't care
             }
+        }
+    }
+
+    private interface TestClient extends ConfigurableDialogueClient<TestClient> {
+        ListenableFuture<Response> call();
+
+        static TestClient of(EndpointChannelFactory endpointChannelFactory) {
+            EndpointChannel channel = endpointChannelFactory.endpoint(TestEndpoint.GET);
+            return new TestClient() {
+                @Override
+                public ListenableFuture<Response> call() {
+                    return channel.execute(Request.builder().build());
+                }
+
+                @Override
+                public TestClient withDialogueCallOptions(DialogueCallOptions options) {
+                    return TestClient.of(options.decorate(endpointChannelFactory));
+                }
+            };
         }
     }
 

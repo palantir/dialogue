@@ -24,7 +24,9 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.clients.ConjureClients;
 import com.palantir.conjure.java.clients.ConjureClients.WithClientOptions;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.ConfigurableDialogueClient;
 import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.DialogueCallOptions;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
@@ -50,6 +52,11 @@ import java.util.concurrent.ExecutorService;
  */
 @SuppressWarnings("for-rollout:InvalidLink")
 public final class DialogueClients {
+
+    public static <T extends ConfigurableDialogueClient<T>> T withCallOptions(
+            T client, DialogueCallOptions dialogueCallOptions) {
+        return client.withDialogueCallOptions(dialogueCallOptions);
+    }
 
     public static ReloadingFactory create(Refreshable<ServicesConfigBlock> scb) {
         return new ReloadingClientFactory(
