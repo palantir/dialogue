@@ -35,6 +35,7 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import java.io.IOException;
+import java.net.ProxySelector;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -158,6 +159,10 @@ final class ChannelCache {
                     List.of(channelCacheRequest.overrideHostIndex().get().target()));
         } else {
             DnsPollingSpec<ServiceConfiguration> spec = DnsPollingSpec.serviceConfig(channelCacheRequest.channelName());
+            ProxySelector proxySelector = channelCacheRequest
+                    .proxySelector()
+                    .orElseGet(() ->
+                            DnsSupport.proxySelector(channelCacheRequest.serviceConf().proxy()));
             targets = DnsSupport.pollForChanges(
                             channelCacheRequest.dnsNodeDiscovery(),
                             spec,
@@ -168,8 +173,7 @@ final class ChannelCache {
                     .map(dnsResolutionResults -> DnsSupport.getTargetUris(
                             channelCacheRequest.channelName(),
                             channelCacheRequest.serviceConf().uris(),
-                            DnsSupport.proxySelector(
-                                    channelCacheRequest.serviceConf().proxy()),
+                            proxySelector,
                             dnsResolutionResults.resolvedHosts(),
                             channelCacheRequest.taggedMetrics()));
         }

@@ -27,6 +27,7 @@ import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.conjure.java.config.ssl.TrustContext;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.net.ProxySelector;
 import java.security.Provider;
 import java.time.Duration;
 import java.util.Optional;
@@ -72,6 +73,12 @@ interface AugmentClientConfig {
      */
     Optional<Duration> queueTimeout();
 
+    /**
+     * The provided value replaces the proxy selection derived from {@link ServiceConfiguration}. Implementations
+     * must provide {@code equals} and {@code hashCode}, as this value participates in channel cache identity.
+     */
+    Optional<ProxySelector> proxySelector();
+
     static ClientConfiguration getClientConf(ServiceConfiguration serviceConfig, AugmentClientConfig augment) {
         TrustContextFactory trustContextFactory = buildTrustContextFactory(augment.securityProvider());
         ClientConfiguration.Builder builder =
@@ -94,6 +101,7 @@ interface AugmentClientConfig {
         augment.serverQoS().ifPresent(builder::serverQoS);
         augment.retryOnTimeout().ifPresent(builder::retryOnTimeout);
         augment.hostEventsSink().ifPresent(builder::hostEventsSink);
+        augment.proxySelector().ifPresent(builder::proxy);
 
         if (serviceConfig.queueTimeout().isEmpty()) {
             augment.queueTimeout().ifPresent(builder::queueTimeout);

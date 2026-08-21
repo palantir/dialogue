@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.palantir.conjure.java.api.config.service.ProxyConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.TestConfigurations;
@@ -29,8 +30,14 @@ import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
+import java.io.IOException;
 import java.net.InetAddress;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.SocketAddress;
+import java.net.URI;
 import java.net.UnknownHostException;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -116,6 +123,78 @@ class ChannelCacheTest {
     }
 
     @Test
+    void different_proxy_selector_new_instance() {
+        ChannelCache.ApacheCacheEntry cacheResult = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
+                .serviceConf(serviceConf)
+                .channelName("channelName")
+                .proxySelector(new StubProxySelector("one"))
+                .build());
+
+        ChannelCache.ApacheCacheEntry cacheResult2 = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
+                .serviceConf(serviceConf)
+                .channelName("channelName")
+                .proxySelector(new StubProxySelector("two"))
+                .build());
+
+        assertThat(cacheResult).isNotSameAs(cacheResult2);
+    }
+
+    @Test
+    void equal_proxy_selectors_are_hits() {
+        ChannelCache.ApacheCacheEntry cacheResult = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
+                .serviceConf(serviceConf)
+                .channelName("channelName")
+                .proxySelector(new StubProxySelector("one"))
+                .build());
+
+        ChannelCache.ApacheCacheEntry cacheResult2 = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
+                .serviceConf(serviceConf)
+                .channelName("channelName")
+                .proxySelector(new StubProxySelector("one"))
+                .build());
+
+        assertThat(cacheResult).isSameAs(cacheResult2);
+    }
+
+    @Test
+    void proxy_selector_replaces_service_configuration_proxy() {
+        StubProxySelector selector = new StubProxySelector("one");
+        ServiceConfiguration proxiedConf = ServiceConfiguration.builder()
+                .from(serviceConf)
+                .proxy(ProxyConfiguration.of("localhost:1234"))
+                .build();
+
+        ChannelCache.ApacheCacheEntry withSelector = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
+                .serviceConf(proxiedConf)
+                .channelName("channelName")
+                .proxySelector(selector)
+                .build());
+
+        assertThat(withSelector.conf().proxy()).isSameAs(selector);
+    }
+
+    @Test
+    void absent_proxy_selector_retains_service_configuration_proxy() {
+        ChannelCache.ApacheCacheEntry withoutSelector = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
+                .serviceConf(ServiceConfiguration.builder()
+                        .from(serviceConf)
+                        .proxy(ProxyConfiguration.of("localhost:1234"))
+                        .build())
+                .channelName("channelName")
+                .build());
+
+        assertThat(withoutSelector.conf().proxy().select(URI.create("https://example.com")))
+                .extracting(Proxy::type)
+                .containsExactly(Proxy.Type.HTTP);
+    }
+
+    @Test
     void new_config_evicts_client_but_old_one_is_still_usable() {
         ChannelCache.ApacheCacheEntry cacheResult = cache.getApacheClient(ImmutableApacheClientRequest.builder()
                 .dnsResolver(StubDnsResolver.INSTANCE)
@@ -153,6 +232,32 @@ class ChannelCacheTest {
         return SampleServiceBlocking.of(
                 ApacheHttpClientChannels.createSingleUri(uri, apache),
                 DefaultConjureRuntime.builder().build());
+    }
+
+    private static final class StubProxySelector extends ProxySelector {
+        private final String name;
+
+        StubProxySelector(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public List<Proxy> select(URI _uri) {
+            return List.of(Proxy.NO_PROXY);
+        }
+
+        @Override
+        public void connectFailed(URI _uri, SocketAddress _socketAddress, IOException _exception) {}
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof StubProxySelector stub && name.equals(stub.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return name.hashCode();
+        }
     }
 
     private enum StubDnsResolver implements DialogueDnsResolver {
