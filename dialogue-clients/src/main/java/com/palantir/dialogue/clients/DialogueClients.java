@@ -113,20 +113,14 @@ public final class DialogueClients {
         <T> T getNonReloading(Class<T> clientInterface, ClientConfiguration clientConfiguration);
 
         /**
-         * Equivalent to {@link #getNonReloading(Class, ClientConfiguration)}, but identifies the client in metrics
-         * using the provided {@code serviceName} rather than the name of {@code clientInterface}.
-         *
-         * This is intended for callers which build many clients from a single generated interface, one per upstream,
-         * where the interface describes a protocol rather than a specific service. A dispatcher calling out to a set
-         * of configured webhooks is the motivating example: the derived name is identical for every such client, so
-         * their metrics collapse into a single series even though the upstreams are unrelated.
+         * Equivalent to {@link #getNonReloading(Class, ClientConfiguration)}, but identifies the upstream using the
+         * provided {@code serviceName} rather than the name of {@code clientInterface}.
          *
          * Behaviour is undefined if {@code clientConfiguration} contains no URIs.
          *
-         * @param clientInterface Dialogue client interface annotated with {@link com.palantir.dialogue.DialogueService}
-         * @param serviceName Name of the conceptual upstream, used to identify this client in metrics
-         * @param clientConfiguration Configuration which <b>must</b> contain a user-agent
+         * @deprecated should not be used going forward, prefer reloadable factories.
          */
+        @Deprecated
         <T> T getNonReloading(Class<T> clientInterface, String serviceName, ClientConfiguration clientConfiguration);
     }
 
