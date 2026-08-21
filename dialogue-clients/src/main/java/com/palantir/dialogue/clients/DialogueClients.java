@@ -29,6 +29,7 @@ import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
 import java.io.InputStream;
+import java.net.ProxySelector;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -203,6 +204,17 @@ public final class DialogueClients {
 
         /** Feature flag to opt into or out of the default dns-based node discovery behavior. */
         ReloadingFactory withDnsNodeDiscovery(boolean dnsNodeDiscovery);
+
+        /**
+         * Selects proxies for clients created by this factory, replacing any proxy configured in the
+         * {@link ServicesConfigBlock}. This is intended for callers whose proxy decision depends on the destination
+         * of each request, which {@link com.palantir.conjure.java.api.config.service.ProxyConfiguration} cannot
+         * express.
+         *
+         * The provided {@link ProxySelector} must implement {@code equals} and {@code hashCode}, as it contributes
+         * to the identity of the channels this factory creates.
+         */
+        ReloadingFactory withProxySelector(ProxySelector proxySelector);
 
         /**
          * Configures whether deadline enforcement should be enforced or disabled for outbound requests.

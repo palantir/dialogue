@@ -58,6 +58,7 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.net.ProxySelector;
 import java.security.Provider;
 import java.time.Duration;
 import java.util.List;
@@ -430,6 +431,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public ReloadingFactory withDnsNodeDiscovery(boolean dnsNodeDiscovery) {
         return new ReloadingClientFactory(params.withDnsNodeDiscovery(dnsNodeDiscovery), cache);
+    }
+
+    @Override
+    public ReloadingFactory withProxySelector(ProxySelector proxySelector) {
+        return new ReloadingClientFactory(params.withProxySelector(proxySelector), cache);
     }
 
     @Override
