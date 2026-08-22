@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: try to log error messages when getaddrinfo fails
-  links:
-  - https://github.com/palantir/dialogue/pull/2179

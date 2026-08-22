@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Simplify InstrumentedChannel and provide flexibility for custom clocks.
-  links:
-  - https://github.com/palantir/dialogue/pull/359

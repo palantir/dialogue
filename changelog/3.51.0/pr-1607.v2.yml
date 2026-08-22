@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Optimize tracingTags for TracedChannel & DialogueTracing
-  links:
-  - https://github.com/palantir/dialogue/pull/1607

@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Blocking clients use the calling thread executor by default
-  links:
-  - https://github.com/palantir/dialogue/pull/1137

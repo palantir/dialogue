@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Dialogue Apache Httpclient connections produce tracing spans
-  links:
-  - https://github.com/palantir/dialogue/pull/918

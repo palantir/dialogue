@@ -1,5 +1,0 @@
-type: break
-break:
-  description: Responses can have attachments.
-  links:
-  - https://github.com/palantir/dialogue/pull/1312

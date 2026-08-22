@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: dialogue-annotations supports custom parameter types.
-  links:
-  - https://github.com/palantir/dialogue/pull/1200

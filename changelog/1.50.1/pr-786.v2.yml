@@ -1,6 +1,0 @@
-type: fix
-fix:
-  description: '`Clients.call` is no longer deprecated, to make adoption easier in
-    repos that have `-Werror` specified.'
-  links:
-  - https://github.com/palantir/dialogue/pull/786

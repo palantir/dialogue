@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Dialogue client channel creation may target a specific address
-  links:
-  - https://github.com/palantir/dialogue/pull/2134

@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: BinaryRequestBody implementations may be repeatable
-  links:
-  - https://github.com/palantir/dialogue/pull/1536

@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Migrate logging from slf4j to safe-logging loggers
-  links:
-  - https://github.com/palantir/dialogue/pull/1340

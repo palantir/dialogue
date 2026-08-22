@@ -1,6 +1,0 @@
-type: improvement
-improvement:
-  description: Dialogue supports optional binary responses using a new method on ConjureBodySerDe
-    which must be used by generated code.
-  links:
-  - https://github.com/palantir/dialogue/pull/501

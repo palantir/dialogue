@@ -1,6 +1,0 @@
-type: improvement
-improvement:
-  description: Add required `channelName` field to `DialogueChannel` and tag metrics
-    with it
-  links:
-  - https://github.com/palantir/dialogue/pull/524

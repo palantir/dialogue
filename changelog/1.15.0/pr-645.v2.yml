@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: IOExceptions decrease concurrency limits
-  links:
-  - https://github.com/palantir/dialogue/pull/645

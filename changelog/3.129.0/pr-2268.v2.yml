@@ -1,6 +1,0 @@
-type: fix
-fix:
-  description: Revert "Dialogue fails fast when existing channels are revoked from
-    DNS"
-  links:
-  - https://github.com/palantir/dialogue/pull/2268

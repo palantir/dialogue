@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: RequestBody supports optional content length.
-  links:
-  - https://github.com/palantir/dialogue/pull/1227

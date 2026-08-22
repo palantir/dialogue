@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Bring back unique tracing operation names per endpoint
-  links:
-  - https://github.com/palantir/dialogue/pull/1224

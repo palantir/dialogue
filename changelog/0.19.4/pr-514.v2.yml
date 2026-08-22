@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Use random selection over round robin to avoid hot spotting
-  links:
-  - https://github.com/palantir/dialogue/pull/514

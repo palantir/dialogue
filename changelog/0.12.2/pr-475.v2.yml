@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Migrate some logic from generated code into the runtime library
-  links:
-  - https://github.com/palantir/dialogue/pull/475

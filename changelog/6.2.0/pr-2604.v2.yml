@@ -1,6 +1,0 @@
-type: fix
-fix:
-  description: Makes `DeadlineAdvertisementChannel` adhere to the `Channel` spec by
-    not throwing an exception.
-  links:
-  - https://github.com/palantir/dialogue/pull/2604

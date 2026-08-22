@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: pin-until-error logs at info when the pinned node changes
-  links:
-  - https://github.com/palantir/dialogue/pull/1292

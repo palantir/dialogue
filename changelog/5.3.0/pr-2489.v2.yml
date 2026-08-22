@@ -1,6 +1,0 @@
-type: improvement
-improvement:
-  description: The Dialogue annotation processor propagates deprecation into generated
-    implementation methods
-  links:
-  - https://github.com/palantir/dialogue/pull/2489

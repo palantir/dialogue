@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Clients#callBlocking now uses the calling thread for network calls.
-  links:
-  - https://github.com/palantir/dialogue/pull/1090

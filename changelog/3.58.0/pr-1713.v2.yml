@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Disable socks system proxy auto-detect if not specified
-  links:
-  - https://github.com/palantir/dialogue/pull/1713

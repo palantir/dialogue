@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Limit connections-per-host using a LimitedChannel
-  links:
-  - https://github.com/palantir/dialogue/pull/395

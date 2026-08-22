@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Delete unused classes from dialogue-target
-  links:
-  - https://github.com/palantir/dialogue/pull/345

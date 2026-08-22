@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Remove the arbitrary FixedLimitedChannel
-  links:
-  - https://github.com/palantir/dialogue/pull/484

@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: reuse concurrency limiter state when reloading host channels
-  links:
-  - https://github.com/palantir/dialogue/pull/2413

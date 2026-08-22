@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Idle connections are checked and timed out more frequently
-  links:
-  - https://github.com/palantir/dialogue/pull/727

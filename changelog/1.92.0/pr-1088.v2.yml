@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: client.response metrics are tagged by endpoint and status.
-  links:
-  - https://github.com/palantir/dialogue/pull/1088

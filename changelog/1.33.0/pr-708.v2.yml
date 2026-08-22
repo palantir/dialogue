@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: SafeLoggingHttpClientConnectionManager records where the pool is closed
-  links:
-  - https://github.com/palantir/dialogue/pull/708

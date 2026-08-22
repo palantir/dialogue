@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Introduce dialogue metrics for individual Connect attempts
-  links:
-  - https://github.com/palantir/dialogue/pull/2053

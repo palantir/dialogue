@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Dialogue does not produce timer metrics for non-constant endpoints
-  links:
-  - https://github.com/palantir/dialogue/pull/1414

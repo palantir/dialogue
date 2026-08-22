@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Handle ETIMEDOUT SocketExceptions
-  links:
-  - https://github.com/palantir/dialogue/pull/2114

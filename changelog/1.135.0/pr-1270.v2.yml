@@ -1,5 +1,0 @@
-type: feature
-feature:
-  description: Adds `ErrorDecoder.None` to disable error handling.
-  links:
-  - https://github.com/palantir/dialogue/pull/1270

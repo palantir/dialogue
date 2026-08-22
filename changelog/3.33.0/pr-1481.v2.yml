@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Remove noisy and unnecessary TLS protocol version logging
-  links:
-  - https://github.com/palantir/dialogue/pull/1481

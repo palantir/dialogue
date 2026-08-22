@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: More descriptive channel names for enabled/disabled params
-  links:
-  - https://github.com/palantir/dialogue/pull/2629

@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Allow custom error handler for void endpoints.
-  links:
-  - https://github.com/palantir/dialogue/pull/1278
