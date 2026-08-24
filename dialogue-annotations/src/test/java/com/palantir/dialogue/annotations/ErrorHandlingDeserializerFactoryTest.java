@@ -24,10 +24,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.palantir.dialogue.CloseRecordingInputStream;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
 import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -103,6 +108,57 @@ public final class ErrorHandlingDeserializerFactoryTest {
         assertThat(myCloseableTypeDeserializer.deserialize(response)).isEqualTo(toReturn);
 
         verify(response, never()).close();
+    }
+
+    @Test
+    public void testOnSuccessDoesNotCloseIfOptionalValueTypeCloseable() {
+        TypeMarker<Optional<MyCloseableType>> typeMarker = new TypeMarker<>() {};
+        Optional<MyCloseableType> toReturn = Optional.of(mock(MyCloseableType.class));
+        when(errorDecoder.isError(response)).thenReturn(false);
+        Deserializer<Optional<MyCloseableType>> delegateDeserializer = mock(Deserializer.class);
+        when(delegateDeserializer.deserialize(response)).thenReturn(toReturn);
+
+        Deserializer<Optional<MyCloseableType>> deserializer = expectDeserializer(typeMarker, delegateDeserializer);
+        assertThat(deserializer.deserialize(response)).isSameAs(toReturn);
+
+        verify(response, never()).close();
+    }
+
+    @Test
+    public void testOnSuccessDoesNotCloseOptionalInputStream() throws IOException {
+        TypeMarker<Optional<InputStream>> typeMarker = new TypeMarker<>() {};
+        TestResponse testResponse = TestResponse.withBody("value");
+        CloseRecordingInputStream responseBody = testResponse.body();
+        Optional<InputStream> toReturn = Optional.of(responseBody);
+        when(errorDecoder.isError(testResponse)).thenReturn(false);
+        Deserializer<Optional<InputStream>> delegateDeserializer = mock(Deserializer.class);
+        when(delegateDeserializer.deserialize(testResponse)).thenReturn(toReturn);
+
+        Deserializer<Optional<InputStream>> deserializer = expectDeserializer(typeMarker, delegateDeserializer);
+        Optional<InputStream> result = deserializer.deserialize(testResponse);
+
+        assertThat(result).hasValue(responseBody);
+        assertThat(result.orElseThrow().read()).isEqualTo('v');
+        assertThat(testResponse.isClosed()).isFalse();
+        responseBody.assertNotClosed();
+
+        result.orElseThrow().close();
+        assertThat(responseBody.isClosed()).isTrue();
+    }
+
+    @Test
+    public void testOnSuccessOptionalInputStreamEmptyResponseClosedExactlyOnce() {
+        TypeMarker<Optional<InputStream>> typeMarker = new TypeMarker<>() {};
+        TestResponse testResponse = new TestResponse().code(204);
+        when(errorDecoder.isError(testResponse)).thenReturn(false);
+        Deserializer<Optional<InputStream>> delegateDeserializer =
+                BodySerDeSingleton.DEFAULT_BODY_SERDE.optionalInputStreamDeserializer();
+
+        Deserializer<Optional<InputStream>> deserializer = expectDeserializer(typeMarker, delegateDeserializer);
+        assertThat(deserializer.deserialize(testResponse)).isEmpty();
+
+        assertThat(testResponse.isClosed()).isTrue();
+        assertThat(testResponse.body().isClosed()).isTrue();
     }
 
     private Deserializer<Integer> expectIntegerDeserializer() {
