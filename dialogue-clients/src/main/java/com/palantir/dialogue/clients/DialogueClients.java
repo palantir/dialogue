@@ -111,6 +111,17 @@ public final class DialogueClients {
          */
         @Deprecated
         <T> T getNonReloading(Class<T> clientInterface, ClientConfiguration clientConfiguration);
+
+        /**
+         * Equivalent to {@link #getNonReloading(Class, ClientConfiguration)}, but identifies the upstream using the
+         * provided {@code serviceName} rather than the name of {@code clientInterface}.
+         *
+         * Behaviour is undefined if {@code clientConfiguration} contains no URIs.
+         *
+         * @deprecated should not be used going forward, prefer reloadable factories.
+         */
+        @Deprecated
+        <T> T getNonReloading(Class<T> clientInterface, String serviceName, ClientConfiguration clientConfiguration);
     }
 
     /** A stateful object - should only need one of these. Live reloads under the hood. */

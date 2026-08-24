@@ -183,7 +183,15 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public <T> T getNonReloading(Class<T> clazz, ClientConfiguration clientConf) {
-        String channelName = ChannelNames.nonReloading(clazz, params);
+        return createNonReloading(clazz, ChannelNames.nonReloading(clazz, params), clientConf);
+    }
+
+    @Override
+    public <T> T getNonReloading(Class<T> clazz, String serviceName, ClientConfiguration clientConf) {
+        return createNonReloading(clazz, ChannelNames.nonReloading(serviceName, params), clientConf);
+    }
+
+    private <T> T createNonReloading(Class<T> clazz, String channelName, ClientConfiguration clientConf) {
         Channel channel = getNonReloadingChannel(channelName, clientConf);
         return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
     }

@@ -33,7 +33,11 @@ final class ChannelNames {
     }
 
     static String nonReloading(Class<?> clazz, AugmentClientConfig augment) {
-        return "dialogue-nonreloading-" + clazz.getSimpleName() + summarizeOptions(augment);
+        return nonReloading(clazz.getSimpleName(), augment);
+    }
+
+    static String nonReloading(String serviceName, AugmentClientConfig augment) {
+        return "dialogue-nonreloading-" + serviceName + summarizeOptions(augment);
     }
 
     private static String summarizeOptions(AugmentClientConfig augment) {
