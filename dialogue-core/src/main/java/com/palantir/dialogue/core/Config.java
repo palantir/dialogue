@@ -80,6 +80,12 @@ interface Config {
         return 100_000;
     }
 
+    /** Maximum number of cached endpoint channels. Values {@code <= 0} disable caching. */
+    @Value.Default
+    default int maxEndpointCacheSize() {
+        return 1_000;
+    }
+
     OptionalInt overrideSingleHostIndex();
 
     @Value.Default
