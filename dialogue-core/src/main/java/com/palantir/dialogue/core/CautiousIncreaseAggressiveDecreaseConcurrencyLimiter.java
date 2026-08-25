@@ -24,7 +24,6 @@ import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleBinaryOperator;
 import org.jspecify.annotations.Nullable;
@@ -40,7 +39,7 @@ import org.jspecify.annotations.Nullable;
  * This class loosely based on the
  * <a href="https://github.com/Netflix/concurrency-limits">Netflix AIMD library</a>.
  */
-final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
+final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter implements ConcurrencyLimiter {
 
     private static final SafeLogger log =
             SafeLoggerFactory.get(CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class);
@@ -69,7 +68,8 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         this.behavior = behavior;
     }
 
-    void setChannelNameForLogging(String value) {
+    @Override
+    public void setChannelNameForLogging(String value) {
         this.channelNameForLogging = value;
     }
 
@@ -85,8 +85,9 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * {@link Permit#onFailure} which delegate to
      * ignore/dropped/success depending on the success or failure state of the response.
      * */
+    @Override
     @Nullable // avoiding java.util.Optional because this method is on the hot path
-    Permit acquire(LimitEnforcement limitEnforcement) {
+    public Permit acquire(LimitEnforcement limitEnforcement) {
 
         // Capture the limit field reference once to avoid work in a tight loop. The JIT cannot
         // reliably optimize out references to final fields due to the potential for reflective
@@ -111,92 +112,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         }
     }
 
-    enum Behavior {
-        HOST_LEVEL() {
-            @Override
-            void onSuccess(Response result, PermitControl control) {
-                if (Responses.isTooManyRequests(result)
-                        || Responses.isInternalServerError(result)
-                        || Responses.isQosDueToCustom(result)) {
-                    // 429, 500, or QoS due to a custom reason
-                    control.ignore();
-                } else if ((Responses.isQosStatus(result) && !Responses.isTooManyRequests(result))
-                        || Responses.isServerErrorRange(result)) {
-                    // 308 with Location header, or 501-599
-                    control.dropped();
-                } else {
-                    control.success();
-                }
-            }
-
-            @Override
-            void onFailure(Throwable throwable, PermitControl control) {
-                if (throwable instanceof IOException) {
-                    control.dropped();
-                } else {
-                    control.ignore();
-                }
-            }
-        },
-        ENDPOINT_LEVEL() {
-            @Override
-            void onSuccess(Response result, PermitControl control) {
-                if ((Responses.isTooManyRequests(result) && !Responses.isQosDueToCustom(result))
-                        || Responses.isInternalServerError(result)) {
-                    // non-custom 429 or 500
-                    control.dropped();
-                } else if (Responses.isServerErrorRange(result)) {
-                    // 501-599
-                    control.ignore();
-                } else {
-                    control.success();
-                }
-            }
-
-            @Override
-            void onFailure(Throwable _throwable, PermitControl control) {
-                control.ignore();
-            }
-        },
-        STICKY() {
-            @Override
-            void onSuccess(Response _result, PermitControl control) {
-                control.success();
-            }
-
-            @Override
-            void onFailure(Throwable _throwable, PermitControl control) {
-                control.ignore();
-            }
-        };
-
-        abstract void onSuccess(Response result, PermitControl control);
-
-        abstract void onFailure(Throwable throwable, PermitControl control);
-    }
-
-    interface PermitControl {
-
-        /**
-         * Indicates that the effect of the request corresponding to this permit on concurrency limits should be
-         * ignored.
-         */
-        void ignore();
-
-        /**
-         * Indicates that the request corresponding to this permit was dropped and that the concurrency limit should be
-         * multiplicatively decreased.
-         */
-        void dropped();
-
-        /**
-         * Indicates that the request corresponding to this permit was successful and that the concurrency limit should
-         * be additively increased.
-         */
-        void success();
-    }
-
-    final class Permit implements PermitControl, FutureCallback<Response> {
+    final class Permit implements Behavior.PermitControl, ConcurrencyLimiter.Permit {
         private final int inFlightSnapshot;
 
         Permit(int inFlightSnapshot) {
@@ -301,7 +217,8 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * Returns the current concurrency limit, i.e., the maximum number of concurrent {@link #getInflight in-flight}
      * permits such that another permit can be {@link #acquire acquired}.
      */
-    double getLimit() {
+    @Override
+    public double getLimit() {
         return limit.get();
     }
 
@@ -309,7 +226,8 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * Returns the current number of in-flight permits, i.e., permits that been acquired but not yet released through
      * either of ignore/dropped/success.
      */
-    int getInflight() {
+    @Override
+    public int getInflight() {
         return inFlight.get();
     }
 

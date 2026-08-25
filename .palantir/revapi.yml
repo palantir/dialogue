@@ -352,6 +352,12 @@ acceptedBreaks:
       justification: "ClientConfigurationNonReloadingClientFactory is implemented\
         \ by dialogue and consumed via DialogueClients.create; callers depend on the\
         \ interface rather than implementing it"
+  "6.38.0":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withConcurrencyLimiterExponentialRamp(boolean)"
+      justification: "Adding support for new concurrency limiter"
   "6.7.0":
     com.palantir.dialogue:dialogue-target:
     - code: "java.class.removed"

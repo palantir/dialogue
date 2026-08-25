@@ -20,6 +20,7 @@ import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -150,6 +151,13 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        /** Experimental: select whether the exponential-ramp concurrency limiter is used. Disabled by default. */
+        @Beta
+        public Builder concurrencyLimiterExponentialRamp(boolean concurrencyLimiterExponentialRamp) {
+            builder.concurrencyLimiterExponentialRamp(concurrencyLimiterExponentialRamp);
+            return this;
+        }
+
         @VisibleForTesting
         Builder random(Random value) {
             builder.random(value);
@@ -273,7 +281,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         }
                         LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
                                 unlimited,
-                                cf.channelName(),
+                                cf,
                                 uriIndexForInstrumentation,
                                 endpoint,
                                 endpointChannelState.get(endpoint));

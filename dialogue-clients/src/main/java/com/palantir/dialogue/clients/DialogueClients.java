@@ -233,6 +233,15 @@ public final class DialogueClients {
          */
         ReloadingFactory withMaxResponseSize(long maxResponseSize);
 
+        /**
+         * Experimental: opt into the exponential-ramp concurrency limiter, which ramps the per-host and per-endpoint
+         * concurrency limits up exponentially from a cold start (until the server first pushes back) rather than the
+         * default AIMD limiter's cautious linear probe. Intended for clients that suffer queueing during cold-start
+         * bursts.
+         */
+        @Beta
+        ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled);
+
         StickyChannelFactory getStickyChannels(String serviceName);
 
         @Beta
