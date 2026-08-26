@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Query parameters retain input order rather than hash-based order
-  links:
-  - https://github.com/palantir/dialogue/pull/1524

@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Log warnings and record metrics when resource leaks are discovered.
-  links:
-  - https://github.com/palantir/dialogue/pull/545

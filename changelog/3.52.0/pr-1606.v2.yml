@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Detect usage of deprecated cipher suites
-  links:
-  - https://github.com/palantir/dialogue/pull/1606

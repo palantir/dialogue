@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Increment a metric when URIs fail to parse
-  links:
-  - https://github.com/palantir/dialogue/pull/2173

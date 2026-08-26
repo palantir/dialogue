@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Dialogue uses tracing tags
-  links:
-  - https://github.com/palantir/dialogue/pull/1208

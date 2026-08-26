@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Apache channel supports proxy credentials
-  links:
-  - https://github.com/palantir/dialogue/pull/383

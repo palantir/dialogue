@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: ApacheHttpClientChannels logs client names with cipher suites
-  links:
-  - https://github.com/palantir/dialogue/pull/561

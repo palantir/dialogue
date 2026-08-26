@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Dialogue client exceptions are given additional diagnostic arguments
-  links:
-  - https://github.com/palantir/dialogue/pull/1132

@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: CachingFallbackDnsResolver logs at debug level
-  links:
-  - https://github.com/palantir/dialogue/pull/2283

@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Dialogue channel produces client outgoing span
-  links:
-  - https://github.com/palantir/dialogue/pull/584

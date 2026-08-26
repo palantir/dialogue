@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Dialogue queued request spans describe the queue type
-  links:
-  - https://github.com/palantir/dialogue/pull/2259

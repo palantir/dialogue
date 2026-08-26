@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Dialogue schedulers allow threads to time out when no work is scheduled
-  links:
-  - https://github.com/palantir/dialogue/pull/1431

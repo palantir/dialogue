@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Implement a DNS resolver facade within Dialogue
-  links:
-  - https://github.com/palantir/dialogue/pull/2140

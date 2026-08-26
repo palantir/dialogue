@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: ApacheHttpClientBlockingChannel uses the client via CloseableClient
-  links:
-  - https://github.com/palantir/dialogue/pull/744

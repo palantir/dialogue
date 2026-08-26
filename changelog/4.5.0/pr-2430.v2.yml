@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Implement support for the Proxy-Upstream-Request-Attempts header
-  links:
-  - https://github.com/palantir/dialogue/pull/2430

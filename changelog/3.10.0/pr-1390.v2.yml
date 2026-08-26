@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Remove unnecessary `Dialogue ExecChain.execute` tracing spans
-  links:
-  - https://github.com/palantir/dialogue/pull/1390

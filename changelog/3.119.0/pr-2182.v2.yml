@@ -1,5 +1,0 @@
-type: feature
-feature:
-  description: Enable DNS node discovery by default
-  links:
-  - https://github.com/palantir/dialogue/pull/2182

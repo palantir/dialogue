@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: RetryingChannel retries 429/503s
-  links:
-  - https://github.com/palantir/dialogue/pull/350

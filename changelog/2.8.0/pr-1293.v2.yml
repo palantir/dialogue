@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Plumb through hostIndex to individual channels for debugging
-  links:
-  - https://github.com/palantir/dialogue/pull/1293

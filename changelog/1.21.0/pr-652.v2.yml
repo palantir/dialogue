@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Retrying executor ThreadFacotory instrumentation
-  links:
-  - https://github.com/palantir/dialogue/pull/652

@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Apache channels allow requests after close has been called
-  links:
-  - https://github.com/palantir/dialogue/pull/709

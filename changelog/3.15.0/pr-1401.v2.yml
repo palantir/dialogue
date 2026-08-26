@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Dialogue path parameters support multi-segment values
-  links:
-  - https://github.com/palantir/dialogue/pull/1401

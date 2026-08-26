@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Migrate squareup javapoet to Palantir javapoet
-  links:
-  - https://github.com/palantir/dialogue/pull/2410

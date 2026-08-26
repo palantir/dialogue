@@ -1,6 +1,0 @@
-type: improvement
-improvement:
-  description: On request failures due to a retryable exception, the call is immediately
-    retried on a second host.
-  links:
-  - https://github.com/palantir/dialogue/pull/2644

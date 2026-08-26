@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Fix more sticky bugs.
-  links:
-  - https://github.com/palantir/dialogue/pull/1570

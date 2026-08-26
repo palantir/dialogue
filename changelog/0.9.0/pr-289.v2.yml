@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Implement a generalized ContentDecodingChannel for gzip support
-  links:
-  - https://github.com/palantir/dialogue/pull/289

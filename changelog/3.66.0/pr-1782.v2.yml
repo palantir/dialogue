@@ -1,5 +1,0 @@
-type: feature
-feature:
-  description: Dialogue annotations now supports alias parameter types.
-  links:
-  - https://github.com/palantir/dialogue/pull/1782

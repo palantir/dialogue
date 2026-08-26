@@ -1,6 +1,0 @@
-type: fix
-fix:
-  description: Add cause to UnknownRemoteException upon remote exception deserialization
-    issue
-  links:
-  - https://github.com/palantir/dialogue/pull/2594

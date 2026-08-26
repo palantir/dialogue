@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Balanced channels use a multiplier on input for less jagged decay
-  links:
-  - https://github.com/palantir/dialogue/pull/684

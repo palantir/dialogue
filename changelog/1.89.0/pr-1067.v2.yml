@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Reduce the client TLS session cache size
-  links:
-  - https://github.com/palantir/dialogue/pull/1067

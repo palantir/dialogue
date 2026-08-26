@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Provide default error handling strategy.
-  links:
-    - https://github.com/palantir/dialogue/pull/1267

@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Tag connection pool metrics by client name to distinguish values.
-  links:
-  - https://github.com/palantir/dialogue/pull/531

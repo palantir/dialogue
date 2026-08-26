@@ -1,6 +1,0 @@
-type: improvement
-improvement:
-  description: QueuedChannel enforces its assumption around at least one in-flight
-    request
-  links:
-  - https://github.com/palantir/dialogue/pull/2422

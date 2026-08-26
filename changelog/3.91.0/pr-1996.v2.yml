@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Avoid gzip response compression between backend services
-  links:
-  - https://github.com/palantir/dialogue/pull/1996

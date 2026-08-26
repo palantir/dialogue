@@ -1,6 +1,0 @@
-type: fix
-fix:
-  description: Fix dialogue channel tracing. Previously if no active trace existed,
-    outgoing requests did not contain trace IDs.
-  links:
-  - https://github.com/palantir/dialogue/pull/344

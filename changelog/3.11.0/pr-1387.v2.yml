@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: All Dialogue users on Java 15+ may use TLSv1.3
-  links:
-  - https://github.com/palantir/dialogue/pull/1387

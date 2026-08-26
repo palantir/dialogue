@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Lazily initialize empty instance deserializers
-  links:
-  - https://github.com/palantir/dialogue/pull/1832
