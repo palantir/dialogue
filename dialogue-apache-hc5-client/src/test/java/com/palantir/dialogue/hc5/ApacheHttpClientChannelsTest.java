@@ -95,7 +95,8 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                                                         "requestSpanId",
                                                         "hostIndex");
                                         assertThat(safeLoggable.getArgs().stream()
-                                                        .filter(arg -> arg.getName().equals("requestUrl"))
+                                                        .filter(arg ->
+                                                                arg.getName().equals("requestUrl"))
                                                         .findFirst()
                                                         .orElseThrow()
                                                         .getValue())
