@@ -224,12 +224,15 @@ public final class DialogueClients {
         /**
          * Configures the maximum size of response bodies (i.e. headers and other parts of the response are not limited)
          * that will be accepted.
-         *
+         * <p>
          * Any response received by a server exceeding this size and which dialogue attempts to deserialize will throw
          * a {@link ResponseSizeTooLargeException}.
-         *
+         * <p>
          * This does not impact responses returning {@link InputStream},
          * which are not actually deserialized by dialogue.
+         * <p>
+         * This also does not impact Dialogue clients that have been generated with a custom deserializer (through
+         * dialogue-annotations).
          */
         ReloadingFactory withMaxResponseSize(long maxResponseSize);
 

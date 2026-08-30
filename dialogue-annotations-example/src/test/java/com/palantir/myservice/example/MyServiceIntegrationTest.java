@@ -117,7 +117,7 @@ public final class MyServiceIntegrationTest {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.POST);
             exchange.assertPath("/greet");
-            exchange.assertAccept().isEqualTo("application/json");
+            exchange.assertAccept().isEqualTo("application/x-jackson-smile, application/json, application/cbor");
             exchange.assertContentType().isEqualTo("application/json");
 
             exchange.exchange.setStatusCode(200);

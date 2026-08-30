@@ -49,7 +49,7 @@ public final class Json implements DeserializerFactory<Object>, SerializerFactor
         this(DefaultConjureRuntime.builder().encodings(json(mapper)).build().bodySerDe());
     }
 
-    private Json(BodySerDe bodySerDe) {
+    public Json(BodySerDe bodySerDe) {
         this.bodySerDe = bodySerDe;
     }
 
