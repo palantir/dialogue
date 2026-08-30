@@ -17,18 +17,20 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TagTranslator;
 import com.palantir.tracing.Tracer;
-import org.jspecify.annotations.Nullable;
+import java.io.InputStream;
+import java.util.Optional;
 
 final class TracedChannel implements EndpointChannel {
     private final EndpointChannel delegate;
@@ -68,29 +70,55 @@ final class TracedChannel implements EndpointChannel {
     private ListenableFuture<Response> executeSampled(Request request) {
         DetachedSpan span = DetachedSpan.start(operationName);
         try (CloseableSpan ignored = span.attach()) {
-            return DialogueFutures.addDirectCallback(delegate.execute(request), new FutureCallback<>() {
-                @Override
-                public void onSuccess(@Nullable Response response) {
-                    if (response == null) {
-                        span.complete();
-                    } else {
-                        span.complete(responseTranslator, response);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable throwable) {
-                    span.complete(throwableTranslator, throwable);
-                }
-            });
+            return DialogueFutures.transform(
+                    delegate.execute(request), response -> wrapWithTracing(response, span, responseTranslator));
         } catch (Throwable t) {
             span.complete(throwableTranslator, t);
             throw t;
         }
     }
 
+    private static Response wrapWithTracing(
+            Response input, DetachedSpan span, TagTranslator<Response> responseTranslator) {
+        return new TracedResponse(input, span, responseTranslator);
+    }
+
     @Override
     public String toString() {
         return "TracedChannel{operationName=" + operationName + ", delegate=" + delegate + '}';
+    }
+
+    private record TracedResponse(Response delegate, DetachedSpan span, TagTranslator<Response> responseTranslator)
+            implements Response {
+
+        @Override
+        public InputStream body() {
+            return delegate.body();
+        }
+
+        @Override
+        public int code() {
+            return delegate.code();
+        }
+
+        @Override
+        public ListMultimap<String, String> headers() {
+            return delegate.headers();
+        }
+
+        @Override
+        public Optional<String> getFirstHeader(String header) {
+            return delegate.getFirstHeader(header);
+        }
+
+        @Override
+        public ResponseAttachments attachments() {
+            return delegate.attachments();
+        }
+
+        @Override
+        public void close() {
+            span.complete(responseTranslator, this);
+        }
     }
 }
