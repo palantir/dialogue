@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2021 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2025 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,4 @@
 
 package com.palantir.myservice.example;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.immutables.value.Value;
-
-@Value.Immutable
-@JsonSerialize(as = ImmutableMySerializableType.class)
-@JsonDeserialize(as = ImmutableMySerializableType.class)
-public interface MySerializableType {
-    @Value.Parameter
-    String value();
-}
+public record MyBodyType<T>(int code, T value) {}

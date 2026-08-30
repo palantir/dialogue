@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.conjure.java.dialogue.serde.Encoding;
 import com.palantir.dialogue.BodySerDe;
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import java.io.InputStream;
@@ -47,6 +48,10 @@ public final class Json implements DeserializerFactory<Object>, SerializerFactor
 
     public Json(ObjectMapper mapper) {
         this(DefaultConjureRuntime.builder().encodings(json(mapper)).build().bodySerDe());
+    }
+
+    public Json(ConjureRuntime conjureRuntime) {
+        this(conjureRuntime.bodySerDe());
     }
 
     private Json(BodySerDe bodySerDe) {

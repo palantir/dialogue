@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
+import com.palantir.javapoet.CodeBlock;
 import com.palantir.javapoet.TypeName;
 import java.util.Optional;
 import org.immutables.value.Value;
@@ -25,7 +26,7 @@ import org.immutables.value.Value;
 public interface ReturnType {
     TypeName returnType();
 
-    TypeName deserializerFactory();
+    CodeBlock deserializerFactory();
 
     TypeName errorDecoder();
 

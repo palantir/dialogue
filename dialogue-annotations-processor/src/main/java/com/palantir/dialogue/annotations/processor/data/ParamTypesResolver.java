@@ -29,6 +29,7 @@ import com.palantir.dialogue.annotations.MultimapParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.data.ParameterEncoderType.EncoderType;
+import com.palantir.javapoet.CodeBlock;
 import com.palantir.javapoet.TypeName;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -115,7 +116,6 @@ public final class ParamTypesResolver {
         }
 
         // TODO(12345): More validation of values.
-
         AnnotationReflector annotationReflector = ImmutableAnnotationReflector.of(
                 Preconditions.checkNotNull(Iterables.getOnlyElement(paramAnnotationMirrors), "paramAnnotationMirrors"));
         if (annotationReflector.isAnnotation(Request.Body.class)) {
@@ -123,6 +123,7 @@ public final class ParamTypesResolver {
             String serializerName = InstanceVariables.joinCamelCase(endpointName.get(), "Serializer");
             Optional<TypeMirror> customSerializer = annotationReflector.getValueFieldMaybe(TypeMirror.class);
             TypeMirror serializer = customSerializer.orElseGet(() -> context.getTypeMirror(Json.class));
+            TypeName serializerType = TypeName.get(serializer);
             if (context.isAssignable(variableElement.asType(), BinaryRequestBody.class)
                     && context.isSameTypes(serializer, Json.class)) {
                 context.reportError(
@@ -130,10 +131,17 @@ public final class ParamTypesResolver {
                         variableElement);
                 return Optional.empty();
             }
-
+            CodeBlock serializerFactory;
+            if (customSerializer.isEmpty()) {
+                serializerFactory = CodeBlock.of("new $T(runtime)", serializerType);
+            } else {
+                serializerFactory = Types.findConstructorWithConjureRuntimeParameter(context, serializer)
+                        .map(_element -> CodeBlock.of("new $T(runtime)", serializerType))
+                        .orElseGet(() -> CodeBlock.of("new $T()", serializerType));
+            }
             // TODO(12345): Check that custom serializer has no-arg constructor and implements the right types that
             //  match
-            return Optional.of(ParameterTypes.body(TypeName.get(serializer), serializerName));
+            return Optional.of(ParameterTypes.body(serializerFactory, serializerName));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
             return Optional.of(ParameterTypes.header(
                     annotationReflector.getStringValueField(),

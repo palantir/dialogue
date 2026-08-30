@@ -25,6 +25,7 @@ dependencies {
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'com.palantir.conjure.java:conjure-lib'
 
     annotationProcessor project(':dialogue-annotations-processor')
     implementation project(':dialogue-annotations')
@@ -33,6 +34,7 @@ dependencies {
     compileOnly 'org.immutables:value::annotations'
 
     testImplementation project(':dialogue-clients')
+    testImplementation project(':dialogue-serde')
     testImplementation project(':dialogue-test-common')
     testImplementation 'com.google.guava:guava'
     testImplementation 'com.google.testing.compile:compile-testing'

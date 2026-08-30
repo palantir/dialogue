@@ -16,22 +16,21 @@
 
 package com.palantir.myservice.example;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.palantir.dialogue.RequestBody;
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
-import com.palantir.dialogue.annotations.Json;
-import com.palantir.dialogue.annotations.StdSerializer;
+import com.palantir.dialogue.annotations.SerializerFactory;
 
-public final class MySerializableTypeBodySerializer extends StdSerializer<MySerializableType> {
+public final class MySerializableTypeSerializerFactory implements SerializerFactory<MySerializableType> {
 
-    private static final Serializer<MySerializableType> SERIALIZER = new Json(
-                    new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT))
-            .serializerFor(new TypeMarker<>() {});
+    private final ConjureRuntime runtime;
+
+    public MySerializableTypeSerializerFactory(ConjureRuntime runtime) {
+        this.runtime = runtime;
+    }
 
     @Override
-    public RequestBody serialize(MySerializableType value) {
-        return SERIALIZER.serialize(value);
+    public <U extends MySerializableType> Serializer<U> serializerFor(TypeMarker<U> type) {
+        return runtime.bodySerDe().serializer(type);
     }
 }

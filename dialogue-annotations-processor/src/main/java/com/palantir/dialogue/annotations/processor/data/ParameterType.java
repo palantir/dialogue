@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
-import com.palantir.javapoet.TypeName;
+import com.palantir.javapoet.CodeBlock;
 import java.util.Optional;
 import org.derive4j.Data;
 
@@ -26,7 +26,7 @@ public interface ParameterType {
 
         R rawBody();
 
-        R body(TypeName serializerFactory, String serializerFieldName);
+        R body(CodeBlock serializerFactory, String serializerFieldName);
 
         R header(String headerName, Optional<ParameterEncoderType> paramEncoderType);
 

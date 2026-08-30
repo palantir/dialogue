@@ -76,8 +76,8 @@ public final class ServiceImplementationGenerator {
         serviceDefinition.endpoints().forEach(endpoint -> {
             endpoint.arguments().stream()
                     .flatMap(arg -> ParameterTypes.caseOf(arg.paramType())
-                            .body((serializer, serializerFieldName) ->
-                                    Optional.of(serializer(arg, serializer, serializerFieldName)))
+                            .body((serializerFactory, serializerFieldName) ->
+                                    Optional.of(serializer(arg, serializerFactory, serializerFieldName)))
                             .header((_headerName, maybeEncoder) ->
                                     maybeEncoder.map(ServiceImplementationGenerator::encoder))
                             .headerMap(encoder -> Optional.of(encoder(encoder)))
@@ -154,7 +154,7 @@ public final class ServiceImplementationGenerator {
     }
 
     private static FieldSpec serializer(
-            ArgumentDefinition argumentDefinition, TypeName serializerType, String serializerFieldName) {
+            ArgumentDefinition argumentDefinition, CodeBlock serializerFactory, String serializerFieldName) {
         TypeName className = ArgumentTypes.caseOf(argumentDefinition.argType())
                 .primitive((typeName, _parameterSerializerMethodName) -> typeName)
                 .list((typeName, _parameterSerializerMethodName) -> typeName)
@@ -164,24 +164,24 @@ public final class ServiceImplementationGenerator {
                 .orElseThrow(() -> new SafeIllegalStateException(
                         "Unsupported argument type for serializer", SafeArg.of("type", argumentDefinition.argType())));
         ParameterizedTypeName deserializerType = ParameterizedTypeName.get(ClassName.get(Serializer.class), className);
+
         return FieldSpec.builder(deserializerType, serializerFieldName)
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T().serializerFor(new $T<$T>() {})", serializerType, TypeMarker.class, className)
+                .initializer(CodeBlock.of(
+                        "$L.serializerFor(new $T<$T>() {})", serializerFactory, TypeMarker.class, className))
                 .build();
     }
 
     private Optional<FieldSpec> deserializer(ReturnType type) {
         TypeName fullReturnType = type.returnType().box();
-        TypeName deserializerFactoryType = type.deserializerFactory();
         TypeName errorDecoderType = type.errorDecoder();
         TypeName innerType = type.asyncInnerType().map(TypeName::box).orElse(fullReturnType);
         ParameterizedTypeName deserializerType =
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
-
         CodeBlock realDeserializer = CodeBlock.of(
-                "new $T<>(new $T(), new $T()).deserializerFor(new $T<$T>() {})",
+                "new $T<>($L, new $T()).deserializerFor(new $T<$T>() {})",
                 ErrorHandlingDeserializerFactory.class,
-                deserializerFactoryType,
+                type.deserializerFactory(),
                 errorDecoderType,
                 TypeMarker.class,
                 innerType);
@@ -211,7 +211,7 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock body(TypeName _serializerFactory, String serializerFieldName) {
+            public CodeBlock body(CodeBlock _serializerFactory, String serializerFieldName) {
                 return CodeBlock.of(
                         "$L.body($L.serialize($L));",
                         REQUEST,

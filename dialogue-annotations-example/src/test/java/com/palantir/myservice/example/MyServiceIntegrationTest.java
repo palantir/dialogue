@@ -84,6 +84,8 @@ public final class MyServiceIntegrationTest {
 
     private MyService myServiceDialogue;
 
+    private ServiceConfiguration config;
+
     @BeforeEach
     public void beforeEach() {
         undertow = Undertow.builder()
@@ -94,7 +96,7 @@ public final class MyServiceIntegrationTest {
                 .build();
         undertow.start();
 
-        ServiceConfiguration config = ServiceConfiguration.builder()
+        config = ServiceConfiguration.builder()
                 .addUris(getUri(undertow))
                 .security(TestConfigurations.SSL_CONFIG)
                 .readTimeout(Duration.ofSeconds(1))
@@ -117,7 +119,7 @@ public final class MyServiceIntegrationTest {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.POST);
             exchange.assertPath("/greet");
-            exchange.assertAccept().isEqualTo("application/json");
+            exchange.assertAccept().contains("application/json");
             exchange.assertContentType().isEqualTo("application/json");
 
             exchange.exchange.setStatusCode(200);
@@ -301,7 +303,7 @@ public final class MyServiceIntegrationTest {
                     .isEqualTo("fake key 0");
             exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-API-Key-1"))
                     .isEqualTo("fake key 1");
-            exchange.assertBodyUtf8().isEqualTo("{\n  \"value\" : \"my-serializable-type-value\"\n}");
+            exchange.assertBodyUtf8().isEqualTo("{\"value\":\"my-serializable-type-value\"}");
 
             exchange.exchange.setStatusCode(200);
             exchange.exchange
@@ -531,6 +533,34 @@ public final class MyServiceIntegrationTest {
                 p.print(body);
             }
         }
+    }
+
+    @Test
+    public void testCustomBodyDeserializer() {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            exchange.assertPath("/custom");
+            exchange.assertAccept().contains("application/json");
+            exchange.assertContentType().isNull();
+            exchange.assertNoBody();
+
+            exchange.exchange.setStatusCode(200);
+            exchange.setContentType("application/json");
+            exchange.writeStringBody("\"Hello\"");
+        };
+
+        assertThat(myServiceDialogue.custom()).isEqualTo(ImmutableMySerializableType.of("Hello"));
+    }
+
+    @Test
+    public void testGenericDeserializer() {
+        undertowHandler = exchange -> {
+            exchange.exchange.setStatusCode(299);
+            exchange.setContentType("application/json");
+            exchange.writeStringBody("\"Hello\"");
+        };
+
+        assertThat(myServiceDialogue.genericDeserializer()).isEqualTo(new MyBodyType<>(299, "Hello"));
     }
 
     private static String getUri(Undertow undertow) {

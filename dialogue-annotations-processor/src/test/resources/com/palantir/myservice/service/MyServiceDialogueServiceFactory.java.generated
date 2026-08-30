@@ -47,25 +47,32 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
         return new MyService() {
             private final ParameterSerializer _parameterSerializer = DefaultParameterSerializer.INSTANCE;
 
-            private final Serializer<String> greetSerializer = new Json().serializerFor(new TypeMarker<String>() {});
+            private final Serializer<String> greetSerializer =
+                    new Json(runtime).serializerFor(new TypeMarker<String>() {});
 
             private final EndpointChannel greetChannel = endpointChannelFactory.endpoint(Endpoints.greet);
 
             private final Deserializer<String> greetDeserializer = new ErrorHandlingDeserializerFactory<>(
-                            new Json(), new ConjureErrorDecoder())
+                            new Json(runtime), new ConjureErrorDecoder())
                     .deserializerFor(new TypeMarker<String>() {});
 
             private final EndpointChannel getGreetingAsyncChannel =
                     endpointChannelFactory.endpoint(Endpoints.getGreetingAsync);
 
             private final Deserializer<String> getGreetingAsyncDeserializer = new ErrorHandlingDeserializerFactory<>(
-                            new CustomStringDeserializer(), new ConjureErrorDecoder())
+                            new CustomStringDeserializer(runtime), new ConjureErrorDecoder())
                     .deserializerFor(new TypeMarker<String>() {});
+
+            private final EndpointChannel customChannel = endpointChannelFactory.endpoint(Endpoints.custom);
+
+            private final Deserializer<MySerializableType> customDeserializer = new ErrorHandlingDeserializerFactory<>(
+                            new MySerializableTypeDeserializerFactory(runtime), new ConjureErrorDecoder())
+                    .deserializerFor(new TypeMarker<MySerializableType>() {});
 
             private final EndpointChannel inputStreamChannel = endpointChannelFactory.endpoint(Endpoints.inputStream);
 
             private final Deserializer<InputStream> inputStreamDeserializer = new ErrorHandlingDeserializerFactory<>(
-                            new InputStreamDeserializer(), new ConjureErrorDecoder())
+                            new InputStreamDeserializer(runtime), new ConjureErrorDecoder())
                     .deserializerFor(new TypeMarker<InputStream>() {});
 
             private final EndpointChannel customInputStreamChannel =
@@ -109,8 +116,9 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             private final DefaultMultimapParamEncoder paramsHeaderMapEncoder = new DefaultMultimapParamEncoder();
 
-            private final Serializer<MySerializableType> paramsSerializer =
-                    new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});
+            private final Serializer<MySerializableType> paramsSerializer = new MySerializableTypeSerializerFactory(
+                            runtime)
+                    .serializerFor(new TypeMarker<MySerializableType>() {});
 
             private final EndpointChannel paramsChannel = endpointChannelFactory.endpoint(Endpoints.params);
 
@@ -134,6 +142,12 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             public ListenableFuture<String> getGreetingAsync() {
                 Request.Builder _request = Request.builder();
                 return runtime.clients().call(getGreetingAsyncChannel, _request.build(), getGreetingAsyncDeserializer);
+            }
+
+            @Override
+            public MySerializableType custom() {
+                Request.Builder _request = Request.builder();
+                return runtime.clients().callBlocking(customChannel, _request.build(), customDeserializer);
             }
 
             @Override
@@ -329,6 +343,36 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             @Override
             public String endpointName() {
                 return "getGreetingAsync";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        custom {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("custom").build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "MyService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "custom";
             }
 
             @Override
