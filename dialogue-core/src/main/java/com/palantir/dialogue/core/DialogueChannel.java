@@ -337,6 +337,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         .map(userAgent -> UserAgentEndpointChannel.create(endpointChannel, endpoint, userAgent))
                         .orElse(endpointChannel);
                 channel = RetryingChannel.create(cf, channel, endpoint);
+                channel = QueueTimeoutDeadlineChannel.create(cf, channel);
                 channel = DeprecationWarningChannel.create(cf, channel, endpoint);
                 channel = ContentDecodingChannel.create(cf, channel, endpoint);
                 channel = new RetryAdvertisementChannel(channel);
