@@ -17,12 +17,16 @@
 package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.collection;
 import static org.assertj.guava.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Multimap;
 import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
+import java.util.Map;
+import org.assertj.core.data.MapEntry;
 import org.junit.jupiter.api.Test;
 
 public final class RequestTest {
@@ -87,5 +91,39 @@ public final class RequestTest {
                 .build();
 
         System.out.println(request2.queryParams());
+    }
+
+    @Test
+    void copy_request_with_existing_params() {
+        Request oldRequest = Request.builder()
+                .putQueryParams("query1", "queryVal1")
+                .putHeaderParams("header1", "headerVal1")
+                .putPathParams("path1", "pathVal1")
+                .build();
+
+        Request newRequest = Request.builder()
+                .from(oldRequest)
+                .putQueryParams("query2", "queryVal2")
+                .putHeaderParams("header2", "headerVal2")
+                .putPathParams("path2", "pathVal2")
+                .build();
+
+        // make sure new query/header/path parameters were added in addition to whatever was in `oldRequest`
+        assertThat(newRequest)
+                .extracting(Request::queryParams)
+                .extracting(Multimap::entries, collection(Map.Entry.class))
+                .containsExactlyInAnyOrder(
+                        MapEntry.entry("query1", "queryVal1"), MapEntry.entry("query2", "queryVal2"));
+
+        assertThat(newRequest)
+                .extracting(Request::headerParams)
+                .extracting(Multimap::entries, collection(Map.Entry.class))
+                .containsExactlyInAnyOrder(
+                        MapEntry.entry("header1", "headerVal1"), MapEntry.entry("header2", "headerVal2"));
+
+        assertThat(newRequest)
+                .extracting(Request::pathParameters)
+                .extracting(Multimap::entries, collection(Map.Entry.class))
+                .containsExactlyInAnyOrder(MapEntry.entry("path1", "pathVal1"), MapEntry.entry("path2", "pathVal2"));
     }
 }
