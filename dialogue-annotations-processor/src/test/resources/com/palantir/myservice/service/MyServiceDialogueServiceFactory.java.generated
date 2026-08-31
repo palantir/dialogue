@@ -47,26 +47,26 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
         return new MyService() {
             private final ParameterSerializer _parameterSerializer = DefaultParameterSerializer.INSTANCE;
 
-            private final Serializer<String> greetSerializer = new Json().serializerFor(new TypeMarker<String>() {});
+            private final Serializer<String> greetSerializer = new Json().serializerFor(TypeMarker.of(String.class));
 
             private final EndpointChannel greetChannel = endpointChannelFactory.endpoint(Endpoints.greet);
 
             private final Deserializer<String> greetDeserializer = new ErrorHandlingDeserializerFactory<>(
                             new Json(), new ConjureErrorDecoder())
-                    .deserializerFor(new TypeMarker<String>() {});
+                    .deserializerFor(TypeMarker.of(String.class));
 
             private final EndpointChannel getGreetingAsyncChannel =
                     endpointChannelFactory.endpoint(Endpoints.getGreetingAsync);
 
             private final Deserializer<String> getGreetingAsyncDeserializer = new ErrorHandlingDeserializerFactory<>(
                             new CustomStringDeserializer(), new ConjureErrorDecoder())
-                    .deserializerFor(new TypeMarker<String>() {});
+                    .deserializerFor(TypeMarker.of(String.class));
 
             private final EndpointChannel inputStreamChannel = endpointChannelFactory.endpoint(Endpoints.inputStream);
 
             private final Deserializer<InputStream> inputStreamDeserializer = new ErrorHandlingDeserializerFactory<>(
                             new InputStreamDeserializer(), new ConjureErrorDecoder())
-                    .deserializerFor(new TypeMarker<InputStream>() {});
+                    .deserializerFor(TypeMarker.of(InputStream.class));
 
             private final EndpointChannel customInputStreamChannel =
                     endpointChannelFactory.endpoint(Endpoints.customInputStream);
@@ -74,7 +74,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final Deserializer<InputStream> customInputStreamDeserializer =
                     new ErrorHandlingDeserializerFactory<>(
                                     new CustomInputStreamDeserializer(), new ConjureErrorDecoder())
-                            .deserializerFor(new TypeMarker<InputStream>() {});
+                            .deserializerFor(TypeMarker.of(InputStream.class));
 
             private final EndpointChannel customRequestChannel =
                     endpointChannelFactory.endpoint(Endpoints.customRequest);
@@ -87,7 +87,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             private final Deserializer<Response> customResponseDeserializer = new ErrorHandlingDeserializerFactory<>(
                             new ResponseDeserializer(), new ConjureErrorDecoder())
-                    .deserializerFor(new TypeMarker<Response>() {});
+                    .deserializerFor(TypeMarker.of(Response.class));
 
             private final MyCustomTypeParamEncoder paramsQuery8Encoder = new MyCustomTypeParamEncoder();
 
@@ -110,7 +110,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final DefaultMultimapParamEncoder paramsHeaderMapEncoder = new DefaultMultimapParamEncoder();
 
             private final Serializer<MySerializableType> paramsSerializer =
-                    new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});
+                    new MySerializableTypeBodySerializer().serializerFor(TypeMarker.of(MySerializableType.class));
 
             private final EndpointChannel paramsChannel = endpointChannelFactory.endpoint(Endpoints.params);
 

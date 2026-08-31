@@ -32,8 +32,8 @@ enum BinaryEncoding implements Encoding {
     INSTANCE;
 
     static final String CONTENT_TYPE = "application/octet-stream";
-    static final TypeMarker<InputStream> MARKER = new TypeMarker<InputStream>() {};
-    static final TypeMarker<Optional<InputStream>> OPTIONAL_MARKER = new TypeMarker<Optional<InputStream>>() {};
+    static final TypeMarker<InputStream> MARKER = TypeMarker.of(InputStream.class);
+    static final TypeMarker<Optional<InputStream>> OPTIONAL_MARKER = TypeMarker.optionalOf(InputStream.class);
 
     @Override
     public <T> Serializer<T> serializer(TypeMarker<T> _type) {
