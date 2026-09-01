@@ -17,7 +17,9 @@
 package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,6 +54,21 @@ final class TypeMarkerTest {
     @Test
     void createsMapTypeMarker() {
         assertEquivalent(TypeMarker.mapOf(String.class, Integer.class), new TypeMarker<Map<String, Integer>>() {});
+    }
+
+    @Test
+    void rejectsPrimitiveTypeArguments() {
+        assertThatThrownBy(() -> TypeMarker.listOf(int.class))
+                .isExactlyInstanceOf(SafeIllegalArgumentException.class)
+                .hasMessageContaining("Primitive types cannot be used as type arguments");
+        assertThatThrownBy(() -> TypeMarker.setOf(boolean.class))
+                .isExactlyInstanceOf(SafeIllegalArgumentException.class);
+        assertThatThrownBy(() -> TypeMarker.optionalOf(long.class))
+                .isExactlyInstanceOf(SafeIllegalArgumentException.class);
+        assertThatThrownBy(() -> TypeMarker.mapOf(int.class, String.class))
+                .isExactlyInstanceOf(SafeIllegalArgumentException.class);
+        assertThatThrownBy(() -> TypeMarker.mapOf(String.class, double.class))
+                .isExactlyInstanceOf(SafeIllegalArgumentException.class);
     }
 
     private static void assertEquivalent(TypeMarker<?> factoryMarker, TypeMarker<?> anonymousMarker) {

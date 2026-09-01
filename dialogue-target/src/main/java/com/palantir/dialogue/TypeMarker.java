@@ -133,6 +133,10 @@ public abstract class TypeMarker<T> {
             this.actualTypeArguments = actualTypeArguments.clone();
             for (Type actualTypeArgument : this.actualTypeArguments) {
                 Preconditions.checkNotNull(actualTypeArgument, "Type argument is required");
+                Preconditions.checkArgument(
+                        !(actualTypeArgument instanceof Class<?> argumentClass && argumentClass.isPrimitive()),
+                        "Primitive types cannot be used as type arguments",
+                        SafeArg.of("typeArgument", actualTypeArgument));
             }
         }
 
