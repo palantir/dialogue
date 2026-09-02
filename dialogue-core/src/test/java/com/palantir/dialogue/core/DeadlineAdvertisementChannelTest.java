@@ -67,7 +67,6 @@ class DeadlineAdvertisementChannelTest {
         }
     }
 
-    @SuppressWarnings("for-rollout:deprecation")
     @Test
     void adds_header_from_remaining_deadline() {
         try (CloseableTracer tracer = CloseableTracer.startSpan("test")) {
