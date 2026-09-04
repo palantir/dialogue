@@ -90,9 +90,17 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                                                         "clientName",
                                                         "serviceName",
                                                         "endpointName",
+                                                        "requestUrl",
                                                         "requestTraceId",
                                                         "requestSpanId",
                                                         "hostIndex");
+                                        assertThat(safeLoggable.getArgs().stream()
+                                                        .filter(arg ->
+                                                                arg.getName().equals("requestUrl"))
+                                                        .findFirst()
+                                                        .orElseThrow()
+                                                        .getValue())
+                                                .isEqualTo("http://foo");
                                     }));
         }
 
