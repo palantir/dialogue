@@ -34,7 +34,7 @@ public final class NestedServiceMyServiceDialogueServiceFactory
 
             private final Deserializer<String> getDeserializer = new ErrorHandlingDeserializerFactory<>(
                             new Json(), new ConjureErrorDecoder())
-                    .deserializerFor(new TypeMarker<String>() {});
+                    .deserializerFor(TypeMarker.of(String.class));
 
             @Override
             public String get() {

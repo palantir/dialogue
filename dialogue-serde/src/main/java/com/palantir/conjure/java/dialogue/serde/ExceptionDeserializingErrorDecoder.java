@@ -71,9 +71,9 @@ final class ExceptionDeserializingErrorDecoder {
     // performant handling of larger paramater payloads.
     private static final Encoding JSON_ENCODING = Encodings.json();
     private static final Deserializer<NamedError> NAMED_ERROR_DESERIALIZER =
-            JSON_ENCODING.deserializer(new TypeMarker<>() {});
+            JSON_ENCODING.deserializer(TypeMarker.of(NamedError.class));
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
-            JSON_ENCODING.deserializer(new TypeMarker<>() {});
+            JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
 
     private final Map<String, DeserializerExceptionPair<?, ?>> errorNameToExceptionDeserializerMap;
     private final boolean expectJsonErrors;

@@ -1,0 +1,302 @@
+package com.palantir.myservice.service;
+
+import com.google.common.collect.ListMultimap;
+import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.DialogueServiceFactory;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
+import com.palantir.dialogue.HttpMethod;
+import com.palantir.dialogue.PathTemplate;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.TypeMarker;
+import com.palantir.dialogue.UrlBuilder;
+import com.palantir.dialogue.annotations.ConjureErrorDecoder;
+import com.palantir.dialogue.annotations.DefaultParameterSerializer;
+import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
+import com.palantir.dialogue.annotations.Json;
+import com.palantir.dialogue.annotations.ParameterSerializer;
+import java.lang.Integer;
+import java.lang.Override;
+import java.lang.String;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.processing.Generated;
+
+@Generated("com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator")
+public final class ParameterizedReturnTypesDialogueServiceFactory
+        implements DialogueServiceFactory<ParameterizedReturnTypes> {
+    @Override
+    public ParameterizedReturnTypes create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
+        return new ParameterizedReturnTypes() {
+            private final ParameterSerializer _parameterSerializer = DefaultParameterSerializer.INSTANCE;
+
+            private final EndpointChannel listChannel = endpointChannelFactory.endpoint(Endpoints.list);
+
+            private final Deserializer<List<String>> listDeserializer = new ErrorHandlingDeserializerFactory<>(
+                            new Json(), new ConjureErrorDecoder())
+                    .deserializerFor(TypeMarker.listOf(String.class));
+
+            private final EndpointChannel setChannel = endpointChannelFactory.endpoint(Endpoints.set);
+
+            private final Deserializer<Set<String>> setDeserializer = new ErrorHandlingDeserializerFactory<>(
+                            new Json(), new ConjureErrorDecoder())
+                    .deserializerFor(TypeMarker.setOf(String.class));
+
+            private final EndpointChannel optionalChannel = endpointChannelFactory.endpoint(Endpoints.optional);
+
+            private final Deserializer<Optional<String>> optionalDeserializer = new ErrorHandlingDeserializerFactory<>(
+                            new Json(), new ConjureErrorDecoder())
+                    .deserializerFor(TypeMarker.optionalOf(String.class));
+
+            private final EndpointChannel mapChannel = endpointChannelFactory.endpoint(Endpoints.map);
+
+            private final Deserializer<Map<String, Integer>> mapDeserializer = new ErrorHandlingDeserializerFactory<>(
+                            new Json(), new ConjureErrorDecoder())
+                    .deserializerFor(TypeMarker.mapOf(String.class, Integer.class));
+
+            private final EndpointChannel unsupportedOuterTypeChannel =
+                    endpointChannelFactory.endpoint(Endpoints.unsupportedOuterType);
+
+            private final Deserializer<Collection<String>> unsupportedOuterTypeDeserializer =
+                    new ErrorHandlingDeserializerFactory<>(new Json(), new ConjureErrorDecoder())
+                            .deserializerFor(new TypeMarker<Collection<String>>() {});
+
+            private final EndpointChannel nestedParameterizationChannel =
+                    endpointChannelFactory.endpoint(Endpoints.nestedParameterization);
+
+            private final Deserializer<List<Optional<String>>> nestedParameterizationDeserializer =
+                    new ErrorHandlingDeserializerFactory<>(new Json(), new ConjureErrorDecoder())
+                            .deserializerFor(new TypeMarker<List<Optional<String>>>() {});
+
+            @Override
+            public List<String> list() {
+                Request.Builder _request = Request.builder();
+                return runtime.clients().callBlocking(listChannel, _request.build(), listDeserializer);
+            }
+
+            @Override
+            public Set<String> set() {
+                Request.Builder _request = Request.builder();
+                return runtime.clients().callBlocking(setChannel, _request.build(), setDeserializer);
+            }
+
+            @Override
+            public Optional<String> optional() {
+                Request.Builder _request = Request.builder();
+                return runtime.clients().callBlocking(optionalChannel, _request.build(), optionalDeserializer);
+            }
+
+            @Override
+            public Map<String, Integer> map() {
+                Request.Builder _request = Request.builder();
+                return runtime.clients().callBlocking(mapChannel, _request.build(), mapDeserializer);
+            }
+
+            @Override
+            public Collection<String> unsupportedOuterType() {
+                Request.Builder _request = Request.builder();
+                return runtime.clients()
+                        .callBlocking(unsupportedOuterTypeChannel, _request.build(), unsupportedOuterTypeDeserializer);
+            }
+
+            @Override
+            public List<Optional<String>> nestedParameterization() {
+                Request.Builder _request = Request.builder();
+                return runtime.clients()
+                        .callBlocking(
+                                nestedParameterizationChannel, _request.build(), nestedParameterizationDeserializer);
+            }
+        };
+    }
+
+    private enum Endpoints implements Endpoint {
+        list {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("list").build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "ParameterizedReturnTypes";
+            }
+
+            @Override
+            public String endpointName() {
+                return "list";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        set {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("set").build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "ParameterizedReturnTypes";
+            }
+
+            @Override
+            public String endpointName() {
+                return "set";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        optional {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("optional").build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "ParameterizedReturnTypes";
+            }
+
+            @Override
+            public String endpointName() {
+                return "optional";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        map {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("map").build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "ParameterizedReturnTypes";
+            }
+
+            @Override
+            public String endpointName() {
+                return "map";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        unsupportedOuterType {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("unsupported-outer-type").build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "ParameterizedReturnTypes";
+            }
+
+            @Override
+            public String endpointName() {
+                return "unsupportedOuterType";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        nestedParameterization {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("nested-parameterization").build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "ParameterizedReturnTypes";
+            }
+
+            @Override
+            public String endpointName() {
+                return "nestedParameterization";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        };
+
+        private static final String VERSION = Optional.ofNullable(
+                        ParameterizedReturnTypes.class.getPackage().getImplementationVersion())
+                .orElse("0.0.0");
+    }
+}

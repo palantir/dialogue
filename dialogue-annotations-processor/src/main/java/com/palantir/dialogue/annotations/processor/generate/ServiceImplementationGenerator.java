@@ -49,7 +49,9 @@ import com.palantir.javapoet.TypeSpec;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Modifier;
 
@@ -153,6 +155,16 @@ public final class ServiceImplementationGenerator {
                 .build();
     }
 
+    private static final Map<ClassName, String> TYPE_MARKER_FACTORIES = Map.of(
+            ClassName.get(List.class),
+            "listOf",
+            ClassName.get(Set.class),
+            "setOf",
+            ClassName.get(Optional.class),
+            "optionalOf",
+            ClassName.get(Map.class),
+            "mapOf");
+
     private static FieldSpec serializer(
             ArgumentDefinition argumentDefinition, TypeName serializerType, String serializerFieldName) {
         TypeName className = ArgumentTypes.caseOf(argumentDefinition.argType())
@@ -166,7 +178,7 @@ public final class ServiceImplementationGenerator {
         ParameterizedTypeName deserializerType = ParameterizedTypeName.get(ClassName.get(Serializer.class), className);
         return FieldSpec.builder(deserializerType, serializerFieldName)
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T().serializerFor(new $T<$T>() {})", serializerType, TypeMarker.class, className)
+                .initializer("new $T().serializerFor($L)", serializerType, typeMarker(className))
                 .build();
     }
 
@@ -179,12 +191,11 @@ public final class ServiceImplementationGenerator {
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
 
         CodeBlock realDeserializer = CodeBlock.of(
-                "new $T<>(new $T(), new $T()).deserializerFor(new $T<$T>() {})",
+                "new $T<>(new $T(), new $T()).deserializerFor($L)",
                 ErrorHandlingDeserializerFactory.class,
                 deserializerFactoryType,
                 errorDecoderType,
-                TypeMarker.class,
-                innerType);
+                typeMarker(innerType));
         CodeBlock voidDeserializer = CodeBlock.of(
                 "new $T($L.bodySerDe().emptyBodyDeserializer(), new $T())",
                 ErrorHandlingVoidDeserializer.class,
@@ -194,6 +205,27 @@ public final class ServiceImplementationGenerator {
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer(type.isVoid() ? voidDeserializer : realDeserializer)
                 .build());
+    }
+
+    private static CodeBlock typeMarker(TypeName type) {
+        if (type instanceof ClassName className) {
+            return CodeBlock.of("$T.of($T.class)", TypeMarker.class, className);
+        }
+        // Parameterized type markers cannot have nested types. Anon class type markers must be generated for those
+        if (type instanceof ParameterizedTypeName parameterized
+                && TYPE_MARKER_FACTORIES.containsKey(parameterized.rawType())
+                && parameterized.typeArguments().stream().allMatch(ClassName.class::isInstance)) {
+            CodeBlock.Builder result = CodeBlock.builder()
+                    .add("$T.$L(", TypeMarker.class, TYPE_MARKER_FACTORIES.get(parameterized.rawType()));
+            for (int index = 0; index < parameterized.typeArguments().size(); index++) {
+                if (index > 0) {
+                    result.add(", ");
+                }
+                result.add("$T.class", parameterized.typeArguments().get(index));
+            }
+            return result.add(")").build();
+        }
+        return CodeBlock.of("new $T<$T>() {}", TypeMarker.class, type);
     }
 
     private static FieldSpec encoder(ParameterEncoderType type) {
