@@ -201,7 +201,6 @@ final class SimulationMetricsReporter {
         return reduceGranularity(maxSamples, halfGranularity);
     }
 
-    @SuppressWarnings("JdkObsolete")
     private static String asString(MetricName metricName) {
         return metricName.safeTags().values().stream().map(v -> '[' + v + "] ").collect(Collectors.joining())
                 + metricName.safeName();

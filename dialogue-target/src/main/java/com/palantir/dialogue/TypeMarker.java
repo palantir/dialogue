@@ -28,7 +28,7 @@ import java.lang.reflect.TypeVariable;
  *
  * Usage example: <pre>new TypeMarker&lt;List&lt;Integer&gt;() {}</pre>.
  */
-@SuppressWarnings("unused") // Generic type exists for compile time safety but is not used internally.
+// Generic type exists for compile time safety but is not used internally.
 public abstract class TypeMarker<T> {
 
     private final Type type;

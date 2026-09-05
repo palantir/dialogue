@@ -104,7 +104,7 @@ public final class DefaultCallingThreadExecutorTest {
     }
 
     @Test
-    @SuppressWarnings({"CheckReturnValue", "FutureReturnValueIgnored"})
+    @SuppressWarnings("FutureReturnValueIgnored")
     public void testExecutesTasksUntilFinished() {
         ListeningExecutorService queueExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
         ListeningExecutorService taskSubmitters = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());
@@ -151,7 +151,7 @@ public final class DefaultCallingThreadExecutorTest {
     }
 
     @Test
-    @SuppressWarnings({"CheckReturnValue", "FutureReturnValueIgnored"})
+    @SuppressWarnings("FutureReturnValueIgnored")
     public void stressTestAllCompleteBeforeTargetFutureCompletes() {
         ListeningExecutorService queueExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
         ListeningExecutorService taskSubmitters = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());

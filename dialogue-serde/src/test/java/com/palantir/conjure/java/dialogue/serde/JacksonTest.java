@@ -25,7 +25,6 @@ import org.junit.jupiter.api.Test;
 public class JacksonTest {
     private final ObjectMapper serverObjectMapper = ObjectMappers.newServerObjectMapper();
 
-    @SuppressWarnings("for-rollout:StringConcatToTextBlock")
     @Test
     void fails_to_deserialize_alias_double() throws Exception {
         serverObjectMapper.readValue(

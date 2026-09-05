@@ -363,7 +363,6 @@ public class DialogueClientsDnsIntegrationTest {
         try {
 
             // reassigned to null later so that the target may be garbage collected
-            @SuppressWarnings("unused")
             DialogueClients.ReloadingFactory factory = DialogueClients.create(Refreshable.only(
                             ServicesConfigBlock.builder()
                                     .defaultSecurity(TestConfigurations.SSL_CONFIG)
@@ -382,7 +381,6 @@ public class DialogueClientsDnsIntegrationTest {
 
             WeakReference<DialogueClients.ReloadingFactory> factoryRef = new WeakReference<>(factory);
             // reassigned to null later so that the target may be garbage collected
-            @SuppressWarnings("unused")
             SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
             factory = null;
 
@@ -436,7 +434,6 @@ public class DialogueClientsDnsIntegrationTest {
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
         Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(ChannelNames.reloading(service));
         // unassigned to allow garbage collection later in the test
-        @SuppressWarnings("unused")
         Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
@@ -644,7 +641,7 @@ public class DialogueClientsDnsIntegrationTest {
                     SslSocketFactories.createSslSocketFactory(TestConfigurations.SSL_CONFIG),
                     SslSocketFactories.createX509TrustManager(TestConfigurations.SSL_CONFIG));
 
-            @SuppressWarnings({"unused", "deprecation"})
+            @SuppressWarnings("deprecation")
             SampleServiceBlocking client = factory.getNonReloading(SampleServiceBlocking.class, config);
             client.voidToVoid();
 
@@ -721,7 +718,6 @@ public class DialogueClientsDnsIntegrationTest {
                     .security(TestConfigurations.SSL_CONFIG)
                     .build();
 
-            @SuppressWarnings("unused")
             SampleServiceBlocking client = factory.getNonReloading(SampleServiceBlocking.class, config);
             client.voidToVoid();
 

@@ -345,7 +345,6 @@ public final class MultipartRequestBodyTest {
         };
     }
 
-    @SuppressWarnings("for-rollout:JdkObsolete")
     private void assertOkhttpAndDialogueMatch(MultipartBody okhttp, MultipartRequestBody dialogue) {
         try {
             Buffer buffer = new Buffer();

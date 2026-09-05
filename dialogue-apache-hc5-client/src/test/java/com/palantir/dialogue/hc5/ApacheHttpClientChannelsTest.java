@@ -290,7 +290,6 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         }
     }
 
-    @SuppressWarnings("JdkObsolete")
     private long poolGaugeValue(TaggedMetricRegistry metrics, String clientName, String state) {
         Metric gauge = metrics.getMetrics().entrySet().stream()
                 .filter(entry -> entry.getKey().safeName().equals("dialogue.client.pool.size"))

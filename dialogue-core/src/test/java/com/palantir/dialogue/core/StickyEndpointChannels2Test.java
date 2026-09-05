@@ -95,7 +95,6 @@ public final class StickyEndpointChannels2Test {
     }
 
     @Test
-    @SuppressWarnings("FutureReturnValueIgnored")
     public void channels_get_unique_queues() {
         Channel channel1 = sticky.get();
         Channel channel2 = sticky.get();
@@ -221,7 +220,7 @@ public final class StickyEndpointChannels2Test {
     }
 
     @Test
-    @SuppressWarnings({"FutureReturnValueIgnored", "ExecutorSubmitRunnableFutureIgnored"})
+    @SuppressWarnings({"ExecutorSubmitRunnableFutureIgnored", "FutureReturnValueIgnored"})
     public void request_arrives_whilst_internal_state_cleaned_does_not_stack_overflow() {
         Channel channel = sticky.get();
 

@@ -189,7 +189,7 @@ public final class Benchmark {
         return this;
     }
 
-    @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
+    @SuppressWarnings({"CheckReturnValue", "FutureReturnValueIgnored"})
     public Benchmark abortAfter(Duration value) {
         this.abortAfter = value;
         simulation
@@ -212,7 +212,7 @@ public final class Benchmark {
         return Futures.getUnchecked(result);
     }
 
-    @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
+    @SuppressWarnings({"CheckReturnValue", "FutureReturnValueIgnored"})
     public ListenableFuture<BenchmarkResult> schedule() {
 
         long[] requestsStarted = {0};

@@ -45,13 +45,11 @@ final class FormUrlEncodedRequestBody implements RequestBody {
             }
 
             checkArgument(entry.getKey() != null, "key must not be null");
-            @SuppressWarnings("for-rollout:JdkObsolete")
             String key = URLEncoder.encode(entry.getKey(), UTF_8);
             output.write(key.getBytes(StandardCharsets.UTF_8));
             output.write('=');
 
             checkArgument(entry.getValue() != null, "value must not be null", UnsafeArg.of("key", entry.getKey()));
-            @SuppressWarnings("for-rollout:JdkObsolete")
             String value = URLEncoder.encode(entry.getValue(), UTF_8);
             output.write(value.getBytes(StandardCharsets.UTF_8));
         }

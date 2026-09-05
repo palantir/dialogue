@@ -81,7 +81,6 @@ final class TimingEndpointChannel implements EndpointChannel {
 
         return DialogueFutures.addDirectCallback(response, new FutureCallback<>() {
             @Override
-            @SuppressWarnings("PreferJavaTimeOverload")
             public void onSuccess(@Nullable Response response) {
                 if (Responses.isSuccess(response)) {
                     updateTimer(successTimer);
@@ -104,7 +103,7 @@ final class TimingEndpointChannel implements EndpointChannel {
                 }
             }
 
-            @SuppressWarnings("PreferJavaTimeOverload") // performance sensitive
+            // performance sensitive
             private void updateTimer(Supplier<Timer> timer) {
                 timer.get().update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
             }

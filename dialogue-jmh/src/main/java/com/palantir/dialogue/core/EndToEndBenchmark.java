@@ -69,7 +69,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @Fork(value = 1)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
-@SuppressWarnings({"VisibilityModifier", "DesignForExtension"})
+@SuppressWarnings({"DesignForExtension", "VisibilityModifier"})
 public class EndToEndBenchmark {
 
     private static final Request request = Request.builder().build();
