@@ -16,14 +16,18 @@
 
 package com.palantir.dialogue;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.guava.api.Assertions.assertThat;
-
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMultimap;
+import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
 import org.junit.jupiter.api.Test;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.assertj.guava.api.Assertions.assertThat;
 
 public final class RequestTest {
 
@@ -87,5 +91,12 @@ public final class RequestTest {
                 .build();
 
         System.out.println(request2.queryParams());
+    }
+
+    @Test
+    void request_body_rejects_null() {
+        Optional<RequestBody> bodyArg = null;
+        assertThatThrownBy(() -> Request.builder().body(bodyArg).build())
+                .isExactlyInstanceOf(SafeNullPointerException.class);
     }
 }
