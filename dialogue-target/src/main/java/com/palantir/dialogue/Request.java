@@ -287,7 +287,7 @@ public final class Request {
 
         @SuppressWarnings("unchecked")
         public Request.Builder body(Optional<? extends RequestBody> value) {
-            body = (Optional<RequestBody>) value;
+            body = (Optional<RequestBody>) Preconditions.checkNotNull(value, "body");
             return this;
         }
 

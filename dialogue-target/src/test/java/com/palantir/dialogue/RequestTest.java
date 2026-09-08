@@ -17,12 +17,15 @@
 package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.assertj.guava.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMultimap;
+import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 public final class RequestTest {
@@ -87,5 +90,18 @@ public final class RequestTest {
                 .build();
 
         System.out.println(request2.queryParams());
+    }
+
+    @Test
+    void request_body_rejects_null() {
+        assertThatThrownBy(() ->
+                        Request.builder().body((Optional<RequestBody>) null).build())
+                .isExactlyInstanceOf(SafeNullPointerException.class);
+    }
+
+    @Test
+    void request_body_accepts_empty() {
+        Request request1 = Request.builder().body(Optional.empty()).build();
+        assertThat(request1.body()).isEmpty();
     }
 }
