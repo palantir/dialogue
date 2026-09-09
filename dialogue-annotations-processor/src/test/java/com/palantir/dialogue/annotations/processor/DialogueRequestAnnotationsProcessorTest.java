@@ -30,6 +30,7 @@ import com.palantir.myservice.service.MismatchedPathParam;
 import com.palantir.myservice.service.MultipleParamAnnotations;
 import com.palantir.myservice.service.MyService;
 import com.palantir.myservice.service.NestedService;
+import com.palantir.myservice.service.ParameterizedReturnTypes;
 import com.palantir.myservice.service.RequestAnnotatedClass;
 import com.palantir.myservice.service.UnmatchedPathParam;
 import com.palantir.myservice.service.UnmatchedPathTemplateParam;
@@ -61,6 +62,11 @@ public final class DialogueRequestAnnotationsProcessorTest {
     @Test
     public void testNestedExampleFileCompiles() {
         assertTestFileCompileAndMatches(TEST_CLASSES_BASE_DIR, NestedService.class, NestedService.MyService.class);
+    }
+
+    @Test
+    public void testParameterizedReturnTypes() {
+        assertTestFileCompileAndMatches(TEST_CLASSES_BASE_DIR, ParameterizedReturnTypes.class);
     }
 
     @Test

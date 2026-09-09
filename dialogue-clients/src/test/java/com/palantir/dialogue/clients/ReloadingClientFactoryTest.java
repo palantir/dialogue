@@ -186,9 +186,9 @@ class ReloadingClientFactoryTest {
         public Deserializer<?> deserializer(ConjureRuntime runtime) {
             BodySerDe bodySerDe = runtime.bodySerDe();
             return switch (this) {
-                case BASIC -> bodySerDe.deserializer(new TypeMarker<String>() {});
+                case BASIC -> bodySerDe.deserializer(TypeMarker.of(String.class));
                 case WITH_EXCEPTION_ARGS ->
-                    bodySerDe.deserializer(exceptionDeserializerArgs(new TypeMarker<String>() {}));
+                    bodySerDe.deserializer(exceptionDeserializerArgs(TypeMarker.of(String.class)));
                 case EMPTY -> bodySerDe.emptyBodyDeserializer();
                 case EMPTY_WITH_EXCEPTION_ARGS ->
                     bodySerDe.emptyBodyDeserializer(exceptionDeserializerArgs(new TypeMarker<>() {}));
