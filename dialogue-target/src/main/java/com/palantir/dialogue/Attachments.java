@@ -89,7 +89,7 @@ final class Attachments {
 
     static <T> AttachmentKey<T> createAttachmentKey(Class<? super T> valueClazz) {
         Preconditions.checkNotNull(valueClazz, "valueClazz");
-        @SuppressWarnings({"unchecked", "rawtypes"})
+        @SuppressWarnings({"rawtypes", "unchecked"})
         AttachmentKey<T> key = new AttachmentKey(valueClazz);
         return key;
     }

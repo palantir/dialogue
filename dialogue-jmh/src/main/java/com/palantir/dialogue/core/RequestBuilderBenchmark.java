@@ -38,7 +38,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @Fork(value = 1)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @BenchmarkMode(Mode.Throughput)
-@SuppressWarnings({"VisibilityModifier", "DesignForExtension"})
+@SuppressWarnings({"DesignForExtension", "VisibilityModifier"})
 public class RequestBuilderBenchmark {
 
     private Request empty = Request.builder().build();

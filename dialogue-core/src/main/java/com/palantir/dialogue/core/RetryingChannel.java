@@ -389,7 +389,7 @@ final class RetryingChannel implements EndpointChannel {
             return Futures.immediateFuture(response);
         }
 
-        @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
+        @SuppressWarnings({"CheckReturnValue", "FutureReturnValueIgnored"})
         private ListenableFuture<Response> scheduleRetry(Meter meter, long backoffNanoseconds) {
             meter.mark();
             if (backoffNanoseconds <= 0) {

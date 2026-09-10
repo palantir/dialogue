@@ -40,7 +40,7 @@ import org.jspecify.annotations.Nullable;
  * TypeMarker<List<List<String>>> nestedMarker = new TypeMarker<>() {};
  * }</pre>
  */
-@SuppressWarnings("unused") // Generic type exists for compile time safety but is not used internally.
+// Generic type exists for compile time safety but is not used internally.
 public abstract class TypeMarker<T> {
 
     private final Type type;

@@ -276,7 +276,7 @@ final class ExceptionDeserializingErrorDecoder {
         }
 
         @Override
-        @SuppressWarnings("UnsynchronizedOverridesSynchronized") // nop
+        // nop
         public Throwable fillInStackTrace() {
             // no-op: stack trace generation is expensive, this type exists
             // to simply associate diagnostic information with a failure.

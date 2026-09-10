@@ -51,7 +51,6 @@ final class BenchmarkTimingEndpointChannel implements EndpointChannel {
     }
 
     @Override
-    @SuppressWarnings("PreferJavaTimeOverload")
     public ListenableFuture<Response> execute(Request request) {
         long beforeNanos = ticker.read();
         return DialogueFutures.addDirectListener(delegate.execute(request), () -> {
