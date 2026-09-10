@@ -27,7 +27,7 @@ import java.util.OptionalLong;
 /**
  * Thrown when a request waits in a {@link QueuedChannel} longer than the configured queue timeout.
  */
-final class QueueTimeoutException extends RuntimeException implements SafeLoggable {
+public final class QueueTimeoutException extends RuntimeException implements SafeLoggable {
     private static final String MESSAGE = "Request queued for longer than queue timeout";
 
     private final List<Arg<?>> args;
