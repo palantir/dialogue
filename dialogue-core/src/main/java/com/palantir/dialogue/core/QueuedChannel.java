@@ -26,6 +26,9 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.palantir.deadlines.DeadlineExpiredException;
+import com.palantir.deadlines.Deadlines;
+import com.palantir.deadlines.Deadlines.Enforcement;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -57,6 +60,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.immutables.value.Value;
 import org.jspecify.annotations.Nullable;
@@ -125,6 +129,8 @@ final class QueuedChannel implements Channel {
     @Safe
     private final OptionalLong queueTimeoutNanos;
 
+    private final Enforcement clientEnforcement;
+
     private final Ticker clock;
 
     @Nullable
@@ -137,6 +143,7 @@ final class QueuedChannel implements Channel {
             QueuedChannelInstrumentation metrics,
             int maxQueueSize,
             Optional<Duration> queueTimeout,
+            Optional<Boolean> deadlineEnforcement,
             Ticker clock) {
         this(
                 delegate,
@@ -145,6 +152,7 @@ final class QueuedChannel implements Channel {
                 metrics,
                 maxQueueSize,
                 toNanos(queueTimeout),
+                deadlineEnforcement,
                 clock,
                 sharedTimeoutScheduler.get());
     }
@@ -158,6 +166,7 @@ final class QueuedChannel implements Channel {
             QueuedChannelInstrumentation metrics,
             int maxQueueSize,
             OptionalLong queueTimeoutNanos,
+            Optional<Boolean> deadlineEnforcement,
             Ticker clock,
             @Nullable ScheduledExecutorService scheduler) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
@@ -167,6 +176,9 @@ final class QueuedChannel implements Channel {
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
         this.queueTimeoutNanos = queueTimeoutNanos;
+        this.clientEnforcement = deadlineEnforcement
+                .map(value -> value ? Enforcement.ENFORCE : Enforcement.DISABLE)
+                .orElse(Enforcement.DEFER);
         this.clock = clock;
         this.scheduler = scheduler;
         // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
@@ -192,9 +204,17 @@ final class QueuedChannel implements Channel {
             QueuedChannelInstrumentation queuedChannelInstrumentation,
             LimitedChannel delegate,
             Optional<Duration> queueTimeout,
+            Optional<Boolean> deadlineEnforcement,
             Ticker clock) {
         return new QueuedChannel(
-                delegate, channelName, "sticky", queuedChannelInstrumentation, maxQueueSize, queueTimeout, clock);
+                delegate,
+                channelName,
+                "sticky",
+                queuedChannelInstrumentation,
+                maxQueueSize,
+                queueTimeout,
+                deadlineEnforcement,
+                clock);
     }
 
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
@@ -206,6 +226,7 @@ final class QueuedChannel implements Channel {
                         DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
                 cf.maxQueueSize(),
                 cf.queueTimeout(),
+                cf.deadlineEnforcement(),
                 cf.ticker());
     }
 
@@ -221,6 +242,7 @@ final class QueuedChannel implements Channel {
                         endpoint.endpointName()),
                 cf.maxQueueSize(),
                 cf.queueTimeout(),
+                cf.deadlineEnforcement(),
                 cf.ticker());
     }
 
@@ -264,15 +286,20 @@ final class QueuedChannel implements Channel {
         shouldRecordQueueMetrics = true;
 
         SettableFuture<Response> responseFuture = SettableFuture.create();
-        DetachedSpan span = DetachedSpan.start("Dialogue-request-enqueued");
-        IdempotentTimerContext timer = new IdempotentTimerContext(queuedTime.time());
-        QueueSizeAccounting accounting = new QueueSizeAccounting();
-        Optional<ScheduledFuture<?>> timeoutFuture =
-                Optional.ofNullable(scheduleQueueTimeout(request, responseFuture, span, timer, accounting));
+        DeferredCall components = DeferredCall.builder()
+                .endpoint(endpoint)
+                .request(request)
+                .response(responseFuture)
+                .span(DetachedSpan.start("Dialogue-request-enqueued"))
+                .timer(new IdempotentTimerContext(queuedTime.time()))
+                .timeoutHandle(new QueueTimeoutHandle())
+                .accounting(new QueueSizeAccounting())
+                .build();
+        scheduleQueueTimeout(components);
 
         // If the timeout budget was already exhausted (e.g., from time spent in a previous queue),
-        // scheduleQueueTimeout failed the future immediately. Return early to avoid creating a
-        // DeferredCall and adding it to the deque only for scheduleNextTask to clean it up.
+        // scheduleQueueTimeout failed the future immediately. Return early to avoid adding the entry to the deque
+        // only for scheduleNextTask to clean it up.
         if (responseFuture.isDone()) {
             return Optional.of(responseFuture);
         }
@@ -288,21 +315,11 @@ final class QueuedChannel implements Channel {
                     responseFuture, () -> QueueTimeoutAttachments.clearConfiguredExpiration(request));
         }
 
-        DeferredCall components = DeferredCall.builder()
-                .endpoint(endpoint)
-                .request(request)
-                .response(responseFuture)
-                .span(span)
-                .timer(timer)
-                .timeoutFuture(timeoutFuture)
-                .accounting(accounting)
-                .build();
-
         if (!queuedCalls.offer(components)) {
             // Should never happen, ConcurrentLinkedDeque has no maximum size
             return Optional.empty();
         }
-        int newSize = accounting.incrementAndGet();
+        int newSize = components.accounting().incrementAndGet();
 
         if (log.isDebugEnabled()) {
             log.debug(
@@ -316,77 +333,164 @@ final class QueuedChannel implements Channel {
         return Optional.of(components.response());
     }
 
-    @Nullable
-    private ScheduledFuture<?> scheduleQueueTimeout(
-            Request request,
-            SettableFuture<Response> responseFuture,
-            DetachedSpan span,
-            IdempotentTimerContext timer,
-            QueueSizeAccounting accounting) {
-        Optional<EffectiveExpiration> maybeExpiration = initializeAndGetEffectiveExpiration(request);
-        if (maybeExpiration.isEmpty()) {
-            return null;
-        }
-        EffectiveExpiration expiration = maybeExpiration.get();
+    /** Arms the queue timeout for this entry, if any bound applies, failing it outright if the bound has elapsed. */
+    private void scheduleQueueTimeout(DeferredCall call) {
+        initializeAndGetEffectiveExpiration(call.request()).ifPresent(expiration -> armOrFail(expiration, call));
+    }
+
+    private void armOrFail(EffectiveExpiration expiration, DeferredCall call) {
         long delayNanos = expiration.expirationNanos() - clock.read();
         if (delayNanos <= 0) {
             // The timeout is already reached, so we fail immediately. The queue-size decrement is safe to request
             // unconditionally: on initial enqueue the entry has not been counted yet (maybeExecute returns early,
             // before incrementing), so it is a no-op; on re-queue the entry is counted and gets decremented here.
-            failWithQueueTimeout(expiration.source(), responseFuture, span, timer, accounting);
-            return null;
+            // A deadline bound was resolved as elapsed microseconds ago, so Deadlines agrees and throws; falling
+            // through is unreachable short of the trace deadline being mutated in between.
+            if (expiration.source() != QueueTimeoutSource.DEADLINE || !failIfDeadlineExpired(call)) {
+                failWithQueueTimeout(expiration, call);
+            }
+            return;
         }
         ScheduledExecutorService timeoutScheduler =
                 Preconditions.checkNotNull(scheduler, "Scheduler must be present when a queue timeout is scheduled");
         // When the timeout fires, failWithQueueTimeout proactively decrements the queue size, so the queue size
         // reflects only live requests rather than lingering until the next scheduleNextTask() drain pops the entry.
-        return timeoutScheduler.schedule(
-                () -> failWithQueueTimeout(expiration.source(), responseFuture, span, timer, accounting),
-                delayNanos,
-                TimeUnit.NANOSECONDS);
+        call.timeoutHandle()
+                .arm(timeoutScheduler.schedule(() -> onTimeout(expiration, call), delayNanos, TimeUnit.NANOSECONDS));
     }
-
-    private Optional<EffectiveExpiration> initializeAndGetEffectiveExpiration(Request request) {
-        Long configuredExpiration = queueTimeoutNanos.isPresent()
-                ? QueueTimeoutAttachments.getOrInitializeConfiguredExpiration(
-                        request, clock.read() + queueTimeoutNanos.getAsLong())
-                : null;
-        Long deadlineExpiration = QueueTimeoutAttachments.getDeadlineExpiration(request);
-        if (deadlineExpiration == null) {
-            return Optional.ofNullable(configuredExpiration)
-                    .map(value -> new EffectiveExpiration(value, QueueTimeoutSource.CONFIGURED));
-        }
-        if (configuredExpiration == null || deadlineExpiration <= configuredExpiration) {
-            return Optional.of(new EffectiveExpiration(deadlineExpiration, QueueTimeoutSource.DEADLINE));
-        }
-        return Optional.of(new EffectiveExpiration(configuredExpiration, QueueTimeoutSource.CONFIGURED));
-    }
-
-    private record EffectiveExpiration(long expirationNanos, QueueTimeoutSource source) {}
 
     /**
-     * Fails the given future with a queue timeout exception and performs the same terminal cleanup as a normal
+     * Runs on {@link #sharedTimeoutScheduler} when an armed timeout elapses.
+     * <p>
+     * A deadline-derived bound is handed back to {@link Deadlines} to decide, because the deadline may have stopped
+     * applying while the request sat in the queue: a server can call
+     * {@code Deadlines.disableFurtherDeadlinePropagation()} (e.g. so that background work outliving that request is
+     * not bound by the finished request's deadline). That decision reads trace-local state, which this thread does
+     * not have, so the enqueueing call's span is attached for it. A configured bound cannot change, so it is failed
+     * without the extra work.
+     */
+    private void onTimeout(EffectiveExpiration armed, DeferredCall call) {
+        if (call.timeoutHandle().isClosed()) {
+            return;
+        }
+        if (armed.source() != QueueTimeoutSource.DEADLINE) {
+            failWithQueueTimeout(armed, call);
+            return;
+        }
+        boolean failed;
+        try (CloseableSpan ignored = call.span().attach()) {
+            failed = failIfDeadlineExpired(call);
+        }
+        if (failed) {
+            return;
+        }
+        // Deadlines declined. Fall back to the configured bound if this attempt stamped one; otherwise leave the
+        // entry queued unbounded, exactly as if it had been enqueued without a deadline at all.
+        Long configuredExpiration = QueueTimeoutAttachments.getConfiguredExpiration(call.request());
+        if (configuredExpiration != null) {
+            armOrFail(EffectiveExpiration.configured(configuredExpiration), call);
+        }
+    }
+
+    /** Returns the earlier of the configured queue-timeout expiration and the request deadline, if either is present. */
+    private Optional<EffectiveExpiration> initializeAndGetEffectiveExpiration(Request request) {
+        Long configuredExpiration = queueTimeoutNanos.isPresent()
+                ? QueueTimeoutAttachments.setConfiguredExpirationIfAbsent(
+                        request, clock.read() + queueTimeoutNanos.getAsLong())
+                : null;
+        EffectiveExpiration deadline = enforcedDeadlineExpiration();
+        if (deadline == null) {
+            return Optional.ofNullable(configuredExpiration).map(EffectiveExpiration::configured);
+        }
+        if (configuredExpiration == null || deadline.expirationNanos() <= configuredExpiration) {
+            return Optional.of(deadline);
+        }
+        return Optional.of(EffectiveExpiration.configured(configuredExpiration));
+    }
+
+    /**
+     * Resolves the enforced trace deadline into an absolute expiration on the queue clock, along with the exception
+     * to fail with once it elapses.
+     * <p>
+     * This runs on a thread with the calling trace attached, so the trace-local deadline state is readable: on
+     * initial enqueue that is the caller's thread; on re-queue {@link #scheduleTaskFromQueue} has attached the
+     * enqueueing call's {@link DetachedSpan}, which restores the same trace state; and a request resumed after a
+     * retry backoff arrives on {@link RetryingChannel}'s {@code Tracers.wrap}ped scheduler. The deadline must be
+     * read here rather than when the timeout fires, because {@link #sharedTimeoutScheduler} is not trace-aware.
+     */
+    @Nullable
+    private EffectiveExpiration enforcedDeadlineExpiration() {
+        Optional<Enforcement> traceEnforcement = Deadlines.getEnforcement();
+        if (traceEnforcement.isEmpty()
+                || traceEnforcement.get().resolveWith(clientEnforcement) != Enforcement.ENFORCE) {
+            return null;
+        }
+        return Deadlines.getRemainingDeadline()
+                .map(remaining -> EffectiveExpiration.deadline(clock.read() + remaining.toNanos()))
+                .orElse(null);
+    }
+
+    /** The binding queue-timeout bound for an enqueue attempt. */
+    record EffectiveExpiration(long expirationNanos, QueueTimeoutSource source) {
+
+        static EffectiveExpiration configured(long expirationNanos) {
+            return new EffectiveExpiration(expirationNanos, QueueTimeoutSource.CONFIGURED);
+        }
+
+        static EffectiveExpiration deadline(long expirationNanos) {
+            return new EffectiveExpiration(expirationNanos, QueueTimeoutSource.DEADLINE);
+        }
+    }
+
+    /**
+     * Fails the given future with the timeout's exception and performs the same terminal cleanup as a normal
      * dequeue: it decrements the queue size (at most once, and only if the entry was counted) and eagerly completes
      * the span and stops the timer. Doing this eagerly avoids waiting for the next {@link #scheduleNextTask()} drain
      * cycle, which could be much later in some scenarios (e.g. all hosts are stuck).
      * <p>
-     * There is no pending timeout task to cancel here, because this runs <em>as</em> the timeout (or as an
-     * already-expired immediate failure). {@link #completeAndDecrement} and its constituent operations are all
-     * idempotent, so the subsequent cleanup in {@link #scheduleNextTask()}'s {@code isDone()} check is harmless.
+     * {@link #completeAndDecrement} and its constituent operations are all idempotent, so the subsequent cleanup in
+     * {@link #scheduleNextTask()}'s {@code isDone()} check is harmless.
      */
     @VisibleForTesting
-    void failWithQueueTimeout(
-            QueueTimeoutSource source,
-            SettableFuture<Response> responseFuture,
-            DetachedSpan span,
-            IdempotentTimerContext timer,
-            QueueSizeAccounting accounting) {
-        if (responseFuture.setException(new QueueTimeoutException(channelName, source, queueTimeoutNanos))) {
-            (source == QueueTimeoutSource.DEADLINE ? deadlineTimeoutCounter : configuredTimeoutCounter)
+    void failWithQueueTimeout(EffectiveExpiration expiration, DeferredCall call) {
+        if (!call.timeoutHandle().close()) {
+            return;
+        }
+        if (call.response()
+                .setException(new QueueTimeoutException(channelName, expiration.source(), queueTimeoutNanos))) {
+            (expiration.source() == QueueTimeoutSource.DEADLINE ? deadlineTimeoutCounter : configuredTimeoutCounter)
                     .get()
                     .inc();
         }
-        completeAndDecrement(Optional.empty(), span, timer, accounting);
+        completeAndDecrement(call);
+    }
+
+    /**
+     * Attempts to fail the call with the deadline's own {@link DeadlineExpiredException}, so callers can tell deadline
+     * expiration apart from client-side queue backpressure. Only {@link Deadlines} can build that
+     * exception, and only with the originating trace attached, so this asks it rather than deciding locally. The
+     * {@link QueueTimeoutException} that would otherwise have been thrown becomes the cause, keeping the channel and
+     * the binding source visible in logs.
+     * <p>
+     * Returns true when the deadline expired, even if dispatch or another timeout already claimed the handle.
+     * Returns false when {@link Deadlines} declines: either the deadline stopped applying to the trace, or its clock
+     * trails the queue's by a hair.
+     */
+    private boolean failIfDeadlineExpired(DeferredCall call) {
+        try {
+            Deadlines.checkDeadline(clientEnforcement);
+            return false;
+        } catch (DeadlineExpiredException expired) {
+            if (!call.timeoutHandle().close()) {
+                return true;
+            }
+            expired.initCause(new QueueTimeoutException(channelName, QueueTimeoutSource.DEADLINE, queueTimeoutNanos));
+            if (call.response().setException(expired)) {
+                deadlineTimeoutCounter.get().inc();
+            }
+            completeAndDecrement(call);
+            return true;
+        }
     }
 
     private void onCompletion() {
@@ -422,6 +526,41 @@ final class QueuedChannel implements Channel {
     private void decrementQueueSize() {
         queueSizeEstimate.decrementAndGet();
         queueSizeCounter.get().dec();
+    }
+
+    /**
+     * Owns one stay in the queue. Dispatch and timeout compete to close the handle; re-queueing uses a fresh handle
+     * so callbacks from an earlier stay cannot fail the request or install another timeout.
+     */
+    static final class QueueTimeoutHandle {
+        private final AtomicReference<@Nullable ScheduledFuture<?>> armed = new AtomicReference<>();
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        void arm(ScheduledFuture<?> future) {
+            cancelIfPresent(armed.getAndSet(future));
+            // Scheduling may race with close(), including before the scheduler returns this future.
+            if (closed.get()) {
+                cancelIfPresent(armed.getAndSet(null));
+            }
+        }
+
+        boolean close() {
+            if (!closed.compareAndSet(false, true)) {
+                return false;
+            }
+            cancelIfPresent(armed.getAndSet(null));
+            return true;
+        }
+
+        boolean isClosed() {
+            return closed.get();
+        }
+
+        private static void cancelIfPresent(@Nullable ScheduledFuture<?> future) {
+            if (future != null) {
+                future.cancel(false);
+            }
+        }
     }
 
     final class QueueSizeAccounting {
@@ -462,12 +601,9 @@ final class QueuedChannel implements Channel {
             return false;
         }
 
-        // Cancel the timeout proactively before dispatch
-        queueHead.timeoutFuture().ifPresent(future -> future.cancel(false));
-
-        // If the future has been completed (via cancel, queue timeout that won the race
-        // before we cancelled, or any other reason), clean up without dispatching.
-        if (queueHead.response().isDone()) {
+        // Claim dispatch before a timeout can fail this entry. A timeout that already claimed the handle may
+        // still be completing the response, so checking isDone() alone is not sufficient.
+        if (!queueHead.timeoutHandle().close() || queueHead.response().isDone()) {
             cleanupDeferredCall(queueHead);
             return true;
         }
@@ -513,8 +649,12 @@ final class QueuedChannel implements Channel {
                         SafeArg.of("endpoint", endpoint.endpointName()));
                 return true;
             } else {
-                // Delegate rejected. We need to re-queue with a timeout for the remaining budget.
-                DeferredCall requeued = addTimeoutOnRequeue(queueHead);
+                // Delegate rejected. Re-arm the timeout for the remaining budget and put the entry back.
+                DeferredCall requeued = DeferredCall.builder()
+                        .from(queueHead)
+                        .timeoutHandle(new QueueTimeoutHandle())
+                        .build();
+                scheduleQueueTimeout(requeued);
                 if (!queuedCalls.offerFirst(requeued)) {
                     // Should never happen, ConcurrentLinkedDeque has no maximum size
                     log.error(
@@ -547,7 +687,7 @@ final class QueuedChannel implements Channel {
      * queue size, completes the span, and stops the timer.
      */
     private void cleanupDeferredCall(DeferredCall call) {
-        completeAndDecrement(call.timeoutFuture(), call.span(), call.timer(), call.accounting());
+        completeAndDecrement(call);
     }
 
     /**
@@ -556,28 +696,11 @@ final class QueuedChannel implements Channel {
      * timeout task, decrements the queue size at most once, and eagerly completes the span and stops the timer (both
      * idempotent).
      */
-    private void completeAndDecrement(
-            Optional<ScheduledFuture<?>> timeoutFuture,
-            DetachedSpan span,
-            IdempotentTimerContext timer,
-            QueueSizeAccounting accounting) {
-        timeoutFuture.ifPresent(future -> future.cancel(false));
-        accounting.decrementIfCounted();
-        span.complete(QueuedChannelTagTranslator.INSTANCE, this);
-        timer.stop();
-    }
-
-    /**
-     * Creates a copy of the DeferredCall with a fresh timeout task for the remaining budget.
-     */
-    private DeferredCall addTimeoutOnRequeue(DeferredCall original) {
-        @Nullable
-        ScheduledFuture<?> newTimeout = scheduleQueueTimeout(
-                original.request(), original.response(), original.span(), original.timer(), original.accounting());
-        return DeferredCall.builder()
-                .from(original)
-                .timeoutFuture(Optional.ofNullable(newTimeout))
-                .build();
+    private void completeAndDecrement(DeferredCall call) {
+        call.timeoutHandle().close();
+        call.accounting().decrementIfCounted();
+        call.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
+        call.timer().stop();
     }
 
     /**
@@ -679,8 +802,8 @@ final class QueuedChannel implements Channel {
 
         IdempotentTimerContext timer();
 
-        /** The scheduled timeout task, if queue timeout is enabled. Cancelled on dispatch. */
-        Optional<ScheduledFuture<?>> timeoutFuture();
+        /** Holds the currently armed timeout task, if any. Cancelled on dispatch. */
+        QueueTimeoutHandle timeoutHandle();
 
         QueueSizeAccounting accounting();
 
@@ -843,7 +966,10 @@ final class QueuedChannel implements Channel {
 
         @Override
         public Counter requestQueueTimeout(QueueTimeoutSource source) {
-            return (source == QueueTimeoutSource.DEADLINE ? deadlineTimeoutSupplier : configuredTimeoutSupplier).get();
+            return switch (source) {
+                case DEADLINE -> deadlineTimeoutSupplier.get();
+                case CONFIGURED -> configuredTimeoutSupplier.get();
+            };
         }
     }
 
