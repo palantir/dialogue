@@ -346,9 +346,10 @@ final class QueuedChannel implements Channel {
                 TimeUnit.NANOSECONDS);
     }
 
+    /** Returns the earlier of the configured queue-timeout expiration and the request deadline, if either is present. */
     private Optional<EffectiveExpiration> initializeAndGetEffectiveExpiration(Request request) {
         Long configuredExpiration = queueTimeoutNanos.isPresent()
-                ? QueueTimeoutAttachments.getOrInitializeConfiguredExpiration(
+                ? QueueTimeoutAttachments.setConfiguredExpirationIfAbsent(
                         request, clock.read() + queueTimeoutNanos.getAsLong())
                 : null;
         Long deadlineExpiration = QueueTimeoutAttachments.getDeadlineExpiration(request);
@@ -835,7 +836,10 @@ final class QueuedChannel implements Channel {
 
         @Override
         public Counter requestQueueTimeout(QueueTimeoutSource source) {
-            return (source == QueueTimeoutSource.DEADLINE ? deadlineTimeoutSupplier : configuredTimeoutSupplier).get();
+            return switch (source) {
+                case DEADLINE -> deadlineTimeoutSupplier.get();
+                case CONFIGURED -> configuredTimeoutSupplier.get();
+            };
         }
     }
 

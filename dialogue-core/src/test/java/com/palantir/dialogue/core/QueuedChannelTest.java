@@ -918,7 +918,7 @@ public class QueuedChannelTest {
 
             // Stamp an expiration on the request, then advance the clock past it.
             Request expired = Request.builder().build();
-            QueueTimeoutAttachments.getOrInitializeConfiguredExpiration(expired, ticker.read() + QUEUE_TIMEOUT_NANOS);
+            QueueTimeoutAttachments.setConfiguredExpirationIfAbsent(expired, ticker.read() + QUEUE_TIMEOUT_NANOS);
             ticker.advance(Duration.ofNanos(QUEUE_TIMEOUT_NANOS + 1));
 
             // The delegate is rejecting (inFlight > 0), so the request reaches the queueing path, sees the expired

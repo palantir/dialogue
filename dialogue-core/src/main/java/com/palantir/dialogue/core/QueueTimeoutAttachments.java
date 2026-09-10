@@ -35,7 +35,7 @@ final class QueueTimeoutAttachments {
     }
 
     /** Returns the configured expiration, initializing it to the candidate value if absent. */
-    static long getOrInitializeConfiguredExpiration(Request request, long candidateExpirationNanos) {
+    static long setConfiguredExpirationIfAbsent(Request request, long candidateExpirationNanos) {
         Long existing = request.attachments().putIfAbsent(CONFIGURED_EXPIRATION_NANOS, candidateExpirationNanos);
         return existing != null ? existing : candidateExpirationNanos;
     }
