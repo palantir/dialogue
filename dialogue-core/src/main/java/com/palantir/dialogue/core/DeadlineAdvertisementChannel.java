@@ -46,7 +46,9 @@ final class DeadlineAdvertisementChannel implements Channel {
         Enforcement deadlineEnforcement = enforceDeadlines
                 .map(value -> value ? Enforcement.ENFORCE : Enforcement.DISABLE)
                 .orElse(Enforcement.DEFER);
-        return new DeadlineAdvertisementChannel(delegate, readTimeout, deadlineEnforcement);
+        Channel maybeInjectingDelegate =
+                DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(delegate, deadlineEnforcement);
+        return new DeadlineAdvertisementChannel(maybeInjectingDelegate, readTimeout, deadlineEnforcement);
     }
 
     private DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, Deadlines.Enforcement enforcement) {
