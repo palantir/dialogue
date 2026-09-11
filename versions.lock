@@ -38,11 +38,11 @@ com.palantir.common:streams:2.14.0 (1 constraints: 39053b3b)
 
 com.palantir.conjure.java:conjure-lib:8.86.0 (2 constraints: 3d24637c)
 
-com.palantir.conjure.java.api:errors:2.78.0 (3 constraints: 8c292e18)
+com.palantir.conjure.java.api:errors:2.79.0 (3 constraints: 8d299918)
 
-com.palantir.conjure.java.api:service-config:2.78.0 (2 constraints: 641914de)
+com.palantir.conjure.java.api:service-config:2.79.0 (2 constraints: 651950de)
 
-com.palantir.conjure.java.api:ssl-config:2.78.0 (4 constraints: 163fb2a5)
+com.palantir.conjure.java.api:ssl-config:2.79.0 (4 constraints: 183fcaa6)
 
 com.palantir.conjure.java.runtime:client-config:8.41.0 (1 constraints: 3f05623b)
 
@@ -64,19 +64,19 @@ com.palantir.refreshable:refreshable:2.17.0 (2 constraints: 56194fdc)
 
 com.palantir.ri:resource-identifier:2.22.0 (2 constraints: 5515f5d9)
 
-com.palantir.safe-logging:logger:3.19.0 (14 constraints: 7ce11244)
+com.palantir.safe-logging:logger:3.19.0 (14 constraints: 7de15446)
 
 com.palantir.safe-logging:logger-slf4j:3.19.0 (1 constraints: 380ea250)
 
 com.palantir.safe-logging:logger-spi:3.19.0 (2 constraints: 7f1ebab1)
 
-com.palantir.safe-logging:preconditions:3.19.0 (21 constraints: ea53df53)
+com.palantir.safe-logging:preconditions:3.19.0 (21 constraints: ed53fe5c)
 
-com.palantir.safe-logging:safe-logging:3.19.0 (20 constraints: 4445bdec)
+com.palantir.safe-logging:safe-logging:3.19.0 (20 constraints: 4645b1f2)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.13.0 (1 constraints: 36052c3b)
 
-com.palantir.tokens:auth-tokens:4.9.0 (3 constraints: 9827f72f)
+com.palantir.tokens:auth-tokens:4.9.0 (3 constraints: 9927fa2f)
 
 com.palantir.tracing:tracing:6.40.0 (3 constraints: b224adfc)
 
@@ -132,7 +132,7 @@ org.eclipse.collections:eclipse-collections-api:13.0.0 (2 constraints: fa22df26)
 
 org.hdrhistogram:HdrHistogram:2.2.2 (1 constraints: 0e100092)
 
-org.immutables:value:2.12.2 (2 constraints: 0215eec1)
+org.immutables:value:2.12.2 (1 constraints: 3905373b)
 
 org.jboss.logging:jboss-logging:3.6.1.Final (7 constraints: c283b7cb)
 
