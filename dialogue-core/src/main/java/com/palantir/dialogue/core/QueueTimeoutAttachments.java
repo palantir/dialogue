@@ -21,11 +21,10 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestAttachmentKey;
 import javax.annotation.Nullable;
 
-/** Shares configured queue-timeout and deadline expirations across {@link QueuedChannel} instances. */
+/** Shares the configured queue-timeout expiration across {@link QueuedChannel} instances. */
 final class QueueTimeoutAttachments {
     private static final RequestAttachmentKey<Long> CONFIGURED_EXPIRATION_NANOS =
             RequestAttachmentKey.create(Long.class);
-    private static final RequestAttachmentKey<Long> DEADLINE_EXPIRATION_NANOS = RequestAttachmentKey.create(Long.class);
 
     private QueueTimeoutAttachments() {}
 
@@ -43,17 +42,5 @@ final class QueueTimeoutAttachments {
     @VisibleForTesting
     static @Nullable Long getConfiguredExpiration(Request request) {
         return request.attachments().getOrDefault(CONFIGURED_EXPIRATION_NANOS, null);
-    }
-
-    static void setDeadlineExpiration(Request request, long expirationNanos) {
-        request.attachments().put(DEADLINE_EXPIRATION_NANOS, expirationNanos);
-    }
-
-    static void clearDeadlineExpiration(Request request) {
-        request.attachments().remove(DEADLINE_EXPIRATION_NANOS);
-    }
-
-    static @Nullable Long getDeadlineExpiration(Request request) {
-        return request.attachments().getOrDefault(DEADLINE_EXPIRATION_NANOS, null);
     }
 }
