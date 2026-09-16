@@ -24,11 +24,11 @@ com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.50.0 (19 constraints: e42e1d8d)
+com.google.errorprone:error_prone_annotations:2.50.0 (19 constraints: dc2e4e87)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.7.1-jre (18 constraints: 0a4078e4)
+com.google.guava:guava:33.7.1-jre (18 constraints: 0c406ee6)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -48,7 +48,7 @@ com.palantir.conjure.java.runtime:client-config:8.42.0 (1 constraints: 4005653b)
 
 com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.42.0 (1 constraints: 841cc6a4)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.42.0 (2 constraints: 5e162f0f)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.42.0 (2 constraints: 5f16320f)
 
 com.palantir.conjure.java.runtime:keystores:8.42.0 (2 constraints: 5f1978dd)
 
@@ -64,23 +64,23 @@ com.palantir.refreshable:refreshable:2.18.0 (2 constraints: 58198edc)
 
 com.palantir.ri:resource-identifier:2.22.0 (2 constraints: 5515f5d9)
 
-com.palantir.safe-logging:logger:3.19.0 (14 constraints: 82e1fe4d)
+com.palantir.safe-logging:logger:3.19.0 (14 constraints: 83e1b34e)
 
 com.palantir.safe-logging:logger-slf4j:3.19.0 (1 constraints: 380ea250)
 
 com.palantir.safe-logging:logger-spi:3.19.0 (2 constraints: 7f1ebab1)
 
-com.palantir.safe-logging:preconditions:3.19.0 (21 constraints: f3532d6b)
+com.palantir.safe-logging:preconditions:3.19.0 (21 constraints: f453116c)
 
-com.palantir.safe-logging:safe-logging:3.19.0 (20 constraints: 4b453dff)
+com.palantir.safe-logging:safe-logging:3.19.0 (20 constraints: 4c450600)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.14.0 (1 constraints: 37052f3b)
 
 com.palantir.tokens:auth-tokens:4.9.0 (3 constraints: 9927fa2f)
 
-com.palantir.tracing:tracing:6.40.0 (3 constraints: ab2442fb)
+com.palantir.tracing:tracing:6.41.0 (3 constraints: ad24a3fb)
 
-com.palantir.tracing:tracing-api:6.40.0 (2 constraints: 0d124718)
+com.palantir.tracing:tracing-api:6.41.0 (2 constraints: 0f127318)
 
 com.palantir.tritium:tritium-api:0.137.0 (2 constraints: 971fbaf4)
 
@@ -164,7 +164,7 @@ com.google.truth:truth:1.4.5 (1 constraints: 1d1219fb)
 
 com.palantir.safe-logging:preconditions-assertj:3.19.0 (1 constraints: 3f05503b)
 
-com.palantir.tracing:tracing-test-utils:6.40.0 (1 constraints: 3c05533b)
+com.palantir.tracing:tracing-test-utils:6.41.0 (1 constraints: 3d05563b)
 
 com.spotify.dataenum:dataenum:1.4.1 (1 constraints: e9105ac1)
 
