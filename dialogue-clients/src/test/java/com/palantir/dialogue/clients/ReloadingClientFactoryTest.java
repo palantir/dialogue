@@ -70,11 +70,9 @@ class ReloadingClientFactoryTest {
 
     interface Foo extends Channel, EndpointChannelFactory {}
 
-    @SuppressWarnings("for-rollout:deprecation")
     @Mock(lenient = true)
     Foo channel;
 
-    @SuppressWarnings("for-rollout:deprecation")
     @Mock(lenient = true)
     EndpointChannel endpointChannel;
 
