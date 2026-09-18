@@ -258,7 +258,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
                 channel = DeadlineAdvertisementChannel.create(
-                        channel, cf.clientConf().readTimeout(), cf.deadlineEnforcement());
+                        channel, cf.channelName(), cf.clientConf().readTimeout(), cf.deadlineEnforcement());
 
                 ChannelState channelState = state.get(targetUri);
                 Preconditions.checkNotNull(channelState, "no ChannelState exists for this TargetUri");

@@ -17,6 +17,11 @@
 package com.palantir.dialogue.core;
 
 final class DialogueEnvironmentVariables {
+    /**
+     * Enables deadline failure injection, and sets the rate. See
+     * {@link DeadlineFailureInjectionConfiguration#fromEnvironment()} for the accepted format. Injection is disabled
+     * unless this variable is set, so its presence is the toggle.
+     */
     static final String INJECT_DEADLINE_FAILURES = "DIALOGUE_INJECT_DEADLINE_FAILURES";
 
     private DialogueEnvironmentVariables() {}

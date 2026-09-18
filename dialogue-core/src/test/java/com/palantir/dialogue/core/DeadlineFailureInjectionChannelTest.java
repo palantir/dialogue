@@ -28,18 +28,37 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntUnaryOperator;
 import org.junit.jupiter.api.Test;
 
 class DeadlineFailureInjectionChannelTest {
 
+    private static final String CHANNEL_NAME = "channel";
+
+    /** Always selects the request for failure. */
+    private static final IntUnaryOperator ALWAYS_SELECTS = _bound -> 0;
+
+    /** Never selects the request for failure. */
+    private static final IntUnaryOperator NEVER_SELECTS = _bound -> 1;
+
     private final Channel delegate = (_endpoint, _request) -> Futures.immediateCancelledFuture();
+
+    private static Optional<DeadlineFailureInjectionConfiguration> enabled() {
+        return DeadlineFailureInjectionConfiguration.fromEnvironmentValue("true");
+    }
+
+    private static Optional<DeadlineFailureInjectionConfiguration> disabled() {
+        return Optional.empty();
+    }
 
     @Test
     void wraps_delegate_when_feature_is_enabled_and_deadlines_are_enforced() {
         assertThat(DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
-                        delegate, Enforcement.ENFORCE, true, () -> 0, () -> 0L))
+                        delegate, CHANNEL_NAME, Enforcement.ENFORCE, enabled(), ALWAYS_SELECTS, () -> 0L))
                 .isInstanceOf(DeadlineFailureInjectionChannel.class);
     }
 
@@ -47,9 +66,10 @@ class DeadlineFailureInjectionChannelTest {
     void returns_existing_delegate_when_feature_is_disabled() {
         assertThat(DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
                         delegate,
+                        CHANNEL_NAME,
                         Enforcement.ENFORCE,
-                        false,
-                        () -> {
+                        disabled(),
+                        _bound -> {
                             throw new AssertionError("random should not be used");
                         },
                         () -> {
@@ -61,17 +81,17 @@ class DeadlineFailureInjectionChannelTest {
     @Test
     void returns_existing_delegate_when_deadlines_are_not_enforced() {
         assertThat(DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
-                        delegate, Enforcement.DISABLE, true, () -> 0, () -> 0L))
+                        delegate, CHANNEL_NAME, Enforcement.DISABLE, enabled(), ALWAYS_SELECTS, () -> 0L))
                 .isSameAs(delegate);
         assertThat(DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
-                        delegate, Enforcement.DEFER, true, () -> 0, () -> 0L))
+                        delegate, CHANNEL_NAME, Enforcement.DEFER, enabled(), ALWAYS_SELECTS, () -> 0L))
                 .isSameAs(delegate);
     }
 
     @Test
     void injects_failure_at_random() {
         Channel result = DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
-                delegate, Enforcement.ENFORCE, true, () -> 0, () -> 0L);
+                delegate, CHANNEL_NAME, Enforcement.ENFORCE, enabled(), ALWAYS_SELECTS, () -> 0L);
 
         ListenableFuture<Response> response =
                 result.execute(TestEndpoint.GET, Request.builder().build());
@@ -83,7 +103,7 @@ class DeadlineFailureInjectionChannelTest {
     @Test
     void requests_not_selected_for_failure_reach_delegate() {
         Channel result = DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
-                delegate, Enforcement.ENFORCE, true, () -> 1, () -> {
+                delegate, CHANNEL_NAME, Enforcement.ENFORCE, enabled(), NEVER_SELECTS, () -> {
                     throw new AssertionError("no need for clock if request isn't selected");
                 });
 
@@ -91,10 +111,10 @@ class DeadlineFailureInjectionChannelTest {
     }
 
     @Test
-    void caps_failures_to_one_every_fifteen_minutes() {
+    void caps_failures_to_the_default_interval() {
         AtomicLong nanoTime = new AtomicLong();
         Channel result = DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
-                delegate, Enforcement.ENFORCE, true, () -> 0, nanoTime::get);
+                delegate, CHANNEL_NAME, Enforcement.ENFORCE, enabled(), ALWAYS_SELECTS, nanoTime::get);
 
         assertThatExceptionOfType(ExecutionException.class)
                 .isThrownBy(
@@ -103,11 +123,97 @@ class DeadlineFailureInjectionChannelTest {
                 .withCauseInstanceOf(DeadlineExpiredException.External.class);
         assertThat(result.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
 
-        nanoTime.set(Duration.ofMinutes(15).toNanos());
+        nanoTime.set(DeadlineFailureInjectionConfiguration.DEFAULT_MINIMUM_FAILURE_INTERVAL.toNanos());
         assertThatExceptionOfType(ExecutionException.class)
                 .isThrownBy(
                         () -> result.execute(TestEndpoint.GET, Request.builder().build())
                                 .get())
                 .withCauseInstanceOf(DeadlineExpiredException.External.class);
+    }
+
+    @Test
+    void caps_failures_to_the_configured_interval() {
+        AtomicLong nanoTime = new AtomicLong();
+        Channel result = DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
+                delegate,
+                CHANNEL_NAME,
+                Enforcement.ENFORCE,
+                DeadlineFailureInjectionConfiguration.fromEnvironmentValue("1,1m"),
+                ALWAYS_SELECTS,
+                nanoTime::get);
+
+        assertThatExceptionOfType(ExecutionException.class)
+                .isThrownBy(
+                        () -> result.execute(TestEndpoint.GET, Request.builder().build())
+                                .get())
+                .withCauseInstanceOf(DeadlineExpiredException.External.class);
+
+        // Still capped just before the configured minute elapses, unlike the fifteen minute default.
+        nanoTime.set(Duration.ofSeconds(59).toNanos());
+        assertThat(result.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
+
+        nanoTime.set(Duration.ofMinutes(1).toNanos());
+        assertThatExceptionOfType(ExecutionException.class)
+                .isThrownBy(
+                        () -> result.execute(TestEndpoint.GET, Request.builder().build())
+                                .get())
+                .withCauseInstanceOf(DeadlineExpiredException.External.class);
+    }
+
+    @Test
+    void a_zero_interval_fails_every_selected_request() {
+        Channel result = DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
+                delegate,
+                CHANNEL_NAME,
+                Enforcement.ENFORCE,
+                DeadlineFailureInjectionConfiguration.fromEnvironmentValue("1,0"),
+                ALWAYS_SELECTS,
+                () -> {
+                    throw new AssertionError("clock should not be read when the cap is disabled");
+                });
+
+        for (int i = 0; i < 3; i++) {
+            assertThatExceptionOfType(ExecutionException.class)
+                    .isThrownBy(() -> result.execute(
+                                    TestEndpoint.GET, Request.builder().build())
+                            .get())
+                    .withCauseInstanceOf(DeadlineExpiredException.External.class);
+        }
+    }
+
+    @Test
+    void configured_rate_bounds_the_random_selection() {
+        AtomicInteger observedBound = new AtomicInteger();
+        Channel result = DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
+                delegate,
+                CHANNEL_NAME,
+                Enforcement.ENFORCE,
+                DeadlineFailureInjectionConfiguration.fromEnvironmentValue("4"),
+                bound -> {
+                    observedBound.set(bound);
+                    return 1;
+                },
+                () -> 0L);
+
+        assertThat(result.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
+        assertThat(observedBound).hasValue(4);
+    }
+
+    @Test
+    void default_rate_is_used_when_enabled_without_an_explicit_rate() {
+        AtomicInteger observedBound = new AtomicInteger();
+        Channel result = DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(
+                delegate,
+                CHANNEL_NAME,
+                Enforcement.ENFORCE,
+                enabled(),
+                bound -> {
+                    observedBound.set(bound);
+                    return 1;
+                },
+                () -> 0L);
+
+        assertThat(result.execute(TestEndpoint.GET, Request.builder().build())).isCancelled();
+        assertThat(observedBound).hasValue(DeadlineFailureInjectionConfiguration.DEFAULT_ONE_IN_EVERY);
     }
 }
