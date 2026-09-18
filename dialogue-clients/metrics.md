@@ -154,6 +154,27 @@ Metrics produced instrumented Jackson components.
 
 ### deadline
 Metrics for deadlines.
+- `deadline.received` (meter): Marked every time a deadline is established for a request, whether it was read from a request header or imposed by this server. This is the denominator for `deadline.expired`; without it an expiration count cannot be turned into an expiration rate.
+  - `origin`: Identifies which value became the deadline for the request.
+    - `internal`: The deadline was imposed by this server, either because no deadline was received on the wire or because the server's own budget was smaller than the one received.
+    - `external`: The deadline was read from a request header.
+  - `enforcement`: The enforcement strategy established for the request.
+    - `enforce`: Expirations will throw, and enforcement is requested downstream.
+    - `defer`: Expirations will not throw at this node.
+    - `disable`: Expirations will not throw here or at any downstream node.
+  - `state`: Whether the deadline had any budget left when it was established.
+    - `live`: The deadline had budget remaining when it was established.
+    - `expired-on-arrival`: The deadline was already expired when it was established, meaning an upstream node propagated an expired deadline rather than failing the request itself.
+- `deadline.budget` (histogram): The total deadline budget, in milliseconds, recorded once per request that establishes a deadline. Replaces the bucketed `budget` tag on `deadline.expired` with a real distribution, so questions such as the median received budget can be answered.
+  - `origin`: Identifies which value became the deadline for the request.
+    - `internal`: The deadline was imposed by this server.
+    - `external`: The deadline was read from a request header.
+- `deadline.headroom` (histogram): Budget remaining, in milliseconds, when the inbound request finished, clamped at zero. Recorded by `Deadlines.requestCompleted()`. Together with `deadline.expired` this shows how close requests run to their deadline, making near-misses visible before they become expirations.
+- `deadline.revoked` (meter): Marked when a deadline stops applying to a request before it expires. Nothing recorded this previously, so a request that mysteriously ignored its deadline left no evidence of why.
+  - `reason`: Why the deadline stopped applying.
+    - `request-completed`: The inbound request finished, so work outliving it is no longer bound by its deadline.
+    - `caller`: A caller explicitly revoked the deadline.
+- `deadline.detached` (meter): Marked when a thread enters a scope that hides the request's deadline, as used for work shared between callers rather than performed on behalf of one of them. Makes suppression visible rather than silent.
 - `deadline.expired` (meter): Marked every time a deadline expiration is reached
   - `cause`
     - `internal`: A deadline expiration was caused by an internal process, such as a server's inability to meet its own internal deadline even though a client provided ample time.

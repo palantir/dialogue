@@ -24,8 +24,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.Deadlines;
 import com.palantir.deadlines.Deadlines.Enforcement;
-import com.palantir.deadlines.Deadlines.RequestDecodingAdapter;
 import com.palantir.deadlines.DeadlinesHttpHeaders;
+import com.palantir.deadlines.HeaderReader;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -40,6 +40,9 @@ import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
 
 class DeadlineAdvertisementChannelTest {
+
+    private static final HeaderReader<Request> DECODER = (request, headerName) ->
+            request.headerParams().get(headerName).stream().findFirst().orElse(null);
 
     @Test
     void adds_header_from_configured_read_timeout() {
@@ -81,7 +84,7 @@ class DeadlineAdvertisementChannelTest {
             // set deadline state for this trace to somethign less than configured read timeout
             Request inboundRequest =
                     Request.builder().putHeaderParams("Expect-Within", "1").build();
-            Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE);
+            Deadlines.fromRequest(inboundRequest, DECODER, Optional.empty(), Enforcement.DEFER);
 
             Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout);
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
@@ -139,7 +142,7 @@ class DeadlineAdvertisementChannelTest {
 
             Request inboundRequest =
                     Request.builder().putHeaderParams("Expect-Within", "0").build();
-            Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
+            Deadlines.fromRequest(inboundRequest, DECODER, Optional.empty(), Enforcement.ENFORCE);
 
             Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, Optional.of(true));
             ListenableFuture<Response> response =
@@ -164,7 +167,7 @@ class DeadlineAdvertisementChannelTest {
 
             Request inboundRequest =
                     Request.builder().putHeaderParams("Expect-Within", "0").build();
-            Deadlines.parseFromRequest(Optional.empty(), inboundRequest, Decoder.INSTANCE, Enforcement.ENFORCE);
+            Deadlines.fromRequest(inboundRequest, DECODER, Optional.empty(), Enforcement.ENFORCE);
 
             Channel channel = DeadlineAdvertisementChannel.create(delegate, readTimeout, Optional.of(false));
             assertThat(channel.execute(TestEndpoint.GET, Request.builder().build()))
@@ -276,14 +279,5 @@ class DeadlineAdvertisementChannelTest {
         ListenableFuture<Response> response =
                 channel.execute(TestEndpoint.GET, Request.builder().build());
         assertThat(response).succeedsWithin(Duration.ofSeconds(1)).isSameAs(normalResponse);
-    }
-
-    private enum Decoder implements RequestDecodingAdapter<Request> {
-        INSTANCE;
-
-        @Override
-        public Optional<String> getFirstHeader(Request request, String headerName) {
-            return request.headerParams().get(headerName).stream().findFirst();
-        }
     }
 }

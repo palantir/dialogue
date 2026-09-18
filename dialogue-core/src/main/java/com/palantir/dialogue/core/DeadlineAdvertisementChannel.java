@@ -22,6 +22,7 @@ import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.DeadlineExpiredReasons;
 import com.palantir.deadlines.Deadlines;
 import com.palantir.deadlines.Deadlines.Enforcement;
+import com.palantir.deadlines.HeaderWriter;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -32,6 +33,8 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 final class DeadlineAdvertisementChannel implements Channel {
+
+    private static final HeaderWriter<Request.Builder> HEADER_WRITER = Request.Builder::putHeaderParams;
 
     private final Channel delegate;
     private final Duration readTimeout;
@@ -64,7 +67,7 @@ final class DeadlineAdvertisementChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Request.Builder requestBuilder = Request.builder().from(request);
         try {
-            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE, enforcement);
+            Deadlines.toRequest(requestBuilder, HEADER_WRITER, readTimeout, enforcement);
         } catch (DeadlineExpiredException e) {
             return Futures.immediateFailedFuture(e);
         }
@@ -78,15 +81,6 @@ final class DeadlineAdvertisementChannel implements Channel {
             }
             return Futures.immediateFuture(response);
         });
-    }
-
-    private enum RequestBuilderEncodingAdapter implements Deadlines.RequestEncodingAdapter<Request.Builder> {
-        INSTANCE;
-
-        @Override
-        public void setHeader(Request.Builder builder, String headerName, String headerValue) {
-            builder.putHeaderParams(headerName, headerValue);
-        }
     }
 
     private enum ResponseDecodingAdapter implements DeadlineExpiredReasons.ResponseDecodingAdapter<Response> {

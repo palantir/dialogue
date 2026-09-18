@@ -31,7 +31,7 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.Deadlines;
-import com.palantir.deadlines.Deadlines.RequestDecodingAdapter;
+import com.palantir.deadlines.HeaderReader;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
@@ -52,6 +52,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class DeadlineEnforcementTest {
+
+    private static final HeaderReader<Map<String, String>> DECODER = Map::get;
     private Undertow undertow;
     private Handler undertowHandler;
     private ServicesConfigBlock scb;
@@ -121,8 +123,7 @@ class DeadlineEnforcementTest {
         SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "test-service");
         try (CloseableTracer ignored = CloseableTracer.startSpan("test")) {
             Map<String, String> inboundRequest = Map.of("Expect-Within", "0");
-            Deadlines.parseFromRequest(
-                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.DEFER);
+            Deadlines.fromRequest(inboundRequest, DECODER, Optional.empty(), Deadlines.Enforcement.DEFER);
 
             assertThatThrownBy(client::voidToVoid).isInstanceOf(DeadlineExpiredException.class);
         }
@@ -140,8 +141,7 @@ class DeadlineEnforcementTest {
         SampleServiceBlocking client = factory.getNonReloading(SampleServiceBlocking.class, serviceConfig);
         try (CloseableTracer ignored = CloseableTracer.startSpan("test")) {
             Map<String, String> inboundRequest = Map.of("Expect-Within", "0");
-            Deadlines.parseFromRequest(
-                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.DEFER);
+            Deadlines.fromRequest(inboundRequest, DECODER, Optional.empty(), Deadlines.Enforcement.DEFER);
 
             assertThatThrownBy(client::voidToVoid).isInstanceOf(DeadlineExpiredException.class);
         }
@@ -150,8 +150,7 @@ class DeadlineEnforcementTest {
         client = factory.getNonReloading(SampleServiceBlocking.class, clientConfig);
         try (CloseableTracer ignored = CloseableTracer.startSpan("test")) {
             Map<String, String> inboundRequest = Map.of("Expect-Within", "0");
-            Deadlines.parseFromRequest(
-                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.DEFER);
+            Deadlines.fromRequest(inboundRequest, DECODER, Optional.empty(), Deadlines.Enforcement.DEFER);
 
             assertThatThrownBy(client::voidToVoid).isInstanceOf(DeadlineExpiredException.class);
         }
@@ -166,8 +165,7 @@ class DeadlineEnforcementTest {
         SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "test-service");
         try (CloseableTracer ignored = CloseableTracer.startSpan("test")) {
             Map<String, String> inboundRequest = Map.of("Expect-Within", "0");
-            Deadlines.parseFromRequest(
-                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.DEFER);
+            Deadlines.fromRequest(inboundRequest, DECODER, Optional.empty(), Deadlines.Enforcement.DEFER);
 
             assertThatCode(client::voidToVoid).doesNotThrowAnyException();
             assertThat(undertowHandler.getReceivedEnforcementHeader()).hasValue("false");
@@ -186,8 +184,7 @@ class DeadlineEnforcementTest {
             // simulates a scenario where tracing state has already explicitly disabled enforcement
             // in this case, constructed dialogue clients cannot override the disabled state, even if enforcement
             // is explicitly requested
-            Deadlines.parseFromRequest(
-                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.DISABLE);
+            Deadlines.fromRequest(inboundRequest, DECODER, Optional.empty(), Deadlines.Enforcement.DISABLE);
 
             assertThatCode(client::voidToVoid).doesNotThrowAnyException();
             assertThat(undertowHandler.getReceivedEnforcementHeader()).hasValue("false");
@@ -205,8 +202,7 @@ class DeadlineEnforcementTest {
             Map<String, String> inboundRequest = Map.of("Expect-Within", "0");
             // simulates a scenario where tracing state has already explicitly enabled enforcement
             // in this case, constructed dialogue clients are still allowed to opt-out by disabling enforcement
-            Deadlines.parseFromRequest(
-                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.ENFORCE);
+            Deadlines.fromRequest(inboundRequest, DECODER, Optional.empty(), Deadlines.Enforcement.ENFORCE);
 
             assertThatCode(client::voidToVoid).doesNotThrowAnyException();
             assertThat(undertowHandler.getReceivedEnforcementHeader()).hasValue("false");
@@ -222,25 +218,10 @@ class DeadlineEnforcementTest {
         SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "test-service");
         try (CloseableTracer ignored = CloseableTracer.startSpan("test")) {
             Map<String, String> inboundRequest = Map.of("Expect-Within", "10.000");
-            Deadlines.parseFromRequest(
-                    Optional.empty(), inboundRequest, DummyRequestDecoder.INSTANCE, Deadlines.Enforcement.DEFER);
+            Deadlines.fromRequest(inboundRequest, DECODER, Optional.empty(), Deadlines.Enforcement.DEFER);
 
             assertThatCode(client::voidToVoid).doesNotThrowAnyException();
             assertThat(undertowHandler.getReceivedEnforcementHeader()).hasValue("true");
-        }
-    }
-
-    private enum DummyRequestDecoder implements RequestDecodingAdapter<Map<String, String>> {
-        INSTANCE;
-
-        @Override
-        public Optional<String> getFirstHeader(Map<String, String> _headers, String _headerName) {
-            throw new IllegalStateException("not implemented");
-        }
-
-        @Override
-        public @Nullable String maybeFirstHeader(Map<String, String> headers, String headerName) {
-            return headers.get(headerName);
         }
     }
 
