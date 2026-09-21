@@ -420,7 +420,7 @@ public class QueuedChannelTest {
         accounting.decrementIfCounted();
         accounting.decrementIfCounted();
         assertThat(instrumentation.requestsQueued().getCount()).isZero();
-        accounting.incrementAndGet();
+        accounting.count();
         assertThat(instrumentation.requestsQueued().getCount()).isZero();
         accounting.decrementIfCounted();
         assertThat(instrumentation.requestsQueued().getCount()).isZero();
