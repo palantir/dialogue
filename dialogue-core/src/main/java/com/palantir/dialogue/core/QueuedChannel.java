@@ -421,19 +421,27 @@ final class QueuedChannel implements Channel {
     }
 
     final class QueueSizeAccounting {
-        private volatile boolean incremented = false;
-        private final AtomicBoolean decremented = new AtomicBoolean(false);
+        private static final int UNCOUNTED = 0;
+        private static final int COUNTED = 1;
+        private static final int REMOVED = 2;
 
+        private final AtomicInteger state = new AtomicInteger(UNCOUNTED);
+
+        // Counts this entry, undoing the increment if cleanup has already run.
         int incrementAndGet() {
-            Preconditions.checkState(!decremented.get(), "Queue size was incremented after it was already decremented");
             int newSize = incrementQueueSize();
-            incremented = true;
+            // Publish COUNTED only after both counters have been incremented. Cleanup can run before enqueue or
+            // during this increment; in that case it leaves REMOVED so this thread can reconcile both counters.
+            if (!state.compareAndSet(UNCOUNTED, COUNTED)) {
+                decrementQueueSize();
+                return queueSizeEstimate.get();
+            }
             return newSize;
         }
 
-        /** Decrements the queue size iff it was incremented and has not already been decremented. */
+        // Records terminal cleanup, decrementing now if counted or letting a later increment reconcile the count.
         void decrementIfCounted() {
-            if (incremented && decremented.compareAndSet(false, true)) {
+            if (state.getAndSet(REMOVED) == COUNTED) {
                 decrementQueueSize();
             }
         }

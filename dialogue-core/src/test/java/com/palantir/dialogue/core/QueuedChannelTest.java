@@ -18,7 +18,15 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
+import com.codahale.metrics.Counter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -40,7 +48,11 @@ import java.util.OptionalLong;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,6 +61,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -320,6 +334,98 @@ public class QueuedChannelTest {
         assertThat(instrumentation.requestsQueued().getCount()).isZero();
         assertThat(instrumentation.requestQueuedTime().getCount()).isOne();
         assertThat(instrumentation.requestQueuedTime().getSnapshot().getMax()).isPositive();
+    }
+
+    @Test
+    void testDispatchDuringQueueSizeIncrement() throws Exception {
+        Queue<SettableFuture<Response>> dispatched = new ConcurrentLinkedQueue<>();
+        LimitedChannel delegate = (_endpoint, _request, enforcement) -> {
+            if (enforcement.enforceLimits()) {
+                return Optional.empty();
+            }
+            SettableFuture<Response> response = SettableFuture.create();
+            dispatched.add(response);
+            return Optional.of(response);
+        };
+        QueuedChannelInstrumentation instrumentation = spy(QueuedChannel.channelInstrumentation(
+                DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "accounting-race"));
+        Counter queueSize = spy(instrumentation.requestsQueued());
+        doReturn(queueSize).when(instrumentation).requestsQueued();
+        QueuedChannel queued = createQueue(delegate, "accounting-race", "channel", instrumentation, 1);
+
+        // Keep one request in flight so the next submission must enqueue. Timeouts are disabled.
+        queued.execute(TestEndpoint.GET, Request.builder().build());
+        SettableFuture<Response> initialResponse = dispatched.remove();
+        CountDownLatch incrementStarted = new CountDownLatch(1);
+        CountDownLatch finishIncrement = new CountDownLatch(1);
+        doAnswer(invocation -> {
+                    invocation.callRealMethod();
+                    // offer has published the entry, but QueueSizeAccounting has not finished counting it.
+                    incrementStarted.countDown();
+                    assertThat(finishIncrement.await(10, TimeUnit.SECONDS)).isTrue();
+                    return null;
+                })
+                .doCallRealMethod()
+                .when(queueSize)
+                .inc();
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<ListenableFuture<Response>> submission = executor.submit(
+                    () -> queued.execute(TestEndpoint.GET, Request.builder().build()));
+            assertThat(incrementStarted.await(10, TimeUnit.SECONDS)).isTrue();
+
+            // Completion drains the published entry before the submitting thread can finish counting.
+            initialResponse.set(new TestResponse());
+            assertThat(dispatched)
+                    .as("request dispatched before counting finishes")
+                    .hasSize(1);
+            finishIncrement.countDown();
+            ListenableFuture<Response> response = submission.get(10, TimeUnit.SECONDS);
+            dispatched.remove().set(new TestResponse());
+            assertThat(response).succeedsWithin(Duration.ZERO);
+
+            long emptyQueueSize = queueSize.getCount();
+            Optional<ListenableFuture<Response>> fastPath =
+                    queued.maybeExecute(TestEndpoint.GET, Request.builder().build());
+            // The fast-path request remains in flight, so this request must fit into the empty queue.
+            Optional<ListenableFuture<Response>> admitted =
+                    queued.maybeExecute(TestEndpoint.GET, Request.builder().build());
+            assertSoftly(softly -> {
+                softly.assertThat(emptyQueueSize).as("drained queue metric").isZero();
+                softly.assertThat(fastPath).as("empty queue fast path").isPresent();
+                softly.assertThat(admitted).as("empty queue admits a request").isPresent();
+                softly.assertThat(queueSize.getCount())
+                        .as("one live queued request")
+                        .isOne();
+            });
+        } finally {
+            finishIncrement.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    void testCleanupBeforeQueueSizeIncrement() {
+        QueuedChannelInstrumentation instrumentation = QueuedChannel.channelInstrumentation(
+                DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "accounting-race");
+        QueuedChannel queued = createQueue(
+                (_endpoint, _request, _enforcement) -> Optional.of(SettableFuture.create()),
+                "accounting-race",
+                "channel",
+                instrumentation,
+                1);
+        QueuedChannel.QueueSizeAccounting accounting = queued.new QueueSizeAccounting();
+        accounting.decrementIfCounted();
+        accounting.decrementIfCounted();
+        assertThat(instrumentation.requestsQueued().getCount()).isZero();
+        accounting.incrementAndGet();
+        assertThat(instrumentation.requestsQueued().getCount()).isZero();
+        accounting.decrementIfCounted();
+        assertThat(instrumentation.requestsQueued().getCount()).isZero();
+        assertThat(queued.maybeExecute(TestEndpoint.GET, Request.builder().build()))
+                .isPresent();
     }
 
     @Test
@@ -600,12 +706,16 @@ public class QueuedChannelTest {
             instrumentation = QueuedChannel.channelInstrumentation(
                     DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), CHANNEL_NAME);
 
-            queuedChannel = new QueuedChannel(
+            queuedChannel = createQueue(QUEUE_SIZE);
+        }
+
+        private QueuedChannel createQueue(int maxQueueSize) {
+            return new QueuedChannel(
                     delegate,
                     CHANNEL_NAME,
                     "channel",
                     instrumentation,
-                    QUEUE_SIZE,
+                    maxQueueSize,
                     OptionalLong.of(QUEUE_TIMEOUT_NANOS),
                     ticker,
                     scheduler);
@@ -692,6 +802,59 @@ public class QueuedChannelTest {
                     .succeedsWithin(Duration.ZERO)
                     .extracting(Response::code)
                     .isEqualTo(200);
+        }
+
+        @ParameterizedTest
+        @ValueSource(booleans = {false, true})
+        void dispatch_and_running_timeout_share_accounting(boolean timeoutDuringDispatch) {
+            AtomicReference<Runnable> timeoutAction = new AtomicReference<>();
+            DeterministicScheduler capturingScheduler = spy(scheduler);
+            doAnswer(invocation -> {
+                        timeoutAction.set(invocation.getArgument(0));
+                        return invocation.callRealMethod();
+                    })
+                    .when(capturingScheduler)
+                    .schedule(any(Runnable.class), anyLong(), eq(TimeUnit.NANOSECONDS));
+            AtomicBoolean runTimeout = new AtomicBoolean(false);
+            queuedChannel = new QueuedChannel(
+                    (endpoint, req, enforcement) -> {
+                        Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, req, enforcement);
+                        if (runTimeout.getAndSet(false)) {
+                            timeoutAction.get().run();
+                        }
+                        return result;
+                    },
+                    CHANNEL_NAME,
+                    "channel",
+                    instrumentation,
+                    1,
+                    OptionalLong.of(QUEUE_TIMEOUT_NANOS),
+                    ticker,
+                    capturingScheduler);
+            setInFlightRequest();
+            ListenableFuture<Response> response =
+                    queuedChannel.execute(TestEndpoint.POST, Request.builder().build());
+            assertThat(instrumentation.requestsQueued().getCount()).isOne();
+
+            // A timeout that has already started can run despite cancel(false). Execute the captured real callback
+            // on either side of dispatch cleanup, using the same accounting object as the queued entry.
+            Runnable runningTimeout = timeoutAction.get();
+            delegate.setAccepting(true);
+            runTimeout.set(timeoutDuringDispatch);
+            queuedChannel.schedule();
+            runningTimeout.run();
+            runningTimeout.run();
+            queuedChannel.schedule();
+            assertThat(response)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(QueueTimeoutException.class);
+            assertThat(instrumentation.requestsQueued().getCount()).isZero();
+            assertThat(instrumentation.requestQueueTimeout().getCount()).isOne();
+            assertThat(instrumentation.requestQueuedTime().getCount()).isOne();
+
+            delegate.setAccepting(false);
+            assertSingleQueueSlotAvailable();
         }
 
         @Test
@@ -913,6 +1076,7 @@ public class QueuedChannelTest {
 
         @Test
         void request_with_already_expired_attachment_fails_immediately() {
+            queuedChannel = createQueue(1);
             setInFlightRequest();
 
             // Stamp an expiration on the request, then advance the clock past it.
@@ -933,6 +1097,7 @@ public class QueuedChannelTest {
             assertThat(instrumentation.requestsQueued().getCount())
                     .as("a request that fails immediately is never counted in the queue")
                     .isEqualTo(0);
+            assertSingleQueueSlotAvailable();
         }
 
         @Test
@@ -1012,6 +1177,16 @@ public class QueuedChannelTest {
                     .succeedsWithin(Duration.ZERO)
                     .extracting(Response::code)
                     .isEqualTo(202);
+        }
+
+        private void assertSingleQueueSlotAvailable() {
+            assertThat(queuedChannel.maybeExecute(
+                            TestEndpoint.POST, Request.builder().build()))
+                    .hasValueSatisfying(response -> assertThat(response).isNotDone());
+            assertThat(instrumentation.requestsQueued().getCount()).isOne();
+            assertThat(queuedChannel.maybeExecute(
+                            TestEndpoint.POST, Request.builder().build()))
+                    .isEmpty();
         }
 
         // Gets inFlight > 0 to avoid DANGEROUS_BYPASS_LIMITS on subsequent requests
