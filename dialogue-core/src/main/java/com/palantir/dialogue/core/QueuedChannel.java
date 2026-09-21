@@ -303,12 +303,12 @@ final class QueuedChannel implements Channel {
             // Should never happen, ConcurrentLinkedDeque has no maximum size
             return Optional.empty();
         }
-        accounting.count();
+        int newSize = accounting.incrementAndGet();
 
         if (log.isDebugEnabled()) {
             log.debug(
                     "Request queued {} on channel {}",
-                    SafeArg.of("queueSize", queueSizeEstimate.get()),
+                    SafeArg.of("queueSize", newSize),
                     SafeArg.of("channelName", channelName));
         }
 
@@ -410,9 +410,9 @@ final class QueuedChannel implements Channel {
         }
     }
 
-    private void incrementQueueSize() {
+    private int incrementQueueSize() {
         queueSizeCounter.get().inc();
-        queueSizeEstimate.incrementAndGet();
+        return queueSizeEstimate.incrementAndGet();
     }
 
     private void decrementQueueSize() {
@@ -427,17 +427,19 @@ final class QueuedChannel implements Channel {
 
         private final AtomicInteger state = new AtomicInteger(UNCOUNTED);
 
-        /** Counts this entry, undoing the increment if cleanup has already run. */
-        void count() {
-            incrementQueueSize();
+        // Counts this entry, undoing the increment if cleanup has already run.
+        int incrementAndGet() {
+            int newSize = incrementQueueSize();
             // Publish COUNTED only after both counters have been incremented. Cleanup can run before enqueue or
             // during this increment; in that case it leaves REMOVED so this thread can reconcile both counters.
             if (!state.compareAndSet(UNCOUNTED, COUNTED)) {
                 decrementQueueSize();
+                return queueSizeEstimate.get();
             }
+            return newSize;
         }
 
-        /** Records terminal cleanup, decrementing now if counted or letting a later increment reconcile the count. */
+        // Records terminal cleanup, decrementing now if counted or letting a later increment reconcile the count.
         void decrementIfCounted() {
             if (state.getAndSet(REMOVED) == COUNTED) {
                 decrementQueueSize();
