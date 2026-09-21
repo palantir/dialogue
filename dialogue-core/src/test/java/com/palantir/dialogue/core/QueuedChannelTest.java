@@ -176,7 +176,7 @@ public class QueuedChannelTest {
     }
 
     @Test
-    public void testQueuedRequestExecutedOnNextSubmissionThrows() {
+    public void testQueuedRequestExecutedOnNextSubmission_throws() {
         List<Optional<SettableFuture<Response>>> settableResponses = new CopyOnWriteArrayList<>();
         AtomicBoolean delegateThrows = new AtomicBoolean(false);
         LimitedChannel delegateChannel = (_endpoint, _request, limitEnforcement) -> {
@@ -429,7 +429,7 @@ public class QueuedChannelTest {
     }
 
     @Test
-    public void testQueueTimeMetricCancel() {
+    public void testQueueTimeMetric_cancel() {
         List<Optional<SettableFuture<Response>>> settableResponses = new CopyOnWriteArrayList<>();
         LimitedChannel delegateChannel = (_endpoint, _request, limitEnforcement) -> {
             Optional<SettableFuture<Response>> result = Optional.empty();
@@ -619,7 +619,7 @@ public class QueuedChannelTest {
     }
 
     @Test
-    public void testInitialRequestIsIllegallyLimitedInitialRequest() {
+    public void testInitialRequestIsIllegallyLimited_initialRequest() {
         // This LimitedChannel ignores the LimitEnforcement parameter, which is not allowed
         LimitedChannel delegateChannel = (_endpoint, _request, _limitEnforcement) -> Optional.empty();
         QueuedChannel queued = createQueue(delegateChannel);
@@ -634,7 +634,7 @@ public class QueuedChannelTest {
     }
 
     @Test
-    public void testInitialRequestIsIllegallyLimitedQueuedRequest() {
+    public void testInitialRequestIsIllegallyLimited_queuedRequest() {
         List<Optional<SettableFuture<Response>>> settableResponses = new CopyOnWriteArrayList<>();
         AtomicBoolean ignoreLimitEnforcement = new AtomicBoolean(false);
         LimitedChannel delegateChannel = (_endpoint, _request, limitEnforcement) -> {
@@ -722,7 +722,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testCallerFutureIsFailedWithTimeout() {
+        void caller_future_is_failed_with_timeout() {
             setInFlightRequest();
 
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
@@ -766,7 +766,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testTimeoutAfterDispatchIsCancelled() {
+        void timeout_after_dispatch_is_cancelled() {
             setInFlightRequest();
 
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
@@ -806,7 +806,7 @@ public class QueuedChannelTest {
 
         @ParameterizedTest
         @ValueSource(booleans = {false, true})
-        void testDispatchAndRunningTimeoutShareAccounting(boolean timeoutDuringDispatch) {
+        void dispatch_and_running_timeout_share_accounting(boolean timeoutDuringDispatch) {
             AtomicReference<Runnable> timeoutAction = new AtomicReference<>();
             DeterministicScheduler capturingScheduler = spy(scheduler);
             doAnswer(invocation -> {
@@ -858,7 +858,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testExpirationIsClearedOnCompletionSoAReusedRequestGetsAFreshBudget() {
+        void expiration_is_cleared_on_completion_so_a_reused_request_gets_a_fresh_budget() {
             setInFlightRequest();
             Request reused = Request.builder().build();
 
@@ -894,7 +894,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testLateTimeoutLosingDispatchRaceClosesWireResponse() {
+        void late_timeout_losing_dispatch_race_closes_wire_response() {
             // Covers the losing dispatch race. On dispatch, scheduleNextTask calls timeoutFuture.cancel(false) to stop
             // the timeout — but cancel(false) cannot stop a task that has *already begun executing* on the scheduler
             // thread. So even though the request is dispatched, an already-running timeout task can still run to
@@ -932,7 +932,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testTimeoutIsNoopWhenWireCompletesFirst() throws ExecutionException, InterruptedException {
+        void timeout_is_noop_when_wire_completes_first() throws ExecutionException, InterruptedException {
             setInFlightRequest();
 
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
@@ -958,7 +958,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testReQueuedEntryIsCleanedUpAfterTimeout() {
+        void re_queued_entry_is_cleaned_up_after_timeout() {
             setInFlightRequest();
 
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
@@ -991,7 +991,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testSecondQueueReadsExpirationFromFirstQueueAndDoesNotOverwrite() {
+        void second_queue_reads_expiration_from_first_queue_and_does_not_overwrite() {
             AtomicBoolean accepting = new AtomicBoolean(false);
             LimitedChannel rejectingDelegate = (_endpoint, _request, limitEnforcement) -> {
                 if (!accepting.get() && limitEnforcement.enforceLimits()) {
@@ -1051,7 +1051,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testRequeuePreservesOriginalExpiration() {
+        void requeue_preserves_original_expiration() {
             setInFlightRequest();
             Request req = Request.builder().build();
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, req);
@@ -1075,7 +1075,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testRequestWithAlreadyExpiredAttachmentFailsImmediately() {
+        void request_with_already_expired_attachment_fails_immediately() {
             queuedChannel = createQueue(1);
             setInFlightRequest();
 
@@ -1101,7 +1101,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testNoTimeoutConfiguredRequestsQueueIndefinitely() {
+        void no_timeout_configured_requests_queue_indefinitely() {
             // Create a QueuedChannel with no timeout (OptionalLong.empty)
             ToggleableDelegate noTimeoutDelegate = new ToggleableDelegate();
             QueuedChannel noTimeoutQueue = new QueuedChannel(
@@ -1137,7 +1137,7 @@ public class QueuedChannelTest {
         }
 
         @Test
-        void testDrainLoopSkipsTimedOutRequestAndDispatchesLiveOne() {
+        void drain_loop_skips_timed_out_request_and_dispatches_live_one() {
             setInFlightRequest();
 
             // Enqueue two requests
