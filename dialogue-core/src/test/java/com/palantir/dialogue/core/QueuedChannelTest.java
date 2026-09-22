@@ -255,6 +255,7 @@ public class QueuedChannelTest {
         assertThat(settableResponses.get(3)).isPresent();
     }
 
+    @SuppressWarnings("for-rollout:JUnitMethodInvoked")
     @Test
     @TestTracing(snapshot = true)
     public void testQueueTracing() {
