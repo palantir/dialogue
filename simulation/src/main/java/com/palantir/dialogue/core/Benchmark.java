@@ -102,6 +102,7 @@ public final class Benchmark {
         return this;
     }
 
+    @SuppressWarnings("for-rollout:BoxingComparator")
     public Benchmark mergeRequestStreams(Stream<ScheduledRequest>... newRequestStreams) {
         this.requestStream = Streams.stream(Iterators.mergeSorted(
                 Arrays.stream(newRequestStreams).map(BaseStream::iterator).collect(Collectors.toList()),

@@ -142,6 +142,7 @@ final class ConjureBodySerDe implements BodySerDe {
                 .collect(ImmutableList.toImmutableList());
     }
 
+    @SuppressWarnings("for-rollout:BoxingComparator")
     private ImmutableList<Encoding> sortByWeight(List<WeightedEncoding> encodings) {
         // Use list.sort which guarantees a stable sort, so the original order is preserved
         // when weights are equal.
