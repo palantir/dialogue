@@ -60,7 +60,6 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         return ApacheHttpClientChannels.create(config);
     }
 
-    @SuppressWarnings("for-rollout:deprecation")
     @Test
     public void close_doesnt_fail_inflight_requests() throws Exception {
         ClientConfiguration conf = TestConfigurations.create("http://foo");

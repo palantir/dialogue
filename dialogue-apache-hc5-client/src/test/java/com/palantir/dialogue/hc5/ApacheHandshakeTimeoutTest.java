@@ -118,7 +118,6 @@ public final class ApacheHandshakeTimeoutTest {
                 .isTrue();
     }
 
-    @SuppressWarnings("for-rollout:deprecation")
     @Test
     public void testHandshakeTimeoutFailure() throws Exception {
         int serverPort = getPort(server);
