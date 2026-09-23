@@ -109,11 +109,10 @@ public class SizeLimitedInputStreamTest {
     @ParameterizedTest
     @EnumSource
     void readAllBytes(BytesAvailable available) {
-        BytesRead read =
-                switch (available) {
-                    case BELOW_LIMIT, EXACT_LIMIT -> BytesRead.AT_MIN_AVAILABLE_AND_LIMIT;
-                    case ABOVE_LIMIT -> BytesRead.AT_MAX_AVAILABLE_AND_LIMIT;
-                };
+        BytesRead read = switch (available) {
+            case BELOW_LIMIT, EXACT_LIMIT -> BytesRead.AT_MIN_AVAILABLE_AND_LIMIT;
+            case ABOVE_LIMIT -> BytesRead.AT_MAX_AVAILABLE_AND_LIMIT;
+        };
         test(s -> s.readAllBytes().length, available, read);
     }
 
