@@ -362,7 +362,7 @@ acceptedBreaks:
     com.palantir.dialogue:dialogue-clients:
       - code: "java.method.addedToInterface"
         new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
-        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withConcurrencyLimiterExponentialRamp(boolean, double)"
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withConcurrencyLimiterExponentialRamp(boolean, int)"
         justification: "Adding support for custom initial limit for exponential ramping"
   "6.7.0":
     com.palantir.dialogue:dialogue-target:

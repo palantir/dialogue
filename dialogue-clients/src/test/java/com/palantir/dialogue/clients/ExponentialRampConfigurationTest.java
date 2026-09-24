@@ -58,7 +58,7 @@ class ExponentialRampConfigurationTest {
                 .withTaggedMetrics(metrics)
                 .withDnsNodeDiscovery(false);
         if (customLimit) {
-            factory = factory.withConcurrencyLimiterExponentialRamp(true, 50.5);
+            factory = factory.withConcurrencyLimiterExponentialRamp(true, 50);
         }
         // The boolean-only overload must preserve a previously configured initial limit.
         factory = factory.withConcurrencyLimiterExponentialRamp(true);
@@ -77,7 +77,7 @@ class ExponentialRampConfigurationTest {
                             .filter(entry -> entry.getKey().safeName().equals("dialogue.concurrencylimiter.max"))
                             .map(entry -> ((Gauge<?>) entry.getValue()).getValue()))
                     .singleElement()
-                    .isEqualTo(customLimit ? 50.5 : 20D);
+                    .isEqualTo(customLimit ? 50D : 20D);
         } finally {
             // The gauge holds its limiter weakly, so retain the channel until after reading it.
             Reference.reachabilityFence(channel);
@@ -93,7 +93,7 @@ class ExponentialRampConfigurationTest {
                 .dnsNodeDiscovery(false)
                 .concurrencyLimiterExponentialRamp(true)
                 .build();
-        ImmutableReloadingParams customParams = params.withConcurrencyLimiterExponentialRampInitialLimit(50.5);
+        ImmutableReloadingParams customParams = params.withConcurrencyLimiterExponentialRampInitialLimit(50);
 
         DialogueChannel defaultChannel = cache.getNonReloadingChannel(params, SERVICE_CONFIG, SERVICE);
         DialogueChannel customChannel = cache.getNonReloadingChannel(customParams, SERVICE_CONFIG, SERVICE);

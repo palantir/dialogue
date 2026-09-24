@@ -288,7 +288,7 @@ final class ChannelCache {
 
         boolean concurrencyLimiterExponentialRamp();
 
-        double concurrencyLimiterExponentialRampInitialLimit();
+        int concurrencyLimiterExponentialRampInitialLimit();
     }
 
     @Unsafe
