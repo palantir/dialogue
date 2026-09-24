@@ -97,6 +97,11 @@ interface Config {
         return false;
     }
 
+    @Value.Default
+    default double concurrencyLimiterExponentialRampInitialLimit() {
+        return ExponentialRampConcurrencyLimiter.INITIAL_LIMIT;
+    }
+
     @Value.Check
     default void check() {
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");

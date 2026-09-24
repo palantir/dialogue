@@ -74,7 +74,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex, ChannelState hostSpecificState) {
         TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
         ConcurrencyLimiter limiter = exponentialRampEnabled(cf)
-                ? hostSpecificState.getState(HOST_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY)
+                ? hostSpecificState.getState(
+                        HOST_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY,
+                        () -> new ExponentialRampConcurrencyLimiter(
+                                Behavior.HOST_LEVEL, cf.concurrencyLimiterExponentialRampInitialLimit()))
                 : hostSpecificState.getState(HOST_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
@@ -89,7 +92,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     static LimitedChannel createForEndpoint(
             Channel channel, Config cf, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
         ConcurrencyLimiter limiter = exponentialRampEnabled(cf)
-                ? endpointChannelState.getState(ENDPOINT_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY)
+                ? endpointChannelState.getState(
+                        ENDPOINT_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY,
+                        () -> new ExponentialRampConcurrencyLimiter(
+                                Behavior.ENDPOINT_LEVEL, cf.concurrencyLimiterExponentialRampInitialLimit()))
                 : endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new EndpointConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, endpoint);
