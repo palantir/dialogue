@@ -174,7 +174,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         @Value.Default
-        default double concurrencyLimiterExponentialRampInitialLimit() {
+        default int concurrencyLimiterExponentialRampInitialLimit() {
             return 20;
         }
     }
@@ -469,7 +469,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled, double limit) {
+    public ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled, int limit) {
         return new ReloadingClientFactory(
                 params.withConcurrencyLimiterExponentialRamp(enabled)
                         .withConcurrencyLimiterExponentialRampInitialLimit(limit),

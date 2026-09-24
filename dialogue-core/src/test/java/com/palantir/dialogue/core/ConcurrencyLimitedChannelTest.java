@@ -118,8 +118,8 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     @ParameterizedTest
-    @ValueSource(doubles = {20, 50.5})
-    public void testConfiguredExponentialRampLimitAndReusedState_host(double initialLimit) {
+    @ValueSource(ints = {20, 50})
+    public void testConfiguredExponentialRampLimitAndReusedState_host(int initialLimit) {
         ChannelState state = new ChannelState();
         ClientConfiguration clientConfig = mock(ClientConfiguration.class);
         when(clientConfig.taggedMetricRegistry()).thenReturn(new DefaultTaggedMetricRegistry());
@@ -176,8 +176,8 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     @ParameterizedTest
-    @ValueSource(doubles = {20, 50.5})
-    public void testConfiguredExponentialRampLimitAndReusedState_endpoint(double initialLimit) {
+    @ValueSource(ints = {20, 50})
+    public void testConfiguredExponentialRampLimitAndReusedState_endpoint(int initialLimit) {
         ChannelState state = new ChannelState();
         Config config = mock(Config.class);
         when(config.channelName()).thenReturn("channel");

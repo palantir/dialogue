@@ -243,7 +243,7 @@ public final class DialogueClients {
         ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled);
 
         @Beta
-        ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled, double initialLimit);
+        ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled, int initialLimit);
 
         StickyChannelFactory getStickyChannels(String serviceName);
 
