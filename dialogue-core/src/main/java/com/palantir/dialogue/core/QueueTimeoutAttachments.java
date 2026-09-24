@@ -21,29 +21,26 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestAttachmentKey;
 import javax.annotation.Nullable;
 
-/**
- * Attachment for sharing a queue timeout expiration across both the channel-level and endpoint-level
- * {@link QueuedChannel} instances. The first queue to enqueue a request stamps an absolute expiration time (nanos from
- * {@link com.github.benmanes.caffeine.cache.Ticker#read()}). The second queue reads the existing expiration and uses
- * the remaining budget.
- */
+/** Shares the configured queue-timeout expiration across {@link QueuedChannel} instances. */
 final class QueueTimeoutAttachments {
-    private static final RequestAttachmentKey<Long> QUEUE_EXPIRATION_NANOS = RequestAttachmentKey.create(Long.class);
+    private static final RequestAttachmentKey<Long> CONFIGURED_EXPIRATION_NANOS =
+            RequestAttachmentKey.create(Long.class);
 
     private QueueTimeoutAttachments() {}
 
-    /** Clears the expiration so the next queue stamps a fresh budget (used on retry). */
-    static void clearExpiration(Request request) {
-        request.attachments().remove(QUEUE_EXPIRATION_NANOS);
+    /** Clears the configured expiration so the next queue stamps a fresh budget (used on retry). */
+    static void clearConfiguredExpiration(Request request) {
+        request.attachments().remove(CONFIGURED_EXPIRATION_NANOS);
     }
 
-    /** Sets the expiration only if one hasn't been set yet. */
-    static void setExpirationIfAbsent(Request request, long expirationNanos) {
-        request.attachments().putIfAbsent(QUEUE_EXPIRATION_NANOS, expirationNanos);
+    /** Returns the configured expiration, initializing it to the candidate value if absent. */
+    static long setConfiguredExpirationIfAbsent(Request request, long candidateExpirationNanos) {
+        Long existing = request.attachments().putIfAbsent(CONFIGURED_EXPIRATION_NANOS, candidateExpirationNanos);
+        return existing != null ? existing : candidateExpirationNanos;
     }
 
     @VisibleForTesting
-    static @Nullable Long getExpiration(Request request) {
-        return request.attachments().getOrDefault(QUEUE_EXPIRATION_NANOS, null);
+    static @Nullable Long getConfiguredExpiration(Request request) {
+        return request.attachments().getOrDefault(CONFIGURED_EXPIRATION_NANOS, null);
     }
 }
