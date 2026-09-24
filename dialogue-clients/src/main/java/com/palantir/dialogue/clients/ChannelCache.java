@@ -139,6 +139,8 @@ final class ChannelCache {
                 .dnsNodeDiscovery(overrideHostIndex.isEmpty() && reloadingParams.dnsNodeDiscovery())
                 .deadlineEnforcement(reloadingParams.deadlineEnforcement())
                 .concurrencyLimiterExponentialRamp(reloadingParams.concurrencyLimiterExponentialRamp())
+                .concurrencyLimiterExponentialRampInitialLimit(
+                        reloadingParams.concurrencyLimiterExponentialRampInitialLimit())
                 .build());
     }
 
@@ -187,6 +189,8 @@ final class ChannelCache {
                         .findAny())
                 .deadlineEnforcement(channelCacheRequest.deadlineEnforcement())
                 .concurrencyLimiterExponentialRamp(channelCacheRequest.concurrencyLimiterExponentialRamp())
+                .concurrencyLimiterExponentialRampInitialLimit(
+                        channelCacheRequest.concurrencyLimiterExponentialRampInitialLimit())
                 .build();
     }
 
@@ -283,6 +287,8 @@ final class ChannelCache {
         Optional<Boolean> deadlineEnforcement();
 
         boolean concurrencyLimiterExponentialRamp();
+
+        double concurrencyLimiterExponentialRampInitialLimit();
     }
 
     @Unsafe

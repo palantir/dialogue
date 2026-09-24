@@ -20,6 +20,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -36,12 +37,12 @@ import org.jspecify.annotations.Nullable;
 final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
 
     private static final SafeLogger log = SafeLoggerFactory.get(ExponentialRampConcurrencyLimiter.class);
-    private static final double INITIAL_LIMIT = 20;
+    static final double INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
     private static final double MIN_LIMIT = 1;
     private static final double MAX_LIMIT = 1_000_000D;
 
-    private final AtomicDouble limit = new AtomicDouble(INITIAL_LIMIT);
+    private final AtomicDouble limit;
 
     /**
      * Whether the limiter is still in its initial exponential ramp. Starts true and switches to false on the first
@@ -58,7 +59,18 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
     private volatile String channelNameForLogging = "unknown";
 
     ExponentialRampConcurrencyLimiter(Behavior behavior) {
+        this(behavior, INITIAL_LIMIT);
+    }
+
+    ExponentialRampConcurrencyLimiter(Behavior behavior, double initialLimit) {
+        Preconditions.checkArgument(
+                initialLimit >= MIN_LIMIT && initialLimit <= MAX_LIMIT,
+                "initialLimit must be within the supported range",
+                SafeArg.of("initialLimit", initialLimit),
+                SafeArg.of("minLimit", MIN_LIMIT),
+                SafeArg.of("maxLimit", MAX_LIMIT));
         this.behavior = behavior;
+        this.limit = new AtomicDouble(initialLimit);
     }
 
     @Override
