@@ -17,18 +17,30 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 final class ExponentialRampConcurrencyLimiterTest {
 
     private final ExponentialRampConcurrencyLimiter limiter =
             new ExponentialRampConcurrencyLimiter(Behavior.HOST_LEVEL);
+
+    @ParameterizedTest
+    @ValueSource(doubles = {-1, 0, 0.5, 1_000_001, Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY})
+    void rejectsInvalidInitialLimit(double initialLimit) {
+        assertThatThrownBy(() -> new ExponentialRampConcurrencyLimiter(Behavior.HOST_LEVEL, initialLimit))
+                .isInstanceOf(SafeIllegalArgumentException.class)
+                .hasMessageContaining("initialLimit must be within the supported range");
+    }
 
     @Test
     void increasesLimitByOne() {
