@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -231,7 +232,7 @@ public final class DialogueChannelTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void captures_deadline_suppression_before_queueing(boolean suppressOnCaller) {
+    void captures_disabled_deadline_enforcement_before_queueing(boolean disabledOnCaller) {
         int initialConcurrencyLimit = (int) CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.INITIAL_LIMIT;
         SettableFuture<Response> inFlight = SettableFuture.create();
         TestResponse expected = new TestResponse().code(200);
@@ -258,8 +259,8 @@ public final class DialogueChannelTest {
                     Optional.of(Duration.ZERO), request, (_request, _header) -> Optional.empty(), Enforcement.ENFORCE);
             AtomicReference<ListenableFuture<Response>> queuedResult = new AtomicReference<>();
             Runnable enqueue = () -> queuedResult.set(channel.execute(endpoint, request));
-            if (suppressOnCaller) {
-                Deadlines.withoutInheritedDeadlines(enqueue);
+            if (disabledOnCaller) {
+                Deadlines.withEnforcementDisabled(enqueue);
             } else {
                 enqueue.run();
             }
@@ -267,18 +268,19 @@ public final class DialogueChannelTest {
             assertThat(queued).isNotDone();
             assertThat(sent).hasSize(initialConcurrencyLimit);
 
-            Runnable complete = () -> inFlight.set(new TestResponse().code(200));
-            if (suppressOnCaller) {
-                complete.run();
-            } else {
-                Deadlines.withoutInheritedDeadlines(complete);
-            }
+            // Drains the queue once the scope has closed, so the attempt is encoded from what was captured at
+            // enqueue rather than from anything the dispatching thread can still see.
+            inFlight.set(new TestResponse().code(200));
 
-            if (suppressOnCaller) {
+            if (disabledOnCaller) {
                 assertThat(queued).succeedsWithin(Duration.ofSeconds(5)).isSameAs(expected);
                 assertThat(sent).hasSize(initialConcurrencyLimit + 1);
-                assertThat(sent.get(initialConcurrencyLimit).headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN))
-                        .containsExactly("5.000");
+                Request outgoing = sent.get(initialConcurrencyLimit);
+                assertThat(outgoing.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN))
+                        .as("the expired deadline still propagates, it is only left unenforced")
+                        .containsExactly("0");
+                assertThat(outgoing.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN_ENFORCED))
+                        .containsExactly("false");
             } else {
                 assertThat(queued)
                         .failsWithin(Duration.ofSeconds(5))
@@ -286,12 +288,54 @@ public final class DialogueChannelTest {
                         .withCauseInstanceOf(DeadlineExpiredException.Internal.class);
                 assertThat(sent).hasSize(initialConcurrencyLimit);
             }
-            assertThat(Deadlines.isSuppressed()).isFalse();
+            assertThat(Deadlines.isEnforcementDisabled()).isFalse();
         }
     }
 
     @Test
-    void preserves_deadline_suppression_when_retrying_after_scope_closes() {
+    void disabling_enforcement_on_the_dispatching_thread_also_applies() {
+        int initialConcurrencyLimit = (int) CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.INITIAL_LIMIT;
+        SettableFuture<Response> inFlight = SettableFuture.create();
+        TestResponse expected = new TestResponse().code(200);
+        List<Request> sent = new ArrayList<>();
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .readTimeout(Duration.ofSeconds(5))
+                        .maxNumRetries(0)
+                        .build())
+                .deadlineEnforcement(Optional.of(true))
+                .factory(_args -> (_endpoint, outgoing) -> {
+                    sent.add(outgoing);
+                    return sent.size() <= initialConcurrencyLimit ? inFlight : Futures.immediateFuture(expected);
+                })
+                .build();
+        for (int i = 0; i < initialConcurrencyLimit; i++) {
+            assertThat(channel.execute(endpoint, Request.builder().build())).isNotDone();
+        }
+
+        try (CloseableTracer tracer = CloseableTracer.startSpan("test")) {
+            Deadlines.parseFromRequest(
+                    Optional.of(Duration.ZERO), request, (_request, _header) -> Optional.empty(), Enforcement.ENFORCE);
+            ListenableFuture<Response> queued = channel.execute(endpoint, request);
+            assertThat(queued).isNotDone();
+
+            // Drains the queue from inside a scope the enqueueing caller never opened. A disabled thread wins over
+            // whatever enforcement the attempt would otherwise carry, so the queued request is no longer enforced.
+            Deadlines.withEnforcementDisabled(() -> inFlight.set(new TestResponse().code(200)));
+
+            assertThat(queued).succeedsWithin(Duration.ofSeconds(5)).isSameAs(expected);
+            Request outgoing = sent.get(initialConcurrencyLimit);
+            assertThat(outgoing.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN))
+                    .containsExactly("0");
+            assertThat(outgoing.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN_ENFORCED))
+                    .containsExactly("false");
+        }
+    }
+
+    @Test
+    void preserves_disabled_deadline_enforcement_when_retrying_after_scope_closes() {
         SettableFuture<Response> firstAttempt = SettableFuture.create();
         TestResponse expected = new TestResponse().code(200);
         List<Request> sent = new ArrayList<>();
@@ -315,7 +359,7 @@ public final class DialogueChannelTest {
             Deadlines.parseFromRequest(
                     Optional.of(Duration.ZERO), request, (_request, _header) -> Optional.empty(), Enforcement.ENFORCE);
             AtomicReference<ListenableFuture<Response>> capturedResult = new AtomicReference<>();
-            Deadlines.withoutInheritedDeadlines(() -> capturedResult.set(channel.execute(endpoint, request)));
+            Deadlines.withEnforcementDisabled(() -> capturedResult.set(channel.execute(endpoint, request)));
             ListenableFuture<Response> result = capturedResult.get();
             assertThat(result).isNotDone();
             assertThat(sent).hasSize(1);
@@ -324,8 +368,11 @@ public final class DialogueChannelTest {
 
             assertThat(result).succeedsWithin(Duration.ofSeconds(5)).isSameAs(expected);
             assertThat(sent)
-                    .extracting(outgoing -> outgoing.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN))
-                    .containsExactly(List.of("5.000"), List.of("5.000"));
+                    .as("the retry runs on the backoff scheduler, which never saw the caller's scope")
+                    .extracting(
+                            outgoing -> outgoing.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN),
+                            outgoing -> outgoing.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN_ENFORCED))
+                    .containsExactly(tuple(List.of("0"), List.of("false")), tuple(List.of("0"), List.of("false")));
         }
     }
 
