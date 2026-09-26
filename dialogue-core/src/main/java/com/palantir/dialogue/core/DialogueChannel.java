@@ -158,6 +158,12 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        @Beta
+        public Builder concurrencyLimiterExponentialRampInitialLimit(int limit) {
+            builder.concurrencyLimiterExponentialRampInitialLimit(limit);
+            return this;
+        }
+
         @VisibleForTesting
         Builder random(Random value) {
             builder.random(value);

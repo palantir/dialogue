@@ -48,6 +48,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
@@ -77,6 +78,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -125,6 +127,20 @@ public final class DialogueChannelTest {
     @Test
     public void testRequestMakesItThrough() throws ExecutionException, InterruptedException {
         assertThat(channel.execute(endpoint, request).get()).isNotNull();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, -1", "true, 0", "true, 1000001", "false, -1", "false, 0", "false, 1000001"})
+    void rejectsInvalidExponentialRampInitialLimit(boolean enabled, int initialLimit) {
+        assertThatThrownBy(() -> DialogueChannel.builder()
+                        .channelName("my-channel")
+                        .clientConfiguration(stubConfig)
+                        .factory(_args -> mockChannel)
+                        .concurrencyLimiterExponentialRamp(enabled)
+                        .concurrencyLimiterExponentialRampInitialLimit(initialLimit)
+                        .build())
+                .isInstanceOf(SafeIllegalArgumentException.class)
+                .hasMessageContaining("initialLimit must be within the supported range");
     }
 
     @Test
