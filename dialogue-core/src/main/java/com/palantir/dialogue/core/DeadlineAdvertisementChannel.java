@@ -64,7 +64,11 @@ final class DeadlineAdvertisementChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Request.Builder requestBuilder = Request.builder().from(request);
         try {
-            Deadlines.encodeToRequest(readTimeout, requestBuilder, RequestBuilderEncodingAdapter.INSTANCE, enforcement);
+            Deadlines.encodeToRequest(
+                    readTimeout,
+                    requestBuilder,
+                    RequestBuilderEncodingAdapter.INSTANCE,
+                    DeadlineEnforcementChannel.isEnforcementDisabled(request) ? Enforcement.DISABLE : enforcement);
         } catch (DeadlineExpiredException e) {
             return Futures.immediateFailedFuture(e);
         }
