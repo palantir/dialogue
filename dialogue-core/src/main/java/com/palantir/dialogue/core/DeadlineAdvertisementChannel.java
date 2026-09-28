@@ -68,7 +68,9 @@ final class DeadlineAdvertisementChannel implements Channel {
                     readTimeout,
                     requestBuilder,
                     RequestBuilderEncodingAdapter.INSTANCE,
-                    DeadlineEnforcementChannel.isEnforcementDisabled(request) ? Enforcement.DISABLE : enforcement);
+                    enforcement,
+                    Boolean.TRUE.equals(
+                            request.attachments().getOrDefault(DeadlineSuppressionChannel.SUPPRESSED, false)));
         } catch (DeadlineExpiredException e) {
             return Futures.immediateFailedFuture(e);
         }

@@ -23,30 +23,20 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.dialogue.Response;
 
-/**
- * Captures the caller thread's deadline enforcement override before requests can be queued or retried.
- * <p>
- * {@link Deadlines#withEnforcementDisabled} is thread-local, so it is only visible while the calling thread is
- * inside the scope. Later attempts run on queue and retry threads, which restore the trace but not the override, so
- * it is recorded here and applied by {@link DeadlineAdvertisementChannel} on every attempt.
- */
-final class DeadlineEnforcementChannel implements EndpointChannel {
+/** Captures thread-local deadline suppression before requests can be queued or retried. */
+final class DeadlineSuppressionChannel implements EndpointChannel {
 
-    static final RequestAttachmentKey<Boolean> ENFORCEMENT_DISABLED = RequestAttachmentKey.create(Boolean.class);
+    static final RequestAttachmentKey<Boolean> SUPPRESSED = RequestAttachmentKey.create(Boolean.class);
 
     private final EndpointChannel delegate;
 
-    DeadlineEnforcementChannel(EndpointChannel delegate) {
+    DeadlineSuppressionChannel(EndpointChannel delegate) {
         this.delegate = delegate;
-    }
-
-    static boolean isEnforcementDisabled(Request request) {
-        return Boolean.TRUE.equals(request.attachments().getOrDefault(ENFORCEMENT_DISABLED, false));
     }
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        request.attachments().put(ENFORCEMENT_DISABLED, Deadlines.isEnforcementDisabled());
+        request.attachments().put(SUPPRESSED, Deadlines.isSuppressed());
         return delegate.execute(request);
     }
 }
