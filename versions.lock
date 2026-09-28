@@ -38,11 +38,11 @@ com.palantir.common:streams:2.15.0 (1 constraints: 3a053e3b)
 
 com.palantir.conjure.java:conjure-lib:8.89.0 (2 constraints: 42245f7d)
 
-com.palantir.conjure.java.api:errors:2.79.0 (3 constraints: 9029db18)
+com.palantir.conjure.java.api:errors:2.80.0 (3 constraints: 88298415)
 
-com.palantir.conjure.java.api:service-config:2.79.0 (2 constraints: 671956de)
+com.palantir.conjure.java.api:service-config:2.80.0 (2 constraints: 5f1977dc)
 
-com.palantir.conjure.java.api:ssl-config:2.79.0 (4 constraints: 1c3f40a7)
+com.palantir.conjure.java.api:ssl-config:2.80.0 (4 constraints: 0c3f829e)
 
 com.palantir.conjure.java.runtime:client-config:8.42.0 (1 constraints: 4005653b)
 
