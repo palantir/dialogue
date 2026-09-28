@@ -64,15 +64,15 @@ com.palantir.refreshable:refreshable:2.18.0 (2 constraints: 58198edc)
 
 com.palantir.ri:resource-identifier:2.22.0 (2 constraints: 5515f5d9)
 
-com.palantir.safe-logging:logger:3.19.0 (14 constraints: 88e1fa50)
+com.palantir.safe-logging:logger:3.20.0 (14 constraints: 80e13b3d)
 
-com.palantir.safe-logging:logger-slf4j:3.19.0 (1 constraints: 380ea250)
+com.palantir.safe-logging:logger-slf4j:3.20.0 (1 constraints: 300e8b50)
 
-com.palantir.safe-logging:logger-spi:3.19.0 (2 constraints: 7f1ebab1)
+com.palantir.safe-logging:logger-spi:3.20.0 (2 constraints: 6f1e0cb0)
 
-com.palantir.safe-logging:preconditions:3.19.0 (21 constraints: fa53ac6f)
+com.palantir.safe-logging:preconditions:3.20.0 (21 constraints: ea530e48)
 
-com.palantir.safe-logging:safe-logging:3.19.0 (20 constraints: 5145f502)
+com.palantir.safe-logging:safe-logging:3.20.0 (20 constraints: 29455bc0)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.14.0 (1 constraints: 37052f3b)
 
@@ -162,7 +162,7 @@ com.google.testing.compile:compile-testing:0.23.0 (1 constraints: 3705303b)
 
 com.google.truth:truth:1.4.5 (1 constraints: 1d1219fb)
 
-com.palantir.safe-logging:preconditions-assertj:3.19.0 (1 constraints: 3f05503b)
+com.palantir.safe-logging:preconditions-assertj:3.20.0 (1 constraints: 3705393b)
 
 com.palantir.tracing:tracing-test-utils:6.41.0 (1 constraints: 3d05563b)
 
