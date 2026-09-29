@@ -108,6 +108,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
                 .deadlineEnforcement(params.deadlineEnforcement())
                 .concurrencyLimiterExponentialRamp(params.concurrencyLimiterExponentialRamp())
+                .concurrencyLimiterExponentialRampInitialLimit(params.concurrencyLimiterExponentialRampInitialLimit())
                 .build();
     }
 
@@ -170,6 +171,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Value.Default
         default boolean concurrencyLimiterExponentialRamp() {
             return false;
+        }
+
+        @Value.Default
+        default int concurrencyLimiterExponentialRampInitialLimit() {
+            return 20;
         }
     }
 
@@ -460,6 +466,14 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled) {
         return new ReloadingClientFactory(params.withConcurrencyLimiterExponentialRamp(enabled), cache);
+    }
+
+    @Override
+    public ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled, int limit) {
+        return new ReloadingClientFactory(
+                params.withConcurrencyLimiterExponentialRamp(enabled)
+                        .withConcurrencyLimiterExponentialRampInitialLimit(limit),
+                cache);
     }
 
     @Override
