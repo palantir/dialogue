@@ -200,7 +200,7 @@ net.sf.jopt-simple:jopt-simple:5.0.4 (1 constraints: be0ad6cc)
 
 org.apache-extras.beanshell:bsh:2.0b6 (1 constraints: ac07626b)
 
-org.apache.commons:commons-lang3:3.20.0 (1 constraints: 3705393b)
+org.apache.commons:commons-lang3:3.21.0 (1 constraints: 38053c3b)
 
 org.apache.commons:commons-math3:3.6.1 (1 constraints: bf0adbcc)
 
