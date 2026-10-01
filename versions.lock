@@ -2,9 +2,9 @@
 
 com.fasterxml.jackson.core:jackson-annotations:2.22 (10 constraints: 4eb498b7)
 
-com.fasterxml.jackson.core:jackson-core:2.22.3 (11 constraints: 5be516c9)
+com.fasterxml.jackson.core:jackson-core:2.22.3 (11 constraints: 5de5b4c9)
 
-com.fasterxml.jackson.core:jackson-databind:2.22.3 (15 constraints: 4831f053)
+com.fasterxml.jackson.core:jackson-databind:2.22.3 (15 constraints: 4a31a656)
 
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.22.3 (1 constraints: 7d1c9ba4)
 
@@ -36,7 +36,7 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.15.0 (1 constraints: 3a053e3b)
 
-com.palantir.conjure.java:conjure-lib:8.90.0 (2 constraints: 3a24d07a)
+com.palantir.conjure.java:conjure-lib:8.91.0 (2 constraints: 3b24227b)
 
 com.palantir.conjure.java.api:errors:2.80.0 (3 constraints: 8029a513)
 
