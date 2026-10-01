@@ -64,7 +64,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -265,38 +264,21 @@ public class QueuedChannelTest {
         testQueuedRequestExecutedWhenRunningRequestCompletes();
     }
 
-    @ParameterizedTest
-    @EnumSource(Completion.class)
-    public void testRequeuedRequestExecutesWhenLastRequestCompletesDuringRejection(Completion completion) {
-        assertRequeuedRequestExecutesWhenLastRequestCompletesDuringRejection(completion, false);
-    }
-
-    @ParameterizedTest
-    @EnumSource(Completion.class)
-    public void testRequeuedRequestExecutesWhenLastQueuedRequestCompletesDuringRejection(Completion completion) {
-        assertRequeuedRequestExecutesWhenLastRequestCompletesDuringRejection(completion, true);
-    }
-
-    private static void assertRequeuedRequestExecutesWhenLastRequestCompletesDuringRejection(
-            Completion completion, boolean firstRequestWasQueued) {
-        SettableFuture<Response> blocker = SettableFuture.create();
+    @Test
+    public void testRequeuedRequestExecutesWhenLastRequestSucceedsDuringRejection() {
         SettableFuture<Response> first = SettableFuture.create();
         SettableFuture<Response> second = SettableFuture.create();
         AtomicInteger attempts = new AtomicInteger();
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
             LimitedChannel delegate = (_endpoint, _request, enforcement) -> {
-                int attempt = attempts.incrementAndGet();
-                if (firstRequestWasQueued && attempt <= 3) {
-                    return attempt == 1 ? Optional.of(blocker) : Optional.empty();
-                }
-                return switch (attempt - (firstRequestWasQueued ? 3 : 0)) {
+                return switch (attempts.incrementAndGet()) {
                     case 1 -> Optional.of(first);
                     case 2 -> Optional.empty();
                     case 3 -> {
                         assertThat(enforcement.enforceLimits()).isTrue();
                         // The last completion must drain the temporarily empty queue before this call is requeued.
-                        assertThat(executor.submit(() -> completion.complete(first)))
+                        assertThat(executor.submit(() -> first.set(new TestResponse().code(200))))
                                 .succeedsWithin(Duration.ofSeconds(5));
                         yield Optional.empty();
                     }
@@ -308,18 +290,17 @@ public class QueuedChannelTest {
                 };
             };
             QueuedChannel queued = createQueue(delegate);
-            if (firstRequestWasQueued) {
-                queued.execute(TestEndpoint.GET, Request.builder().build());
-            }
             queued.execute(TestEndpoint.GET, Request.builder().build());
-            if (firstRequestWasQueued) {
-                blocker.set(new TestResponse().code(200));
-            }
+            assertThat(attempts).hasValue(1);
+            assertThat(first).isNotDone();
+
             ListenableFuture<Response> response =
                     queued.execute(TestEndpoint.GET, Request.builder().build());
 
             assertThat(first).isDone();
-            assertThat(attempts).hasValue(firstRequestWasQueued ? 7 : 4);
+            assertThat(attempts)
+                    .as("requeued request is dispatched without another wakeup")
+                    .hasValue(4);
             assertThat(response).isNotDone();
             TestResponse expected = new TestResponse().code(200);
             second.set(expected);
@@ -330,17 +311,257 @@ public class QueuedChannelTest {
         }
     }
 
-    private enum Completion {
-        SUCCESS,
-        FAILURE,
-        CANCELLATION;
+    @Test
+    public void testRequeuedRequestExecutesWhenLastRequestFailsDuringRejection() {
+        SettableFuture<Response> first = SettableFuture.create();
+        SettableFuture<Response> second = SettableFuture.create();
+        AtomicInteger attempts = new AtomicInteger();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            LimitedChannel delegate = (_endpoint, _request, enforcement) -> {
+                return switch (attempts.incrementAndGet()) {
+                    case 1 -> Optional.of(first);
+                    case 2 -> Optional.empty();
+                    case 3 -> {
+                        assertThat(enforcement.enforceLimits()).isTrue();
+                        // The last completion must drain the temporarily empty queue before this call is requeued.
+                        assertThat(executor.submit(() -> first.setException(new IllegalStateException("expected"))))
+                                .succeedsWithin(Duration.ofSeconds(5));
+                        yield Optional.empty();
+                    }
+                    case 4 -> {
+                        assertThat(enforcement.enforceLimits()).isFalse();
+                        yield Optional.of(second);
+                    }
+                    default -> throw new AssertionError("Unexpected dispatch attempt");
+                };
+            };
+            QueuedChannel queued = createQueue(delegate);
+            queued.execute(TestEndpoint.GET, Request.builder().build());
+            assertThat(attempts).hasValue(1);
+            assertThat(first).isNotDone();
 
-        void complete(SettableFuture<Response> response) {
-            switch (this) {
-                case SUCCESS -> response.set(new TestResponse().code(200));
-                case FAILURE -> response.setException(new IllegalStateException("expected"));
-                case CANCELLATION -> response.cancel(false);
-            }
+            ListenableFuture<Response> response =
+                    queued.execute(TestEndpoint.GET, Request.builder().build());
+
+            assertThat(first).isDone();
+            assertThat(attempts)
+                    .as("requeued request is dispatched without another wakeup")
+                    .hasValue(4);
+            assertThat(response).isNotDone();
+            TestResponse expected = new TestResponse().code(200);
+            second.set(expected);
+            assertThat(response).succeedsWithin(Duration.ZERO).isSameAs(expected);
+        } finally {
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(5)))
+                    .isTrue();
+        }
+    }
+
+    @Test
+    public void testRequeuedRequestExecutesWhenLastRequestIsCancelledDuringRejection() {
+        SettableFuture<Response> first = SettableFuture.create();
+        SettableFuture<Response> second = SettableFuture.create();
+        AtomicInteger attempts = new AtomicInteger();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            LimitedChannel delegate = (_endpoint, _request, enforcement) -> {
+                return switch (attempts.incrementAndGet()) {
+                    case 1 -> Optional.of(first);
+                    case 2 -> Optional.empty();
+                    case 3 -> {
+                        assertThat(enforcement.enforceLimits()).isTrue();
+                        // The last completion must drain the temporarily empty queue before this call is requeued.
+                        assertThat(executor.submit(() -> first.cancel(false))).succeedsWithin(Duration.ofSeconds(5));
+                        yield Optional.empty();
+                    }
+                    case 4 -> {
+                        assertThat(enforcement.enforceLimits()).isFalse();
+                        yield Optional.of(second);
+                    }
+                    default -> throw new AssertionError("Unexpected dispatch attempt");
+                };
+            };
+            QueuedChannel queued = createQueue(delegate);
+            queued.execute(TestEndpoint.GET, Request.builder().build());
+            assertThat(attempts).hasValue(1);
+            assertThat(first).isNotDone();
+
+            ListenableFuture<Response> response =
+                    queued.execute(TestEndpoint.GET, Request.builder().build());
+
+            assertThat(first).isDone();
+            assertThat(attempts)
+                    .as("requeued request is dispatched without another wakeup")
+                    .hasValue(4);
+            assertThat(response).isNotDone();
+            TestResponse expected = new TestResponse().code(200);
+            second.set(expected);
+            assertThat(response).succeedsWithin(Duration.ZERO).isSameAs(expected);
+        } finally {
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(5)))
+                    .isTrue();
+        }
+    }
+
+    @Test
+    public void testRequeuedRequestExecutesWhenLastQueuedRequestSucceedsDuringRejection() {
+        SettableFuture<Response> blocker = SettableFuture.create();
+        SettableFuture<Response> first = SettableFuture.create();
+        SettableFuture<Response> second = SettableFuture.create();
+        AtomicInteger attempts = new AtomicInteger();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            LimitedChannel delegate = (_endpoint, _request, enforcement) -> {
+                return switch (attempts.incrementAndGet()) {
+                    case 1 -> Optional.of(blocker);
+                    case 2, 3 -> Optional.empty();
+                    case 4 -> Optional.of(first);
+                    case 5 -> Optional.empty();
+                    case 6 -> {
+                        assertThat(enforcement.enforceLimits()).isTrue();
+                        // The last completion must drain the temporarily empty queue before this call is requeued.
+                        assertThat(executor.submit(() -> first.set(new TestResponse().code(200))))
+                                .succeedsWithin(Duration.ofSeconds(5));
+                        yield Optional.empty();
+                    }
+                    case 7 -> {
+                        assertThat(enforcement.enforceLimits()).isFalse();
+                        yield Optional.of(second);
+                    }
+                    default -> throw new AssertionError("Unexpected dispatch attempt");
+                };
+            };
+            QueuedChannel queued = createQueue(delegate);
+            queued.execute(TestEndpoint.GET, Request.builder().build());
+            queued.execute(TestEndpoint.GET, Request.builder().build());
+            assertThat(attempts).hasValue(3);
+
+            blocker.set(new TestResponse().code(200));
+            assertThat(attempts).hasValue(4);
+            assertThat(first).isNotDone();
+
+            ListenableFuture<Response> response =
+                    queued.execute(TestEndpoint.GET, Request.builder().build());
+
+            assertThat(first).isDone();
+            assertThat(attempts)
+                    .as("requeued request is dispatched without another wakeup")
+                    .hasValue(7);
+            assertThat(response).isNotDone();
+            TestResponse expected = new TestResponse().code(200);
+            second.set(expected);
+            assertThat(response).succeedsWithin(Duration.ZERO).isSameAs(expected);
+        } finally {
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(5)))
+                    .isTrue();
+        }
+    }
+
+    @Test
+    public void testRequeuedRequestExecutesWhenLastQueuedRequestFailsDuringRejection() {
+        SettableFuture<Response> blocker = SettableFuture.create();
+        SettableFuture<Response> first = SettableFuture.create();
+        SettableFuture<Response> second = SettableFuture.create();
+        AtomicInteger attempts = new AtomicInteger();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            LimitedChannel delegate = (_endpoint, _request, enforcement) -> {
+                return switch (attempts.incrementAndGet()) {
+                    case 1 -> Optional.of(blocker);
+                    case 2, 3 -> Optional.empty();
+                    case 4 -> Optional.of(first);
+                    case 5 -> Optional.empty();
+                    case 6 -> {
+                        assertThat(enforcement.enforceLimits()).isTrue();
+                        // The last completion must drain the temporarily empty queue before this call is requeued.
+                        assertThat(executor.submit(() -> first.setException(new IllegalStateException("expected"))))
+                                .succeedsWithin(Duration.ofSeconds(5));
+                        yield Optional.empty();
+                    }
+                    case 7 -> {
+                        assertThat(enforcement.enforceLimits()).isFalse();
+                        yield Optional.of(second);
+                    }
+                    default -> throw new AssertionError("Unexpected dispatch attempt");
+                };
+            };
+            QueuedChannel queued = createQueue(delegate);
+            queued.execute(TestEndpoint.GET, Request.builder().build());
+            queued.execute(TestEndpoint.GET, Request.builder().build());
+            assertThat(attempts).hasValue(3);
+
+            blocker.set(new TestResponse().code(200));
+            assertThat(attempts).hasValue(4);
+            assertThat(first).isNotDone();
+
+            ListenableFuture<Response> response =
+                    queued.execute(TestEndpoint.GET, Request.builder().build());
+
+            assertThat(first).isDone();
+            assertThat(attempts)
+                    .as("requeued request is dispatched without another wakeup")
+                    .hasValue(7);
+            assertThat(response).isNotDone();
+            TestResponse expected = new TestResponse().code(200);
+            second.set(expected);
+            assertThat(response).succeedsWithin(Duration.ZERO).isSameAs(expected);
+        } finally {
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(5)))
+                    .isTrue();
+        }
+    }
+
+    @Test
+    public void testRequeuedRequestExecutesWhenLastQueuedRequestIsCancelledDuringRejection() {
+        SettableFuture<Response> blocker = SettableFuture.create();
+        SettableFuture<Response> first = SettableFuture.create();
+        SettableFuture<Response> second = SettableFuture.create();
+        AtomicInteger attempts = new AtomicInteger();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            LimitedChannel delegate = (_endpoint, _request, enforcement) -> {
+                return switch (attempts.incrementAndGet()) {
+                    case 1 -> Optional.of(blocker);
+                    case 2, 3 -> Optional.empty();
+                    case 4 -> Optional.of(first);
+                    case 5 -> Optional.empty();
+                    case 6 -> {
+                        assertThat(enforcement.enforceLimits()).isTrue();
+                        // The last completion must drain the temporarily empty queue before this call is requeued.
+                        assertThat(executor.submit(() -> first.cancel(false))).succeedsWithin(Duration.ofSeconds(5));
+                        yield Optional.empty();
+                    }
+                    case 7 -> {
+                        assertThat(enforcement.enforceLimits()).isFalse();
+                        yield Optional.of(second);
+                    }
+                    default -> throw new AssertionError("Unexpected dispatch attempt");
+                };
+            };
+            QueuedChannel queued = createQueue(delegate);
+            queued.execute(TestEndpoint.GET, Request.builder().build());
+            queued.execute(TestEndpoint.GET, Request.builder().build());
+            assertThat(attempts).hasValue(3);
+
+            blocker.set(new TestResponse().code(200));
+            assertThat(attempts).hasValue(4);
+            assertThat(first).isNotDone();
+
+            ListenableFuture<Response> response =
+                    queued.execute(TestEndpoint.GET, Request.builder().build());
+
+            assertThat(first).isDone();
+            assertThat(attempts)
+                    .as("requeued request is dispatched without another wakeup")
+                    .hasValue(7);
+            assertThat(response).isNotDone();
+            TestResponse expected = new TestResponse().code(200);
+            second.set(expected);
+            assertThat(response).succeedsWithin(Duration.ZERO).isSameAs(expected);
+        } finally {
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(5)))
+                    .isTrue();
         }
     }
 
