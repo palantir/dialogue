@@ -30,6 +30,10 @@ import com.codahale.metrics.Counter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.deadlines.DeadlineExpiredException;
+import com.palantir.deadlines.Deadlines;
+import com.palantir.deadlines.Deadlines.Enforcement;
+import com.palantir.deadlines.DeadlinesHttpHeaders;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -38,8 +42,10 @@ import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.tracing.CloseableTracer;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TestTracing;
+import com.palantir.tracing.Tracer;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.List;
@@ -53,10 +59,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import org.awaitility.Awaitility;
 import org.jmock.lib.concurrent.DeterministicScheduler;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -98,6 +108,7 @@ public class QueuedChannelTest {
                 instrumentation,
                 maxQueueSize,
                 OptionalLong.empty(),
+                Optional.empty(),
                 Ticker.systemTicker(),
                 null);
     }
@@ -718,6 +729,7 @@ public class QueuedChannelTest {
                     instrumentation,
                     maxQueueSize,
                     OptionalLong.of(QUEUE_TIMEOUT_NANOS),
+                    Optional.empty(),
                     ticker,
                     scheduler);
         }
@@ -830,6 +842,7 @@ public class QueuedChannelTest {
                     instrumentation,
                     1,
                     OptionalLong.of(QUEUE_TIMEOUT_NANOS),
+                    Optional.empty(),
                     ticker,
                     capturingScheduler);
             setInFlightRequest();
@@ -847,12 +860,21 @@ public class QueuedChannelTest {
             runningTimeout.run();
             queuedChannel.schedule();
             assertThat(response)
-                    .failsWithin(Duration.ZERO)
-                    .withThrowableThat()
-                    .withCauseInstanceOf(QueueTimeoutException.class);
+                    .as("dispatch claimed the timeout handle, so the running callback cannot fail the request")
+                    .isNotDone();
             assertThat(instrumentation.requestsQueued().getCount()).isZero();
-            assertThat(instrumentation.requestQueueTimeout().getCount()).isOne();
+            assertThat(instrumentation
+                            .requestQueueTimeout(QueueTimeoutSource.CONFIGURED)
+                            .getCount())
+                    .isZero();
             assertThat(instrumentation.requestQueuedTime().getCount()).isOne();
+
+            delegate.lastDispatched(); // setInFlightRequest's dispatch
+            SettableFuture<Response> wire = delegate.lastDispatched();
+            assertThat(wire).as("the queued request reached the delegate").isNotNull();
+            TestResponse wireResponse = new TestResponse().code(200);
+            wire.set(wireResponse);
+            assertThat(response).succeedsWithin(Duration.ZERO).isSameAs(wireResponse);
 
             delegate.setAccepting(false);
             assertSingleQueueSlotAvailable();
@@ -865,7 +887,7 @@ public class QueuedChannelTest {
 
             // First execution: the delegate is rejecting, so the request queues and stamps an absolute expiration.
             ListenableFuture<Response> first = queuedChannel.execute(TestEndpoint.POST, reused);
-            assertThat(QueueTimeoutAttachments.getExpiration(reused))
+            assertThat(QueueTimeoutAttachments.getConfiguredExpiration(reused))
                     .as("first execution stamps the expiration at clock.read() + timeout")
                     .isEqualTo(QUEUE_TIMEOUT_NANOS);
 
@@ -877,7 +899,7 @@ public class QueuedChannelTest {
             wire.set(new TestResponse().code(200));
             assertThat(first).succeedsWithin(Duration.ZERO);
 
-            assertThat(QueueTimeoutAttachments.getExpiration(reused))
+            assertThat(QueueTimeoutAttachments.getConfiguredExpiration(reused))
                     .as("expiration is cleared on terminal completion so the request can be safely reused")
                     .isNull();
 
@@ -889,7 +911,7 @@ public class QueuedChannelTest {
             assertThat(second)
                     .as("reused request must not immediately time out from a stale deadline")
                     .isNotDone();
-            assertThat(QueueTimeoutAttachments.getExpiration(reused))
+            assertThat(QueueTimeoutAttachments.getConfiguredExpiration(reused))
                     .as("a fresh budget is stamped for the second execution")
                     .isEqualTo(QUEUE_TIMEOUT_NANOS * 3);
         }
@@ -1011,6 +1033,7 @@ public class QueuedChannelTest {
                     sharedInstrumentation,
                     QUEUE_SIZE,
                     OptionalLong.of(QUEUE_TIMEOUT_NANOS),
+                    Optional.empty(),
                     ticker,
                     scheduler);
             QueuedChannel queue2 = new QueuedChannel(
@@ -1020,6 +1043,7 @@ public class QueuedChannelTest {
                     sharedInstrumentation,
                     QUEUE_SIZE,
                     OptionalLong.of(QUEUE_TIMEOUT_NANOS),
+                    Optional.empty(),
                     ticker,
                     scheduler);
 
@@ -1031,11 +1055,12 @@ public class QueuedChannelTest {
 
             // No expiration before enqueue
             Request sharedRequest = Request.builder().build();
-            assertThat(QueueTimeoutAttachments.getExpiration(sharedRequest)).isNull();
+            assertThat(QueueTimeoutAttachments.getConfiguredExpiration(sharedRequest))
+                    .isNull();
 
             // Enqueue in queue1 at ticker=0 — stamps expiration at 0 + TIMEOUT
             queue1.execute(TestEndpoint.POST, sharedRequest);
-            Long expirationAfterQueue1 = QueueTimeoutAttachments.getExpiration(sharedRequest);
+            Long expirationAfterQueue1 = QueueTimeoutAttachments.getConfiguredExpiration(sharedRequest);
             assertThat(expirationAfterQueue1)
                     .as("queue1 should stamp expiration at ticker.read() + timeout")
                     .isEqualTo(QUEUE_TIMEOUT_NANOS);
@@ -1045,7 +1070,7 @@ public class QueuedChannelTest {
 
             // Enqueue same request in queue2. The existing expiration should be read.
             queue2.execute(TestEndpoint.POST, sharedRequest);
-            Long expirationAfterQueue2 = QueueTimeoutAttachments.getExpiration(sharedRequest);
+            Long expirationAfterQueue2 = QueueTimeoutAttachments.getConfiguredExpiration(sharedRequest);
             assertThat(expirationAfterQueue2)
                     .as("queue2 must use the existing expiration from queue1, not stamp a fresh one")
                     .isEqualTo(expirationAfterQueue1);
@@ -1056,7 +1081,7 @@ public class QueuedChannelTest {
             setInFlightRequest();
             Request req = Request.builder().build();
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, req);
-            Long originalExpiration = QueueTimeoutAttachments.getExpiration(req);
+            Long originalExpiration = QueueTimeoutAttachments.getConfiguredExpiration(req);
             assertThat(originalExpiration)
                     .as("initial enqueue stamps expiration at ticker.read() + timeout")
                     .isEqualTo(QUEUE_TIMEOUT_NANOS);
@@ -1070,7 +1095,7 @@ public class QueuedChannelTest {
                     .as("request was re-queued, not dispatched or failed")
                     .isNotDone();
             assertThat(instrumentation.requestsQueued().getCount()).isEqualTo(1);
-            assertThat(QueueTimeoutAttachments.getExpiration(req))
+            assertThat(QueueTimeoutAttachments.getConfiguredExpiration(req))
                     .as("re-queue must preserve the original expiration, not reset the queue-timeout budget")
                     .isEqualTo(originalExpiration);
         }
@@ -1082,7 +1107,7 @@ public class QueuedChannelTest {
 
             // Stamp an expiration on the request, then advance the clock past it.
             Request expired = Request.builder().build();
-            QueueTimeoutAttachments.setExpirationIfAbsent(expired, ticker.read() + QUEUE_TIMEOUT_NANOS);
+            QueueTimeoutAttachments.setConfiguredExpirationIfAbsent(expired, ticker.read() + QUEUE_TIMEOUT_NANOS);
             ticker.advance(Duration.ofNanos(QUEUE_TIMEOUT_NANOS + 1));
 
             // The delegate is rejecting (inFlight > 0), so the request reaches the queueing path, sees the expired
@@ -1113,6 +1138,7 @@ public class QueuedChannelTest {
                             DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "no-timeout"),
                     QUEUE_SIZE,
                     OptionalLong.empty(),
+                    Optional.empty(),
                     ticker,
                     null);
 
@@ -1126,7 +1152,7 @@ public class QueuedChannelTest {
             assertThat(callerFuture).isNotDone();
 
             // No expiration should be stamped
-            assertThat(QueueTimeoutAttachments.getExpiration(req)).isNull();
+            assertThat(QueueTimeoutAttachments.getConfiguredExpiration(req)).isNull();
 
             // Advance time
             ticker.advance(Duration.ofHours(1));
@@ -1202,12 +1228,19 @@ public class QueuedChannelTest {
         // size is reconciled by the subsequent drain in these tests.
         private void simulateTimeout(ListenableFuture<Response> future) {
             queuedChannel.failWithQueueTimeout(
-                    (SettableFuture<Response>) future,
-                    DetachedSpan.start("test"),
-                    new QueuedChannel.IdempotentTimerContext(DialogueClientMetrics.of(new DefaultTaggedMetricRegistry())
-                            .requestQueuedTime("test")
-                            .time()),
-                    queuedChannel.new QueueSizeAccounting());
+                    QueuedChannel.EffectiveExpiration.configured(ticker.read()),
+                    QueuedChannel.DeferredCall.builder()
+                            .endpoint(TestEndpoint.POST)
+                            .request(Request.builder().build())
+                            .response((SettableFuture<Response>) future)
+                            .span(DetachedSpan.start("test"))
+                            .timer(new QueuedChannel.IdempotentTimerContext(
+                                    DialogueClientMetrics.of(new DefaultTaggedMetricRegistry())
+                                            .requestQueuedTime("test")
+                                            .time()))
+                            .timeoutHandle(new QueuedChannel.QueueTimeoutHandle())
+                            .accounting(queuedChannel.new QueueSizeAccounting())
+                            .build());
         }
 
         // Ticker whose time only advances when explicitly told to.
@@ -1246,6 +1279,461 @@ public class QueuedChannelTest {
                 SettableFuture<Response> future = SettableFuture.create();
                 dispatched.add(future);
                 return Optional.of(future);
+            }
+        }
+    }
+
+    @Nested
+    class DeadlineDerivedQueueTimeoutTests {
+        private static final String CHANNEL_NAME = "deadline-timeout-test";
+        private static final int QUEUE_SIZE = 100;
+
+        // Deadline expiry is decided by Deadlines, whose clock is System.nanoTime and cannot be faked from this
+        // package, so any test asserting that a deadline actually fires must let real time pass. Those tests use
+        // realTimeChannel(); the rest keep the deterministic virtual clock.
+        private static final Duration SHORT_DEADLINE = Duration.ofMillis(100);
+
+        private QueueTimeoutTests.ManualTicker ticker;
+        private ScheduledExecutorService realScheduler;
+        private DefaultTaggedMetricRegistry registry;
+        private QueueTimeoutTests.ToggleableDelegate delegate;
+        private DeterministicScheduler scheduler;
+        private QueuedChannelInstrumentation instrumentation;
+
+        @BeforeEach
+        void beforeEach() {
+            registry = new DefaultTaggedMetricRegistry();
+            ticker = new QueueTimeoutTests.ManualTicker();
+            realScheduler = Executors.newSingleThreadScheduledExecutor();
+            delegate = new QueueTimeoutTests.ToggleableDelegate();
+            scheduler = new DeterministicScheduler();
+            instrumentation = QueuedChannel.channelInstrumentation(DialogueClientMetrics.of(registry), CHANNEL_NAME);
+        }
+
+        @AfterEach
+        void afterEach() {
+            realScheduler.shutdownNow();
+        }
+
+        @Test
+        void deadline_only_times_out_at_the_remaining_deadline() {
+            QueuedChannel channel = realTimeChannel(OptionalLong.empty());
+            setInFlight(channel);
+
+            ListenableFuture<Response> future = executeWithDeadline(channel, SHORT_DEADLINE);
+            assertThat(future).isNotDone();
+
+            awaitDone(future);
+
+            assertThat(future)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(DeadlineExpiredException.class);
+            assertThat(timeoutCount(QueueTimeoutSource.DEADLINE)).isEqualTo(1);
+            assertThat(timeoutCount(QueueTimeoutSource.CONFIGURED)).isZero();
+        }
+
+        @Test
+        void deadline_timeout_reports_an_internally_imposed_deadline_as_internal() {
+            QueuedChannel channel = realTimeChannel(OptionalLong.empty());
+            setInFlight(channel);
+
+            ListenableFuture<Response> future = executeWithDeadline(channel, SHORT_DEADLINE);
+            awaitDone(future);
+
+            assertThat(future)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(DeadlineExpiredException.Internal.class)
+                    .havingCause()
+                    .as("the queue timeout detail is retained as the cause")
+                    .withCauseInstanceOf(QueueTimeoutException.class);
+        }
+
+        @Test
+        void deadline_timeout_reports_an_externally_imposed_deadline_as_external() {
+            QueuedChannel channel = realTimeChannel(OptionalLong.empty());
+            setInFlight(channel);
+
+            ListenableFuture<Response> future = executeWithExternalDeadline(channel, SHORT_DEADLINE);
+            awaitDone(future);
+
+            assertThat(future)
+                    .as("the deadline arrived on the wire, so its expiry is attributed to the caller")
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(DeadlineExpiredException.External.class);
+        }
+
+        @Test
+        void min_uses_the_deadline_when_it_is_tighter_than_the_configured_timeout() {
+            QueuedChannel channel =
+                    realTimeChannel(OptionalLong.of(Duration.ofSeconds(10).toNanos()));
+            setInFlight(channel);
+
+            ListenableFuture<Response> future = executeWithDeadline(channel, SHORT_DEADLINE);
+            awaitDone(future);
+
+            assertThat(future)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(DeadlineExpiredException.class);
+            assertThat(timeoutCount(QueueTimeoutSource.DEADLINE))
+                    .as("deadline is the tighter bound, so it is the binding source")
+                    .isEqualTo(1);
+            assertThat(timeoutCount(QueueTimeoutSource.CONFIGURED)).isZero();
+        }
+
+        @Test
+        void min_uses_the_configured_timeout_when_it_is_tighter_than_the_deadline() {
+            long configuredNanos = Duration.ofSeconds(3).toNanos();
+            QueuedChannel channel = channel(OptionalLong.of(configuredNanos));
+            setInFlight(channel);
+
+            ListenableFuture<Response> future = executeWithDeadline(channel, Duration.ofSeconds(10));
+            advance(Duration.ofNanos(configuredNanos));
+
+            assertThat(future)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(QueueTimeoutException.class);
+            assertThat(timeoutCount(QueueTimeoutSource.CONFIGURED))
+                    .as("configured timeout is the tighter bound, so it is the binding source")
+                    .isEqualTo(1);
+            assertThat(timeoutCount(QueueTimeoutSource.DEADLINE)).isZero();
+        }
+
+        @Test
+        void no_deadline_and_no_configured_timeout_never_times_out() {
+            QueuedChannel channel = channel(OptionalLong.empty());
+            setInFlight(channel);
+
+            ListenableFuture<Response> future =
+                    channel.execute(TestEndpoint.POST, Request.builder().build());
+            assertThat(future).isNotDone();
+
+            advance(Duration.ofHours(1));
+            assertThat(future)
+                    .as("no budget of any kind, so the request queues indefinitely")
+                    .isNotDone();
+        }
+
+        @Test
+        void already_expired_deadline_fails_immediately() {
+            QueuedChannel channel = channel(OptionalLong.empty());
+            setInFlight(channel);
+
+            ListenableFuture<Response> future = executeWithDeadline(channel, Duration.ZERO);
+            assertThat(future)
+                    .as("a deadline with no budget remaining fails on enqueue")
+                    .isDone();
+            assertThat(future)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(DeadlineExpiredException.class);
+            assertThat(timeoutCount(QueueTimeoutSource.DEADLINE)).isEqualTo(1);
+            assertThat(instrumentation.requestsQueued().getCount()).isZero();
+        }
+
+        @Test
+        void requeue_from_outside_the_calling_trace_still_resolves_the_deadline() {
+            QueuedChannel channel = realTimeChannel(OptionalLong.empty());
+            setInFlight(channel);
+
+            ListenableFuture<Response> future;
+            try (CloseableTracer ignored = CloseableTracer.startSpan("deadline")) {
+                setTraceDeadline(SHORT_DEADLINE, Enforcement.ENFORCE);
+                future = channel.execute(TestEndpoint.POST, Request.builder().build());
+            }
+
+            // Draining cancels the queued entry's timeout and re-resolves the deadline for the re-queued entry. Model
+            // a drain triggered by another request completing on an unrelated thread: the ambient trace is gone, so
+            // the deadline is only readable because scheduleTaskFromQueue attaches the enqueueing call's span. If
+            // that did not restore trace state, the re-queued entry would carry no timeout at all.
+            assertThat(Tracer.hasTraceId())
+                    .as("the calling trace must be gone for this test to isolate the attach behaviour")
+                    .isFalse();
+            channel.schedule();
+
+            awaitDone(future);
+            assertThat(future)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(DeadlineExpiredException.class);
+            assertThat(timeoutCount(QueueTimeoutSource.DEADLINE)).isEqualTo(1);
+        }
+
+        @Test
+        void deadline_disabled_while_queued_stops_binding_when_the_timeout_fires() {
+            QueuedChannel channel = channel(OptionalLong.empty());
+            setInFlight(channel);
+
+            ListenableFuture<Response> future;
+            try (CloseableTracer ignored = CloseableTracer.startSpan("deadline")) {
+                setTraceDeadline(Duration.ofSeconds(5), Enforcement.ENFORCE);
+                future = channel.execute(TestEndpoint.POST, Request.builder().build());
+                // Witchcraft does this when the inbound response commits, so background work outliving the request
+                // is not bound by the finished request's deadline.
+                Deadlines.disableFurtherDeadlinePropagation();
+            }
+
+            advance(Duration.ofHours(1));
+
+            assertThat(future)
+                    .as("the deadline stopped applying while queued, so the fired timeout must not fail the request")
+                    .isNotDone();
+            assertThat(timeoutCount(QueueTimeoutSource.DEADLINE)).isZero();
+            assertThat(instrumentation.requestsQueued().getCount())
+                    .as("the entry is still queued, so it is still counted")
+                    .isEqualTo(1);
+        }
+
+        @Test
+        void deadline_disabled_while_queued_falls_back_to_the_configured_timeout() {
+            long configuredNanos = Duration.ofSeconds(30).toNanos();
+            QueuedChannel channel = channel(OptionalLong.of(configuredNanos));
+            setInFlight(channel);
+
+            ListenableFuture<Response> future;
+            try (CloseableTracer ignored = CloseableTracer.startSpan("deadline")) {
+                setTraceDeadline(Duration.ofSeconds(5), Enforcement.ENFORCE);
+                future = channel.execute(TestEndpoint.POST, Request.builder().build());
+                Deadlines.disableFurtherDeadlinePropagation();
+            }
+
+            advance(Duration.ofSeconds(5));
+            assertThat(future).as("the 5s deadline no longer applies").isNotDone();
+
+            advance(Duration.ofSeconds(25));
+            assertThat(future)
+                    .as("the 30s configured timeout the deadline had undercut is re-armed and still binds")
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(QueueTimeoutException.class);
+            assertThat(timeoutCount(QueueTimeoutSource.CONFIGURED)).isEqualTo(1);
+            assertThat(timeoutCount(QueueTimeoutSource.DEADLINE)).isZero();
+        }
+
+        @Test
+        void configured_fallback_is_cancelled_when_dispatch_races_with_scheduling() {
+            AtomicReference<Runnable> beforeTimeoutPublished = new AtomicReference<>();
+            scheduler = new DeterministicScheduler() {
+                @Override
+                public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+                    ScheduledFuture<?> future = super.schedule(command, delay, unit);
+                    Runnable hook = beforeTimeoutPublished.getAndSet(null);
+                    if (hook != null) {
+                        hook.run();
+                    }
+                    return future;
+                }
+            };
+            QueuedChannel channel =
+                    channel(OptionalLong.of(Duration.ofSeconds(30).toNanos()));
+            setInFlight(channel);
+            delegate.lastDispatched();
+
+            ListenableFuture<Response> future;
+            try (CloseableTracer ignored = CloseableTracer.startSpan("deadline")) {
+                setTraceDeadline(Duration.ofSeconds(5), Enforcement.ENFORCE);
+                future = channel.execute(TestEndpoint.POST, Request.builder().build());
+                Deadlines.disableFurtherDeadlinePropagation();
+            }
+
+            // Dispatch after the fallback is scheduled, but before its future is published to the timeout handle.
+            beforeTimeoutPublished.set(() -> {
+                delegate.setAccepting(true);
+                channel.schedule();
+            });
+            advance(Duration.ofSeconds(5));
+            SettableFuture<Response> wire = delegate.lastDispatched();
+            assertThat(wire).as("the queued request has reached the delegate").isNotNull();
+            assertThat(future).isNotDone();
+
+            advance(Duration.ofSeconds(25));
+            assertThat(future)
+                    .as("a timeout installed after dispatch must not fail the in-flight request")
+                    .isNotDone();
+            TestResponse response = new TestResponse().code(200);
+            wire.set(response);
+            assertThat(future).succeedsWithin(Duration.ZERO).isSameAs(response);
+        }
+
+        @Test
+        void deferred_trace_deadline_is_not_enforced_by_default() {
+            QueuedChannel channel = channel(OptionalLong.empty());
+            setInFlight(channel);
+
+            ListenableFuture<Response> future = executeWithDeadline(channel, Duration.ofSeconds(5), Enforcement.DEFER);
+
+            advance(Duration.ofHours(1));
+            assertThat(future)
+                    .as("a deferred deadline binds nothing unless the client opts in")
+                    .isNotDone();
+        }
+
+        @Test
+        void explicit_enable_enforces_a_deferred_trace_deadline() {
+            QueuedChannel channel = realTimeChannel(OptionalLong.empty(), Optional.of(true));
+            setInFlight(channel);
+
+            ListenableFuture<Response> future = executeWithDeadline(channel, SHORT_DEADLINE, Enforcement.DEFER);
+            awaitDone(future);
+
+            assertThat(future)
+                    .failsWithin(Duration.ZERO)
+                    .withThrowableThat()
+                    .withCauseInstanceOf(DeadlineExpiredException.class);
+        }
+
+        @Test
+        void explicit_disable_overrides_an_enforced_trace_deadline() {
+            QueuedChannel channel = channel(OptionalLong.empty(), Optional.of(false));
+            setInFlight(channel);
+
+            ListenableFuture<Response> future = executeWithDeadline(channel, Duration.ofSeconds(5));
+
+            advance(Duration.ofHours(1));
+            assertThat(future)
+                    .as("the client opted out, so even an enforced trace deadline binds nothing")
+                    .isNotDone();
+        }
+
+        @Test
+        void completion_clears_the_configured_expiration() {
+            QueuedChannel channel =
+                    channel(OptionalLong.of(Duration.ofSeconds(10).toNanos()));
+            setInFlight(channel);
+
+            Request request = Request.builder().build();
+            ListenableFuture<Response> future = channel.execute(TestEndpoint.POST, request);
+            assertThat(QueueTimeoutAttachments.getConfiguredExpiration(request))
+                    .as("configured expiration is stamped on enqueue")
+                    .isNotNull();
+
+            // Dispatch and complete the attempt, triggering the completion listener that clears the config budget.
+            delegate.setAccepting(true);
+            channel.schedule();
+            delegate.lastDispatched(); // setInFlight's dispatch
+            SettableFuture<Response> wire = delegate.lastDispatched();
+            assertThat(wire).isNotNull();
+            wire.set(new TestResponse().code(200));
+            assertThat(future).succeedsWithin(Duration.ZERO);
+
+            assertThat(QueueTimeoutAttachments.getConfiguredExpiration(request))
+                    .as("configured budget resets per attempt, so it is cleared on completion")
+                    .isNull();
+        }
+
+        private QueuedChannel channel(OptionalLong configuredTimeoutNanos) {
+            return channel(configuredTimeoutNanos, Optional.empty());
+        }
+
+        private QueuedChannel channel(OptionalLong configuredTimeoutNanos, Optional<Boolean> deadlineEnforcement) {
+            return new QueuedChannel(
+                    delegate,
+                    CHANNEL_NAME,
+                    "channel",
+                    instrumentation,
+                    QUEUE_SIZE,
+                    configuredTimeoutNanos,
+                    deadlineEnforcement,
+                    ticker,
+                    scheduler);
+        }
+
+        /** A channel whose queue clock and timeout scheduler both run on real time, so Deadlines can agree. */
+        private QueuedChannel realTimeChannel(OptionalLong configuredTimeoutNanos) {
+            return realTimeChannel(configuredTimeoutNanos, Optional.empty());
+        }
+
+        private QueuedChannel realTimeChannel(
+                OptionalLong configuredTimeoutNanos, Optional<Boolean> deadlineEnforcement) {
+            return new QueuedChannel(
+                    delegate,
+                    CHANNEL_NAME,
+                    "channel",
+                    instrumentation,
+                    QUEUE_SIZE,
+                    configuredTimeoutNanos,
+                    deadlineEnforcement,
+                    Ticker.systemTicker(),
+                    realScheduler);
+        }
+
+        private void awaitDone(ListenableFuture<Response> future) {
+            Awaitility.waitAtMost(Duration.ofSeconds(5))
+                    .untilAsserted(() -> assertThat(future).isDone());
+        }
+
+        /**
+         * Advances the queue clock and the timeout scheduler together. Deadlines' own clock is System.nanoTime and
+         * cannot be swapped from this package, but the queue only reads it when arming, so a manual ticker keeps the
+         * arming and firing arithmetic consistent.
+         */
+        private void advance(Duration duration) {
+            ticker.advance(duration);
+            scheduler.tick(duration.toNanos(), TimeUnit.NANOSECONDS);
+        }
+
+        private ListenableFuture<Response> executeWithDeadline(QueuedChannel channel, Duration remaining) {
+            return executeWithDeadline(channel, remaining, Enforcement.ENFORCE);
+        }
+
+        /** Executes inside a trace carrying an internally imposed deadline, as a server handling a request would. */
+        private ListenableFuture<Response> executeWithDeadline(
+                QueuedChannel channel, Duration remaining, Enforcement enforcement) {
+            try (CloseableTracer ignored = CloseableTracer.startSpan("deadline")) {
+                setTraceDeadline(remaining, enforcement);
+                return channel.execute(TestEndpoint.POST, Request.builder().build());
+            }
+        }
+
+        private void setTraceDeadline(Duration remaining, Enforcement enforcement) {
+            Deadlines.parseFromRequest(
+                    Optional.of(remaining), Request.builder().build(), Decoder.INSTANCE, enforcement);
+        }
+
+        /** Executes inside a trace whose deadline arrived on the wire, so its origin is external. */
+        private ListenableFuture<Response> executeWithExternalDeadline(QueuedChannel channel, Duration remaining) {
+            try (CloseableTracer ignored = CloseableTracer.startSpan("deadline")) {
+                Deadlines.parseFromRequest(
+                        Optional.empty(),
+                        Request.builder()
+                                .putHeaderParams(
+                                        DeadlinesHttpHeaders.EXPECT_WITHIN, Long.toString(remaining.toSeconds()))
+                                .build(),
+                        Decoder.INSTANCE,
+                        Enforcement.ENFORCE);
+                return channel.execute(TestEndpoint.POST, Request.builder().build());
+            }
+        }
+
+        // Drives inFlight > 0 on the given channel so subsequent requests hit the queueing path.
+        private void setInFlight(QueuedChannel channel) {
+            delegate.setAccepting(true);
+            channel.execute(TestEndpoint.POST, Request.builder().build());
+            delegate.setAccepting(false);
+        }
+
+        private long timeoutCount(QueueTimeoutSource source) {
+            return DialogueClientMetrics.of(registry)
+                    .requestQueueTimeout()
+                    .channelName(CHANNEL_NAME)
+                    .source(
+                            source == QueueTimeoutSource.DEADLINE
+                                    ? DialogueClientMetrics.RequestQueueTimeout_Source.DEADLINE
+                                    : DialogueClientMetrics.RequestQueueTimeout_Source.CONFIGURED)
+                    .build()
+                    .getCount();
+        }
+
+        private enum Decoder implements Deadlines.RequestDecodingAdapter<Request> {
+            INSTANCE;
+
+            @Override
+            public Optional<String> getFirstHeader(Request request, String headerName) {
+                return request.headerParams().get(headerName).stream().findFirst();
             }
         }
     }
