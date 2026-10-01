@@ -4,7 +4,7 @@ com.fasterxml.jackson.core:jackson-annotations:2.22 (10 constraints: 4eb498b7)
 
 com.fasterxml.jackson.core:jackson-core:2.22.3 (11 constraints: 5de5b4c9)
 
-com.fasterxml.jackson.core:jackson-databind:2.22.3 (15 constraints: 4a31a656)
+com.fasterxml.jackson.core:jackson-databind:2.22.3 (15 constraints: 4e31f65a)
 
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.22.3 (1 constraints: 7d1c9ba4)
 
@@ -38,11 +38,11 @@ com.palantir.common:streams:2.15.0 (1 constraints: 3a053e3b)
 
 com.palantir.conjure.java:conjure-lib:8.91.0 (2 constraints: 3b24227b)
 
-com.palantir.conjure.java.api:errors:2.80.0 (3 constraints: 8029a513)
+com.palantir.conjure.java.api:errors:2.81.0 (3 constraints: 81291014)
 
-com.palantir.conjure.java.api:service-config:2.80.0 (2 constraints: 5f1977dc)
+com.palantir.conjure.java.api:service-config:2.81.0 (2 constraints: 6019b3dc)
 
-com.palantir.conjure.java.api:ssl-config:2.80.0 (4 constraints: 0c3f829e)
+com.palantir.conjure.java.api:ssl-config:2.81.0 (4 constraints: 0e3f9a9f)
 
 com.palantir.conjure.java.runtime:client-config:8.42.0 (1 constraints: 4005653b)
 
@@ -64,19 +64,19 @@ com.palantir.refreshable:refreshable:2.18.0 (2 constraints: 58198edc)
 
 com.palantir.ri:resource-identifier:2.24.0 (2 constraints: 58155cda)
 
-com.palantir.safe-logging:logger:3.20.0 (14 constraints: 81e1163e)
+com.palantir.safe-logging:logger:3.20.0 (14 constraints: 79e1072c)
 
 com.palantir.safe-logging:logger-slf4j:3.20.0 (1 constraints: 300e8b50)
 
 com.palantir.safe-logging:logger-spi:3.20.0 (2 constraints: 6f1e0cb0)
 
-com.palantir.safe-logging:preconditions:3.20.0 (21 constraints: dc53be23)
+com.palantir.safe-logging:preconditions:3.20.0 (21 constraints: c453bada)
 
-com.palantir.safe-logging:safe-logging:3.20.0 (20 constraints: 1a45d79a)
+com.palantir.safe-logging:safe-logging:3.20.0 (20 constraints: 0a45396b)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.14.0 (1 constraints: 37052f3b)
 
-com.palantir.tokens:auth-tokens:4.10.0 (3 constraints: e9271862)
+com.palantir.tokens:auth-tokens:4.10.0 (3 constraints: 1128138a)
 
 com.palantir.tracing:tracing:6.41.0 (3 constraints: ae24d7fb)
 
