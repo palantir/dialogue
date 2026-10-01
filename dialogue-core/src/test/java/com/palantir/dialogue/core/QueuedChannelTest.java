@@ -29,6 +29,7 @@ import static org.mockito.Mockito.spy;
 import com.codahale.metrics.Counter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -55,6 +56,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,6 +64,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -260,6 +263,85 @@ public class QueuedChannelTest {
     @TestTracing(snapshot = true)
     public void testQueueTracing() {
         testQueuedRequestExecutedWhenRunningRequestCompletes();
+    }
+
+    @ParameterizedTest
+    @EnumSource(Completion.class)
+    public void testRequeuedRequestExecutesWhenLastRequestCompletesDuringRejection(Completion completion) {
+        assertRequeuedRequestExecutesWhenLastRequestCompletesDuringRejection(completion, false);
+    }
+
+    @ParameterizedTest
+    @EnumSource(Completion.class)
+    public void testRequeuedRequestExecutesWhenLastQueuedRequestCompletesDuringRejection(Completion completion) {
+        assertRequeuedRequestExecutesWhenLastRequestCompletesDuringRejection(completion, true);
+    }
+
+    private static void assertRequeuedRequestExecutesWhenLastRequestCompletesDuringRejection(
+            Completion completion, boolean firstRequestWasQueued) {
+        SettableFuture<Response> blocker = SettableFuture.create();
+        SettableFuture<Response> first = SettableFuture.create();
+        SettableFuture<Response> second = SettableFuture.create();
+        AtomicInteger attempts = new AtomicInteger();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            LimitedChannel delegate = (_endpoint, _request, enforcement) -> {
+                int attempt = attempts.incrementAndGet();
+                if (firstRequestWasQueued && attempt <= 3) {
+                    return attempt == 1 ? Optional.of(blocker) : Optional.empty();
+                }
+                return switch (attempt - (firstRequestWasQueued ? 3 : 0)) {
+                    case 1 -> Optional.of(first);
+                    case 2 -> Optional.empty();
+                    case 3 -> {
+                        assertThat(enforcement.enforceLimits()).isTrue();
+                        // The last completion must drain the temporarily empty queue before this call is requeued.
+                        assertThat(executor.submit(() -> completion.complete(first)))
+                                .succeedsWithin(Duration.ofSeconds(5));
+                        yield Optional.empty();
+                    }
+                    case 4 -> {
+                        assertThat(enforcement.enforceLimits()).isFalse();
+                        yield Optional.of(second);
+                    }
+                    default -> throw new AssertionError("Unexpected dispatch attempt");
+                };
+            };
+            QueuedChannel queued = createQueue(delegate);
+            if (firstRequestWasQueued) {
+                queued.execute(TestEndpoint.GET, Request.builder().build());
+            }
+            queued.execute(TestEndpoint.GET, Request.builder().build());
+            if (firstRequestWasQueued) {
+                blocker.set(new TestResponse().code(200));
+            }
+            ListenableFuture<Response> response =
+                    queued.execute(TestEndpoint.GET, Request.builder().build());
+
+            assertThat(first).isDone();
+            assertThat(attempts).hasValue(firstRequestWasQueued ? 7 : 4);
+            assertThat(response).isNotDone();
+            TestResponse expected = new TestResponse().code(200);
+            second.set(expected);
+            assertThat(response).succeedsWithin(Duration.ZERO).isSameAs(expected);
+        } finally {
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(5)))
+                    .isTrue();
+        }
+    }
+
+    private enum Completion {
+        SUCCESS,
+        FAILURE,
+        CANCELLATION;
+
+        void complete(SettableFuture<Response> response) {
+            switch (this) {
+                case SUCCESS -> response.set(new TestResponse().code(200));
+                case FAILURE -> response.setException(new IllegalStateException("expected"));
+                case CANCELLATION -> response.cancel(false);
+            }
+        }
     }
 
     @Test

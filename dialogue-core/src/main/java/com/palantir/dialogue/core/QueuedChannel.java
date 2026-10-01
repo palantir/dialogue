@@ -533,7 +533,9 @@ final class QueuedChannel implements Channel {
                         }
                     }
                 }
-                return false;
+                // The last in-flight request may have completed while this call was out of the queue,
+                // leaving no future completion to resume scheduling.
+                return inFlight.get() <= 0;
             }
         }
     }
