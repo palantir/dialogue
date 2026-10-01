@@ -40,6 +40,10 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.deadlines.DeadlineExpiredException;
+import com.palantir.deadlines.Deadlines;
+import com.palantir.deadlines.Deadlines.Enforcement;
+import com.palantir.deadlines.DeadlinesHttpHeaders;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -54,6 +58,7 @@ import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
+import com.palantir.tracing.CloseableTracer;
 import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -63,6 +68,7 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -70,6 +76,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.assertj.core.data.Percentage;
@@ -78,6 +85,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -219,6 +227,106 @@ public final class DialogueChannelTest {
         assertThat(future).isDone();
         assertThat(future).isNotCancelled();
         verifyNoInteractions(delegate);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void captures_deadline_suppression_before_queueing(boolean suppressOnCaller) {
+        int initialConcurrencyLimit = (int) CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.INITIAL_LIMIT;
+        SettableFuture<Response> inFlight = SettableFuture.create();
+        TestResponse expected = new TestResponse().code(200);
+        List<Request> sent = new ArrayList<>();
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .readTimeout(Duration.ofSeconds(5))
+                        .maxNumRetries(0)
+                        .build())
+                .deadlineEnforcement(Optional.of(true))
+                .factory(_args -> (_endpoint, outgoing) -> {
+                    sent.add(outgoing);
+                    return sent.size() <= initialConcurrencyLimit ? inFlight : Futures.immediateFuture(expected);
+                })
+                .build();
+        for (int i = 0; i < initialConcurrencyLimit; i++) {
+            assertThat(channel.execute(endpoint, Request.builder().build())).isNotDone();
+        }
+
+        try (CloseableTracer tracer = CloseableTracer.startSpan("test")) {
+            Deadlines.parseFromRequest(
+                    Optional.of(Duration.ZERO), request, (_request, _header) -> Optional.empty(), Enforcement.ENFORCE);
+            AtomicReference<ListenableFuture<Response>> queuedResult = new AtomicReference<>();
+            Runnable enqueue = () -> queuedResult.set(channel.execute(endpoint, request));
+            if (suppressOnCaller) {
+                Deadlines.withoutInheritedDeadlines(enqueue);
+            } else {
+                enqueue.run();
+            }
+            ListenableFuture<Response> queued = queuedResult.get();
+            assertThat(queued).isNotDone();
+            assertThat(sent).hasSize(initialConcurrencyLimit);
+
+            Runnable complete = () -> inFlight.set(new TestResponse().code(200));
+            if (suppressOnCaller) {
+                complete.run();
+            } else {
+                Deadlines.withoutInheritedDeadlines(complete);
+            }
+
+            if (suppressOnCaller) {
+                assertThat(queued).succeedsWithin(Duration.ofSeconds(5)).isSameAs(expected);
+                assertThat(sent).hasSize(initialConcurrencyLimit + 1);
+                assertThat(sent.get(initialConcurrencyLimit).headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN))
+                        .containsExactly("5.000");
+            } else {
+                assertThat(queued)
+                        .failsWithin(Duration.ofSeconds(5))
+                        .withThrowableThat()
+                        .withCauseInstanceOf(DeadlineExpiredException.Internal.class);
+                assertThat(sent).hasSize(initialConcurrencyLimit);
+            }
+            assertThat(Deadlines.isSuppressed()).isFalse();
+        }
+    }
+
+    @Test
+    void preserves_deadline_suppression_when_retrying_after_scope_closes() {
+        SettableFuture<Response> firstAttempt = SettableFuture.create();
+        TestResponse expected = new TestResponse().code(200);
+        List<Request> sent = new ArrayList<>();
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .readTimeout(Duration.ofSeconds(5))
+                        .maxNumRetries(1)
+                        .backoffSlotSize(Duration.ofMillis(1))
+                        .build())
+                .deadlineEnforcement(Optional.of(true))
+                .random(new Random(123456L))
+                .factory(_args -> (_endpoint, outgoing) -> {
+                    sent.add(outgoing);
+                    return sent.size() == 1 ? firstAttempt : Futures.immediateFuture(expected);
+                })
+                .build();
+
+        try (CloseableTracer tracer = CloseableTracer.startSpan("test")) {
+            Deadlines.parseFromRequest(
+                    Optional.of(Duration.ZERO), request, (_request, _header) -> Optional.empty(), Enforcement.ENFORCE);
+            AtomicReference<ListenableFuture<Response>> capturedResult = new AtomicReference<>();
+            Deadlines.withoutInheritedDeadlines(() -> capturedResult.set(channel.execute(endpoint, request)));
+            ListenableFuture<Response> result = capturedResult.get();
+            assertThat(result).isNotDone();
+            assertThat(sent).hasSize(1);
+
+            firstAttempt.set(new TestResponse().code(503));
+
+            assertThat(result).succeedsWithin(Duration.ofSeconds(5)).isSameAs(expected);
+            assertThat(sent)
+                    .extracting(outgoing -> outgoing.headerParams().get(DeadlinesHttpHeaders.EXPECT_WITHIN))
+                    .containsExactly(List.of("5.000"), List.of("5.000"));
+        }
     }
 
     @Test
