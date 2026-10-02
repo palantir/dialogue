@@ -93,7 +93,6 @@ final class DnsSupport {
     /**
      * Shared cache of string to parsed URI. This avoids excessive allocation overhead when parsing repeated targets.
      */
-    @SuppressWarnings("for-rollout:deprecation")
     private static final LoadingCache<String, MaybeUri> uriCache = CacheStats.of(
                     SharedTaggedMetricRegistries.getSingleton(), "dialogue-uri")
             .register(stats -> Caffeine.newBuilder()
