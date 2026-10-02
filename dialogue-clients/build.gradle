@@ -36,6 +36,7 @@ dependencies {
     testImplementation project(':dialogue-example:dialogue-example-dialogue')
     testImplementation 'com.palantir.deadlines:deadlines'
     testImplementation 'com.palantir.tracing:tracing'
+    testImplementation 'com.palantir.tracing:tracing-undertow'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation 'org.assertj:assertj-core'

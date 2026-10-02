@@ -28,7 +28,7 @@ com.google.errorprone:error_prone_annotations:2.50.0 (19 constraints: d42e6f6d)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.7.2-jre (18 constraints: 1540bbf0)
+com.google.guava:guava:33.7.2-jre (19 constraints: fd51a39e)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
@@ -64,13 +64,13 @@ com.palantir.refreshable:refreshable:2.18.0 (2 constraints: 591991dc)
 
 com.palantir.ri:resource-identifier:2.24.0 (2 constraints: 58155cda)
 
-com.palantir.safe-logging:logger:3.20.0 (14 constraints: 39e130f2)
+com.palantir.safe-logging:logger:3.20.0 (15 constraints: b1f14307)
 
 com.palantir.safe-logging:logger-slf4j:3.20.0 (1 constraints: 300e8b50)
 
 com.palantir.safe-logging:logger-spi:3.20.0 (2 constraints: 6f1e0cb0)
 
-com.palantir.safe-logging:preconditions:3.20.0 (21 constraints: 7c538b8b)
+com.palantir.safe-logging:preconditions:3.20.0 (22 constraints: f4637c8c)
 
 com.palantir.safe-logging:safe-logging:3.20.0 (20 constraints: d2443829)
 
@@ -78,9 +78,9 @@ com.palantir.safethreadlocalrandom:safe-thread-local-random:0.14.0 (1 constraint
 
 com.palantir.tokens:auth-tokens:4.12.0 (3 constraints: 1328e38a)
 
-com.palantir.tracing:tracing:6.41.0 (3 constraints: ae24d7fb)
+com.palantir.tracing:tracing:6.41.0 (4 constraints: 2535bc66)
 
-com.palantir.tracing:tracing-api:6.41.0 (2 constraints: 0f127318)
+com.palantir.tracing:tracing-api:6.41.0 (3 constraints: 8622eb17)
 
 com.palantir.tritium:tritium-api:0.139.0 (2 constraints: 9b1f24f5)
 
@@ -166,6 +166,8 @@ com.palantir.safe-logging:preconditions-assertj:3.20.0 (1 constraints: 3705393b)
 
 com.palantir.tracing:tracing-test-utils:6.41.0 (1 constraints: 3d05563b)
 
+com.palantir.tracing:tracing-undertow:6.41.0 (1 constraints: 3d05563b)
+
 com.spotify.dataenum:dataenum:1.4.1 (1 constraints: e9105ac1)
 
 com.squareup.okhttp3:mockwebserver3:5.3.2 (1 constraints: f81162fe)
@@ -186,7 +188,7 @@ de.erichseifert.vectorgraphics2d:VectorGraphics2D:0.13 (1 constraints: 8c0a80bb)
 
 de.rototor.pdfbox:graphics2d:0.25 (1 constraints: 8f0a84bb)
 
-io.undertow:undertow-core:2.2.38.Final (1 constraints: 59075361)
+io.undertow:undertow-core:2.2.38.Final (2 constraints: ea19a2fe)
 
 junit:junit:4.13.2 (2 constraints: de1ce71a)
 
