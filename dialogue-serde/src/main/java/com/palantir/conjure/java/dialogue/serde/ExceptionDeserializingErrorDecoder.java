@@ -33,8 +33,10 @@ import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer;
+import com.palantir.dialogue.DialogueRetries;
 import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeArg;
@@ -100,6 +102,16 @@ final class ExceptionDeserializingErrorDecoder {
         }
         RuntimeException result = decodeInternal(response);
         result.addSuppressed(diagnostic(response));
+        // check if the response indicates that dialogue retries were exhausted (either at this node, or one
+        // further upstream from us); if so, we still pass the result to the caller, but wrapped in a
+        // RetriesExhaustedException to indicate as such.
+        // note that exception handlers in servers may need to handle RetriesExhaustedException specifically in order
+        // to apply special logic in those cases. Typically, this would involve adding a header on the response
+        // during request processing indicating that dialogue retries were exhausted, which can propagate backwards
+        // to other dialogue clients.
+        if (DialogueRetries.isRetriesExhausted(response)) {
+            result = new RetriesExhaustedException(result);
+        }
         return result;
     }
 
