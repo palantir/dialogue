@@ -165,7 +165,6 @@ final class RetryingChannel implements EndpointChannel {
                 () -> ThreadLocalRandom.current().nextDouble());
     }
 
-    @VisibleForTesting
     RetryingChannel(
             EndpointChannel delegate,
             Endpoint endpoint,

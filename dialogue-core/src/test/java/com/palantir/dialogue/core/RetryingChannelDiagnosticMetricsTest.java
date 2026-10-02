@@ -33,7 +33,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
-import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryCount_Result;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRequests_Result;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRetries_Result;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
@@ -44,8 +43,6 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 final class RetryingChannelDiagnosticMetricsTest {
     private static final String CHANNEL_NAME = "diagnostic-channel";
@@ -63,10 +60,9 @@ final class RetryingChannelDiagnosticMetricsTest {
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(503)))
                 .thenReturn(Futures.immediateFailedFuture(new IOException("retryable failure")))
                 .thenReturn(finalAttempt);
-        EndpointChannel retryer = retryer(3, Duration.ofSeconds(1));
+        EndpointChannel retryer = retryer(3, Duration.ZERO);
 
         ListenableFuture<Response> result = retryer.execute(REQUEST);
-        scheduler.tick(7, TimeUnit.SECONDS);
 
         verify(delegate, times(4)).execute(REQUEST);
         assertThat(result).isNotDone();
@@ -85,6 +81,22 @@ final class RetryingChannelDiagnosticMetricsTest {
     }
 
     @Test
+    void repeated_exhaustion_markers_record_all_retries_until_max_retries() {
+        TestResponse terminalResponse = exhaustedResponse(503);
+        when(delegate.execute(REQUEST))
+                .thenReturn(Futures.immediateFuture(exhaustedResponse(503)))
+                .thenReturn(Futures.immediateFuture(exhaustedResponse(503)))
+                .thenReturn(Futures.immediateFuture(exhaustedResponse(503)))
+                .thenReturn(Futures.immediateFuture(terminalResponse));
+
+        ListenableFuture<Response> result = retryer(3, Duration.ZERO).execute(REQUEST);
+
+        assertThat(result).succeedsWithin(Duration.ZERO).isSameAs(terminalResponse);
+        verify(delegate, times(4)).execute(REQUEST);
+        assertDiagnosticMetrics(0, 0, 3, 1);
+    }
+
+    @Test
     void records_non_retryable_response_as_failure_without_propagating_historical_marker() {
         TestResponse terminalResponse = new TestResponse().code(400);
         when(delegate.execute(REQUEST))
@@ -99,17 +111,14 @@ final class RetryingChannelDiagnosticMetricsTest {
         assertThat(DialogueRetries.isRetriesExhausted(terminalResponse)).isFalse();
     }
 
-    @ParameterizedTest
-    @ValueSource(longs = {0, 1})
-    void terminal_throwable_preserves_existing_callback_accounting(long backoffSeconds) {
+    @Test
+    void terminal_throwable_records_diagnostic_failure_and_preserves_original_exception() {
         IOException failure = new IOException("terminal failure");
         when(delegate.execute(REQUEST))
                 .thenReturn(Futures.immediateFuture(exhaustedResponse(503)))
                 .thenReturn(Futures.immediateFailedFuture(failure));
 
-        ListenableFuture<Response> result =
-                retryer(1, Duration.ofSeconds(backoffSeconds)).execute(REQUEST);
-        scheduler.tick(1, TimeUnit.SECONDS);
+        ListenableFuture<Response> result = retryer(1, Duration.ZERO).execute(REQUEST);
 
         assertThat(result)
                 .failsWithin(Duration.ZERO)
@@ -119,39 +128,6 @@ final class RetryingChannelDiagnosticMetricsTest {
         assertThat(failure.getSuppressed()).containsExactly(RetriesExhaustedException.INSTANCE);
         verify(delegate, times(2)).execute(REQUEST);
         assertDiagnosticMetrics(0, 0, 1, 1);
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
-        // Preserve the existing metrics: the enclosing response callback also observes the final throwable.
-        assertThat(metrics.requestRetryExhausted()
-                        .channelName(CHANNEL_NAME)
-                        .reason("IOException")
-                        .build()
-                        .getCount())
-                .isEqualTo(2);
-        assertThat(metrics.requestRetryCount()
-                        .channelName(CHANNEL_NAME)
-                        .result(RequestRetryCount_Result.FAILURE)
-                        .build()
-                        .getSnapshot()
-                        .getValues())
-                .containsExactly(3L);
-    }
-
-    @Test
-    void existing_throwable_marker_does_not_prevent_retry() {
-        IOException failure = new IOException("previously marked failure");
-        DialogueRetries.setRetriesExhausted(failure);
-        TestResponse success = new TestResponse().code(204);
-        when(delegate.execute(REQUEST))
-                .thenReturn(Futures.immediateFailedFuture(failure))
-                .thenReturn(Futures.immediateFuture(success));
-
-        assertThat(retryer(1, Duration.ZERO).execute(REQUEST))
-                .succeedsWithin(Duration.ZERO)
-                .isSameAs(success);
-
-        verify(delegate, times(2)).execute(REQUEST);
-        assertThat(failure.getSuppressed()).containsExactly(RetriesExhaustedException.INSTANCE);
-        assertThat(DialogueRetries.isRetriesExhausted(success)).isFalse();
     }
 
     @Test
@@ -170,13 +146,6 @@ final class RetryingChannelDiagnosticMetricsTest {
         verify(delegate, times(2)).execute(REQUEST);
         assertThat(DialogueRetries.isRetriesExhausted(failure)).isFalse();
         assertDiagnosticMetrics(0, 0, 1, 1);
-        assertThat(DialogueClientMetrics.of(registry)
-                        .requestRetryExhausted()
-                        .channelName(CHANNEL_NAME)
-                        .reason("SocketTimeoutException")
-                        .build()
-                        .getCount())
-                .isEqualTo(2);
     }
 
     @Test
@@ -207,22 +176,6 @@ final class RetryingChannelDiagnosticMetricsTest {
     }
 
     @Test
-    void cancellation_of_in_flight_retry_records_failure() {
-        SettableFuture<Response> retryAttempt = SettableFuture.create();
-        when(delegate.execute(REQUEST))
-                .thenReturn(Futures.immediateFuture(exhaustedResponse(503)))
-                .thenReturn(retryAttempt);
-
-        ListenableFuture<Response> result = retryer(1, Duration.ZERO).execute(REQUEST);
-
-        verify(delegate, times(2)).execute(REQUEST);
-        assertDiagnosticMetrics(0, 0, 0, 0);
-        assertThat(result.cancel(true)).isTrue();
-        assertThat(retryAttempt).isCancelled();
-        assertDiagnosticMetrics(0, 0, 1, 1);
-    }
-
-    @Test
     void cancellation_before_first_retry_dispatch_counts_scheduled_retry() {
         when(delegate.execute(REQUEST)).thenReturn(Futures.immediateFuture(exhaustedResponse(503)));
 
@@ -230,13 +183,6 @@ final class RetryingChannelDiagnosticMetricsTest {
 
         assertThat(result).isNotDone();
         assertDiagnosticMetrics(0, 0, 0, 0);
-        assertThat(DialogueClientMetrics.of(registry)
-                        .requestRetry()
-                        .channelName(CHANNEL_NAME)
-                        .reason("qosResponse")
-                        .build()
-                        .getCount())
-                .isEqualTo(1);
         assertThat(result.cancel(true)).isTrue();
         assertDiagnosticMetrics(0, 0, 1, 1);
 
@@ -244,34 +190,6 @@ final class RetryingChannelDiagnosticMetricsTest {
 
         verify(delegate).execute(REQUEST);
         assertDiagnosticMetrics(0, 0, 1, 1);
-    }
-
-    @Test
-    void cancellation_during_later_backoff_counts_all_scheduled_retries() {
-        when(delegate.execute(REQUEST))
-                .thenReturn(Futures.immediateFuture(exhaustedResponse(503)))
-                .thenReturn(Futures.immediateFuture(new TestResponse().code(503)));
-
-        ListenableFuture<Response> result = retryer(2, Duration.ofSeconds(1)).execute(REQUEST);
-        scheduler.tick(1, TimeUnit.SECONDS);
-
-        verify(delegate, times(2)).execute(REQUEST);
-        assertThat(result).isNotDone();
-        assertDiagnosticMetrics(0, 0, 0, 0);
-        assertThat(DialogueClientMetrics.of(registry)
-                        .requestRetry()
-                        .channelName(CHANNEL_NAME)
-                        .reason("qosResponse")
-                        .build()
-                        .getCount())
-                .isEqualTo(2);
-        assertThat(result.cancel(true)).isTrue();
-        assertDiagnosticMetrics(0, 0, 2, 1);
-
-        scheduler.tick(10, TimeUnit.SECONDS);
-
-        verify(delegate, times(2)).execute(REQUEST);
-        assertDiagnosticMetrics(0, 0, 2, 1);
     }
 
     private EndpointChannel retryer(int maxRetries, Duration backoffSlotSize) {

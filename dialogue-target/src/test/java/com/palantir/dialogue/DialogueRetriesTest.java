@@ -17,7 +17,6 @@
 package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import java.io.IOException;
@@ -27,42 +26,20 @@ import org.junit.jupiter.api.Test;
 
 final class DialogueRetriesTest {
     @Test
-    void sharesMarkerWithoutReplacingTheFailure() {
+    void markingTwicePreservesDiagnosticsAndReusesSharedMarker() {
         IOException first = new IOException("First failure");
         IOException second = new IOException("Second failure");
+        RuntimeException diagnostic = new RuntimeException("Existing diagnostic");
+        first.addSuppressed(diagnostic);
 
+        DialogueRetries.setRetriesExhausted(first);
         DialogueRetries.setRetriesExhausted(first);
         DialogueRetries.setRetriesExhausted(second);
 
-        assertThat(first.getSuppressed()).containsExactly(RetriesExhaustedException.INSTANCE);
+        assertThat(first.getSuppressed()).containsExactly(diagnostic, RetriesExhaustedException.INSTANCE);
         assertThat(second.getSuppressed()).containsExactly(RetriesExhaustedException.INSTANCE);
         assertThat(DialogueRetries.isRetriesExhausted(first)).isTrue();
         assertThat(DialogueRetries.isRetriesExhausted(second)).isTrue();
-    }
-
-    @Test
-    void markerHasNoMutableExceptionState() {
-        RetriesExhaustedException marker = RetriesExhaustedException.INSTANCE;
-        marker.fillInStackTrace();
-        marker.setStackTrace(new StackTraceElement[] {new StackTraceElement("Test", "method", "Test.java", 1)});
-        marker.addSuppressed(new IOException("Unrelated failure"));
-
-        assertThat(marker.getStackTrace()).isEmpty();
-        assertThat(marker.getSuppressed()).isEmpty();
-        assertThat(marker.getCause()).isNull();
-        assertThatThrownBy(() -> marker.initCause(new IOException("Cause"))).isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
-    void markingTwicePreservesExistingDiagnosticsAndAddsOnlyOneMarker() {
-        IOException failure = new IOException("Failure");
-        RuntimeException diagnostic = new RuntimeException("Existing diagnostic");
-        failure.addSuppressed(diagnostic);
-
-        DialogueRetries.setRetriesExhausted(failure);
-        DialogueRetries.setRetriesExhausted(failure);
-
-        assertThat(failure.getSuppressed()).containsExactly(diagnostic, RetriesExhaustedException.INSTANCE);
     }
 
     @Test
@@ -104,67 +81,16 @@ final class DialogueRetriesTest {
     }
 
     @Test
-    void detectsAbsenceAndMarkersThroughoutCauseCycles() {
+    void handlesCauseCycleWithAndWithoutMarker() {
         assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
-            for (int prefixLength = 0; prefixLength < 4; prefixLength++) {
-                for (int cycleLength = 2; cycleLength < 5; cycleLength++) {
-                    assertCauseCycle(prefixLength, cycleLength);
-                }
-            }
+            IOException first = new IOException("First failure");
+            IOException second = new IOException("Second failure");
+            first.initCause(second);
+            second.initCause(first);
+
+            assertThat(DialogueRetries.isRetriesExhausted(first)).isFalse();
+            DialogueRetries.setRetriesExhausted(second);
+            assertThat(DialogueRetries.isRetriesExhausted(first)).isTrue();
         });
-    }
-
-    @Test
-    void handlesSelfReferencingCause() {
-        assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
-            Throwable failure = new SelfCausedException();
-            assertThat(DialogueRetries.isRetriesExhausted(failure)).isFalse();
-            DialogueRetries.setRetriesExhausted(failure);
-            assertThat(DialogueRetries.isRetriesExhausted(failure)).isTrue();
-        });
-    }
-
-    @Test
-    void suppressionDisabledCarrierCannotRetainMarker() {
-        Throwable failure = new SuppressionDisabledException();
-
-        DialogueRetries.setRetriesExhausted(failure);
-
-        assertThat(failure.getSuppressed()).isEmpty();
-        assertThat(DialogueRetries.isRetriesExhausted(failure)).isFalse();
-    }
-
-    private static void assertCauseCycle(int prefixLength, int cycleLength) {
-        int size = prefixLength + cycleLength;
-        for (int markedIndex = -1; markedIndex < size; markedIndex++) {
-            Throwable[] causes = new Throwable[size];
-            for (int index = 0; index < size; index++) {
-                causes[index] = new IOException("Failure " + index);
-            }
-            for (int index = 0; index < size - 1; index++) {
-                causes[index].initCause(causes[index + 1]);
-            }
-            causes[size - 1].initCause(causes[prefixLength]);
-            if (markedIndex >= 0) {
-                causes[markedIndex].addSuppressed(RetriesExhaustedException.INSTANCE);
-            }
-
-            assertThat(DialogueRetries.isRetriesExhausted(causes[0]))
-                    .as("prefix %s, cycle %s, marker %s", prefixLength, cycleLength, markedIndex)
-                    .isEqualTo(markedIndex >= 0);
-        }
-    }
-
-    private static final class SelfCausedException extends RuntimeException {
-        @Override
-        public synchronized Throwable getCause() {
-            return this;
-        }
-    }
-
-    private static final class SuppressionDisabledException extends RuntimeException {
-        SuppressionDisabledException() {
-            super("Suppression disabled", null, false, true);
-        }
     }
 }

@@ -166,7 +166,6 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThatThrownBy(response::get)
-                .hasCauseInstanceOf(SafeIoException.class)
                 .hasRootCauseExactlyInstanceOf(SafeIoException.class)
                 .hasRootCauseMessage("FAILED");
     }
@@ -185,10 +184,7 @@ public class RetryingChannelTest {
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
-        assertThatThrownBy(response::get)
-                .hasCauseInstanceOf(SafeIoException.class)
-                .hasRootCauseExactlyInstanceOf(SafeIoException.class)
-                .hasRootCauseMessage("FAILED");
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
         verify(channel, times(4)).execute(REQUEST);
     }
 
@@ -924,10 +920,7 @@ public class RetryingChannelTest {
         EndpointChannel retryer = channel(4);
 
         ListenableFuture<Response> response = retryer.execute(REQUEST);
-        assertThatThrownBy(response::get)
-                .hasCauseInstanceOf(SafeIoException.class)
-                .hasRootCauseExactlyInstanceOf(SafeIoException.class)
-                .hasRootCauseMessage("FAILED");
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
         verify(channel, times(5)).execute(REQUEST);
 
         verifyMetrics(

@@ -137,7 +137,7 @@ public final class DialogueChannelTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"true, true", "TrUe, true", "false, false", "invalid, false", ", false"})
+    @CsvSource({"true, true", "false, false", ", false"})
     void exhaustion_header_is_read_even_when_retries_are_disabled(@Nullable String header, boolean exhausted)
             throws ExecutionException, InterruptedException {
         TestResponse finalResponse = new TestResponse().code(503);

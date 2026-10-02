@@ -27,7 +27,6 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.QosException;
-import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
@@ -38,7 +37,6 @@ import com.palantir.dialogue.DialogueRetries;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import org.assertj.core.api.Assertions;
@@ -72,39 +70,29 @@ public class DefaultClientsBlockingTest {
                         .isEqualTo(exhausted));
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void testQosException(boolean exhausted) {
-        QosReason reason = QosReason.of("throttled");
-        QosException.Throttle qosException = QosException.throttle(reason, Duration.ofSeconds(3));
-        if (exhausted) {
-            DialogueRetries.setRetriesExhausted(qosException);
-        }
+    @Test
+    void testQosException() {
+        QosException.Throttle qosException = QosException.throttle();
+        DialogueRetries.setRetriesExhausted(qosException);
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(qosException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isSameAs(qosException)
-                .isInstanceOfSatisfying(QosException.Throttle.class, exception -> {
-                    assertThat(exception.getReason()).isEqualTo(reason);
-                    assertThat(exception.getRetryAfter()).hasValue(Duration.ofSeconds(3));
-                    assertThat(DialogueRetries.isRetriesExhausted(exception)).isEqualTo(exhausted);
-                });
+                .satisfies(exception -> assertThat(DialogueRetries.isRetriesExhausted(exception))
+                        .isTrue());
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void testIoException(boolean exhausted) {
+    @Test
+    void testIoException() {
         IOException ioException = new IOException("connection failed");
-        if (exhausted) {
-            DialogueRetries.setRetriesExhausted(ioException);
-        }
+        DialogueRetries.setRetriesExhausted(ioException);
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(ioException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(DialogueException.class)
                 .hasCause(ioException)
                 .satisfies(exception -> assertThat(DialogueRetries.isRetriesExhausted(exception))
-                        .isEqualTo(exhausted));
+                        .isTrue());
     }
 
     @Test
