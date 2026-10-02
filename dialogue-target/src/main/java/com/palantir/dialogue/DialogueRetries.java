@@ -20,7 +20,6 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Optional;
 import java.util.Set;
-import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 public final class DialogueRetries {
@@ -28,7 +27,6 @@ public final class DialogueRetries {
 
     private static final String DIALOGUE_RETRIES_EXHAUSTED_HEADER = "Dialogue-Retries-Exhausted";
 
-    @VisibleForTesting
     private static final int MAX_CAUSE_CHAIN_LENGTH = 100;
 
     private DialogueRetries() {}
