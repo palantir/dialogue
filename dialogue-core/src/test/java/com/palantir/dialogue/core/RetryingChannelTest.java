@@ -37,6 +37,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TestResponseQosEncoder;
@@ -373,8 +374,7 @@ public class RetryingChannelTest {
 
     @Test
     public void retries_308s() throws Exception {
-        Response mockResponse = mock(Response.class);
-        when(mockResponse.code()).thenReturn(308);
+        Response mockResponse = mockResponse(308);
         when(mockResponse.getFirstHeader(eq("Location"))).thenReturn(Optional.of("https://localhost"));
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
@@ -402,8 +402,7 @@ public class RetryingChannelTest {
 
     @Test
     public void retries_308s_when_429_and_503_are_propagated() throws Exception {
-        Response mockResponse = mock(Response.class);
-        when(mockResponse.code()).thenReturn(308);
+        Response mockResponse = mockResponse(308);
         when(mockResponse.getFirstHeader(eq("Location"))).thenReturn(Optional.of("https://localhost"));
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
@@ -427,8 +426,7 @@ public class RetryingChannelTest {
 
     @Test
     public void does_not_retry_308_without_location() throws Exception {
-        Response mockResponse = mock(Response.class);
-        when(mockResponse.code()).thenReturn(308);
+        Response mockResponse = mockResponse(308);
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
         EndpointChannel retryer = new RetryingChannel(
                 new DefaultTaggedMetricRegistry(),
@@ -447,8 +445,7 @@ public class RetryingChannelTest {
 
     @Test
     public void propagates_429s_when_requested() throws Exception {
-        Response mockResponse = mock(Response.class);
-        when(mockResponse.code()).thenReturn(429);
+        Response mockResponse = mockResponse(429);
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
         EndpointChannel retryer = new RetryingChannel(
@@ -571,8 +568,7 @@ public class RetryingChannelTest {
 
     @Test
     public void returns_503s_when_requested() throws Exception {
-        Response mockResponse = mock(Response.class);
-        when(mockResponse.code()).thenReturn(503);
+        Response mockResponse = mockResponse(503);
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
         EndpointChannel retryer = new RetryingChannel(
@@ -1159,6 +1155,7 @@ public class RetryingChannelTest {
     private static Response mockResponse(int status) {
         Response response = mock(Response.class);
         when(response.code()).thenReturn(status);
+        when(response.attachments()).thenReturn(ResponseAttachments.create());
         return response;
     }
 }

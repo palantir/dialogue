@@ -91,6 +91,32 @@ namespaces:
         type: meter
         tags: [ client-name, client-type ]
         docs: Marked every time a clients targets are reloaded, including initial creation.
+      request.retry.diagnostic.retries:
+        type: meter
+        tags:
+          - name: channel-name
+          - name: result
+            values: [ success, failure ]
+        docs: |
+          Retries scheduled after an attempt returned `Dialogue-Retries-Exhausted: true`, i.e. retries that
+          enforcing do-not-retry would have prevented. Includes retries cancelled during backoff, matching the
+          counting point of request.retry. Recorded when the logical request completes, since the outcome
+          isn't known before then, so counts lag by the request's duration. The result is the outcome of the logical
+          request. For "success" (a 2xx response), the retries rescued a request that enforcing do-not-retry would have
+          failed. For "failure" (any other outcome, including exhausted retries, a non-retryable response, an exception,
+          or cancellation), the scheduled retries did not rescue the request.
+      request.retry.diagnostic.requests:
+        type: meter
+        tags:
+          - name: channel-name
+          - name: result
+            values: [ success, failure ]
+        docs: |
+          Logical requests that scheduled at least one retry after an attempt returned `Dialogue-Retries-Exhausted: true`,
+          including retries cancelled during backoff. For "success", enforcing do-not-retry would have failed the request
+          instead. For "failure", it would have failed anyway, with fewer scheduled retries. Dividing
+          request.retry.diagnostic.retries by this metric for the same result gives the average scheduled retries per
+          affected request.
 
   dialogue.concurrencylimiter:
     docs: Instrumentation for the ConcurrencyLimitedChannel
@@ -146,4 +172,3 @@ namespaces:
         type: meter
         tags: [channel-name, strategy]
         docs: Marked every time the node selection strategy changes
-

@@ -26,12 +26,14 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.ErrorType;
+import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.DialogueException;
+import com.palantir.dialogue.DialogueRetries;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,6 +41,8 @@ import java.util.Map;
 import java.util.Optional;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class DefaultClientsBlockingTest {
 
@@ -49,14 +53,46 @@ public class DefaultClientsBlockingTest {
         Assertions.assertThat(DefaultClients.INSTANCE.block(future)).isEqualTo("success");
     }
 
-    @Test
-    public void testRemoteException() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testRemoteException(boolean exhausted) {
         RemoteException remoteException = remoteException(new ServiceException(ErrorType.INVALID_ARGUMENT));
+        if (exhausted) {
+            DialogueRetries.setRetriesExhausted(remoteException);
+        }
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(remoteException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(RemoteException.class)
-                .hasFieldOrPropertyWithValue("status", ErrorType.INVALID_ARGUMENT.httpErrorCode());
+                .hasFieldOrPropertyWithValue("status", ErrorType.INVALID_ARGUMENT.httpErrorCode())
+                .hasCause(remoteException)
+                .satisfies(exception -> assertThat(DialogueRetries.isRetriesExhausted(exception))
+                        .isEqualTo(exhausted));
+    }
+
+    @Test
+    void testQosException() {
+        QosException.Throttle qosException = QosException.throttle();
+        DialogueRetries.setRetriesExhausted(qosException);
+        ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(qosException);
+
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
+                .isSameAs(qosException)
+                .satisfies(exception -> assertThat(DialogueRetries.isRetriesExhausted(exception))
+                        .isTrue());
+    }
+
+    @Test
+    void testIoException() {
+        IOException ioException = new IOException("connection failed");
+        DialogueRetries.setRetriesExhausted(ioException);
+        ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(ioException);
+
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
+                .isInstanceOf(DialogueException.class)
+                .hasCause(ioException)
+                .satisfies(exception -> assertThat(DialogueRetries.isRetriesExhausted(exception))
+                        .isTrue());
     }
 
     @Test
@@ -149,8 +185,9 @@ public class DefaultClientsBlockingTest {
         verify(responseBody).close();
     }
 
-    @Test
-    public void testUserDefinedRemoteExceptionSubclass() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    public void testUserDefinedRemoteExceptionSubclass(boolean exhausted) {
         CustomRemoteException customException = new CustomRemoteException(
                 new MySerializableError(
                         ErrorType.INVALID_ARGUMENT.code().toString(),
@@ -158,14 +195,18 @@ public class DefaultClientsBlockingTest {
                         "instanceId",
                         new MyParams("myFieldValue")),
                 ErrorType.INVALID_ARGUMENT.httpErrorCode());
+        if (exhausted) {
+            DialogueRetries.setRetriesExhausted(customException);
+        }
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(customException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture)).satisfies(exception -> {
             assertThat(exception).isInstanceOf(CustomRemoteException.class);
             assertThat(exception).hasMessageContainingAll("Default:InvalidArgument", "{someField=myFieldValue}");
             assertThat(exception).isInstanceOf(RemoteException.class);
+            assertThat(DialogueRetries.isRetriesExhausted(exception)).isEqualTo(exhausted);
             assertThat(exception.getCause()).isInstanceOfSatisfying(CustomRemoteException.class, cause -> {
-                assertThat(cause).isNotNull();
+                assertThat(cause).isSameAs(customException);
                 assertThat(cause).hasMessageContainingAll("Default:InvalidArgument", "{someField=myFieldValue}");
             });
         });
