@@ -186,7 +186,7 @@ de.erichseifert.vectorgraphics2d:VectorGraphics2D:0.13 (1 constraints: 8c0a80bb)
 
 de.rototor.pdfbox:graphics2d:0.25 (1 constraints: 8f0a84bb)
 
-io.undertow:undertow-core:2.2.38.Final (1 constraints: 59075361)
+io.undertow:undertow-core:2.2.40.Final (1 constraints: 52072361)
 
 junit:junit:4.13.2 (2 constraints: de1ce71a)
 
