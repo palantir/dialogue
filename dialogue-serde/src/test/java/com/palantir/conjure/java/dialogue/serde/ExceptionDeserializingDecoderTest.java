@@ -35,7 +35,6 @@ import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.DialogueRetries;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
-import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
 import java.io.IOException;
@@ -79,7 +78,7 @@ final class ExceptionDeserializingDecoderTest {
 
     @ParameterizedTest
     @CsvSource({"429, true", "429, false", "503, true", "503, false"})
-    void exhaustion_marker_wraps_qos_error_without_losing_metadata(int statusCode, boolean exhausted) {
+    void exhaustion_marker_preserves_qos_error_type_and_metadata(int statusCode, boolean exhausted) {
         TestResponse response = new TestResponse()
                 .code(statusCode)
                 .withHeader("Qos-Due-To", "custom")
@@ -93,11 +92,8 @@ final class ExceptionDeserializingDecoderTest {
 
         Throwable result = catchThrowable(() -> deserializer.deserialize(response));
 
-        if (exhausted) {
-            assertThat(result).isInstanceOf(RetriesExhaustedException.class);
-            result = result.getCause();
-        }
         assertThat(result).isInstanceOfSatisfying(QosException.class, exception -> {
+            assertThat(DialogueRetries.isRetriesExhausted(exception)).isEqualTo(exhausted);
             assertThat(exception.getReason())
                     .isEqualTo(QosReason.builder()
                             .reason("client-qos-response")
@@ -106,8 +102,9 @@ final class ExceptionDeserializingDecoderTest {
                             .build());
             if (statusCode == 429) {
                 assertThat(exception)
-                        .isInstanceOfSatisfying(QosException.Throttle.class, throttle ->
-                                assertThat(throttle.getRetryAfter()).hasValue(Duration.ofSeconds(3)));
+                        .isInstanceOfSatisfying(
+                                QosException.Throttle.class,
+                                throttle -> assertThat(throttle.getRetryAfter()).hasValue(Duration.ofSeconds(3)));
             } else {
                 assertThat(exception).isInstanceOf(QosException.Unavailable.class);
             }
@@ -117,8 +114,9 @@ final class ExceptionDeserializingDecoderTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void exhaustion_marker_wraps_remote_error_without_losing_status_or_body(boolean exhausted) throws IOException {
-        ServiceException serviceException = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
+    void exhaustion_marker_preserves_remote_error_type_status_and_body(boolean exhausted) throws IOException {
+        ServiceException serviceException =
+                ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
         SerializableError expectedError = SerializableError.forException(serviceException);
         TestResponse response = TestResponse.withBody(MAPPER.writeValueAsString(expectedError))
                 .contentType("application/json")
@@ -133,11 +131,8 @@ final class ExceptionDeserializingDecoderTest {
 
         Throwable result = catchThrowable(() -> deserializer.deserialize(response));
 
-        if (exhausted) {
-            assertThat(result).isInstanceOf(RetriesExhaustedException.class);
-            result = result.getCause();
-        }
         assertThat(result).isInstanceOfSatisfying(RemoteException.class, exception -> {
+            assertThat(DialogueRetries.isRetriesExhausted(exception)).isEqualTo(exhausted);
             assertThat(exception.getStatus()).isEqualTo(400);
             assertThat(exception.getError()).isEqualTo(expectedError);
         });
@@ -156,9 +151,8 @@ final class ExceptionDeserializingDecoderTest {
                 .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
 
         assertThatThrownBy(() -> deserializer.deserialize(response))
-                .isInstanceOf(RetriesExhaustedException.class)
-                .cause()
                 .isInstanceOfSatisfying(TestErrorException.class, exception -> {
+                    assertThat(DialogueRetries.isRetriesExhausted(exception)).isTrue();
                     assertThat(exception.getStatus()).isEqualTo(500);
                     ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
                             exception, expectedError.getErrorInstanceId());

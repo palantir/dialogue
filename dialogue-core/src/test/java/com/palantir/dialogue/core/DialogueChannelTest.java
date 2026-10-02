@@ -163,7 +163,8 @@ public final class DialogueChannelTest {
     }
 
     @Test
-    void exhaustion_header_records_diagnostics_without_preventing_retry() throws ExecutionException, InterruptedException {
+    void exhaustion_header_records_diagnostics_without_preventing_retry()
+            throws ExecutionException, InterruptedException {
         TestResponse exhaustedResponse = new TestResponse().code(503);
         DialogueRetries.encodeToResponse(true, exhaustedResponse, TestResponse::withHeader);
         TestResponse success = new TestResponse().code(204);
@@ -188,13 +189,15 @@ public final class DialogueChannelTest {
         assertThat(exhaustedResponse.isClosed()).isTrue();
         assertThat(DialogueRetries.isRetriesExhausted(success)).isFalse();
         DialogueClientMetrics dialogueMetrics = DialogueClientMetrics.of(metrics);
-        assertThat(dialogueMetrics.requestRetryDiagnosticRetries()
+        assertThat(dialogueMetrics
+                        .requestRetryDiagnosticRetries()
                         .channelName("my-channel")
                         .result(RequestRetryDiagnosticRetries_Result.SUCCESS)
                         .build()
                         .getCount())
                 .isEqualTo(1);
-        assertThat(dialogueMetrics.requestRetryDiagnosticRequests()
+        assertThat(dialogueMetrics
+                        .requestRetryDiagnosticRequests()
                         .channelName("my-channel")
                         .result(RequestRetryDiagnosticRequests_Result.SUCCESS)
                         .build()

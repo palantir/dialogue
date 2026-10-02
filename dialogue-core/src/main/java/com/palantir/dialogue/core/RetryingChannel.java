@@ -36,7 +36,6 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryCount_Result;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRequests_Result;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRetries_Result;
@@ -395,9 +394,11 @@ final class RetryingChannel implements EndpointChannel {
                                 clientSideThrowable);
                     }
                 }
-            } else if (requestCanBeRetried() && shouldAttemptToRetry(clientSideThrowable)) {
+            } else {
                 exhaustedDueToThrowable.apply(clientSideThrowable).inc();
-                return Futures.immediateFailedFuture(new RetriesExhaustedException(clientSideThrowable));
+                if (requestCanBeRetried() && shouldAttemptToRetry(clientSideThrowable)) {
+                    DialogueRetries.setRetriesExhausted(clientSideThrowable);
+                }
             }
             return Futures.immediateFailedFuture(clientSideThrowable);
         }

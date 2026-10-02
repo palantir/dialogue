@@ -33,15 +33,19 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryCount_Result;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRequests_Result;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRetries_Result;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 final class RetryingChannelDiagnosticMetricsTest {
     private static final String CHANNEL_NAME = "diagnostic-channel";
@@ -95,24 +99,84 @@ final class RetryingChannelDiagnosticMetricsTest {
         assertThat(DialogueRetries.isRetriesExhausted(terminalResponse)).isFalse();
     }
 
-    @Test
-    void records_terminal_throwable_once_despite_enclosing_retry_callbacks() {
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1})
+    void terminal_throwable_preserves_existing_callback_accounting(long backoffSeconds) {
         IOException failure = new IOException("terminal failure");
         when(delegate.execute(REQUEST))
                 .thenReturn(Futures.immediateFuture(exhaustedResponse(503)))
                 .thenReturn(Futures.immediateFailedFuture(failure));
 
-        ListenableFuture<Response> result = retryer(1, Duration.ZERO).execute(REQUEST);
+        ListenableFuture<Response> result =
+                retryer(1, Duration.ofSeconds(backoffSeconds)).execute(REQUEST);
+        scheduler.tick(1, TimeUnit.SECONDS);
 
         assertThat(result)
                 .failsWithin(Duration.ZERO)
                 .withThrowableThat()
                 .havingCause()
-                .isInstanceOf(RetriesExhaustedException.class)
-                .havingCause()
                 .isSameAs(failure);
+        assertThat(failure.getSuppressed()).containsExactly(RetriesExhaustedException.INSTANCE);
         verify(delegate, times(2)).execute(REQUEST);
         assertDiagnosticMetrics(0, 0, 1, 1);
+        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
+        // Preserve the existing metrics: the enclosing response callback also observes the final throwable.
+        assertThat(metrics.requestRetryExhausted()
+                        .channelName(CHANNEL_NAME)
+                        .reason("IOException")
+                        .build()
+                        .getCount())
+                .isEqualTo(2);
+        assertThat(metrics.requestRetryCount()
+                        .channelName(CHANNEL_NAME)
+                        .result(RequestRetryCount_Result.FAILURE)
+                        .build()
+                        .getSnapshot()
+                        .getValues())
+                .containsExactly(3L);
+    }
+
+    @Test
+    void existing_throwable_marker_does_not_prevent_retry() {
+        IOException failure = new IOException("previously marked failure");
+        DialogueRetries.setRetriesExhausted(failure);
+        TestResponse success = new TestResponse().code(204);
+        when(delegate.execute(REQUEST))
+                .thenReturn(Futures.immediateFailedFuture(failure))
+                .thenReturn(Futures.immediateFuture(success));
+
+        assertThat(retryer(1, Duration.ZERO).execute(REQUEST))
+                .succeedsWithin(Duration.ZERO)
+                .isSameAs(success);
+
+        verify(delegate, times(2)).execute(REQUEST);
+        assertThat(failure.getSuppressed()).containsExactly(RetriesExhaustedException.INSTANCE);
+        assertThat(DialogueRetries.isRetriesExhausted(success)).isFalse();
+    }
+
+    @Test
+    void non_retryable_throwable_after_retry_budget_is_not_marked_exhausted() {
+        SocketTimeoutException failure = new SocketTimeoutException("read timed out");
+        when(delegate.execute(REQUEST))
+                .thenReturn(Futures.immediateFuture(exhaustedResponse(503)))
+                .thenReturn(Futures.immediateFailedFuture(failure));
+
+        assertThat(retryer(1, Duration.ZERO).execute(REQUEST))
+                .failsWithin(Duration.ZERO)
+                .withThrowableThat()
+                .havingCause()
+                .isSameAs(failure);
+
+        verify(delegate, times(2)).execute(REQUEST);
+        assertThat(DialogueRetries.isRetriesExhausted(failure)).isFalse();
+        assertDiagnosticMetrics(0, 0, 1, 1);
+        assertThat(DialogueClientMetrics.of(registry)
+                        .requestRetryExhausted()
+                        .channelName(CHANNEL_NAME)
+                        .reason("SocketTimeoutException")
+                        .build()
+                        .getCount())
+                .isEqualTo(2);
     }
 
     @Test

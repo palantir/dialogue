@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
-import com.palantir.dialogue.RetriesExhaustedException;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -35,7 +34,12 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
-/** Compares exception metadata strategies only; this is not an HTTP or retry-loop benchmark. */
+/**
+ * Compares exception metadata strategies only; this is not an HTTP or retry-loop benchmark.
+ *
+ * <p>The strategies retain the original prototype implementations for comparison with previously saved results.
+ * In particular, the marker benchmarks do not measure the production {@code DialogueRetries} helper.
+ */
 @Warmup(iterations = 4, time = 500, timeUnit = TimeUnit.MILLISECONDS)
 @Measurement(iterations = 5, time = 500, timeUnit = TimeUnit.MILLISECONDS)
 @Fork(
@@ -67,7 +71,8 @@ public class RetryExhaustionMarkerBenchmark {
 
     @Benchmark
     public Throwable currentWrapper(FailureState state) {
-        return new RetriesExhaustedException(state.newFailure());
+        // Keep the original benchmark name so existing reports remain comparable.
+        return new LegacyRetriesExhaustedException(state.newFailure());
     }
 
     @Benchmark
@@ -151,6 +156,13 @@ public class RetryExhaustionMarkerBenchmark {
             if (hasMarker(failure) != marked) {
                 throw new IllegalStateException("Marker lookup did not match benchmark setup");
             }
+        }
+    }
+
+    // Preserve the previous production wrapper's constructor independently of the new shared marker API.
+    private static final class LegacyRetriesExhaustedException extends RuntimeException {
+        LegacyRetriesExhaustedException(Throwable cause) {
+            super(cause);
         }
     }
 

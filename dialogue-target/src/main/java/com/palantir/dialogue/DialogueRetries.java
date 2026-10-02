@@ -16,12 +16,20 @@
 
 package com.palantir.dialogue;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Optional;
+import java.util.Set;
+import org.jetbrains.annotations.VisibleForTesting;
+import org.jspecify.annotations.Nullable;
 
 public final class DialogueRetries {
     static final ResponseAttachmentKey<Boolean> RETRIES_EXHAUSTED_TOKEN = ResponseAttachmentKey.create(Boolean.class);
 
     private static final String DIALOGUE_RETRIES_EXHAUSTED_HEADER = "Dialogue-Retries-Exhausted";
+
+    @VisibleForTesting
+    private static final int MAX_CAUSE_CHAIN_LENGTH = 100;
 
     private DialogueRetries() {}
 
@@ -30,8 +38,35 @@ public final class DialogueRetries {
         return result != null && result;
     }
 
+    public static boolean isRetriesExhausted(Throwable throwable) {
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        @Nullable Throwable current = throwable;
+        while (current != null && visited.size() < MAX_CAUSE_CHAIN_LENGTH && visited.add(current)) {
+            if (hasRetriesExhaustedMarker(current)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
     public static void setRetriesExhausted(Response response) {
         response.attachments().put(RETRIES_EXHAUSTED_TOKEN, true);
+    }
+
+    public static void setRetriesExhausted(Throwable throwable) {
+        if (!isRetriesExhausted(throwable)) {
+            throwable.addSuppressed(RetriesExhaustedException.INSTANCE);
+        }
+    }
+
+    private static boolean hasRetriesExhaustedMarker(Throwable throwable) {
+        for (Throwable suppressed : throwable.getSuppressed()) {
+            if (suppressed instanceof RetriesExhaustedException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // TODO(blaub): perhaps change `value` to a value type with more metadata instead of just boolean

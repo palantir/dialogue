@@ -38,7 +38,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.ResponseAttachments;
-import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TestResponseQosEncoder;
@@ -147,8 +146,6 @@ public class RetryingChannelTest {
                 .withThrowableThat()
                 // Bypass the outer ExecutionException implementation detail of Future
                 .havingCause()
-                .isInstanceOf(RetriesExhaustedException.class)
-                .havingCause()
                 .isInstanceOf(SafeIoException.class)
                 .withMessage("FAILED");
     }
@@ -169,7 +166,7 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThatThrownBy(response::get)
-                .hasCauseInstanceOf(RetriesExhaustedException.class)
+                .hasCauseInstanceOf(SafeIoException.class)
                 .hasRootCauseExactlyInstanceOf(SafeIoException.class)
                 .hasRootCauseMessage("FAILED");
     }
@@ -189,7 +186,7 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThatThrownBy(response::get)
-                .hasCauseInstanceOf(RetriesExhaustedException.class)
+                .hasCauseInstanceOf(SafeIoException.class)
                 .hasRootCauseExactlyInstanceOf(SafeIoException.class)
                 .hasRootCauseMessage("FAILED");
         verify(channel, times(4)).execute(REQUEST);
@@ -928,7 +925,7 @@ public class RetryingChannelTest {
 
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThatThrownBy(response::get)
-                .hasCauseInstanceOf(RetriesExhaustedException.class)
+                .hasCauseInstanceOf(SafeIoException.class)
                 .hasRootCauseExactlyInstanceOf(SafeIoException.class)
                 .hasRootCauseMessage("FAILED");
         verify(channel, times(5)).execute(REQUEST);

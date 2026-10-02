@@ -16,8 +16,12 @@
 
 package com.palantir.dialogue;
 
-public class RetriesExhaustedException extends RuntimeException {
-    public RetriesExhaustedException(Throwable cause) {
-        super(cause);
+/** Immutable diagnostic metadata attached to a failure as a suppressed exception. */
+public final class RetriesExhaustedException extends RuntimeException {
+    @SuppressWarnings("StaticAssignmentOfThrowable") // This marker is immutable and never captures a stack trace.
+    public static final RetriesExhaustedException INSTANCE = new RetriesExhaustedException();
+
+    private RetriesExhaustedException() {
+        super("Dialogue retries exhausted", null, false, false);
     }
 }
