@@ -17,9 +17,13 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.palantir.conjure.java.api.errors.QosException;
+import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
@@ -29,12 +33,15 @@ import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtil
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.DialogueRetries;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
+import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -46,6 +53,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -66,6 +75,95 @@ final class ExceptionDeserializingDecoderTest {
         String value = bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
         // Then
         assertThat(value).isEqualTo(expectedString);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"429, true", "429, false", "503, true", "503, false"})
+    void exhaustion_marker_wraps_qos_error_without_losing_metadata(int statusCode, boolean exhausted) {
+        TestResponse response = new TestResponse()
+                .code(statusCode)
+                .withHeader("Qos-Due-To", "custom")
+                .withHeader("Qos-Retry-Hint", "do-not-retry")
+                .withHeader("Retry-After", "3");
+        if (exhausted) {
+            DialogueRetries.setRetriesExhausted(response);
+        }
+        Deserializer<String> deserializer = conjureBodySerDe("application/json")
+                .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
+
+        Throwable result = catchThrowable(() -> deserializer.deserialize(response));
+
+        if (exhausted) {
+            assertThat(result).isInstanceOf(RetriesExhaustedException.class);
+            result = result.getCause();
+        }
+        assertThat(result).isInstanceOfSatisfying(QosException.class, exception -> {
+            assertThat(exception.getReason())
+                    .isEqualTo(QosReason.builder()
+                            .reason("client-qos-response")
+                            .dueTo(QosReason.DueTo.CUSTOM)
+                            .retryHint(QosReason.RetryHint.DO_NOT_RETRY)
+                            .build());
+            if (statusCode == 429) {
+                assertThat(exception)
+                        .isInstanceOfSatisfying(QosException.Throttle.class, throttle ->
+                                assertThat(throttle.getRetryAfter()).hasValue(Duration.ofSeconds(3)));
+            } else {
+                assertThat(exception).isInstanceOf(QosException.Unavailable.class);
+            }
+        });
+        assertThat(response.isClosed()).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void exhaustion_marker_wraps_remote_error_without_losing_status_or_body(boolean exhausted) throws IOException {
+        ServiceException serviceException = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
+        SerializableError expectedError = SerializableError.forException(serviceException);
+        TestResponse response = TestResponse.withBody(MAPPER.writeValueAsString(expectedError))
+                .contentType("application/json")
+                .code(400);
+        if (exhausted) {
+            DialogueRetries.setRetriesExhausted(response);
+        }
+        ExceptionDeserializerArgs<String> deserializerArgs = ExceptionDeserializerArgs.<String>builder()
+                .returnType(new TypeMarker<>() {})
+                .build();
+        Deserializer<String> deserializer = conjureBodySerDe("application/json").deserializer(deserializerArgs);
+
+        Throwable result = catchThrowable(() -> deserializer.deserialize(response));
+
+        if (exhausted) {
+            assertThat(result).isInstanceOf(RetriesExhaustedException.class);
+            result = result.getCause();
+        }
+        assertThat(result).isInstanceOfSatisfying(RemoteException.class, exception -> {
+            assertThat(exception.getStatus()).isEqualTo(400);
+            assertThat(exception.getError()).isEqualTo(expectedError);
+        });
+        assertThat(response.isClosed()).isTrue();
+    }
+
+    @Test
+    void exhaustion_marker_preserves_typed_endpoint_exception() throws IOException {
+        ServiceException expectedError = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
+        TestResponse response = TestResponse.withBody(MAPPER.writeValueAsString(
+                        ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(expectedError)))
+                .contentType("application/json")
+                .code(500);
+        DialogueRetries.setRetriesExhausted(response);
+        Deserializer<String> deserializer = conjureBodySerDe("application/json")
+                .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
+
+        assertThatThrownBy(() -> deserializer.deserialize(response))
+                .isInstanceOf(RetriesExhaustedException.class)
+                .cause()
+                .isInstanceOfSatisfying(TestErrorException.class, exception -> {
+                    assertThat(exception.getStatus()).isEqualTo(500);
+                    ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
+                            exception, expectedError.getErrorInstanceId());
+                });
+        assertThat(response.isClosed()).isTrue();
     }
 
     /**

@@ -58,8 +58,9 @@ public final class UserAgentEndpointChannelTest {
     @Test
     public void injectsDialogueVersionAndEndpointVersion() {
         EndpointChannel channel = UserAgentEndpointChannel.create(delegate, TestEndpoint.POST, baseAgent);
-        // Special case: In IDEs, tests are run against classes (not JARs) and thus don't carry versions.
+        // IDE builds may omit versions, and dirty build versions may be normalized to the default.
         String dialogueVersion = Optional.ofNullable(Channel.class.getPackage().getImplementationVersion())
+                .map(version -> Agent.of("dialogue", version).version())
                 .orElse(Agent.DEFAULT_VERSION);
 
         channel.execute(request);
@@ -97,8 +98,9 @@ public final class UserAgentEndpointChannelTest {
                     }
                 },
                 baseAgent);
-        // Special case: In IDEs, tests are run against classes (not JARs) and thus don't carry versions.
+        // IDE builds may omit versions, and dirty build versions may be normalized to the default.
         String dialogueVersion = Optional.ofNullable(Channel.class.getPackage().getImplementationVersion())
+                .map(version -> Agent.of("dialogue", version).version())
                 .orElse(Agent.DEFAULT_VERSION);
         channel.execute(request);
         verify(delegate).execute(requestCaptor.capture());
