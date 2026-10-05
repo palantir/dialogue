@@ -18,6 +18,10 @@ package com.palantir.dialogue;
 
 /** Immutable diagnostic metadata attached to a failure as a suppressed exception. */
 public final class RetriesExhaustedException extends RuntimeException {
+    /** Internal attachment shared by the retry channel and error decoder. */
+    public static final ResponseAttachmentKey<Boolean> RESPONSE_ATTACHMENT_KEY =
+            ResponseAttachmentKey.create(Boolean.class);
+
     @SuppressWarnings("StaticAssignmentOfThrowable") // This marker is immutable and never captures a stack trace.
     public static final RetriesExhaustedException INSTANCE = new RetriesExhaustedException();
 

@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
+import com.palantir.dialogue.RetriesExhaustedException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;

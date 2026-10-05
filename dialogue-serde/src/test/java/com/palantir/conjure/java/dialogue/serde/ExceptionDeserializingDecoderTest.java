@@ -33,8 +33,8 @@ import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtil
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
-import com.palantir.dialogue.DialogueRetries;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
+import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
 import java.io.IOException;
@@ -85,7 +85,7 @@ final class ExceptionDeserializingDecoderTest {
                 .withHeader("Qos-Retry-Hint", "do-not-retry")
                 .withHeader("Retry-After", "3");
         if (exhausted) {
-            DialogueRetries.setRetriesExhausted(response);
+            response.attachments().put(RetriesExhaustedException.RESPONSE_ATTACHMENT_KEY, true);
         }
         Deserializer<String> deserializer = conjureBodySerDe("application/json")
                 .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
@@ -93,7 +93,11 @@ final class ExceptionDeserializingDecoderTest {
         Throwable result = catchThrowable(() -> deserializer.deserialize(response));
 
         assertThat(result).isInstanceOfSatisfying(QosException.class, exception -> {
-            assertThat(DialogueRetries.isRetriesExhausted(exception)).isEqualTo(exhausted);
+            if (exhausted) {
+                assertThat(exception.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
+            } else {
+                assertThat(exception.getSuppressed()).doesNotContain(RetriesExhaustedException.INSTANCE);
+            }
             assertThat(exception.getReason())
                     .isEqualTo(QosReason.builder()
                             .reason("client-qos-response")
@@ -122,7 +126,7 @@ final class ExceptionDeserializingDecoderTest {
                 .contentType("application/json")
                 .code(400);
         if (exhausted) {
-            DialogueRetries.setRetriesExhausted(response);
+            response.attachments().put(RetriesExhaustedException.RESPONSE_ATTACHMENT_KEY, true);
         }
         ExceptionDeserializerArgs<String> deserializerArgs = ExceptionDeserializerArgs.<String>builder()
                 .returnType(new TypeMarker<>() {})
@@ -132,7 +136,11 @@ final class ExceptionDeserializingDecoderTest {
         Throwable result = catchThrowable(() -> deserializer.deserialize(response));
 
         assertThat(result).isInstanceOfSatisfying(RemoteException.class, exception -> {
-            assertThat(DialogueRetries.isRetriesExhausted(exception)).isEqualTo(exhausted);
+            if (exhausted) {
+                assertThat(exception.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
+            } else {
+                assertThat(exception.getSuppressed()).doesNotContain(RetriesExhaustedException.INSTANCE);
+            }
             assertThat(exception.getStatus()).isEqualTo(400);
             assertThat(exception.getError()).isEqualTo(expectedError);
         });
@@ -146,13 +154,13 @@ final class ExceptionDeserializingDecoderTest {
                         ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(expectedError)))
                 .contentType("application/json")
                 .code(500);
-        DialogueRetries.setRetriesExhausted(response);
+        response.attachments().put(RetriesExhaustedException.RESPONSE_ATTACHMENT_KEY, true);
         Deserializer<String> deserializer = conjureBodySerDe("application/json")
                 .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
 
         assertThatThrownBy(() -> deserializer.deserialize(response))
                 .isInstanceOfSatisfying(TestErrorException.class, exception -> {
-                    assertThat(DialogueRetries.isRetriesExhausted(exception)).isTrue();
+                    assertThat(exception.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
                     assertThat(exception.getStatus()).isEqualTo(500);
                     ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
                             exception, expectedError.getErrorInstanceId());

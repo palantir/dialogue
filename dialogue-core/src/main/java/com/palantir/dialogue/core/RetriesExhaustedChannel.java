@@ -18,11 +18,10 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.DialogueRetries;
-import com.palantir.dialogue.DialogueRetries.DialogueRetriesResponseDecodingAdapter;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.DialogueRetries.DialogueRetriesResponseDecodingAdapter;
 import com.palantir.dialogue.futures.DialogueFutures;
 import java.util.Optional;
 

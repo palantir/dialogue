@@ -43,7 +43,6 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.DialogueRetries;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;

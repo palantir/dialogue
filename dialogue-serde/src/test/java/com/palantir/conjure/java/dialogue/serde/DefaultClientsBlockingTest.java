@@ -33,7 +33,7 @@ import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.DialogueException;
-import com.palantir.dialogue.DialogueRetries;
+import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,41 +58,43 @@ public class DefaultClientsBlockingTest {
     public void testRemoteException(boolean exhausted) {
         RemoteException remoteException = remoteException(new ServiceException(ErrorType.INVALID_ARGUMENT));
         if (exhausted) {
-            DialogueRetries.setRetriesExhausted(remoteException);
+            remoteException.addSuppressed(RetriesExhaustedException.INSTANCE);
         }
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(remoteException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(RemoteException.class)
                 .hasFieldOrPropertyWithValue("status", ErrorType.INVALID_ARGUMENT.httpErrorCode())
-                .hasCause(remoteException)
-                .satisfies(exception -> assertThat(DialogueRetries.isRetriesExhausted(exception))
-                        .isEqualTo(exhausted));
+                .hasCause(remoteException);
+        if (exhausted) {
+            assertThat(remoteException.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
+        } else {
+            assertThat(remoteException.getSuppressed()).doesNotContain(RetriesExhaustedException.INSTANCE);
+        }
     }
 
     @Test
     void testQosException() {
         QosException.Throttle qosException = QosException.throttle();
-        DialogueRetries.setRetriesExhausted(qosException);
+        qosException.addSuppressed(RetriesExhaustedException.INSTANCE);
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(qosException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isSameAs(qosException)
-                .satisfies(exception -> assertThat(DialogueRetries.isRetriesExhausted(exception))
-                        .isTrue());
+                .satisfies(exception ->
+                        assertThat(exception.getSuppressed()).contains(RetriesExhaustedException.INSTANCE));
     }
 
     @Test
     void testIoException() {
         IOException ioException = new IOException("connection failed");
-        DialogueRetries.setRetriesExhausted(ioException);
+        ioException.addSuppressed(RetriesExhaustedException.INSTANCE);
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(ioException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(DialogueException.class)
-                .hasCause(ioException)
-                .satisfies(exception -> assertThat(DialogueRetries.isRetriesExhausted(exception))
-                        .isTrue());
+                .hasCause(ioException);
+        assertThat(ioException.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
     }
 
     @Test
@@ -196,7 +198,7 @@ public class DefaultClientsBlockingTest {
                         new MyParams("myFieldValue")),
                 ErrorType.INVALID_ARGUMENT.httpErrorCode());
         if (exhausted) {
-            DialogueRetries.setRetriesExhausted(customException);
+            customException.addSuppressed(RetriesExhaustedException.INSTANCE);
         }
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(customException);
 
@@ -204,10 +206,14 @@ public class DefaultClientsBlockingTest {
             assertThat(exception).isInstanceOf(CustomRemoteException.class);
             assertThat(exception).hasMessageContainingAll("Default:InvalidArgument", "{someField=myFieldValue}");
             assertThat(exception).isInstanceOf(RemoteException.class);
-            assertThat(DialogueRetries.isRetriesExhausted(exception)).isEqualTo(exhausted);
             assertThat(exception.getCause()).isInstanceOfSatisfying(CustomRemoteException.class, cause -> {
                 assertThat(cause).isSameAs(customException);
                 assertThat(cause).hasMessageContainingAll("Default:InvalidArgument", "{someField=myFieldValue}");
+                if (exhausted) {
+                    assertThat(cause.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
+                } else {
+                    assertThat(cause.getSuppressed()).doesNotContain(RetriesExhaustedException.INSTANCE);
+                }
             });
         });
     }

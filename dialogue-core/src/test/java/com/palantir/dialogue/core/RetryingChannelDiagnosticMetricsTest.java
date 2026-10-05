@@ -26,7 +26,6 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.DialogueRetries;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -144,7 +143,7 @@ final class RetryingChannelDiagnosticMetricsTest {
                 .isSameAs(failure);
 
         verify(delegate, times(2)).execute(REQUEST);
-        assertThat(DialogueRetries.isRetriesExhausted(failure)).isFalse();
+        assertThat(failure.getSuppressed()).doesNotContain(RetriesExhaustedException.INSTANCE);
         assertDiagnosticMetrics(0, 0, 1, 1);
     }
 

@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2025 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2026 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.core;
 
+import com.palantir.dialogue.Response;
+import com.palantir.dialogue.RetriesExhaustedException;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Optional;
@@ -23,20 +25,18 @@ import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 public final class DialogueRetries {
-    static final ResponseAttachmentKey<Boolean> RETRIES_EXHAUSTED_TOKEN = ResponseAttachmentKey.create(Boolean.class);
-
     private static final String DIALOGUE_RETRIES_EXHAUSTED_HEADER = "Dialogue-Retries-Exhausted";
 
     private static final int MAX_CAUSE_CHAIN_LENGTH = 100;
 
     private DialogueRetries() {}
 
-    public static boolean isRetriesExhausted(Response response) {
-        Boolean result = response.attachments().getOrDefault(RETRIES_EXHAUSTED_TOKEN, false);
+    static boolean isRetriesExhausted(Response response) {
+        Boolean result = response.attachments().getOrDefault(RetriesExhaustedException.RESPONSE_ATTACHMENT_KEY, false);
         return result != null && result;
     }
 
-    public static boolean isRetriesExhausted(Throwable throwable) {
+    static boolean isRetriesExhausted(Throwable throwable) {
         Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         @Nullable Throwable current = throwable;
         while (current != null && visited.size() < MAX_CAUSE_CHAIN_LENGTH && visited.add(current)) {
@@ -48,11 +48,11 @@ public final class DialogueRetries {
         return false;
     }
 
-    public static void setRetriesExhausted(Response response) {
-        response.attachments().put(RETRIES_EXHAUSTED_TOKEN, true);
+    static void setRetriesExhausted(Response response) {
+        response.attachments().put(RetriesExhaustedException.RESPONSE_ATTACHMENT_KEY, true);
     }
 
-    public static void setRetriesExhausted(Throwable throwable) {
+    static void setRetriesExhausted(Throwable throwable) {
         if (!isRetriesExhausted(throwable)) {
             throwable.addSuppressed(RetriesExhaustedException.INSTANCE);
         }

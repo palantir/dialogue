@@ -29,7 +29,6 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.DialogueRetries;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.HttpMethod;
