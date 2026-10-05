@@ -120,6 +120,24 @@ populated with the reason for which the last retry has failed.
 - `dialogue.client.request.sticky.queued.time` tagged `channel-name` (timer): Time spent waiting in the sticky queue before execution attempt.
 - `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 - `dialogue.client.reload` tagged `client-name`, `client-type` (meter): Marked every time a clients targets are reloaded, including initial creation.
+- `dialogue.client.request.retry.diagnostic.retries` (meter): Retries scheduled after an attempt returned `Dialogue-Retries-Exhausted: true`, i.e. retries that
+enforcing do-not-retry would have prevented. Includes retries cancelled during backoff, matching the
+counting point of request.retry. Recorded when the logical request completes, since the outcome
+isn't known before then, so counts lag by the request's duration. The result is the outcome of the logical
+request. For "success" (a 2xx response), the retries rescued a request that enforcing do-not-retry would have
+failed. For "failure" (any other outcome, including exhausted retries, a non-retryable response, an exception,
+or cancellation), the scheduled retries did not rescue the request.
+
+  - `channel-name`
+  - `result` values (`success`,`failure`)
+- `dialogue.client.request.retry.diagnostic.requests` (meter): Logical requests that scheduled at least one retry after an attempt returned `Dialogue-Retries-Exhausted: true`,
+including retries cancelled during backoff. For "success", enforcing do-not-retry would have failed the request
+instead. For "failure", it would have failed anyway, with fewer scheduled retries. Dividing
+request.retry.diagnostic.retries by this metric for the same result gives the average scheduled retries per
+affected request.
+
+  - `channel-name`
+  - `result` values (`success`,`failure`)
 
 ### dialogue.concurrencylimiter
 Instrumentation for the ConcurrencyLimitedChannel
