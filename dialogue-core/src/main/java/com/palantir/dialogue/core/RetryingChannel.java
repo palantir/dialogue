@@ -29,6 +29,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.dialogue.DialogueRetries;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.HttpMethod;
@@ -318,7 +319,8 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {
-            boolean canRetryRequest = requestCanBeRetried();
+            // check for upstream dialogue retry exhaustion on the response; if true, we do not attempt further retries
+            boolean canRetryRequest = requestCanBeRetried() && !DialogueRetries.isRetriesExhausted(response);
             if (canRetryRequest && isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(
                         response, qosThrowable, retryDueToQosResponse.get(), exhaustedDueToQosResponse.get());
@@ -385,6 +387,9 @@ final class RetryingChannel implements EndpointChannel {
             }
             exhaustedCounter.inc();
             infoLogRetriesExhausted(response);
+            // indicate to receivers (such as ExceptionDeserializingErrorDecoder) that retries have been exhausted
+            // at this node
+            DialogueRetries.setRetriesExhausted(response);
             // not closing response because ConjureBodySerde will need to deserialize it
             return Futures.immediateFuture(response);
         }
