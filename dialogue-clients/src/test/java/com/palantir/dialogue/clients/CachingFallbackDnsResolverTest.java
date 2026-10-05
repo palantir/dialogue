@@ -17,8 +17,10 @@
 package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.codahale.metrics.Meter;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.MultimapBuilder.SetMultimapBuilder;
 import com.google.common.collect.SetMultimap;
@@ -29,6 +31,9 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
 class CachingFallbackDnsResolverTest {
@@ -84,5 +89,59 @@ class CachingFallbackDnsResolverTest {
         assertThat(lookupSuccessMeter.getCount()).isEqualTo(1);
         assertThat(lookupFallbackMeter.getCount()).isEqualTo(1);
         assertThat(lookupFailureMeter.getCount()).isEqualTo(0);
+    }
+
+    @Test
+    void noFallbackOnceHostDoesNotExist() throws UnknownHostException {
+        assumeThat(System.getProperty("os.name").toLowerCase(Locale.ROOT).startsWith("linux"))
+                .describedAs("GAI Error Strings are only defined for Linux environments")
+                .isTrue();
+
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
+        String host = UUID.randomUUID() + ".palantir.com";
+        InetAddress removedPodAddress = InetAddress.getByAddress(host, new byte[] {10, 0, 0, 1});
+        AtomicBoolean podExists = new AtomicBoolean(true);
+        // Like ReloadingClientFactory, each factory has its own resolver chain while the JVM negative cache is shared.
+        DialogueDnsResolver firstSystem = new DefaultDialogueDnsResolver(registry);
+        DialogueDnsResolver secondSystem = new DefaultDialogueDnsResolver(registry);
+        DialogueDnsResolver first = new CachingFallbackDnsResolver(
+                hostname -> podExists.get() ? ImmutableSet.of(removedPodAddress) : firstSystem.resolve(hostname),
+                registry);
+        DialogueDnsResolver second = new CachingFallbackDnsResolver(
+                hostname -> podExists.get() ? ImmutableSet.of(removedPodAddress) : secondSystem.resolve(hostname),
+                registry);
+        assertThat(first.resolve(host)).containsExactly(removedPodAddress);
+        assertThat(second.resolve(host)).containsExactly(removedPodAddress);
+
+        podExists.set(false);
+        assertThat(first.resolve(host)).as("EAI_NONAME").isEmpty();
+        assertThat(second.resolve(host)).as("CACHED").isEmpty();
+        assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
+        assertThat(metrics.failure("CACHED").getCount()).isEqualTo(1);
+        assertThat(metrics.lookup(Lookup_Result.FALLBACK).getCount()).isEqualTo(0);
+    }
+
+    @Test
+    void fallbackOnTransientFailure() throws UnknownHostException {
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        String host = UUID.randomUUID() + ".palantir.com";
+        InetAddress address = InetAddress.getByAddress(host, new byte[] {10, 0, 0, 1});
+        AtomicBoolean dnsAvailable = new AtomicBoolean(true);
+        DialogueDnsResolver delegate = hostname -> {
+            if (dnsAvailable.get()) {
+                return ImmutableSet.of(address);
+            }
+            DefaultDialogueDnsResolver.recordFailure(
+                    hostname, new UnknownHostException(hostname + ": Temporary failure in name resolution"));
+            return ImmutableSet.of();
+        };
+        DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
+
+        assertThat(cached.resolve(host)).containsExactly(address);
+        dnsAvailable.set(false);
+        assertThat(cached.resolve(host)).containsExactly(address);
+        assertThat(ClientDnsMetrics.of(registry).lookup(Lookup_Result.FALLBACK).getCount())
+                .isEqualTo(1);
     }
 }

@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.clients;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.collect.ImmutableSet;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.Preconditions;
@@ -27,11 +29,18 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
 
 final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(DefaultDialogueDnsResolver.class);
+
+    // Static because the JVM negative cache is process-wide and its hits carry only the hostname, not the gai error.
+    private static final Cache<String, GaiError> lastFailureByHost = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .expireAfterWrite(Duration.ofMinutes(10))
+            .build();
 
     private final ClientDnsMetrics metrics;
 
@@ -44,13 +53,14 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         Preconditions.checkNotNull(hostname, "hostname is required");
         try {
             InetAddress[] results = InetAddress.getAllByName(hostname);
+            lastFailureByHost.invalidate(hostname);
             if (results == null || results.length == 0) {
                 // Defensive check, this should not be possible
                 return ImmutableSet.of();
             }
             return ImmutableSet.copyOf(results);
         } catch (UnknownHostException e) {
-            GaiError gaiError = extractGaiError(e, hostname);
+            GaiError gaiError = recordFailure(hostname, e);
             if (log.isDebugEnabled()) {
                 log.debug(
                         "Unknown host '{}'. {}: {}",
@@ -64,10 +74,23 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         }
     }
 
+    static GaiError recordFailure(String hostname, UnknownHostException exception) {
+        GaiError gaiError = extractGaiError(exception, hostname);
+        if (gaiError != GaiError.CACHED) {
+            lastFailureByHost.put(hostname, gaiError);
+        }
+        return gaiError;
+    }
+
+    /** Whether the most recent non-cached resolution of {@code hostname} in this JVM reported that the name does not exist. */
+    static boolean hostDoesNotExist(String hostname) {
+        return lastFailureByHost.getIfPresent(hostname) == GaiError.EAI_NONAME;
+    }
+
     // these strings were taken from glibc-2.39, but likely have not changed in quite a while
     // strings may be different on BSD systems like macos
     // TODO(dns): update this list to try to match against known strings on other platforms
-    private enum GaiError {
+    enum GaiError {
         EAI_ADDRFAMILY("Address family for hostname not supported"),
         EAI_AGAIN("Temporary failure in name resolution"),
         EAI_BADFLAGS("Bad value for ai_flags"),
