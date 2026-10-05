@@ -34,6 +34,9 @@ final class Responses {
     @VisibleForTesting
     static final String PROXY_UPSTREAM_REQUEST_ATTEMPTS = "Proxy-Upstream-Request-Attempts";
 
+    @VisibleForTesting
+    static final String RETRIES_EXHAUSTED = "Dialogue-Retries-Exhausted";
+
     static boolean isRetryOther(@Nullable Response response) {
         // Note that a 308 status may be a non-retryable signal, for instance google sometimes
         // uses a '308 Resume Incomplete', so we must verify the presence of a Location header
@@ -114,6 +117,12 @@ final class Responses {
             }
         }
         return 0;
+    }
+
+    /** Returns true if the response reports that retries were already exhausted at or below the server. */
+    static boolean hasRetriesExhaustedHeader(Response response) {
+        Optional<String> value = response.getFirstHeader(RETRIES_EXHAUSTED);
+        return value.isPresent() && "true".equalsIgnoreCase(value.get());
     }
 
     private Responses() {}

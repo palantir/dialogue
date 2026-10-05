@@ -47,7 +47,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
@@ -125,7 +124,6 @@ public final class DialogueChannelTest {
                 .factory(_args -> mockChannel)
                 .build();
 
-        lenient().when(response.attachments()).thenReturn(ResponseAttachments.create());
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
         lenient().when(mockChannel.execute(eq(endpoint), any())).thenReturn(expectedResponse);
     }
@@ -156,7 +154,7 @@ public final class DialogueChannelTest {
         Response result = channel.execute(endpoint, request).get();
 
         assertThat(result).isSameAs(finalResponse);
-        assertThat(DialogueRetries.isRetriesExhausted(result)).isEqualTo(exhausted);
+        assertThat(Responses.hasRetriesExhaustedHeader(result)).isEqualTo(exhausted);
         assertThat(finalResponse.isClosed()).isFalse();
         verify(mockChannel).execute(eq(endpoint), any());
     }
@@ -165,7 +163,7 @@ public final class DialogueChannelTest {
     void exhaustion_header_records_diagnostics_without_preventing_retry()
             throws ExecutionException, InterruptedException {
         TestResponse exhaustedResponse = new TestResponse().code(503);
-        DialogueRetries.encodeToResponse(true, exhaustedResponse, TestResponse::withHeader);
+        exhaustedResponse.withHeader(Responses.RETRIES_EXHAUSTED, "true");
         TestResponse success = new TestResponse().code(204);
         when(mockChannel.execute(eq(endpoint), any()))
                 .thenReturn(Futures.immediateFuture(exhaustedResponse))
@@ -186,7 +184,7 @@ public final class DialogueChannelTest {
 
         verify(mockChannel, times(2)).execute(eq(endpoint), any());
         assertThat(exhaustedResponse.isClosed()).isTrue();
-        assertThat(DialogueRetries.isRetriesExhausted(success)).isFalse();
+        assertThat(Responses.hasRetriesExhaustedHeader(success)).isFalse();
         DialogueClientMetrics dialogueMetrics = DialogueClientMetrics.of(metrics);
         assertThat(dialogueMetrics
                         .requestRetryDiagnosticRetries()
@@ -562,7 +560,6 @@ public final class DialogueChannelTest {
     void test_cached_host_channel_state_retained_when_reloaded() throws Exception {
         Response unavailable = mock(Response.class);
         when(unavailable.code()).thenReturn(503);
-        when(unavailable.attachments()).thenReturn(ResponseAttachments.create());
         SettableFuture<Response> responseFuture = SettableFuture.create();
         responseFuture.set(unavailable);
         when(mockChannel.execute(any(), any())).thenReturn(responseFuture);

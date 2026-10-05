@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -37,7 +36,6 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TestResponseQosEncoder;
@@ -374,9 +372,9 @@ public class RetryingChannelTest {
 
     @Test
     public void retries_308s() throws Exception {
-        Response mockResponse = mockResponse(308);
-        when(mockResponse.getFirstHeader(eq("Location"))).thenReturn(Optional.of("https://localhost"));
-        when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
+        when(channel.execute(any()))
+                .thenAnswer(_invocation -> Futures.immediateFuture(
+                        new TestResponse().code(308).withHeader("Location", "https://localhost")));
 
         long startTime = System.nanoTime();
         Duration backoffSlotSize = Duration.ofSeconds(10);
@@ -391,9 +389,11 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response).isDone();
-        assertThat(response.get())
+        assertThat(response.get().code())
                 .as("After retries are exhausted the 308 response should be returned")
-                .isSameAs(mockResponse);
+                .isEqualTo(308);
+        assertThat(response.get().getFirstHeader("Location")).hasValue("https://localhost");
+        assertThat(Responses.hasRetriesExhaustedHeader(response.get())).isTrue();
         verify(channel, times(4)).execute(REQUEST);
         assertThat(Duration.ofNanos(System.nanoTime() - startTime))
                 .as("308 responses should be immediately retried")
@@ -402,9 +402,9 @@ public class RetryingChannelTest {
 
     @Test
     public void retries_308s_when_429_and_503_are_propagated() throws Exception {
-        Response mockResponse = mockResponse(308);
-        when(mockResponse.getFirstHeader(eq("Location"))).thenReturn(Optional.of("https://localhost"));
-        when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
+        when(channel.execute(any()))
+                .thenAnswer(_invocation -> Futures.immediateFuture(
+                        new TestResponse().code(308).withHeader("Location", "https://localhost")));
 
         EndpointChannel retryer = new RetryingChannel(
                 new DefaultTaggedMetricRegistry(),
@@ -418,9 +418,11 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response).isDone();
-        assertThat(response.get())
+        assertThat(response.get().code())
                 .as("After retries are exhausted the 308 response should be returned")
-                .isSameAs(mockResponse);
+                .isEqualTo(308);
+        assertThat(response.get().getFirstHeader("Location")).hasValue("https://localhost");
+        assertThat(Responses.hasRetriesExhaustedHeader(response.get())).isTrue();
         verify(channel, times(4)).execute(REQUEST);
     }
 
@@ -1155,7 +1157,6 @@ public class RetryingChannelTest {
     private static Response mockResponse(int status) {
         Response response = mock(Response.class);
         when(response.code()).thenReturn(status);
-        when(response.attachments()).thenReturn(ResponseAttachments.create());
         return response;
     }
 }

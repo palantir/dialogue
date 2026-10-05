@@ -29,11 +29,12 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRequests_Result;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRetries_Result;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.SafeLoggable;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
@@ -72,7 +73,7 @@ final class RetryingChannelDiagnosticMetricsTest {
 
         assertThat(result).succeedsWithin(Duration.ZERO).isSameAs(success);
         assertDiagnosticMetrics(3, 1, 0, 0);
-        assertThat(DialogueRetries.isRetriesExhausted(success)).isFalse();
+        assertThat(Responses.hasRetriesExhaustedHeader(success)).isFalse();
 
         // A new logical call does not inherit the preceding call's diagnostic state.
         assertThat(retryer.execute(REQUEST)).succeedsWithin(Duration.ZERO).isSameAs(success);
@@ -107,7 +108,7 @@ final class RetryingChannelDiagnosticMetricsTest {
         assertThat(result).succeedsWithin(Duration.ZERO).isSameAs(terminalResponse);
         verify(delegate, times(2)).execute(REQUEST);
         assertDiagnosticMetrics(0, 0, 1, 1);
-        assertThat(DialogueRetries.isRetriesExhausted(terminalResponse)).isFalse();
+        assertThat(Responses.hasRetriesExhaustedHeader(terminalResponse)).isFalse();
     }
 
     @Test
@@ -124,7 +125,12 @@ final class RetryingChannelDiagnosticMetricsTest {
                 .withThrowableThat()
                 .havingCause()
                 .isSameAs(failure);
-        assertThat(failure.getSuppressed()).containsExactly(RetriesExhaustedException.INSTANCE);
+        assertThat(failure.getSuppressed())
+                .singleElement()
+                .isInstanceOfSatisfying(
+                        SafeLoggable.class,
+                        diagnostic -> assertThat(diagnostic.getArgs())
+                                .containsExactly(SafeArg.of(Responses.RETRIES_EXHAUSTED, "true")));
         verify(delegate, times(2)).execute(REQUEST);
         assertDiagnosticMetrics(0, 0, 1, 1);
     }
@@ -143,7 +149,7 @@ final class RetryingChannelDiagnosticMetricsTest {
                 .isSameAs(failure);
 
         verify(delegate, times(2)).execute(REQUEST);
-        assertThat(failure.getSuppressed()).doesNotContain(RetriesExhaustedException.INSTANCE);
+        assertThat(failure.getSuppressed()).isEmpty();
         assertDiagnosticMetrics(0, 0, 1, 1);
     }
 
@@ -156,9 +162,13 @@ final class RetryingChannelDiagnosticMetricsTest {
 
         ListenableFuture<Response> result = retryer(1, Duration.ZERO).execute(REQUEST);
 
-        assertThat(result).succeedsWithin(Duration.ZERO).isSameAs(terminalResponse);
+        assertThat(result).succeedsWithin(Duration.ZERO).satisfies(response -> {
+            assertThat(response.code()).isEqualTo(503);
+            assertThat(Responses.hasRetriesExhaustedHeader(response)).isTrue();
+            assertThat(response.attachments()).isSameAs(terminalResponse.attachments());
+        });
         verify(delegate, times(2)).execute(REQUEST);
-        assertThat(DialogueRetries.isRetriesExhausted(terminalResponse)).isTrue();
+        assertThat(Responses.hasRetriesExhaustedHeader(terminalResponse)).isFalse();
         assertDiagnosticMetrics(0, 0, 0, 0);
     }
 
@@ -206,9 +216,7 @@ final class RetryingChannelDiagnosticMetricsTest {
     }
 
     private static TestResponse exhaustedResponse(int statusCode) {
-        TestResponse response = new TestResponse().code(statusCode);
-        DialogueRetries.setRetriesExhausted(response);
-        return response;
+        return new TestResponse().code(statusCode).withHeader(Responses.RETRIES_EXHAUSTED, "true");
     }
 
     private void assertDiagnosticMetrics(

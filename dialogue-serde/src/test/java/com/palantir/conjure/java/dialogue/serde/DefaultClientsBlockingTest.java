@@ -33,7 +33,7 @@ import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.DialogueException;
-import com.palantir.dialogue.RetriesExhaustedException;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,8 +57,9 @@ public class DefaultClientsBlockingTest {
     @ValueSource(booleans = {true, false})
     public void testRemoteException(boolean exhausted) {
         RemoteException remoteException = remoteException(new ServiceException(ErrorType.INVALID_ARGUMENT));
+        RuntimeException diagnostic = retriesExhaustedDiagnostic();
         if (exhausted) {
-            remoteException.addSuppressed(RetriesExhaustedException.INSTANCE);
+            remoteException.addSuppressed(diagnostic);
         }
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(remoteException);
 
@@ -67,34 +68,35 @@ public class DefaultClientsBlockingTest {
                 .hasFieldOrPropertyWithValue("status", ErrorType.INVALID_ARGUMENT.httpErrorCode())
                 .hasCause(remoteException);
         if (exhausted) {
-            assertThat(remoteException.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
+            assertThat(remoteException.getSuppressed()).contains(diagnostic);
         } else {
-            assertThat(remoteException.getSuppressed()).doesNotContain(RetriesExhaustedException.INSTANCE);
+            assertThat(remoteException.getSuppressed()).doesNotContain(diagnostic);
         }
     }
 
     @Test
     void testQosException() {
         QosException.Throttle qosException = QosException.throttle();
-        qosException.addSuppressed(RetriesExhaustedException.INSTANCE);
+        RuntimeException diagnostic = retriesExhaustedDiagnostic();
+        qosException.addSuppressed(diagnostic);
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(qosException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isSameAs(qosException)
-                .satisfies(exception ->
-                        assertThat(exception.getSuppressed()).contains(RetriesExhaustedException.INSTANCE));
+                .satisfies(exception -> assertThat(exception.getSuppressed()).contains(diagnostic));
     }
 
     @Test
     void testIoException() {
         IOException ioException = new IOException("connection failed");
-        ioException.addSuppressed(RetriesExhaustedException.INSTANCE);
+        RuntimeException diagnostic = retriesExhaustedDiagnostic();
+        ioException.addSuppressed(diagnostic);
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(ioException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(DialogueException.class)
                 .hasCause(ioException);
-        assertThat(ioException.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
+        assertThat(ioException.getSuppressed()).contains(diagnostic);
     }
 
     @Test
@@ -190,6 +192,7 @@ public class DefaultClientsBlockingTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     public void testUserDefinedRemoteExceptionSubclass(boolean exhausted) {
+        RuntimeException diagnostic = retriesExhaustedDiagnostic();
         CustomRemoteException customException = new CustomRemoteException(
                 new MySerializableError(
                         ErrorType.INVALID_ARGUMENT.code().toString(),
@@ -198,7 +201,7 @@ public class DefaultClientsBlockingTest {
                         new MyParams("myFieldValue")),
                 ErrorType.INVALID_ARGUMENT.httpErrorCode());
         if (exhausted) {
-            customException.addSuppressed(RetriesExhaustedException.INSTANCE);
+            customException.addSuppressed(diagnostic);
         }
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(customException);
 
@@ -210,9 +213,9 @@ public class DefaultClientsBlockingTest {
                 assertThat(cause).isSameAs(customException);
                 assertThat(cause).hasMessageContainingAll("Default:InvalidArgument", "{someField=myFieldValue}");
                 if (exhausted) {
-                    assertThat(cause.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
+                    assertThat(cause.getSuppressed()).contains(diagnostic);
                 } else {
-                    assertThat(cause.getSuppressed()).doesNotContain(RetriesExhaustedException.INSTANCE);
+                    assertThat(cause.getSuppressed()).doesNotContain(diagnostic);
                 }
             });
         });
@@ -248,6 +251,11 @@ public class DefaultClientsBlockingTest {
         public MySerializableError error() {
             return this.error;
         }
+    }
+
+    private static RuntimeException retriesExhaustedDiagnostic() {
+        return ExceptionDeserializingErrorDecoder.diagnostic(
+                new TestResponse().code(503).withHeader("Dialogue-Retries-Exhausted", "true"));
     }
 
     private static RemoteException remoteException(ServiceException exception) {

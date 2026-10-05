@@ -16,7 +16,7 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
 
@@ -34,9 +34,9 @@ import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
-import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
+import com.palantir.logsafe.SafeArg;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -78,14 +78,14 @@ final class ExceptionDeserializingDecoderTest {
 
     @ParameterizedTest
     @CsvSource({"429, true", "429, false", "503, true", "503, false"})
-    void exhaustion_marker_preserves_qos_error_type_and_metadata(int statusCode, boolean exhausted) {
+    void exhaustion_header_preserves_qos_error_type_and_metadata(int statusCode, boolean exhausted) {
         TestResponse response = new TestResponse()
                 .code(statusCode)
                 .withHeader("Qos-Due-To", "custom")
                 .withHeader("Qos-Retry-Hint", "do-not-retry")
                 .withHeader("Retry-After", "3");
         if (exhausted) {
-            response.attachments().put(RetriesExhaustedException.RESPONSE_ATTACHMENT_KEY, true);
+            response.withHeader("Dialogue-Retries-Exhausted", "true");
         }
         Deserializer<String> deserializer = conjureBodySerDe("application/json")
                 .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
@@ -93,11 +93,7 @@ final class ExceptionDeserializingDecoderTest {
         Throwable result = catchThrowable(() -> deserializer.deserialize(response));
 
         assertThat(result).isInstanceOfSatisfying(QosException.class, exception -> {
-            if (exhausted) {
-                assertThat(exception.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
-            } else {
-                assertThat(exception.getSuppressed()).doesNotContain(RetriesExhaustedException.INSTANCE);
-            }
+            assertRetriesExhaustedDiagnostic(exception, exhausted);
             assertThat(exception.getReason())
                     .isEqualTo(QosReason.builder()
                             .reason("client-qos-response")
@@ -118,7 +114,7 @@ final class ExceptionDeserializingDecoderTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void exhaustion_marker_preserves_remote_error_type_status_and_body(boolean exhausted) throws IOException {
+    void exhaustion_header_preserves_remote_error_type_status_and_body(boolean exhausted) throws IOException {
         ServiceException serviceException =
                 ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
         SerializableError expectedError = SerializableError.forException(serviceException);
@@ -126,7 +122,7 @@ final class ExceptionDeserializingDecoderTest {
                 .contentType("application/json")
                 .code(400);
         if (exhausted) {
-            response.attachments().put(RetriesExhaustedException.RESPONSE_ATTACHMENT_KEY, true);
+            response.withHeader("Dialogue-Retries-Exhausted", "true");
         }
         ExceptionDeserializerArgs<String> deserializerArgs = ExceptionDeserializerArgs.<String>builder()
                 .returnType(new TypeMarker<>() {})
@@ -136,11 +132,7 @@ final class ExceptionDeserializingDecoderTest {
         Throwable result = catchThrowable(() -> deserializer.deserialize(response));
 
         assertThat(result).isInstanceOfSatisfying(RemoteException.class, exception -> {
-            if (exhausted) {
-                assertThat(exception.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
-            } else {
-                assertThat(exception.getSuppressed()).doesNotContain(RetriesExhaustedException.INSTANCE);
-            }
+            assertRetriesExhaustedDiagnostic(exception, exhausted);
             assertThat(exception.getStatus()).isEqualTo(400);
             assertThat(exception.getError()).isEqualTo(expectedError);
         });
@@ -148,24 +140,37 @@ final class ExceptionDeserializingDecoderTest {
     }
 
     @Test
-    void exhaustion_marker_preserves_typed_endpoint_exception() throws IOException {
+    void exhaustion_header_preserves_typed_endpoint_exception() throws IOException {
         ServiceException expectedError = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
         TestResponse response = TestResponse.withBody(MAPPER.writeValueAsString(
                         ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(expectedError)))
                 .contentType("application/json")
                 .code(500);
-        response.attachments().put(RetriesExhaustedException.RESPONSE_ATTACHMENT_KEY, true);
+        response.withHeader("Dialogue-Retries-Exhausted", "true");
         Deserializer<String> deserializer = conjureBodySerDe("application/json")
                 .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
 
         assertThatThrownBy(() -> deserializer.deserialize(response))
                 .isInstanceOfSatisfying(TestErrorException.class, exception -> {
-                    assertThat(exception.getSuppressed()).contains(RetriesExhaustedException.INSTANCE);
+                    assertRetriesExhaustedDiagnostic(exception, true);
                     assertThat(exception.getStatus()).isEqualTo(500);
                     ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
                             exception, expectedError.getErrorInstanceId());
                 });
         assertThat(response.isClosed()).isTrue();
+    }
+
+    private static void assertRetriesExhaustedDiagnostic(Throwable exception, boolean exhausted) {
+        assertThat(exception.getSuppressed())
+                .singleElement()
+                .isInstanceOfSatisfying(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.class, diagnostic -> {
+                    if (exhausted) {
+                        assertThat(diagnostic.getArgs()).contains(SafeArg.of("Dialogue-Retries-Exhausted", "true"));
+                    } else {
+                        assertThat(diagnostic.getArgs())
+                                .noneMatch(arg -> "Dialogue-Retries-Exhausted".equals(arg.getName()));
+                    }
+                });
     }
 
     /**

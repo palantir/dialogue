@@ -35,7 +35,6 @@ import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer;
 import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.RetriesExhaustedException;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeArg;
@@ -101,10 +100,6 @@ final class ExceptionDeserializingErrorDecoder {
         }
         RuntimeException result = decodeInternal(response);
         result.addSuppressed(diagnostic(response));
-        if (Boolean.TRUE.equals(
-                response.attachments().getOrDefault(RetriesExhaustedException.RESPONSE_ATTACHMENT_KEY, false))) {
-            result.addSuppressed(RetriesExhaustedException.INSTANCE);
-        }
         return result;
     }
 
@@ -250,6 +245,8 @@ final class ExceptionDeserializingErrorDecoder {
         recordHeader("x-envoy-response-code-details", response, args);
         recordHeader("Response-Flags", response, args);
         recordHeader("Response-Code-Details", response, args);
+        // Retries were already exhausted at or below the server; servers read this to tell their own callers.
+        recordHeader("Dialogue-Retries-Exhausted", response, args);
         return args.build();
     }
 
