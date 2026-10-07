@@ -36,7 +36,7 @@ import java.util.Optional;
 final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(DefaultDialogueDnsResolver.class);
 
-    // Static because the JVM negative cache is process-wide and its hits carry only the hostname, not the gai error.
+    // Static because the JVM negative cache is process-wide and its hits omit the original gai error.
     private static final Cache<String, GaiError> lastFailureByHost = Caffeine.newBuilder()
             .maximumSize(1000)
             .expireAfterWrite(Duration.ofMinutes(10))
@@ -76,8 +76,10 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
 
     static GaiError recordFailure(String hostname, UnknownHostException exception) {
         GaiError gaiError = extractGaiError(exception, hostname);
-        if (gaiError != GaiError.CACHED) {
+        if (gaiError == GaiError.EAI_NONAME) {
             lastFailureByHost.put(hostname, gaiError);
+        } else if (gaiError != GaiError.CACHED) {
+            lastFailureByHost.invalidate(hostname);
         }
         return gaiError;
     }
@@ -134,7 +136,7 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         }
 
         try {
-            if (Objects.equals(requestedHostname, exception.getMessage())) {
+            if (exception.getMessage().isEmpty() || Objects.equals(requestedHostname, exception.getMessage())) {
                 return GaiError.CACHED;
             }
 
