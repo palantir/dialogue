@@ -62,7 +62,7 @@ com.palantir.nylon:nylon-threads:0.16.0 (1 constraints: 3f103ea2)
 
 com.palantir.refreshable:refreshable:2.18.0 (2 constraints: 591991dc)
 
-com.palantir.ri:resource-identifier:2.24.0 (2 constraints: 59155fda)
+com.palantir.ri:resource-identifier:2.25.0 (2 constraints: 5a1591da)
 
 com.palantir.safe-logging:logger:3.20.0 (14 constraints: 39e130f2)
 
