@@ -35,10 +35,9 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class CachingFallbackDnsResolverTest {
+    private final NonexistentHosts nonexistentHosts = new NonexistentHosts();
 
     @Test
     void successfulUpdate() throws UnknownHostException {
@@ -50,7 +49,7 @@ class CachingFallbackDnsResolverTest {
         InetAddress updatedAddress = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 2});
         dnsEntries.put("host", initialAddress);
         DialogueDnsResolver delegate = new MapBasedDnsResolver(dnsEntries);
-        DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
+        DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry, nonexistentHosts);
         assertThat(cached.resolve("host")).containsExactly(initialAddress);
         assertThat(lookupSuccessMeter.getCount()).isEqualTo(1);
         dnsEntries.clear();
@@ -64,7 +63,7 @@ class CachingFallbackDnsResolverTest {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
         Meter lookupFailureMeter = ClientDnsMetrics.of(registry).lookup(Lookup_Result.FAILURE);
         DialogueDnsResolver delegate = new MapBasedDnsResolver(ImmutableSetMultimap.of());
-        DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
+        DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry, nonexistentHosts);
         assertThat(cached.resolve("host")).isEmpty();
         assertThat(lookupFailureMeter.getCount()).isEqualTo(1);
     }
@@ -80,7 +79,7 @@ class CachingFallbackDnsResolverTest {
         InetAddress address = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 1});
         dnsEntries.put("host", address);
         DialogueDnsResolver delegate = new MapBasedDnsResolver(dnsEntries);
-        DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
+        DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry, nonexistentHosts);
         assertThat(cached.resolve("host")).containsExactly(address);
         assertThat(lookupSuccessMeter.getCount()).isEqualTo(1);
         assertThat(lookupFallbackMeter.getCount()).isEqualTo(0);
@@ -105,14 +104,16 @@ class CachingFallbackDnsResolverTest {
         InetAddress removedPodAddress = InetAddress.getByAddress(host, new byte[] {10, 0, 0, 1});
         AtomicBoolean podExists = new AtomicBoolean(true);
         // Like ReloadingClientFactory, each factory has its own resolver chain while the JVM negative cache is shared.
-        DialogueDnsResolver firstSystem = new DefaultDialogueDnsResolver(registry);
-        DialogueDnsResolver secondSystem = new DefaultDialogueDnsResolver(registry);
+        DialogueDnsResolver firstSystem = new DefaultDialogueDnsResolver(registry, nonexistentHosts);
+        DialogueDnsResolver secondSystem = new DefaultDialogueDnsResolver(registry, nonexistentHosts);
         DialogueDnsResolver first = new CachingFallbackDnsResolver(
                 hostname -> podExists.get() ? ImmutableSet.of(removedPodAddress) : firstSystem.resolve(hostname),
-                registry);
+                registry,
+                nonexistentHosts);
         DialogueDnsResolver second = new CachingFallbackDnsResolver(
                 hostname -> podExists.get() ? ImmutableSet.of(removedPodAddress) : secondSystem.resolve(hostname),
-                registry);
+                registry,
+                nonexistentHosts);
         assertThat(first.resolve(host)).containsExactly(removedPodAddress);
         assertThat(second.resolve(host)).containsExactly(removedPodAddress);
 
@@ -125,98 +126,40 @@ class CachingFallbackDnsResolverTest {
     }
 
     @Test
-    void fallbackOnTransientFailure() throws UnknownHostException {
+    void noFallbackForNonexistentHostAcrossFactories() throws UnknownHostException {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        String host = UUID.randomUUID() + ".palantir.com";
-        InetAddress address = InetAddress.getByAddress(host, new byte[] {10, 0, 0, 1});
-        AtomicBoolean dnsAvailable = new AtomicBoolean(true);
-        DialogueDnsResolver delegate = hostname -> {
-            if (dnsAvailable.get()) {
-                return ImmutableSet.of(address);
-            }
-            DefaultDialogueDnsResolver.recordFailure(
-                    hostname, new UnknownHostException(hostname + ": Temporary failure in name resolution"));
-            return ImmutableSet.of();
-        };
-        DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
-
-        assertThat(cached.resolve(host)).containsExactly(address);
-        dnsAvailable.set(false);
-        assertThat(cached.resolve(host)).containsExactly(address);
-        assertThat(ClientDnsMetrics.of(registry).lookup(Lookup_Result.FALLBACK).getCount())
-                .isEqualTo(1);
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void noFallbackFromCachedNegativeAcrossFactories(boolean includeHostname) throws UnknownHostException {
-        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        String host = UUID.randomUUID() + ".palantir.com";
-        InetAddress address = InetAddress.getByAddress(host, new byte[] {10, 0, 0, 1});
         SetMultimap<String, InetAddress> dnsEntries =
                 SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
-        dnsEntries.put(host, address);
-        DialogueDnsResolver first = new CachingFallbackDnsResolver(new MapBasedDnsResolver(dnsEntries), registry);
-        DialogueDnsResolver second = new CachingFallbackDnsResolver(new MapBasedDnsResolver(dnsEntries), registry);
-        assertThat(first.resolve(host)).containsExactly(address);
-        assertThat(second.resolve(host)).containsExactly(address);
+        InetAddress address = InetAddress.getByAddress("host", new byte[] {10, 0, 0, 1});
+        dnsEntries.put("host", address);
+        DialogueDnsResolver first =
+                new CachingFallbackDnsResolver(new MapBasedDnsResolver(dnsEntries), registry, nonexistentHosts);
+        DialogueDnsResolver second =
+                new CachingFallbackDnsResolver(new MapBasedDnsResolver(dnsEntries), registry, nonexistentHosts);
+        assertThat(first.resolve("host")).containsExactly(address);
+        assertThat(second.resolve("host")).containsExactly(address);
 
         dnsEntries.clear();
-        DefaultDialogueDnsResolver.recordFailure(host, new UnknownHostException("Name or service not known"));
-        assertThat(first.resolve(host)).isEmpty();
-        DefaultDialogueDnsResolver.recordFailure(host, new UnknownHostException(includeHostname ? host : ""));
-        assertThat(second.resolve(host)).isEmpty();
+        nonexistentHosts.add("host");
+        assertThat(first.resolve("host")).isEmpty();
+        assertThat(second.resolve("host")).isEmpty();
     }
 
     @Test
     void removedAddressStaysDiscardedDuringTransientFailure() throws UnknownHostException {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        String host = UUID.randomUUID() + ".palantir.com";
-        InetAddress address = InetAddress.getByAddress(host, new byte[] {10, 0, 0, 1});
         SetMultimap<String, InetAddress> dnsEntries =
                 SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
-        dnsEntries.put(host, address);
-        DialogueDnsResolver cached = new CachingFallbackDnsResolver(new MapBasedDnsResolver(dnsEntries), registry);
-        assertThat(cached.resolve(host)).containsExactly(address);
+        InetAddress address = InetAddress.getByAddress("host", new byte[] {10, 0, 0, 1});
+        dnsEntries.put("host", address);
+        DialogueDnsResolver cached =
+                new CachingFallbackDnsResolver(new MapBasedDnsResolver(dnsEntries), registry, nonexistentHosts);
+        assertThat(cached.resolve("host")).containsExactly(address);
 
         dnsEntries.clear();
-        DefaultDialogueDnsResolver.recordFailure(host, new UnknownHostException("Name or service not known"));
-        assertThat(cached.resolve(host)).isEmpty();
-        DefaultDialogueDnsResolver.recordFailure(host, new UnknownHostException(host));
-        assertThat(cached.resolve(host)).isEmpty();
-        DefaultDialogueDnsResolver.recordFailure(
-                host, new UnknownHostException("Temporary failure in name resolution"));
-        assertThat(cached.resolve(host)).isEmpty();
-    }
-
-    @Test
-    void replacementAddressIsUsedForFallback() throws UnknownHostException {
-        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        String host = "127.0.0.2";
-        InetAddress oldAddress = InetAddress.getByAddress(host, new byte[] {10, 0, 0, 1});
-        InetAddress replacementAddress = InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2});
-        SetMultimap<String, InetAddress> dnsEntries =
-                SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
-        dnsEntries.put(host, oldAddress);
-        DialogueDnsResolver cachedEntries = new MapBasedDnsResolver(dnsEntries);
-        DialogueDnsResolver system = new DefaultDialogueDnsResolver(registry);
-        AtomicBoolean replacementReady = new AtomicBoolean(false);
-        DialogueDnsResolver cached = new CachingFallbackDnsResolver(
-                hostname -> replacementReady.get() ? system.resolve(hostname) : cachedEntries.resolve(hostname),
-                registry);
-        assertThat(cached.resolve(host)).containsExactly(oldAddress);
-
-        dnsEntries.clear();
-        DefaultDialogueDnsResolver.recordFailure(host, new UnknownHostException("Name or service not known"));
-        assertThat(cached.resolve(host)).isEmpty();
-        replacementReady.set(true);
-        assertThat(cached.resolve(host)).containsExactly(replacementAddress);
-
-        replacementReady.set(false);
-        DefaultDialogueDnsResolver.recordFailure(host, new UnknownHostException(host));
-        assertThat(cached.resolve(host)).containsExactly(replacementAddress);
-        DefaultDialogueDnsResolver.recordFailure(
-                host, new UnknownHostException("Temporary failure in name resolution"));
-        assertThat(cached.resolve(host)).containsExactly(replacementAddress);
+        nonexistentHosts.add("host");
+        assertThat(cached.resolve("host")).isEmpty();
+        nonexistentHosts.remove("host");
+        assertThat(cached.resolve("host")).isEmpty();
     }
 }

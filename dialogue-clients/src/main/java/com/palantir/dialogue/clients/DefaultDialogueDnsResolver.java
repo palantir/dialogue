@@ -16,8 +16,6 @@
 
 package com.palantir.dialogue.clients;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.collect.ImmutableSet;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.Preconditions;
@@ -29,23 +27,18 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
 
 final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(DefaultDialogueDnsResolver.class);
 
-    // Static because the JVM negative cache is process-wide and its hits omit the original gai error.
-    private static final Cache<String, GaiError> lastFailureByHost = Caffeine.newBuilder()
-            .maximumSize(1000)
-            .expireAfterWrite(Duration.ofMinutes(10))
-            .build();
-
     private final ClientDnsMetrics metrics;
+    private final NonexistentHosts nonexistentHosts;
 
-    DefaultDialogueDnsResolver(TaggedMetricRegistry registry) {
+    DefaultDialogueDnsResolver(TaggedMetricRegistry registry, NonexistentHosts nonexistentHosts) {
         this.metrics = ClientDnsMetrics.of(registry);
+        this.nonexistentHosts = nonexistentHosts;
     }
 
     @Override
@@ -53,7 +46,7 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         Preconditions.checkNotNull(hostname, "hostname is required");
         try {
             InetAddress[] results = InetAddress.getAllByName(hostname);
-            lastFailureByHost.invalidate(hostname);
+            nonexistentHosts.remove(hostname);
             if (results == null || results.length == 0) {
                 // Defensive check, this should not be possible
                 return ImmutableSet.of();
@@ -74,19 +67,14 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         }
     }
 
-    static GaiError recordFailure(String hostname, UnknownHostException exception) {
+    GaiError recordFailure(String hostname, UnknownHostException exception) {
         GaiError gaiError = extractGaiError(exception, hostname);
-        if (gaiError == GaiError.EAI_NONAME) {
-            lastFailureByHost.put(hostname, gaiError);
-        } else if (gaiError != GaiError.CACHED) {
-            lastFailureByHost.invalidate(hostname);
+        switch (gaiError) {
+            case EAI_NONAME -> nonexistentHosts.add(hostname);
+            case CACHED -> {}
+            default -> nonexistentHosts.remove(hostname);
         }
         return gaiError;
-    }
-
-    /** Whether the most recent non-cached resolution of {@code hostname} in this JVM reported that the name does not exist. */
-    static boolean hostDoesNotExist(String hostname) {
-        return lastFailureByHost.getIfPresent(hostname) == GaiError.EAI_NONAME;
     }
 
     // these strings were taken from glibc-2.39, but likely have not changed in quite a while
@@ -136,6 +124,7 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         }
 
         try {
+            // jdk.includeInExceptions without hostInfo makes JVM-cached failures report an empty message.
             if (exception.getMessage().isEmpty() || Objects.equals(requestedHostname, exception.getMessage())) {
                 return GaiError.CACHED;
             }

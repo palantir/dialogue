@@ -72,6 +72,9 @@ import org.immutables.value.Value;
 
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(ReloadingClientFactory.class);
+    // Shared across default resolver chains because the JVM's negative DNS cache is process-wide.
+    private static final NonexistentHosts NONEXISTENT_HOSTS = new NonexistentHosts();
+
     private final ImmutableReloadingParams params;
     private final ChannelCache cache;
 
@@ -149,8 +152,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Value.Default
         default DialogueDnsResolver dnsResolver() {
             return new CachingFallbackDnsResolver(
-                    new ProtocolVersionFilteringDialogueDnsResolver(new DefaultDialogueDnsResolver(taggedMetrics())),
-                    taggedMetrics());
+                    new ProtocolVersionFilteringDialogueDnsResolver(
+                            new DefaultDialogueDnsResolver(taggedMetrics(), NONEXISTENT_HOSTS)),
+                    taggedMetrics(),
+                    NONEXISTENT_HOSTS);
         }
 
         @Value.Default
