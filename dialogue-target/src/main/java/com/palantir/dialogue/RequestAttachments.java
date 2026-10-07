@@ -20,12 +20,18 @@ import org.jspecify.annotations.Nullable;
 
 public final class RequestAttachments {
 
-    private final Attachments attachments = Attachments.create();
+    private final Attachments attachments;
 
-    private RequestAttachments() {}
+    private RequestAttachments(Attachments attachments) {
+        this.attachments = attachments;
+    }
+
+    RequestAttachments copy() {
+        return new RequestAttachments(attachments.copy());
+    }
 
     static RequestAttachments create() {
-        return new RequestAttachments();
+        return new RequestAttachments(Attachments.create());
     }
 
     @Nullable

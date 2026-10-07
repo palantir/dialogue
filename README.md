@@ -305,3 +305,5 @@ Dialogue is the product of years of learning from operating thousands of Java se
 
 For instructions on how to set up your local development environment, check out the
 [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+Endpoint argument affinity is described in [Routing by endpoint arguments](docs/route-by.md).

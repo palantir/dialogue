@@ -1,0 +1,35 @@
+// From conjure-java, use --include-build ../conjure -I ../dialogue/gradle/route-by-local.gradle.
+// This local-only setup compiles the new client generator against dialogue-target before publication.
+// Conjure executable configurations require a published distribution, not a composite project's plain jar.
+allprojects {
+    configurations.configureEach {
+        if (rootProject.name == 'conjure-root' || name.toLowerCase(java.util.Locale.ROOT).contains('conjure')) {
+            resolutionStrategy.useGlobalDependencySubstitutionRules = false
+        }
+    }
+}
+
+gradle.settingsEvaluated { settings ->
+    if (settings.rootProject.name == 'palantir-conjure-java') {
+        def initFile = gradle.startParameter.initScripts.find { it.name == 'route-by-local.gradle' }
+        def dialogueDirectory = new File(initFile.parentFile, '..').canonicalFile
+        settings.includeBuild(dialogueDirectory) {
+            dependencySubstitution {
+                substitute module('com.palantir.dialogue:dialogue-target') using project(':dialogue-target')
+            }
+        }
+    }
+}
+
+allprojects {
+    if (rootProject.name == 'palantir-conjure-java') {
+        // Preserve the generator's dependency locks instead of importing newer transitive runtime versions
+        // from Dialogue's exported constraints. Only dialogue-target is substituted above.
+        def locked = rootProject.file('versions.lock').readLines()
+                .findAll { it && !it.startsWith('#') && !it.startsWith('[') }
+                .collect { it.split(' ')[0] }
+        configurations.configureEach {
+            resolutionStrategy.force(locked as String[])
+        }
+    }
+}
