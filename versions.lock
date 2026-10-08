@@ -134,9 +134,9 @@ org.hdrhistogram:HdrHistogram:2.2.2 (1 constraints: 0e100092)
 
 org.immutables:value:2.12.2 (1 constraints: 3905373b)
 
-org.jboss.logging:jboss-logging:3.6.3.Final (7 constraints: c48333cc)
+org.jboss.logging:jboss-logging:3.6.3.Final (7 constraints: c6830bcd)
 
-org.jboss.threads:jboss-threads:3.10.1 (3 constraints: cf28ab02)
+org.jboss.threads:jboss-threads:3.10.1 (3 constraints: d028dc02)
 
 org.jetbrains:annotations:26.1.0 (4 constraints: 14352e3a)
 
@@ -186,7 +186,7 @@ de.erichseifert.vectorgraphics2d:VectorGraphics2D:0.13 (1 constraints: 8c0a80bb)
 
 de.rototor.pdfbox:graphics2d:0.25 (1 constraints: 8f0a84bb)
 
-io.undertow:undertow-core:2.2.39.Final (1 constraints: 5a075a61)
+io.undertow:undertow-core:2.3.26.Final (1 constraints: 57074761)
 
 junit:junit:4.13.2 (2 constraints: de1ce71a)
 
