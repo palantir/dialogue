@@ -36,6 +36,8 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryCount_Result;
+import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRequests_Result;
+import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRetries_Result;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -115,6 +117,10 @@ final class RetryingChannel implements EndpointChannel {
     private final Supplier<Counter> exhaustedDueToServerError;
     private final Supplier<Counter> exhaustedDueToQosResponse;
     private final Function<Throwable, Counter> exhaustedDueToThrowable;
+    private final Supplier<Meter> diagnosticRetriesSuccess;
+    private final Supplier<Meter> diagnosticRetriesFailure;
+    private final Supplier<Meter> diagnosticRequestsSuccess;
+    private final Supplier<Meter> diagnosticRequestsFailure;
 
     static EndpointChannel create(Config cf, EndpointChannel channel, Endpoint endpoint) {
         ClientConfiguration clientConf = cf.clientConf();
@@ -158,7 +164,8 @@ final class RetryingChannel implements EndpointChannel {
                 () -> ThreadLocalRandom.current().nextDouble());
     }
 
-    private RetryingChannel(
+    @VisibleForTesting
+    RetryingChannel(
             EndpointChannel delegate,
             Endpoint endpoint,
             String channelName,
@@ -224,6 +231,26 @@ final class RetryingChannel implements EndpointChannel {
                 .channelName(channelName)
                 .reason(throwable.getClass().getSimpleName())
                 .build();
+        this.diagnosticRetriesSuccess = Suppliers.memoize(() -> dialogueClientMetrics
+                .requestRetryDiagnosticRetries()
+                .channelName(channelName)
+                .result(RequestRetryDiagnosticRetries_Result.SUCCESS)
+                .build());
+        this.diagnosticRetriesFailure = Suppliers.memoize(() -> dialogueClientMetrics
+                .requestRetryDiagnosticRetries()
+                .channelName(channelName)
+                .result(RequestRetryDiagnosticRetries_Result.FAILURE)
+                .build());
+        this.diagnosticRequestsSuccess = Suppliers.memoize(() -> dialogueClientMetrics
+                .requestRetryDiagnosticRequests()
+                .channelName(channelName)
+                .result(RequestRetryDiagnosticRequests_Result.SUCCESS)
+                .build());
+        this.diagnosticRequestsFailure = Suppliers.memoize(() -> dialogueClientMetrics
+                .requestRetryDiagnosticRequests()
+                .channelName(channelName)
+                .result(RequestRetryDiagnosticRequests_Result.FAILURE)
+                .build());
     }
 
     @Override
@@ -257,6 +284,10 @@ final class RetryingChannel implements EndpointChannel {
         private final Optional<SafeRuntimeException> callsiteStacktrace;
         private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
         private int failures = 0;
+        // Set once any attempt reports that retries were already exhausted at or below the server; later retries
+        // are diagnostic.
+        private boolean sawRetriesExhausted = false;
+        private int diagnosticRetries = 0;
 
         private RetryingCallback(
                 Endpoint endpoint, Request request, Optional<SafeRuntimeException> callsiteStacktrace) {
@@ -270,6 +301,7 @@ final class RetryingChannel implements EndpointChannel {
             DialogueFutures.addDirectCallback(result, new FutureCallback<>() {
                 @Override
                 public void onSuccess(@Nullable Response response) {
+                    markDiagnosticMetrics(Responses.isSuccess(response));
                     if (failures > 0) {
                         span.complete(RetryingCallbackTranslator.INSTANCE, RetryingCallback.this);
                     }
@@ -286,6 +318,7 @@ final class RetryingChannel implements EndpointChannel {
 
                 @Override
                 public void onFailure(Throwable _throwable) {
+                    markDiagnosticMetrics(false);
                     if (requestCanBeRetried()) {
                         retryCountFailureHistogram.get().update(failures);
                     }
@@ -295,6 +328,17 @@ final class RetryingChannel implements EndpointChannel {
                 }
             });
             return result;
+        }
+
+        private void markDiagnosticMetrics(boolean success) {
+            if (diagnosticRetries > 0) {
+                (success ? diagnosticRetriesSuccess : diagnosticRetriesFailure)
+                        .get()
+                        .mark(diagnosticRetries);
+                (success ? diagnosticRequestsSuccess : diagnosticRequestsFailure)
+                        .get()
+                        .mark();
+            }
         }
 
         private boolean requestCanBeRetried() {
@@ -318,6 +362,7 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {
+            sawRetriesExhausted |= Responses.hasRetriesExhaustedHeader(response);
             boolean canRetryRequest = requestCanBeRetried();
             if (canRetryRequest && isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(
@@ -333,8 +378,9 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
+            boolean retryable = requestCanBeRetried() && shouldAttemptToRetry(clientSideThrowable);
             if (++failures <= maxRetries) {
-                if (requestCanBeRetried() && shouldAttemptToRetry(clientSideThrowable)) {
+                if (retryable) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
                     Meter retryReason = retryDueToThrowable.apply(clientSideThrowable);
                     long backoffNanoseconds = failures <= 1 ? 0 : getBackoffNanoseconds();
@@ -354,6 +400,9 @@ final class RetryingChannel implements EndpointChannel {
             } else {
                 // Retries exhausted due to throwable
                 exhaustedDueToThrowable.apply(clientSideThrowable).inc();
+                if (retryable) {
+                    RetriesExhausted.addDiagnostic(clientSideThrowable);
+                }
             }
             return Futures.immediateFailedFuture(clientSideThrowable);
         }
@@ -386,11 +435,14 @@ final class RetryingChannel implements EndpointChannel {
             exhaustedCounter.inc();
             infoLogRetriesExhausted(response);
             // not closing response because ConjureBodySerde will need to deserialize it
-            return Futures.immediateFuture(response);
+            return Futures.immediateFuture(RetriesExhausted.withHeader(response));
         }
 
         @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
         private ListenableFuture<Response> scheduleRetry(Meter meter, long backoffNanoseconds) {
+            if (sawRetriesExhausted) {
+                diagnosticRetries++;
+            }
             meter.mark();
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(request));

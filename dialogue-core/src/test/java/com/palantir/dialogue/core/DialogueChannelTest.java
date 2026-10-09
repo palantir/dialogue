@@ -22,6 +22,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +50,8 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
+import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRequests_Result;
+import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRetries_Result;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
@@ -73,10 +77,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.assertj.core.data.Percentage;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -125,6 +131,75 @@ public final class DialogueChannelTest {
     @Test
     public void testRequestMakesItThrough() throws ExecutionException, InterruptedException {
         assertThat(channel.execute(endpoint, request).get()).isNotNull();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, true", "false, false", ", false"})
+    void exhaustion_header_is_read_even_when_retries_are_disabled(@Nullable String header, boolean exhausted)
+            throws ExecutionException, InterruptedException {
+        TestResponse finalResponse = new TestResponse().code(503);
+        if (header != null) {
+            finalResponse.withHeader("Dialogue-Retries-Exhausted", header);
+        }
+        when(mockChannel.execute(eq(endpoint), any())).thenReturn(Futures.immediateFuture(finalResponse));
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .maxNumRetries(0)
+                        .build())
+                .factory(_args -> mockChannel)
+                .build();
+
+        Response result = channel.execute(endpoint, request).get();
+
+        assertThat(result).isSameAs(finalResponse);
+        assertThat(Responses.hasRetriesExhaustedHeader(result)).isEqualTo(exhausted);
+        assertThat(finalResponse.isClosed()).isFalse();
+        verify(mockChannel).execute(eq(endpoint), any());
+    }
+
+    @Test
+    void exhaustion_header_records_diagnostics_without_preventing_retry()
+            throws ExecutionException, InterruptedException {
+        TestResponse exhaustedResponse = new TestResponse().code(503);
+        exhaustedResponse.withHeader(Responses.RETRIES_EXHAUSTED, "true");
+        TestResponse success = new TestResponse().code(204);
+        when(mockChannel.execute(eq(endpoint), any()))
+                .thenReturn(Futures.immediateFuture(exhaustedResponse))
+                .thenReturn(Futures.immediateFuture(success));
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .maxNumRetries(1)
+                        .backoffSlotSize(Duration.ZERO)
+                        .taggedMetricRegistry(metrics)
+                        .build())
+                .factory(_args -> mockChannel)
+                .build();
+
+        assertThat(channel.execute(endpoint, request).get()).isSameAs(success);
+
+        verify(mockChannel, times(2)).execute(eq(endpoint), any());
+        assertThat(exhaustedResponse.isClosed()).isTrue();
+        assertThat(Responses.hasRetriesExhaustedHeader(success)).isFalse();
+        DialogueClientMetrics dialogueMetrics = DialogueClientMetrics.of(metrics);
+        assertThat(dialogueMetrics
+                        .requestRetryDiagnosticRetries()
+                        .channelName("my-channel")
+                        .result(RequestRetryDiagnosticRetries_Result.SUCCESS)
+                        .build()
+                        .getCount())
+                .isEqualTo(1);
+        assertThat(dialogueMetrics
+                        .requestRetryDiagnosticRequests()
+                        .channelName("my-channel")
+                        .result(RequestRetryDiagnosticRequests_Result.SUCCESS)
+                        .build()
+                        .getCount())
+                .isEqualTo(1);
     }
 
     @Test
