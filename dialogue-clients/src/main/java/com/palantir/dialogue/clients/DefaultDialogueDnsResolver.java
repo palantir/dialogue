@@ -34,9 +34,11 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(DefaultDialogueDnsResolver.class);
 
     private final ClientDnsMetrics metrics;
+    private final NonexistentHosts nonexistentHosts;
 
-    DefaultDialogueDnsResolver(TaggedMetricRegistry registry) {
+    DefaultDialogueDnsResolver(TaggedMetricRegistry registry, NonexistentHosts nonexistentHosts) {
         this.metrics = ClientDnsMetrics.of(registry);
+        this.nonexistentHosts = nonexistentHosts;
     }
 
     @Override
@@ -44,13 +46,14 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         Preconditions.checkNotNull(hostname, "hostname is required");
         try {
             InetAddress[] results = InetAddress.getAllByName(hostname);
+            nonexistentHosts.remove(hostname);
             if (results == null || results.length == 0) {
                 // Defensive check, this should not be possible
                 return ImmutableSet.of();
             }
             return ImmutableSet.copyOf(results);
         } catch (UnknownHostException e) {
-            GaiError gaiError = extractGaiError(e, hostname);
+            GaiError gaiError = recordFailure(hostname, e);
             if (log.isDebugEnabled()) {
                 log.debug(
                         "Unknown host '{}'. {}: {}",
@@ -64,10 +67,20 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         }
     }
 
+    GaiError recordFailure(String hostname, UnknownHostException exception) {
+        GaiError gaiError = extractGaiError(exception, hostname);
+        switch (gaiError) {
+            case EAI_NONAME -> nonexistentHosts.add(hostname);
+            case CACHED -> {}
+            default -> nonexistentHosts.remove(hostname);
+        }
+        return gaiError;
+    }
+
     // these strings were taken from glibc-2.39, but likely have not changed in quite a while
     // strings may be different on BSD systems like macos
     // TODO(dns): update this list to try to match against known strings on other platforms
-    private enum GaiError {
+    enum GaiError {
         EAI_ADDRFAMILY("Address family for hostname not supported"),
         EAI_AGAIN("Temporary failure in name resolution"),
         EAI_BADFLAGS("Bad value for ai_flags"),
@@ -111,7 +124,8 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         }
 
         try {
-            if (Objects.equals(requestedHostname, exception.getMessage())) {
+            // jdk.includeInExceptions without hostInfo makes JVM-cached failures report an empty message.
+            if (exception.getMessage().isEmpty() || Objects.equals(requestedHostname, exception.getMessage())) {
                 return GaiError.CACHED;
             }
 
