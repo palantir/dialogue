@@ -261,7 +261,8 @@ final class RetryingChannel implements EndpointChannel {
         private RetryingCallback(
                 Endpoint endpoint, Request request, Optional<SafeRuntimeException> callsiteStacktrace) {
             this.endpoint = endpoint;
-            this.request = trackNonRepeatableBodyConsumption(request);
+            this.request = ConsistentHashingNodeSelectionStrategyChannel.prepareRequest(
+                    trackNonRepeatableBodyConsumption(request));
             this.callsiteStacktrace = callsiteStacktrace;
         }
 
