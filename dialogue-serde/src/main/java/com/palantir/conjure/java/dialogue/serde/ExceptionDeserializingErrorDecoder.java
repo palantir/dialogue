@@ -245,6 +245,8 @@ final class ExceptionDeserializingErrorDecoder {
         recordHeader("x-envoy-response-code-details", response, args);
         recordHeader("Response-Flags", response, args);
         recordHeader("Response-Code-Details", response, args);
+        // Retries were already exhausted at or below the server; servers read this to tell their own callers.
+        recordHeader("Dialogue-Retries-Exhausted", response, args);
         return args.build();
     }
 
