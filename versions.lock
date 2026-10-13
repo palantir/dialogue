@@ -18,7 +18,7 @@ com.fasterxml.jackson.datatype:jackson-datatype-joda:2.22.3 (1 constraints: 7f1c
 
 com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22.3 (1 constraints: 7f1c9da4)
 
-com.github.ben-manes.caffeine:caffeine:3.3.0 (3 constraints: fd27e132)
+com.github.ben-manes.caffeine:caffeine:3.3.1 (3 constraints: fe274433)
 
 com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
