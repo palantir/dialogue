@@ -17,7 +17,6 @@
 package com.palantir.dialogue.clients;
 
 import com.google.common.collect.ImmutableSet;
-import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -30,30 +29,27 @@ import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.Optional;
 
-final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
+final class DefaultDialogueDnsResolver implements DetailedDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(DefaultDialogueDnsResolver.class);
 
     private final ClientDnsMetrics metrics;
-    private final NonexistentHosts nonexistentHosts;
 
-    DefaultDialogueDnsResolver(TaggedMetricRegistry registry, NonexistentHosts nonexistentHosts) {
+    DefaultDialogueDnsResolver(TaggedMetricRegistry registry) {
         this.metrics = ClientDnsMetrics.of(registry);
-        this.nonexistentHosts = nonexistentHosts;
     }
 
     @Override
-    public ImmutableSet<InetAddress> resolve(String hostname) {
+    public Result resolveDetailed(String hostname) {
         Preconditions.checkNotNull(hostname, "hostname is required");
         try {
             InetAddress[] results = InetAddress.getAllByName(hostname);
-            nonexistentHosts.remove(hostname);
             if (results == null || results.length == 0) {
                 // Defensive check, this should not be possible
-                return ImmutableSet.of();
+                return new Result(ImmutableSet.of(), false);
             }
-            return ImmutableSet.copyOf(results);
+            return new Result(ImmutableSet.copyOf(results), false);
         } catch (UnknownHostException e) {
-            GaiError gaiError = recordFailure(hostname, e);
+            GaiError gaiError = extractGaiError(e, hostname);
             if (log.isDebugEnabled()) {
                 log.debug(
                         "Unknown host '{}'. {}: {}",
@@ -63,24 +59,14 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
                         e);
             }
             metrics.failure(gaiError.name()).mark();
-            return ImmutableSet.of();
+            return new Result(ImmutableSet.of(), gaiError == GaiError.EAI_NONAME);
         }
-    }
-
-    GaiError recordFailure(String hostname, UnknownHostException exception) {
-        GaiError gaiError = extractGaiError(exception, hostname);
-        switch (gaiError) {
-            case EAI_NONAME -> nonexistentHosts.add(hostname);
-            case CACHED -> {}
-            default -> nonexistentHosts.remove(hostname);
-        }
-        return gaiError;
     }
 
     // these strings were taken from glibc-2.39, but likely have not changed in quite a while
     // strings may be different on BSD systems like macos
     // TODO(dns): update this list to try to match against known strings on other platforms
-    enum GaiError {
+    private enum GaiError {
         EAI_ADDRFAMILY("Address family for hostname not supported"),
         EAI_AGAIN("Temporary failure in name resolution"),
         EAI_BADFLAGS("Bad value for ai_flags"),
@@ -124,8 +110,7 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         }
 
         try {
-            // jdk.includeInExceptions without hostInfo makes JVM-cached failures report an empty message.
-            if (exception.getMessage().isEmpty() || Objects.equals(requestedHostname, exception.getMessage())) {
+            if (Objects.equals(requestedHostname, exception.getMessage())) {
                 return GaiError.CACHED;
             }
 

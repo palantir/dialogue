@@ -79,12 +79,12 @@ class DefaultDialogueDnsResolverTest {
                 .isTrue();
 
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry, new NonexistentHosts());
+        DefaultDialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
 
         String badHost = UUID.randomUUID() + ".palantir.com";
-        ImmutableSet<InetAddress> result = resolver.resolve(badHost);
 
-        assertThat(result).isEmpty();
+        assertThat(resolver.resolveDetailed(badHost))
+                .isEqualTo(new DetailedDnsResolver.Result(ImmutableSet.of(), true));
         ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
         assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
     }
@@ -92,7 +92,7 @@ class DefaultDialogueDnsResolverTest {
     @Test
     void unknown_host_from_cache() {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry, new NonexistentHosts());
+        DefaultDialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
         ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
 
         String badHost = UUID.randomUUID() + ".palantir.com";
@@ -102,49 +102,13 @@ class DefaultDialogueDnsResolverTest {
         assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
 
         // should resolve from cache
-        ImmutableSet<InetAddress> result2 = resolver.resolve(badHost);
-        assertThat(result2).isEmpty();
+        assertThat(resolver.resolveDetailed(badHost))
+                .isEqualTo(new DetailedDnsResolver.Result(ImmutableSet.of(), false));
         assertThat(metrics.failure("CACHED").getCount()).isEqualTo(1);
     }
 
-    @Test
-    void cachedFailureKeepsNonexistentHost() {
-        NonexistentHosts nonexistentHosts = new NonexistentHosts();
-        DefaultDialogueDnsResolver resolver =
-                new DefaultDialogueDnsResolver(new DefaultTaggedMetricRegistry(), nonexistentHosts);
-
-        resolver.recordFailure("host", new UnknownHostException("host: Name or service not known"));
-        resolver.recordFailure("host", new UnknownHostException("host"));
-        resolver.recordFailure("host", new UnknownHostException(""));
-
-        assertThat(nonexistentHosts.contains("host")).isTrue();
-    }
-
-    @Test
-    void transientFailureClearsNonexistentHost() {
-        NonexistentHosts nonexistentHosts = new NonexistentHosts();
-        DefaultDialogueDnsResolver resolver =
-                new DefaultDialogueDnsResolver(new DefaultTaggedMetricRegistry(), nonexistentHosts);
-
-        resolver.recordFailure("host", new UnknownHostException("host: Name or service not known"));
-        resolver.recordFailure("host", new UnknownHostException("host: Temporary failure in name resolution"));
-
-        assertThat(nonexistentHosts.contains("host")).isFalse();
-    }
-
-    @Test
-    void successClearsNonexistentHost() {
-        NonexistentHosts nonexistentHosts = new NonexistentHosts();
-        nonexistentHosts.add("localhost");
-
-        new DefaultDialogueDnsResolver(new DefaultTaggedMetricRegistry(), nonexistentHosts).resolve("localhost");
-
-        assertThat(nonexistentHosts.contains("localhost")).isFalse();
-    }
-
     private static ImmutableSet<InetAddress> resolve(String hostname) {
-        DialogueDnsResolver resolver =
-                new DefaultDialogueDnsResolver(new DefaultTaggedMetricRegistry(), new NonexistentHosts());
+        DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(new DefaultTaggedMetricRegistry());
         return resolver.resolve(hostname);
     }
 }

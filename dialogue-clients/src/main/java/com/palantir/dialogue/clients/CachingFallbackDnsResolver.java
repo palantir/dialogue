@@ -32,18 +32,15 @@ import java.time.Duration;
 final class CachingFallbackDnsResolver implements DialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(CachingFallbackDnsResolver.class);
 
-    private final DialogueDnsResolver delegate;
-    private final NonexistentHosts nonexistentHosts;
+    private final DetailedDnsResolver delegate;
     private final Meter lookupSuccess;
     private final Meter lookupFallback;
     private final Meter lookupFailure;
 
     private final Cache<String, ImmutableSet<InetAddress>> fallbackCache;
 
-    CachingFallbackDnsResolver(
-            DialogueDnsResolver delegate, TaggedMetricRegistry registry, NonexistentHosts nonexistentHosts) {
+    CachingFallbackDnsResolver(DetailedDnsResolver delegate, TaggedMetricRegistry registry) {
         this.delegate = delegate;
-        this.nonexistentHosts = nonexistentHosts;
         this.fallbackCache = Caffeine.newBuilder()
                 .maximumSize(1000)
                 .expireAfterWrite(Duration.ofMinutes(10))
@@ -56,9 +53,10 @@ final class CachingFallbackDnsResolver implements DialogueDnsResolver {
 
     @Override
     public ImmutableSet<InetAddress> resolve(String hostname) {
-        ImmutableSet<InetAddress> result = delegate.resolve(hostname);
+        DetailedDnsResolver.Result detailed = delegate.resolveDetailed(hostname);
+        ImmutableSet<InetAddress> result = detailed.addresses();
         if (result.isEmpty()) {
-            if (nonexistentHosts.contains(hostname)) {
+            if (detailed.hostNotFound()) {
                 // The fallback covers DNS outages; a removed host must stop receiving requests at its old address.
                 fallbackCache.invalidate(hostname);
             }
