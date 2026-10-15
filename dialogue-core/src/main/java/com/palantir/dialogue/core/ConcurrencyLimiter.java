@@ -39,8 +39,10 @@ interface ConcurrencyLimiter {
     void setChannelNameForLogging(String value);
 
     /**
-     * Sets where decisions about completed permits are recorded. Limiter state outlives the channels that use it, so
-     * this is updated each time a channel is created for the limiter.
+     * Sets the recorder that reports how this limiter handled each completed permit. Limiters are created from
+     * {@link ChannelState} without knowing the channel name or host index, and are reused when their channel is rebuilt
+     * (for example when the host list changes, which can change the host index). Each channel that uses the limiter
+     * therefore sets the recorder. Limiters that are never given one use {@link ConcurrencyLimiterDecisionRecorder#NOOP}.
      */
     void setDecisionRecorder(ConcurrencyLimiterDecisionRecorder value);
 

@@ -42,8 +42,8 @@ final class ConcurrencyLimiterDecisionRecorderTest {
     @CsvSource({
         "200, http-2xx",
         "204, http-2xx",
-        "304, http-3xx",
-        "308, http-3xx",
+        "304, other",
+        "308, other",
         "400, http-4xx",
         "404, http-4xx",
         "429, http-429",

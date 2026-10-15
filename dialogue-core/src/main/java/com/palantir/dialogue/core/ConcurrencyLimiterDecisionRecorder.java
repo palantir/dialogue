@@ -107,9 +107,6 @@ interface ConcurrencyLimiterDecisionRecorder {
         if (Responses.isServerErrorRange(response)) {
             return "http-5xx";
         }
-        if (response.code() / 100 == 3) {
-            return "http-3xx";
-        }
         return OTHER_CAUSE;
     }
 

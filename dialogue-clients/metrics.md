@@ -151,7 +151,7 @@ Instrumentation for the ConcurrencyLimitedChannel
     - `success`: Increases the limit when enough requests were in flight.
     - `dropped`: Decreases the limit, to a minimum of 1.
     - `ignored`: Does not change the limit.
-  - `cause`: Describes the response status or failure that released the permit. Responses are one of `http-2xx`, `http-3xx`, `http-308` (QoS RetryOther), `http-4xx`, `http-429`, `http-500`, `http-503`, `http-5xx`, `qos-custom` (a QoS response due to a custom cause) or `other`. Failures are the simple class name of the exception (e.g. `SafeSocketTimeoutException`).
+  - `cause`: Describes the response status or failure that released the permit. Responses are one of `http-2xx`, `http-308` (QoS RetryOther), `http-4xx`, `http-429`, `http-500`, `http-503`, `http-5xx`, `qos-custom` (a QoS response due to a custom cause) or `other` (any other status, such as 1xx or a 3xx other than QoS RetryOther). Failures are the simple class name of the exception (e.g. `SafeSocketTimeoutException`).
 
 ### dialogue.nodeselection
 Instrumentation for which node selection strategy is used
