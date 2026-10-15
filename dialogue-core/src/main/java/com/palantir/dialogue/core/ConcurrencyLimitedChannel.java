@@ -23,6 +23,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.ConcurrencyLimiter.Permit;
+import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Level;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -79,12 +80,15 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
+        limiter.setDecisionRecorder(
+                ConcurrencyLimiterDecisionRecorder.create(metrics, cf.channelName(), Decision_Level.HOST));
         return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
     }
 
     /**
      * Creates a concurrency limited channel for per-endpoint limiting.
-     * Metrics are not reported by this component per-endpoint, only by the per-endpoint queue.
+     * Metrics are not reported by this component per-endpoint, only by the per-endpoint queue. Limiter decisions are
+     * recorded aggregated across endpoints.
      */
     static LimitedChannel createForEndpoint(
             Channel channel, Config cf, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
@@ -94,6 +98,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new EndpointConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, endpoint);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
+        limiter.setDecisionRecorder(ConcurrencyLimiterDecisionRecorder.create(
+                cf.clientConf().taggedMetricRegistry(), cf.channelName(), Decision_Level.ENDPOINT));
         return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
     }
 

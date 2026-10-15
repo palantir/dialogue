@@ -33,13 +33,19 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.ConcurrencyLimitedChannel.ConcurrencyLimitedChannelInstrumentation;
 import com.palantir.dialogue.core.ConcurrencyLimitedChannel.HostConcurrencyLimitedChannelInstrumentation;
+import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Cause;
+import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Level;
+import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Result;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.net.SocketTimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -137,7 +143,9 @@ public class ConcurrencyLimitedChannelTest {
     @Test
     public void testReuseCachedLimiterState_endpoint() {
         ChannelState state = new ChannelState();
+        ClientConfiguration clientConfig = clientConfig();
         Config config = mock(Config.class);
+        when(config.clientConf()).thenReturn(clientConfig);
         when(config.channelName()).thenReturn("channel");
         when(config.concurrencyLimiterExponentialRamp()).thenReturn(false);
 
@@ -161,7 +169,9 @@ public class ConcurrencyLimitedChannelTest {
     @Test
     public void testExplicitlyUsesExponentialRampLimiter_endpoint() {
         ChannelState state = new ChannelState();
+        ClientConfiguration clientConfig = clientConfig();
         Config config = mock(Config.class);
+        when(config.clientConf()).thenReturn(clientConfig);
         when(config.channelName()).thenReturn("channel");
         when(config.concurrencyLimiterExponentialRamp()).thenReturn(true);
 
@@ -288,6 +298,61 @@ public class ConcurrencyLimitedChannelTest {
         when(mockLimiter.getLimit()).thenReturn(21D);
 
         assertThat(getMax()).isEqualTo(21D);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void testRecordsDecisions_host(boolean exponentialRamp) {
+        LimitedChannel forHost =
+                ConcurrencyLimitedChannel.createForHost(config(exponentialRamp), delegate, 0, new ChannelState());
+
+        forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+        responseFuture.setException(new SocketTimeoutException("read timed out"));
+
+        SettableFuture<Response> cancelled = SettableFuture.create();
+        when(delegate.execute(endpoint, request)).thenReturn(cancelled);
+        forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+        cancelled.cancel(false);
+
+        assertThat(decisionCount(Decision_Level.HOST, Decision_Result.DROPPED, Decision_Cause.SOCKET_TIMEOUT))
+                .isEqualTo(1);
+        assertThat(decisionCount(Decision_Level.HOST, Decision_Result.IGNORED, Decision_Cause.CANCELLED))
+                .isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void testRecordsDecisions_endpoint(boolean exponentialRamp) {
+        LimitedChannel forEndpoint = ConcurrencyLimitedChannel.createForEndpoint(
+                delegate, config(exponentialRamp), 0, endpoint, new ChannelState());
+
+        forEndpoint.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+        mockResponseCode(429);
+
+        assertThat(decisionCount(Decision_Level.ENDPOINT, Decision_Result.DROPPED, Decision_Cause.HTTP_429))
+                .isEqualTo(1);
+        assertThat(decisionCount(Decision_Level.HOST, Decision_Result.DROPPED, Decision_Cause.HTTP_429))
+                .isZero();
+    }
+
+    private ClientConfiguration clientConfig() {
+        ClientConfiguration clientConfig = mock(ClientConfiguration.class);
+        when(clientConfig.taggedMetricRegistry()).thenReturn(metrics);
+        return clientConfig;
+    }
+
+    private Config config(boolean exponentialRamp) {
+        ClientConfiguration clientConfig = clientConfig();
+        Config config = mock(Config.class);
+        when(config.clientConf()).thenReturn(clientConfig);
+        when(config.channelName()).thenReturn("channel");
+        when(config.concurrencyLimiterExponentialRamp()).thenReturn(exponentialRamp);
+        return config;
+    }
+
+    private long decisionCount(Decision_Level level, Decision_Result result, Decision_Cause cause) {
+        return ConcurrencyLimiterDecisionRecorderTest.decisionMeter(metrics, level, result, cause)
+                .getCount();
     }
 
     private void mockResponseCode(int code) {

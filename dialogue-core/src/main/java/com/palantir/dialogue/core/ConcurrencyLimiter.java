@@ -38,5 +38,11 @@ interface ConcurrencyLimiter {
 
     void setChannelNameForLogging(String value);
 
+    /**
+     * Sets where decisions about completed permits are recorded. Limiter state outlives the channels that use it, so
+     * this is updated each time a channel is created for the limiter.
+     */
+    void setDecisionRecorder(ConcurrencyLimiterDecisionRecorder value);
+
     interface Permit extends FutureCallback<Response> {}
 }
