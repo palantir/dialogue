@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosReason.AttributionQos;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
@@ -83,6 +84,9 @@ final class ExceptionDeserializingDecoderTest {
                 .code(statusCode)
                 .withHeader("Qos-Due-To", "custom")
                 .withHeader("Qos-Retry-Hint", "do-not-retry")
+                .withHeader("Rejection-Id", "rejection-id")
+                .withHeader("Qos-Origin", "origin")
+                .withHeader("Qos-Scope", "scope")
                 .withHeader("Retry-After", "3");
         if (exhausted) {
             response.withHeader("Dialogue-Retries-Exhausted", "true");
@@ -99,6 +103,7 @@ final class ExceptionDeserializingDecoderTest {
                             .reason("client-qos-response")
                             .dueTo(QosReason.DueTo.CUSTOM)
                             .retryHint(QosReason.RetryHint.DO_NOT_RETRY)
+                            .attributionQos(AttributionQos.of("rejection-id", "origin", "scope"))
                             .build());
             if (statusCode == 429) {
                 assertThat(exception)

@@ -26,6 +26,7 @@ import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosReason.AttributionQos;
 import com.palantir.conjure.java.api.errors.QosReason.DueTo;
 import com.palantir.conjure.java.api.errors.QosReason.RetryHint;
 import com.palantir.conjure.java.api.errors.RemoteException;
@@ -111,7 +112,10 @@ public final class ErrorDecoderTest {
         Response response = TestResponse.withBody(SERIALIZED_EXCEPTION)
                 .code(503)
                 .withHeader("Qos-Retry-Hint", "do-not-retry")
-                .withHeader("Qos-Due-To", "custom");
+                .withHeader("Qos-Due-To", "custom")
+                .withHeader("Rejection-Id", "rejection-id")
+                .withHeader("Qos-Origin", "origin")
+                .withHeader("Qos-Scope", "scope");
         assertThat(decoder.isError(response)).isTrue();
 
         RuntimeException result = decoder.decode(response);
@@ -121,6 +125,7 @@ public final class ErrorDecoderTest {
                             .from(QOS_REASON)
                             .dueTo(DueTo.CUSTOM)
                             .retryHint(RetryHint.DO_NOT_RETRY)
+                            .attributionQos(AttributionQos.of("rejection-id", "origin", "scope"))
                             .build());
         });
     }
