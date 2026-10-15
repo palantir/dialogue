@@ -18,143 +18,103 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Cause;
-import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Level;
 import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Result;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.io.IOException;
-import java.net.ConnectException;
-import java.net.NoRouteToHostException;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import javax.net.ssl.SSLException;
-import org.jspecify.annotations.Nullable;
 
 /**
- * Records the {@code dialogue.concurrencylimiter.decision} meter, describing how a concurrency limiter interpreted
- * each completed request. Decisions are recorded for every request, so meters are resolved lazily and cached.
+ * Records the {@code dialogue.concurrencylimiter.decision} meter, describing how a per-host concurrency limiter
+ * interpreted each completed request.
  */
-final class ConcurrencyLimiterDecisionRecorder {
+@FunctionalInterface
+interface ConcurrencyLimiterDecisionRecorder {
 
-    static final ConcurrencyLimiterDecisionRecorder NOOP =
-            new ConcurrencyLimiterDecisionRecorder(null, "noop", Decision_Level.HOST);
+    /** Discards decisions, for limiters that do not report them. */
+    ConcurrencyLimiterDecisionRecorder NOOP = (_result, _cause) -> {};
 
-    // Failures are often wrapped by the client implementation, so a few levels of causes are inspected.
-    private static final int MAX_CAUSE_DEPTH = 3;
+    /** The cause of a decision that was not produced by a recognized response status. */
+    String OTHER_CAUSE = "other";
 
-    @Nullable
-    private final DialogueConcurrencylimiterMetrics metrics;
+    void record(Decision_Result result, String cause);
 
-    private final String channelName;
-    private final Decision_Level level;
-
-    // Only populated with the causes that occur, so unused combinations are never registered or reported.
-    private final ConcurrentMap<Decision_Cause, Meter> successMeters = new ConcurrentHashMap<>();
-    private final ConcurrentMap<Decision_Cause, Meter> droppedMeters = new ConcurrentHashMap<>();
-    private final ConcurrentMap<Decision_Cause, Meter> ignoredMeters = new ConcurrentHashMap<>();
-
-    private ConcurrencyLimiterDecisionRecorder(
-            @Nullable DialogueConcurrencylimiterMetrics metrics, String channelName, Decision_Level level) {
-        this.metrics = metrics;
-        this.channelName = channelName;
-        this.level = level;
+    static ConcurrencyLimiterDecisionRecorder create(TaggedMetricRegistry registry, String channelName, int hostIndex) {
+        return new Metered(DialogueConcurrencylimiterMetrics.of(registry), channelName, Integer.toString(hostIndex));
     }
 
-    static ConcurrencyLimiterDecisionRecorder create(
-            TaggedMetricRegistry registry, String channelName, Decision_Level level) {
-        return new ConcurrencyLimiterDecisionRecorder(
-                DialogueConcurrencylimiterMetrics.of(registry), channelName, level);
-    }
+    /** Decisions are recorded for every request, so meters are resolved lazily and cached. */
+    final class Metered implements ConcurrencyLimiterDecisionRecorder {
+        private final DialogueConcurrencylimiterMetrics metrics;
+        private final String channelName;
+        private final String hostIndex;
 
-    void record(Decision_Result result, Decision_Cause cause) {
-        if (metrics == null) {
-            return;
+        // Only populated with the causes that occur, so unused combinations are never registered or reported.
+        private final ConcurrentMap<String, Meter> successMeters = new ConcurrentHashMap<>();
+        private final ConcurrentMap<String, Meter> droppedMeters = new ConcurrentHashMap<>();
+        private final ConcurrentMap<String, Meter> ignoredMeters = new ConcurrentHashMap<>();
+
+        private Metered(DialogueConcurrencylimiterMetrics metrics, String channelName, String hostIndex) {
+            this.metrics = metrics;
+            this.channelName = channelName;
+            this.hostIndex = hostIndex;
         }
-        ConcurrentMap<Decision_Cause, Meter> byCause = switch (result) {
-            case SUCCESS -> successMeters;
-            case DROPPED -> droppedMeters;
-            case IGNORED -> ignoredMeters;
-        };
-        Meter meter = byCause.get(cause);
-        if (meter == null) {
-            // Racing threads resolve the same meter from the registry, so the last write wins harmlessly.
-            meter = metrics.decision()
-                    .channelName(channelName)
-                    .level(level)
-                    .result(result)
-                    .cause(cause)
-                    .build();
-            byCause.put(cause, meter);
+
+        @Override
+        public void record(Decision_Result result, String cause) {
+            ConcurrentMap<String, Meter> byCause = switch (result) {
+                case SUCCESS -> successMeters;
+                case DROPPED -> droppedMeters;
+                case IGNORED -> ignoredMeters;
+            };
+            Meter meter = byCause.get(cause);
+            if (meter == null) {
+                // Racing threads resolve the same meter from the registry, so the last write wins harmlessly.
+                meter = metrics.decision()
+                        .channelName(channelName)
+                        .hostIndex(hostIndex)
+                        .result(result)
+                        .cause(cause)
+                        .build();
+                byCause.put(cause, meter);
+            }
+            meter.mark();
         }
-        meter.mark();
     }
 
-    static Decision_Cause causeOf(Response response) {
+    /** Uses the same {@link Responses} predicates as {@link Behavior}, so the cause matches the decision. */
+    static String causeOf(Response response) {
         if (Responses.isQosDueToCustom(response)) {
-            return Decision_Cause.QOS_CUSTOM;
+            return "qos-custom";
         }
         if (Responses.isRetryOther(response)) {
-            return Decision_Cause.HTTP_308;
+            return "http-308";
         }
-        return switch (response.code()) {
-            case 429 -> Decision_Cause.HTTP_429;
-            case 500 -> Decision_Cause.HTTP_500;
-            case 503 -> Decision_Cause.HTTP_503;
-            default ->
-                switch (response.code() / 100) {
-                    case 2 -> Decision_Cause.HTTP_2XX;
-                    case 3 -> Decision_Cause.HTTP_3XX;
-                    case 4 -> Decision_Cause.HTTP_4XX;
-                    case 5 -> Decision_Cause.HTTP_5XX;
-                    default -> Decision_Cause.OTHER;
-                };
-        };
+        if (Responses.isTooManyRequests(response)) {
+            return "http-429";
+        }
+        if (Responses.isInternalServerError(response)) {
+            return "http-500";
+        }
+        if (Responses.isUnavailable(response)) {
+            return "http-503";
+        }
+        if (Responses.isSuccess(response)) {
+            return "http-2xx";
+        }
+        if (Responses.isClientError(response)) {
+            return "http-4xx";
+        }
+        if (Responses.isServerErrorRange(response)) {
+            return "http-5xx";
+        }
+        if (response.code() / 100 == 3) {
+            return "http-3xx";
+        }
+        return OTHER_CAUSE;
     }
 
-    static Decision_Cause causeOf(Throwable throwable) {
-        if (throwable instanceof CancellationException) {
-            return Decision_Cause.CANCELLED;
-        }
-        if (!(throwable instanceof IOException)) {
-            return Decision_Cause.OTHER;
-        }
-        Throwable current = throwable;
-        for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
-            Decision_Cause cause = ioCauseOf(current);
-            if (cause != null) {
-                return cause;
-            }
-            current = current.getCause();
-        }
-        return Decision_Cause.IO_ERROR;
-    }
-
-    @Nullable
-    private static Decision_Cause ioCauseOf(Throwable throwable) {
-        if (throwable instanceof SocketTimeoutException) {
-            return Decision_Cause.SOCKET_TIMEOUT;
-        }
-        // dialogue-core cannot reference client implementation types, so connect timeouts are matched by name. The
-        // Apache client wraps org.apache.hc.client5.http.ConnectTimeoutException in a SafeConnectTimeoutException.
-        if (throwable.getClass().getSimpleName().endsWith("ConnectTimeoutException")) {
-            return Decision_Cause.CONNECT_TIMEOUT;
-        }
-        if (throwable instanceof ConnectException || throwable instanceof NoRouteToHostException) {
-            return Decision_Cause.CONNECT_ERROR;
-        }
-        if (throwable instanceof UnknownHostException) {
-            return Decision_Cause.UNKNOWN_HOST;
-        }
-        if (throwable instanceof SSLException) {
-            return Decision_Cause.SSL;
-        }
-        if (throwable instanceof SocketException) {
-            return Decision_Cause.SOCKET_ERROR;
-        }
-        return null;
+    /** Matches the exception tags used by {@code dialogue.client.request.retry} and the Apache client metrics. */
+    static String causeOf(Throwable throwable) {
+        return throwable.getClass().getSimpleName();
     }
 }

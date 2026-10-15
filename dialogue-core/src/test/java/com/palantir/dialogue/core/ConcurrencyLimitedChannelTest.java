@@ -33,8 +33,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.ConcurrencyLimitedChannel.ConcurrencyLimitedChannelInstrumentation;
 import com.palantir.dialogue.core.ConcurrencyLimitedChannel.HostConcurrencyLimitedChannelInstrumentation;
-import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Cause;
-import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Level;
 import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Result;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.exceptions.SafeIoException;
@@ -143,9 +141,7 @@ public class ConcurrencyLimitedChannelTest {
     @Test
     public void testReuseCachedLimiterState_endpoint() {
         ChannelState state = new ChannelState();
-        ClientConfiguration clientConfig = clientConfig();
         Config config = mock(Config.class);
-        when(config.clientConf()).thenReturn(clientConfig);
         when(config.channelName()).thenReturn("channel");
         when(config.concurrencyLimiterExponentialRamp()).thenReturn(false);
 
@@ -169,9 +165,7 @@ public class ConcurrencyLimitedChannelTest {
     @Test
     public void testExplicitlyUsesExponentialRampLimiter_endpoint() {
         ChannelState state = new ChannelState();
-        ClientConfiguration clientConfig = clientConfig();
         Config config = mock(Config.class);
-        when(config.clientConf()).thenReturn(clientConfig);
         when(config.channelName()).thenReturn("channel");
         when(config.concurrencyLimiterExponentialRamp()).thenReturn(true);
 
@@ -304,7 +298,7 @@ public class ConcurrencyLimitedChannelTest {
     @ValueSource(booleans = {false, true})
     void testRecordsDecisions_host(boolean exponentialRamp) {
         LimitedChannel forHost =
-                ConcurrencyLimitedChannel.createForHost(config(exponentialRamp), delegate, 0, new ChannelState());
+                ConcurrencyLimitedChannel.createForHost(config(exponentialRamp), delegate, 2, new ChannelState());
 
         forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
         responseFuture.setException(new SocketTimeoutException("read timed out"));
@@ -314,25 +308,10 @@ public class ConcurrencyLimitedChannelTest {
         forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
         cancelled.cancel(false);
 
-        assertThat(decisionCount(Decision_Level.HOST, Decision_Result.DROPPED, Decision_Cause.SOCKET_TIMEOUT))
+        assertThat(decisionCount("2", Decision_Result.DROPPED, "SocketTimeoutException"))
                 .isEqualTo(1);
-        assertThat(decisionCount(Decision_Level.HOST, Decision_Result.IGNORED, Decision_Cause.CANCELLED))
+        assertThat(decisionCount("2", Decision_Result.IGNORED, "CancellationException"))
                 .isEqualTo(1);
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void testRecordsDecisions_endpoint(boolean exponentialRamp) {
-        LimitedChannel forEndpoint = ConcurrencyLimitedChannel.createForEndpoint(
-                delegate, config(exponentialRamp), 0, endpoint, new ChannelState());
-
-        forEndpoint.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
-        mockResponseCode(429);
-
-        assertThat(decisionCount(Decision_Level.ENDPOINT, Decision_Result.DROPPED, Decision_Cause.HTTP_429))
-                .isEqualTo(1);
-        assertThat(decisionCount(Decision_Level.HOST, Decision_Result.DROPPED, Decision_Cause.HTTP_429))
-                .isZero();
     }
 
     private ClientConfiguration clientConfig() {
@@ -350,8 +329,8 @@ public class ConcurrencyLimitedChannelTest {
         return config;
     }
 
-    private long decisionCount(Decision_Level level, Decision_Result result, Decision_Cause cause) {
-        return ConcurrencyLimiterDecisionRecorderTest.decisionMeter(metrics, level, result, cause)
+    private long decisionCount(String hostIndex, Decision_Result result, String cause) {
+        return ConcurrencyLimiterDecisionRecorderTest.decisionMeter(metrics, hostIndex, result, cause)
                 .getCount();
     }
 

@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Cause;
 import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Result;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.SafeArg;
@@ -99,7 +98,7 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
         private final int inFlightSnapshot;
 
         // The outcome that completed this permit, set before the behavior makes its decision.
-        private Decision_Cause cause = Decision_Cause.OTHER;
+        private String cause = ConcurrencyLimiterDecisionRecorder.OTHER_CAUSE;
 
         Permit(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;

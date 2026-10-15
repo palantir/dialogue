@@ -25,21 +25,13 @@ import com.palantir.conjure.java.api.errors.QosReason.DueTo;
 import com.palantir.conjure.java.api.errors.QosReasons;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TestResponseQosEncoder;
-import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Cause;
-import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Level;
 import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Result;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.io.UncheckedIOException;
-import java.net.ConnectException;
-import java.net.NoRouteToHostException;
-import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.concurrent.CancellationException;
-import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -48,20 +40,20 @@ final class ConcurrencyLimiterDecisionRecorderTest {
 
     @ParameterizedTest
     @CsvSource({
-        "200, HTTP_2XX",
-        "204, HTTP_2XX",
-        "304, HTTP_3XX",
-        "308, HTTP_3XX",
-        "400, HTTP_4XX",
-        "404, HTTP_4XX",
-        "429, HTTP_429",
-        "500, HTTP_500",
-        "502, HTTP_5XX",
-        "503, HTTP_503",
-        "504, HTTP_5XX",
-        "101, OTHER",
+        "200, http-2xx",
+        "204, http-2xx",
+        "304, http-3xx",
+        "308, http-3xx",
+        "400, http-4xx",
+        "404, http-4xx",
+        "429, http-429",
+        "500, http-500",
+        "502, http-5xx",
+        "503, http-503",
+        "504, http-5xx",
+        "101, other",
     })
-    void classifiesResponses(int code, Decision_Cause expected) {
+    void classifiesResponses(int code, String expected) {
         assertThat(ConcurrencyLimiterDecisionRecorder.causeOf(new TestResponse().code(code)))
                 .isEqualTo(expected);
     }
@@ -69,7 +61,7 @@ final class ConcurrencyLimiterDecisionRecorderTest {
     @Test
     void classifiesRetryOtherSeparatelyFromOtherRedirects() {
         TestResponse retryOther = new TestResponse().code(308).withHeader(HttpHeaders.LOCATION, "https://localhost");
-        assertThat(ConcurrencyLimiterDecisionRecorder.causeOf(retryOther)).isEqualTo(Decision_Cause.HTTP_308);
+        assertThat(ConcurrencyLimiterDecisionRecorder.causeOf(retryOther)).isEqualTo("http-308");
     }
 
     @Test
@@ -82,55 +74,36 @@ final class ConcurrencyLimiterDecisionRecorderTest {
                     TestResponseQosEncoder.INSTANCE);
             assertThat(ConcurrencyLimiterDecisionRecorder.causeOf(response))
                     .as("status %d", code)
-                    .isEqualTo(Decision_Cause.QOS_CUSTOM);
+                    .isEqualTo("qos-custom");
         }
     }
 
     @Test
-    void classifiesFailures() {
-        assertCause(new SocketTimeoutException("read timed out"), Decision_Cause.SOCKET_TIMEOUT);
-        assertCause(new ConnectTimeoutException(), Decision_Cause.CONNECT_TIMEOUT);
-        assertCause(new ConnectException("refused"), Decision_Cause.CONNECT_ERROR);
-        assertCause(new NoRouteToHostException("no route"), Decision_Cause.CONNECT_ERROR);
-        assertCause(new UnknownHostException("unknown"), Decision_Cause.UNKNOWN_HOST);
-        assertCause(new SSLHandshakeException("handshake"), Decision_Cause.SSL);
-        assertCause(new SocketException("Connection reset"), Decision_Cause.SOCKET_ERROR);
-        assertCause(new IOException("other"), Decision_Cause.IO_ERROR);
-        assertCause(new InterruptedIOException("aborted"), Decision_Cause.IO_ERROR);
-        assertCause(new CancellationException(), Decision_Cause.CANCELLED);
-        assertCause(new IllegalStateException(), Decision_Cause.OTHER);
-    }
-
-    @Test
-    void classifiesWrappedFailuresByCause() {
-        // Mirrors how the Apache client wraps connect timeouts in an IOException.
-        assertCause(new IOException("wrapper", new ConnectTimeoutException()), Decision_Cause.CONNECT_TIMEOUT);
-        assertCause(new IOException("wrapper", new SocketTimeoutException()), Decision_Cause.SOCKET_TIMEOUT);
-        // Only IOExceptions affect the limiter, so wrapped IOExceptions in other throwables are not inspected.
-        assertCause(new UncheckedIOException(new SocketTimeoutException()), Decision_Cause.OTHER);
-    }
-
-    @Test
-    void boundsCauseDepth() {
-        IOException deep = new IOException(
-                "1", new IOException("2", new IOException("3", new SocketTimeoutException("too deep"))));
-        assertCause(deep, Decision_Cause.IO_ERROR);
+    void usesExceptionSimpleName() {
+        assertThat(ConcurrencyLimiterDecisionRecorder.causeOf(new SocketTimeoutException("read timed out")))
+                .isEqualTo("SocketTimeoutException");
+        assertThat(ConcurrencyLimiterDecisionRecorder.causeOf(new UnknownHostException("unknown")))
+                .isEqualTo("UnknownHostException");
+        assertThat(ConcurrencyLimiterDecisionRecorder.causeOf(new CancellationException()))
+                .isEqualTo("CancellationException");
+        assertThat(ConcurrencyLimiterDecisionRecorder.causeOf(new IOException("wrapper", new SocketTimeoutException())))
+                .as("only the outermost exception is used, as in dialogue.client.request.retry")
+                .isEqualTo("IOException");
     }
 
     @Test
     void recordsDecisionMeters() {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        ConcurrencyLimiterDecisionRecorder recorder =
-                ConcurrencyLimiterDecisionRecorder.create(registry, "channel", Decision_Level.HOST);
+        ConcurrencyLimiterDecisionRecorder recorder = ConcurrencyLimiterDecisionRecorder.create(registry, "channel", 3);
 
-        recorder.record(Decision_Result.DROPPED, Decision_Cause.SOCKET_TIMEOUT);
-        recorder.record(Decision_Result.DROPPED, Decision_Cause.SOCKET_TIMEOUT);
-        recorder.record(Decision_Result.SUCCESS, Decision_Cause.HTTP_2XX);
+        recorder.record(Decision_Result.DROPPED, "SocketTimeoutException");
+        recorder.record(Decision_Result.DROPPED, "SocketTimeoutException");
+        recorder.record(Decision_Result.SUCCESS, "http-2xx");
 
-        assertThat(decisionMeter(registry, Decision_Level.HOST, Decision_Result.DROPPED, Decision_Cause.SOCKET_TIMEOUT)
+        assertThat(decisionMeter(registry, "3", Decision_Result.DROPPED, "SocketTimeoutException")
                         .getCount())
                 .isEqualTo(2);
-        assertThat(decisionMeter(registry, Decision_Level.HOST, Decision_Result.SUCCESS, Decision_Cause.HTTP_2XX)
+        assertThat(decisionMeter(registry, "3", Decision_Result.SUCCESS, "http-2xx")
                         .getCount())
                 .isEqualTo(1);
         assertThat(registry.getMetrics())
@@ -138,27 +111,13 @@ final class ConcurrencyLimiterDecisionRecorderTest {
                 .hasSize(2);
     }
 
-    static Meter decisionMeter(
-            TaggedMetricRegistry registry, Decision_Level level, Decision_Result result, Decision_Cause cause) {
+    static Meter decisionMeter(TaggedMetricRegistry registry, String hostIndex, Decision_Result result, String cause) {
         return DialogueConcurrencylimiterMetrics.of(registry)
                 .decision()
                 .channelName("channel")
-                .level(level)
+                .hostIndex(hostIndex)
                 .result(result)
                 .cause(cause)
                 .build();
-    }
-
-    private static void assertCause(Throwable throwable, Decision_Cause expected) {
-        assertThat(ConcurrencyLimiterDecisionRecorder.causeOf(throwable))
-                .as("%s", throwable)
-                .isEqualTo(expected);
-    }
-
-    /** Stands in for the Apache client's connect timeout, which dialogue-core cannot reference directly. */
-    private static final class ConnectTimeoutException extends InterruptedIOException {
-        ConnectTimeoutException() {
-            super("connect timed out");
-        }
     }
 }

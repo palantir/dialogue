@@ -33,10 +33,8 @@ namespaces:
       request.cancelled:
         type: timer
         tags: [channel-name, service-name, endpoint]
-        docs: |
-          Time from the dialogue client method call until the request was cancelled by the caller (including queued
-          time), for example because a caller-side timeout fired. Cancelled requests are not recorded by
-          `client.response`, so this is the only signal for requests that were abandoned before completing.
+        docs: Time until a request was cancelled by the caller (measured as the time taken by the dialogue client method
+          call, including retries, as well as queued time). Cancelled requests are not recorded by `client.response`.
       request.retry:
         type: meter
         tags: [channel-name, reason]
@@ -136,49 +134,26 @@ namespaces:
         type: gauge
         tags: [channel-name, hostIndex]
         docs: The number of concurrent requests which are currently running.
-      # Note: hostIndex and endpoint are deliberately not tags on the decision metric to bound cardinality. Use the
-      # max and in-flight gauges to attribute limit changes to a host, and the per-endpoint queue metrics for endpoints.
       decision:
         type: meter
         tags:
           - name: channel-name
-          - name: level
-            values: [host, endpoint]
+          - name: hostIndex
           - name: result
-            values: [success, dropped, ignored]
-          - name: cause
             values:
-              - http-2xx
-              - http-3xx
-              - http-308
-              - http-4xx
-              - http-429
-              - http-500
-              - http-503
-              - http-5xx
-              - qos-custom
-              - socket-timeout
-              - connect-timeout
-              - connect-error
-              - unknown-host
-              - ssl
-              - socket-error
-              - io-error
-              - cancelled
-              - other
-        docs: |
-          Marked each time a request releases its concurrency limiter permit, describing how the limiter interpreted
-          the outcome. The level is `host` for the per-host limiter and `endpoint` for the per-endpoint limiters
-          (aggregated across endpoints). A `success` may additively increase the limit, `dropped` multiplicatively
-          decreases it, and `ignored` leaves it unchanged. The cause is the response status or failure that produced
-          the decision:
-          * `http-2xx`, `http-3xx`, `http-4xx`, `http-5xx`: responses by status family, excluding the codes below.
-          * `http-308`: a 308 with a `Location` header (QoS RetryOther). `http-429`, `http-500`, `http-503`: those codes.
-          * `qos-custom`: a QoS response (308, 429 or 503) whose reason is due to a custom cause.
-          * `socket-timeout`: a read timeout. `connect-timeout`: a timeout establishing a connection.
-          * `connect-error`: a connection could not be established, e.g. connection refused.
-          * `unknown-host`, `ssl`: DNS and TLS failures. `socket-error`: other socket failures, e.g. connection reset.
-          * `io-error`: any other `IOException`. `cancelled`: the caller cancelled the request. `other`: anything else.
+              - value: success
+                docs: Increases the limit when enough requests were in flight.
+              - value: dropped
+                docs: Decreases the limit, to a minimum of 1.
+              - value: ignored
+                docs: Does not change the limit.
+            docs: Describes how the concurrency limiter interpreted the response or failure.
+          - name: cause
+            docs: Describes the response status or failure that released the permit. Responses are one of
+              `http-2xx`, `http-3xx`, `http-308` (QoS RetryOther), `http-4xx`, `http-429`, `http-500`, `http-503`,
+              `http-5xx`, `qos-custom` (a QoS response due to a custom cause) or `other`. Failures are the simple
+              class name of the exception (e.g. `SafeSocketTimeoutException`).
+        docs: Marked every time a request releases a per-host concurrency limiter permit.
 
   dialogue.pinuntilerror:
     docs: Instrumentation for the PIN_UNTIL_ERROR node selection strategy.

@@ -99,10 +99,7 @@ Instrumentation for BalancedChannel internals.
 ### dialogue.client
 Dialogue-specific metrics that are not necessarily applicable to other client implementations.
 - `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
-- `dialogue.client.request.cancelled` tagged `channel-name`, `service-name`, `endpoint` (timer): Time from the dialogue client method call until the request was cancelled by the caller (including queued
-time), for example because a caller-side timeout fired. Cancelled requests are not recorded by
-`client.response`, so this is the only signal for requests that were abandoned before completing.
-
+- `dialogue.client.request.cancelled` tagged `channel-name`, `service-name`, `endpoint` (timer): Time until a request was cancelled by the caller (measured as the time taken by the dialogue client method call, including retries, as well as queued time). Cancelled requests are not recorded by `client.response`.
 - `dialogue.client.request.retry` tagged `channel-name`, `reason` (meter): Rate at which the RetryingChannel retries requests (across all endpoints).
 - `dialogue.client.request.retry.count` (histogram): Distribution of failed attempt counts per request. The value recorded is the number of failed attempts
 before the terminal result. For "success", this equals the number of retries before a 2xx response.
@@ -147,23 +144,14 @@ affected request.
 Instrumentation for the ConcurrencyLimitedChannel
 - `dialogue.concurrencylimiter.max` tagged `channel-name`, `hostIndex` (gauge): The maximum number of concurrent requests which are currently permitted. Additively increases with successes and multiplicatively decreases with failures.
 - `dialogue.concurrencylimiter.in-flight` tagged `channel-name`, `hostIndex` (gauge): The number of concurrent requests which are currently running.
-- `dialogue.concurrencylimiter.decision` (meter): Marked each time a request releases its concurrency limiter permit, describing how the limiter interpreted
-the outcome. The level is `host` for the per-host limiter and `endpoint` for the per-endpoint limiters
-(aggregated across endpoints). A `success` may additively increase the limit, `dropped` multiplicatively
-decreases it, and `ignored` leaves it unchanged. The cause is the response status or failure that produced
-the decision:
-* `http-2xx`, `http-3xx`, `http-4xx`, `http-5xx`: responses by status family, excluding the codes below.
-* `http-308`: a 308 with a `Location` header (QoS RetryOther). `http-429`, `http-500`, `http-503`: those codes.
-* `qos-custom`: a QoS response (308, 429 or 503) whose reason is due to a custom cause.
-* `socket-timeout`: a read timeout. `connect-timeout`: a timeout establishing a connection.
-* `connect-error`: a connection could not be established, e.g. connection refused.
-* `unknown-host`, `ssl`: DNS and TLS failures. `socket-error`: other socket failures, e.g. connection reset.
-* `io-error`: any other `IOException`. `cancelled`: the caller cancelled the request. `other`: anything else.
-
+- `dialogue.concurrencylimiter.decision` (meter): Marked every time a request releases a per-host concurrency limiter permit.
   - `channel-name`
-  - `level` values (`host`,`endpoint`)
-  - `result` values (`success`,`dropped`,`ignored`)
-  - `cause` values (`http-2xx`,`http-3xx`,`http-308`,`http-4xx`,`http-429`,`http-500`,`http-503`,`http-5xx`,`qos-custom`,`socket-timeout`,`connect-timeout`,`connect-error`,`unknown-host`,`ssl`,`socket-error`,`io-error`,`cancelled`,`other`)
+  - `hostIndex`
+  - `result`: Describes how the concurrency limiter interpreted the response or failure.
+    - `success`: Increases the limit when enough requests were in flight.
+    - `dropped`: Decreases the limit, to a minimum of 1.
+    - `ignored`: Does not change the limit.
+  - `cause`: Describes the response status or failure that released the permit. Responses are one of `http-2xx`, `http-3xx`, `http-308` (QoS RetryOther), `http-4xx`, `http-429`, `http-500`, `http-503`, `http-5xx`, `qos-custom` (a QoS response due to a custom cause) or `other`. Failures are the simple class name of the exception (e.g. `SafeSocketTimeoutException`).
 
 ### dialogue.nodeselection
 Instrumentation for which node selection strategy is used
