@@ -84,9 +84,9 @@ final class ExceptionDeserializingDecoderTest {
                 .code(statusCode)
                 .withHeader("Qos-Due-To", "custom")
                 .withHeader("Qos-Retry-Hint", "do-not-retry")
-                .withHeader("Rejection-Id", "rejection-id")
-                .withHeader("Qos-Origin", "origin")
-                .withHeader("Qos-Scope", "scope")
+                .withHeader("Rejection-Policy", "rejection-policy")
+                .withHeader("Rejection-Attribute", "rejection-attribute")
+                .withHeader("Error-Message", "error-message")
                 .withHeader("Retry-After", "3");
         if (exhausted) {
             response.withHeader("Dialogue-Retries-Exhausted", "true");
@@ -103,7 +103,8 @@ final class ExceptionDeserializingDecoderTest {
                             .reason("client-qos-response")
                             .dueTo(QosReason.DueTo.CUSTOM)
                             .retryHint(QosReason.RetryHint.DO_NOT_RETRY)
-                            .attributionQos(AttributionQos.of("rejection-id", "origin", "scope"))
+                            .attributionQos(
+                                    AttributionQos.of("rejection-policy", "rejection-attribute", "error-message"))
                             .build());
             if (statusCode == 429) {
                 assertThat(exception)

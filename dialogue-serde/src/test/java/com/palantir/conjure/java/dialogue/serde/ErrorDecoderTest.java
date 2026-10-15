@@ -113,9 +113,9 @@ public final class ErrorDecoderTest {
                 .code(503)
                 .withHeader("Qos-Retry-Hint", "do-not-retry")
                 .withHeader("Qos-Due-To", "custom")
-                .withHeader("Rejection-Id", "rejection-id")
-                .withHeader("Qos-Origin", "origin")
-                .withHeader("Qos-Scope", "scope");
+                .withHeader("Rejection-Policy", "rejection-policy")
+                .withHeader("Rejection-Attribute", "rejection-attribute")
+                .withHeader("Error-Message", "error-message");
         assertThat(decoder.isError(response)).isTrue();
 
         RuntimeException result = decoder.decode(response);
@@ -125,7 +125,8 @@ public final class ErrorDecoderTest {
                             .from(QOS_REASON)
                             .dueTo(DueTo.CUSTOM)
                             .retryHint(RetryHint.DO_NOT_RETRY)
-                            .attributionQos(AttributionQos.of("rejection-id", "origin", "scope"))
+                            .attributionQos(
+                                    AttributionQos.of("rejection-policy", "rejection-attribute", "error-message"))
                             .build());
         });
     }
