@@ -32,6 +32,7 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
@@ -44,6 +45,7 @@ final class TimingEndpointChannel implements EndpointChannel {
     private final EndpointChannel delegate;
     private final Supplier<Timer> successTimer;
     private final Supplier<Timer> failureTimer;
+    private final Supplier<Timer> cancelledTimer;
     private final Ticker ticker;
 
     TimingEndpointChannel(
@@ -66,6 +68,13 @@ final class TimingEndpointChannel implements EndpointChannel {
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
                 .status("failure")
+                .build());
+        // Cancellations are kept out of client.response so existing request totals and failure rates are unchanged.
+        this.cancelledTimer = Suppliers.memoize(() -> DialogueClientMetrics.of(taggedMetrics)
+                .requestCancelled()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .endpoint(endpoint.endpointName())
                 .build());
     }
 
@@ -94,6 +103,8 @@ final class TimingEndpointChannel implements EndpointChannel {
             public void onFailure(Throwable throwable) {
                 if (throwable instanceof IOException) {
                     updateTimer(failureTimer);
+                } else if (throwable instanceof CancellationException) {
+                    updateTimer(cancelledTimer);
                 } else {
                     if (unknownThrowableLoggingRateLimiter.tryAcquire()) {
                         log.info(

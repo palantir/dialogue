@@ -99,6 +99,7 @@ Instrumentation for BalancedChannel internals.
 ### dialogue.client
 Dialogue-specific metrics that are not necessarily applicable to other client implementations.
 - `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
+- `dialogue.client.request.cancelled` tagged `channel-name`, `service-name`, `endpoint` (timer): Time until a request was cancelled by the caller (measured as the time taken by the dialogue client method call, including retries, as well as queued time). Cancelled requests are not recorded by `client.response`.
 - `dialogue.client.request.retry` tagged `channel-name`, `reason` (meter): Rate at which the RetryingChannel retries requests (across all endpoints).
 - `dialogue.client.request.retry.count` (histogram): Distribution of failed attempt counts per request. The value recorded is the number of failed attempts
 before the terminal result. For "success", this equals the number of retries before a 2xx response.
@@ -143,6 +144,14 @@ affected request.
 Instrumentation for the ConcurrencyLimitedChannel
 - `dialogue.concurrencylimiter.max` tagged `channel-name`, `hostIndex` (gauge): The maximum number of concurrent requests which are currently permitted. Additively increases with successes and multiplicatively decreases with failures.
 - `dialogue.concurrencylimiter.in-flight` tagged `channel-name`, `hostIndex` (gauge): The number of concurrent requests which are currently running.
+- `dialogue.concurrencylimiter.decision` (meter): Marked every time a request releases a per-host concurrency limiter permit.
+  - `channel-name`
+  - `hostIndex`
+  - `result`: Describes how the concurrency limiter interpreted the response or failure.
+    - `success`: Increases the limit when enough requests were in flight.
+    - `dropped`: Decreases the limit, to a minimum of 1.
+    - `ignored`: Does not change the limit.
+  - `cause`: Describes the response status or failure that released the permit. Responses are one of `http-2xx`, `http-308` (QoS RetryOther), `http-4xx`, `http-429`, `http-500`, `http-503`, `http-5xx`, `qos-custom` (a QoS response due to a custom cause) or `other` (any other status, such as 1xx or a 3xx other than QoS RetryOther). Failures are the simple class name of the exception (e.g. `SafeSocketTimeoutException`).
 
 ### dialogue.nodeselection
 Instrumentation for which node selection strategy is used
