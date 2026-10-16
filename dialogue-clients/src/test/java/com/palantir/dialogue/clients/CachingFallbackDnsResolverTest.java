@@ -24,11 +24,12 @@ import com.google.common.collect.MultimapBuilder.SetMultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import com.palantir.dialogue.clients.ClientDnsMetrics.Lookup_Result;
 import com.palantir.dialogue.core.DialogueDnsResolver;
-import com.palantir.dialogue.util.MapBasedDnsResolver;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class CachingFallbackDnsResolverTest {
@@ -42,7 +43,7 @@ class CachingFallbackDnsResolverTest {
         InetAddress initialAddress = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 1});
         InetAddress updatedAddress = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 2});
         dnsEntries.put("host", initialAddress);
-        DialogueDnsResolver delegate = new MapBasedDnsResolver(dnsEntries);
+        DetailedDialogueDnsResolver delegate = new MapBasedDnsResolver(dnsEntries);
         DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
         assertThat(cached.resolve("host")).containsExactly(initialAddress);
         assertThat(lookupSuccessMeter.getCount()).isEqualTo(1);
@@ -56,7 +57,7 @@ class CachingFallbackDnsResolverTest {
     void failure() {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
         Meter lookupFailureMeter = ClientDnsMetrics.of(registry).lookup(Lookup_Result.FAILURE);
-        DialogueDnsResolver delegate = new MapBasedDnsResolver(ImmutableSetMultimap.of());
+        DetailedDialogueDnsResolver delegate = new MapBasedDnsResolver(ImmutableSetMultimap.of());
         DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
         assertThat(cached.resolve("host")).isEmpty();
         assertThat(lookupFailureMeter.getCount()).isEqualTo(1);
@@ -72,7 +73,7 @@ class CachingFallbackDnsResolverTest {
                 SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
         InetAddress address = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 1});
         dnsEntries.put("host", address);
-        DialogueDnsResolver delegate = new MapBasedDnsResolver(dnsEntries);
+        DetailedDialogueDnsResolver delegate = new MapBasedDnsResolver(dnsEntries);
         DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
         assertThat(cached.resolve("host")).containsExactly(address);
         assertThat(lookupSuccessMeter.getCount()).isEqualTo(1);
@@ -84,5 +85,26 @@ class CachingFallbackDnsResolverTest {
         assertThat(lookupSuccessMeter.getCount()).isEqualTo(1);
         assertThat(lookupFallbackMeter.getCount()).isEqualTo(1);
         assertThat(lookupFailureMeter.getCount()).isEqualTo(0);
+    }
+
+    @Test
+    void noFallbackOnceHostNotFound() throws UnknownHostException {
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        SetMultimap<String, InetAddress> dnsEntries =
+                SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
+        Set<String> nonexistentHosts = new HashSet<>();
+        InetAddress address = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 1});
+        dnsEntries.put("host", address);
+        DialogueDnsResolver cached =
+                new CachingFallbackDnsResolver(new MapBasedDnsResolver(dnsEntries, nonexistentHosts), registry);
+        assertThat(cached.resolve("host")).containsExactly(address);
+
+        dnsEntries.clear();
+        nonexistentHosts.add("host");
+        assertThat(cached.resolve("host")).isEmpty();
+        nonexistentHosts.clear();
+        assertThat(cached.resolve("host"))
+                .as("a later failure must not restore the removed address")
+                .isEmpty();
     }
 }

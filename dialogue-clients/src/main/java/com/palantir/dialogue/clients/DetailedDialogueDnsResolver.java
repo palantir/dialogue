@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2024 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2026 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,23 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.util;
+package com.palantir.dialogue.clients;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.SetMultimap;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import java.net.InetAddress;
+import java.util.Optional;
 
-public final class MapBasedDnsResolver implements DialogueDnsResolver {
-    private final SetMultimap<String, InetAddress> map;
+interface DetailedDialogueDnsResolver extends DialogueDnsResolver {
 
-    public MapBasedDnsResolver(SetMultimap<String, InetAddress> map) {
-        this.map = map;
-    }
+    /**
+     * Returns {@link Optional#empty()} only when DNS reported that the name does not exist. Other failures, where the
+     * name may still be valid, return an empty set.
+     */
+    Optional<ImmutableSet<InetAddress>> resolveDetailed(String hostname);
 
     @Override
-    public ImmutableSet<InetAddress> resolve(String hostname) {
-        return ImmutableSet.copyOf(map.get(hostname));
+    default ImmutableSet<InetAddress> resolve(String hostname) {
+        return resolveDetailed(hostname).orElseGet(ImmutableSet::of);
     }
 }
