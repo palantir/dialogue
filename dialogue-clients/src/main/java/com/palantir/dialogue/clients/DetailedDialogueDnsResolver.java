@@ -19,20 +19,18 @@ package com.palantir.dialogue.clients;
 import com.google.common.collect.ImmutableSet;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import java.net.InetAddress;
+import java.util.Optional;
 
-/** A {@link DialogueDnsResolver} that also reports when DNS says a hostname does not exist. */
-interface DetailedDnsResolver extends DialogueDnsResolver {
+interface DetailedDialogueDnsResolver extends DialogueDnsResolver {
 
-    Result resolveDetailed(String hostname);
+    /**
+     * Returns {@link Optional#empty()} only when DNS reported that the name does not exist. Other failures, where the
+     * name may still be valid, return an empty set.
+     */
+    Optional<ImmutableSet<InetAddress>> resolveDetailed(String hostname);
 
     @Override
     default ImmutableSet<InetAddress> resolve(String hostname) {
-        return resolveDetailed(hostname).addresses();
+        return resolveDetailed(hostname).orElseGet(ImmutableSet::of);
     }
-
-    /**
-     * {@code hostNotFound} is set only when DNS reported that the name does not exist, not for other failures
-     * where the name may still be valid.
-     */
-    record Result(ImmutableSet<InetAddress> addresses, boolean hostNotFound) {}
 }

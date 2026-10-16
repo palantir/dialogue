@@ -19,18 +19,17 @@ package com.palantir.dialogue.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codahale.metrics.Meter;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.MultimapBuilder.SetMultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import com.palantir.dialogue.clients.ClientDnsMetrics.Lookup_Result;
 import com.palantir.dialogue.core.DialogueDnsResolver;
-import com.palantir.dialogue.util.MapBasedDnsResolver;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class CachingFallbackDnsResolverTest {
@@ -44,7 +43,7 @@ class CachingFallbackDnsResolverTest {
         InetAddress initialAddress = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 1});
         InetAddress updatedAddress = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 2});
         dnsEntries.put("host", initialAddress);
-        DetailedDnsResolver delegate = detailed(new MapBasedDnsResolver(dnsEntries));
+        DetailedDialogueDnsResolver delegate = new MapBasedDnsResolver(dnsEntries);
         DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
         assertThat(cached.resolve("host")).containsExactly(initialAddress);
         assertThat(lookupSuccessMeter.getCount()).isEqualTo(1);
@@ -58,7 +57,7 @@ class CachingFallbackDnsResolverTest {
     void failure() {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
         Meter lookupFailureMeter = ClientDnsMetrics.of(registry).lookup(Lookup_Result.FAILURE);
-        DetailedDnsResolver delegate = detailed(new MapBasedDnsResolver(ImmutableSetMultimap.of()));
+        DetailedDialogueDnsResolver delegate = new MapBasedDnsResolver(ImmutableSetMultimap.of());
         DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
         assertThat(cached.resolve("host")).isEmpty();
         assertThat(lookupFailureMeter.getCount()).isEqualTo(1);
@@ -74,7 +73,7 @@ class CachingFallbackDnsResolverTest {
                 SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
         InetAddress address = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 1});
         dnsEntries.put("host", address);
-        DetailedDnsResolver delegate = detailed(new MapBasedDnsResolver(dnsEntries));
+        DetailedDialogueDnsResolver delegate = new MapBasedDnsResolver(dnsEntries);
         DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
         assertThat(cached.resolve("host")).containsExactly(address);
         assertThat(lookupSuccessMeter.getCount()).isEqualTo(1);
@@ -91,21 +90,21 @@ class CachingFallbackDnsResolverTest {
     @Test
     void noFallbackOnceHostNotFound() throws UnknownHostException {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        SetMultimap<String, InetAddress> dnsEntries =
+                SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
+        Set<String> nonexistentHosts = new HashSet<>();
         InetAddress address = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 1});
-        AtomicReference<DetailedDnsResolver.Result> dnsResult =
-                new AtomicReference<>(new DetailedDnsResolver.Result(ImmutableSet.of(address), false));
-        DialogueDnsResolver cached = new CachingFallbackDnsResolver(_hostname -> dnsResult.get(), registry);
+        dnsEntries.put("host", address);
+        DialogueDnsResolver cached =
+                new CachingFallbackDnsResolver(new MapBasedDnsResolver(dnsEntries, nonexistentHosts), registry);
         assertThat(cached.resolve("host")).containsExactly(address);
 
-        dnsResult.set(new DetailedDnsResolver.Result(ImmutableSet.of(), true));
+        dnsEntries.clear();
+        nonexistentHosts.add("host");
         assertThat(cached.resolve("host")).isEmpty();
-        dnsResult.set(new DetailedDnsResolver.Result(ImmutableSet.of(), false));
+        nonexistentHosts.clear();
         assertThat(cached.resolve("host"))
                 .as("a later failure must not restore the removed address")
                 .isEmpty();
-    }
-
-    private static DetailedDnsResolver detailed(DialogueDnsResolver resolver) {
-        return hostname -> new DetailedDnsResolver.Result(resolver.resolve(hostname), false);
     }
 }

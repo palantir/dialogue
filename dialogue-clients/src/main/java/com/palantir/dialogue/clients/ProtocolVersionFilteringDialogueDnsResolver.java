@@ -26,20 +26,20 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.util.Optional;
 
-class ProtocolVersionFilteringDialogueDnsResolver implements DetailedDnsResolver {
+class ProtocolVersionFilteringDialogueDnsResolver implements DetailedDialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(ProtocolVersionFilteringDialogueDnsResolver.class);
 
-    private final DetailedDnsResolver delegate;
+    private final DetailedDialogueDnsResolver delegate;
 
-    ProtocolVersionFilteringDialogueDnsResolver(DetailedDnsResolver delegate) {
+    ProtocolVersionFilteringDialogueDnsResolver(DetailedDialogueDnsResolver delegate) {
         this.delegate = delegate;
     }
 
     @Override
-    public Result resolveDetailed(String hostname) {
-        Result result = delegate.resolveDetailed(hostname);
-        return new Result(filter(result.addresses(), hostname), result.hostNotFound());
+    public Optional<ImmutableSet<InetAddress>> resolveDetailed(String hostname) {
+        return delegate.resolveDetailed(hostname).map(addresses -> filter(addresses, hostname));
     }
 
     @Override

@@ -14,22 +14,32 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.util;
+package com.palantir.dialogue.clients;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.SetMultimap;
-import com.palantir.dialogue.core.DialogueDnsResolver;
 import java.net.InetAddress;
+import java.util.Optional;
+import java.util.Set;
 
-public final class MapBasedDnsResolver implements DialogueDnsResolver {
+final class MapBasedDnsResolver implements DetailedDialogueDnsResolver {
     private final SetMultimap<String, InetAddress> map;
+    private final Set<String> nonexistentHosts;
 
-    public MapBasedDnsResolver(SetMultimap<String, InetAddress> map) {
+    MapBasedDnsResolver(SetMultimap<String, InetAddress> map) {
+        this(map, Set.of());
+    }
+
+    MapBasedDnsResolver(SetMultimap<String, InetAddress> map, Set<String> nonexistentHosts) {
         this.map = map;
+        this.nonexistentHosts = nonexistentHosts;
     }
 
     @Override
-    public ImmutableSet<InetAddress> resolve(String hostname) {
-        return ImmutableSet.copyOf(map.get(hostname));
+    public Optional<ImmutableSet<InetAddress>> resolveDetailed(String hostname) {
+        if (nonexistentHosts.contains(hostname)) {
+            return Optional.empty();
+        }
+        return Optional.of(ImmutableSet.copyOf(map.get(hostname)));
     }
 }
