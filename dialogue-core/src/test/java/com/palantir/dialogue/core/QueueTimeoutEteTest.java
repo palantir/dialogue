@@ -371,7 +371,7 @@ class QueueTimeoutEteTest {
             Request retried = Request.builder().build();
             ListenableFuture<Response> future = channel.execute(ENDPOINT, retried);
             assertThat(future).isNotDone();
-            assertThat(QueueTimeoutAttachments.getExpiration(retried))
+            assertThat(QueueTimeoutAttachments.getConfiguredExpiration(retried))
                     .as("first attempt stamps expiration at ticker.read() + timeout")
                     .isEqualTo(LONG_TIMEOUT.toNanos());
 
@@ -386,7 +386,7 @@ class QueueTimeoutEteTest {
             held.poll().set(new TestResponse().code(200));
 
             assertThat(future).as("the request is retried").isNotDone();
-            assertThat(QueueTimeoutAttachments.getExpiration(retried))
+            assertThat(QueueTimeoutAttachments.getConfiguredExpiration(retried))
                     .as("retry re-queues with a fresh budget", elapsedBeforeRetry, LONG_TIMEOUT)
                     .isEqualTo(elapsedBeforeRetry.plus(LONG_TIMEOUT).toNanos());
         }
