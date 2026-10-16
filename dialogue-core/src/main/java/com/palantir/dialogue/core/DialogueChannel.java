@@ -226,7 +226,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                                     SafeArg.of("numTargets", targetUris.size()));
                             ImmutableList<LimitedChannel> targetChannels =
                                     createHostChannels(cf, targetUris, Collections.unmodifiableMap(state));
-                            return NodeSelectionStrategyChannel.create(cf, targetChannels);
+                            return new ConsistentHashingNodeSelectionStrategyChannel(
+                                    targetUris,
+                                    targetChannels,
+                                    NodeSelectionStrategyChannel.create(cf, targetChannels));
                         }
                     }));
 

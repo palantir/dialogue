@@ -33,6 +33,12 @@ final class Attachments {
         return new Attachments();
     }
 
+    Attachments copy() {
+        Attachments copy = create();
+        copy.attachments.putAll(attachments);
+        return copy;
+    }
+
     @Nullable
     <V> V put(AttachmentKey<V> key, V value) {
         Preconditions.checkNotNull(key, "key");
