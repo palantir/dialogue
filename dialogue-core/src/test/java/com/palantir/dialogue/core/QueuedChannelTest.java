@@ -50,6 +50,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -802,6 +803,212 @@ public class QueuedChannelTest {
     }
 
     @Nested
+    class CancellationTests {
+        private static final String CHANNEL_NAME = "cancellation-test";
+
+        private QueuedChannelInstrumentation instrumentation;
+        private HookedDelegate delegate;
+        private QueuedChannel queuedChannel;
+
+        @BeforeEach
+        void beforeEach() {
+            instrumentation = QueuedChannel.channelInstrumentation(
+                    DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), CHANNEL_NAME);
+            delegate = new HookedDelegate();
+            queuedChannel = createQueue(delegate, CHANNEL_NAME, "channel", instrumentation, 1);
+            // Keep one request in flight so that subsequent requests must queue.
+            delegate.accepting = true;
+            queuedChannel.execute(TestEndpoint.GET, Request.builder().build());
+            delegate.accepting = false;
+        }
+
+        @Test
+        void cancellation_while_queued_is_cleaned_up_without_waiting_for_a_drain() {
+            ListenableFuture<Response> queued =
+                    queuedChannel.execute(TestEndpoint.GET, Request.builder().build());
+            assertThat(instrumentation.requestsQueued().getCount()).isOne();
+            assertThat(instrumentation.requestQueuedTime().getCount()).isZero();
+
+            queued.cancel(false);
+
+            assertSoftly(softly -> {
+                softly.assertThat(instrumentation.requestsQueued().getCount())
+                        .as("queue size is decremented on cancellation")
+                        .isZero();
+                softly.assertThat(instrumentation.requestQueuedTime().getCount())
+                        .as("queued time is recorded on cancellation")
+                        .isOne();
+                softly.assertThat(instrumentation.requestQueueCancelled().getCount())
+                        .as("cancellation is counted")
+                        .isOne();
+            });
+
+            // The cancelled entry is still in the deque, but no longer occupies the only queue slot.
+            assertThat(queuedChannel.maybeExecute(
+                            TestEndpoint.GET, Request.builder().build()))
+                    .hasValueSatisfying(response -> assertThat(response).isNotDone());
+            assertThat(instrumentation.requestsQueued().getCount()).isOne();
+
+            // Draining skips the cancelled entry without any further accounting.
+            queuedChannel.schedule();
+            assertSoftly(softly -> {
+                softly.assertThat(instrumentation.requestsQueued().getCount()).isOne();
+                softly.assertThat(instrumentation.requestQueuedTime().getCount())
+                        .isOne();
+                softly.assertThat(instrumentation.requestQueueCancelled().getCount())
+                        .isOne();
+                softly.assertThat(delegate.dispatched)
+                        .as("only the initial request is dispatched")
+                        .hasSize(1);
+            });
+        }
+
+        @Test
+        void cancellation_after_dispatch_is_propagated_and_not_counted() {
+            ListenableFuture<Response> queued =
+                    queuedChannel.execute(TestEndpoint.GET, Request.builder().build());
+            delegate.accepting = true;
+            queuedChannel.schedule();
+            assertThat(delegate.dispatched).hasSize(2);
+
+            queued.cancel(false);
+
+            assertSoftly(softly -> {
+                softly.assertThat(delegate.dispatched.get(1))
+                        .as("cancellation is propagated to the dispatched request")
+                        .isCancelled();
+                softly.assertThat(instrumentation.requestQueueCancelled().getCount())
+                        .isZero();
+                softly.assertThat(instrumentation.requestsQueued().getCount()).isZero();
+                softly.assertThat(instrumentation.requestQueuedTime().getCount())
+                        .isOne();
+            });
+        }
+
+        @Test
+        void cancellation_during_rejected_dispatch_attempt_is_cleaned_up_once() {
+            ListenableFuture<Response> queued =
+                    queuedChannel.execute(TestEndpoint.GET, Request.builder().build());
+            // The caller cancels during the dispatch attempt, then the delegate rejects it.
+            delegate.duringNextAttempt = () -> queued.cancel(false);
+            queuedChannel.schedule();
+
+            assertSoftly(softly -> {
+                softly.assertThat(queued).isCancelled();
+                softly.assertThat(instrumentation.requestsQueued().getCount()).isZero();
+                softly.assertThat(instrumentation.requestQueuedTime().getCount())
+                        .isOne();
+                softly.assertThat(instrumentation.requestQueueCancelled().getCount())
+                        .isOne();
+            });
+
+            queuedChannel.schedule();
+            assertSoftly(softly -> {
+                softly.assertThat(instrumentation.requestsQueued().getCount()).isZero();
+                softly.assertThat(instrumentation.requestQueueCancelled().getCount())
+                        .isOne();
+                softly.assertThat(delegate.dispatched).hasSize(1);
+            });
+        }
+
+        @Test
+        void cancellation_during_accepted_dispatch_attempt_is_counted_and_propagated() {
+            ListenableFuture<Response> queued =
+                    queuedChannel.execute(TestEndpoint.GET, Request.builder().build());
+            // The caller cancels during the dispatch attempt, then the delegate accepts it. The call has not left the
+            // queue yet when the cancellation is cleaned up, so it is counted as cancelled in the queue.
+            delegate.duringNextAttempt = () -> queued.cancel(false);
+            delegate.accepting = true;
+            queuedChannel.schedule();
+
+            assertSoftly(softly -> {
+                softly.assertThat(delegate.dispatched).hasSize(2);
+                softly.assertThat(delegate.dispatched.get(1))
+                        .as("cancellation is propagated to the dispatched request")
+                        .isCancelled();
+                softly.assertThat(instrumentation.requestQueueCancelled().getCount())
+                        .isOne();
+                softly.assertThat(instrumentation.requestsQueued().getCount()).isZero();
+                softly.assertThat(instrumentation.requestQueuedTime().getCount())
+                        .isOne();
+            });
+        }
+
+        @Test
+        void concurrent_cancellation_and_dispatch_count_each_request_at_most_once() throws Exception {
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            try {
+                for (int i = 0; i < 2_000; i++) {
+                    delegate.accepting = false;
+                    int dispatchedBefore = delegate.dispatched.size();
+                    long cancelledBefore =
+                            instrumentation.requestQueueCancelled().getCount();
+                    ListenableFuture<Response> queued = queuedChannel.execute(
+                            TestEndpoint.GET, Request.builder().build());
+                    assertThat(queued).isNotDone();
+
+                    CyclicBarrier barrier = new CyclicBarrier(2);
+                    Future<?> cancellation = executor.submit(() -> {
+                        barrier.await();
+                        queued.cancel(false);
+                        return null;
+                    });
+                    Future<?> drain = executor.submit(() -> {
+                        barrier.await();
+                        delegate.accepting = true;
+                        queuedChannel.schedule();
+                        return null;
+                    });
+                    cancellation.get(10, TimeUnit.SECONDS);
+                    drain.get(10, TimeUnit.SECONDS);
+
+                    int dispatched = delegate.dispatched.size() - dispatchedBefore;
+                    long cancelledInQueue =
+                            instrumentation.requestQueueCancelled().getCount() - cancelledBefore;
+                    // A cancellation during the dispatch attempt is both counted and dispatched, then propagated.
+                    assertThat(dispatched).as("dispatched at most once").isLessThanOrEqualTo(1);
+                    assertThat(cancelledInQueue).as("counted at most once").isLessThanOrEqualTo(1);
+                    assertThat(dispatched + cancelledInQueue)
+                            .as("each request is dispatched or counted as cancelled in the queue")
+                            .isGreaterThanOrEqualTo(1);
+                    if (dispatched == 1) {
+                        assertThat(delegate.dispatched.get(delegate.dispatched.size() - 1))
+                                .as("cancellation is propagated to the dispatched request")
+                                .isCancelled();
+                    }
+                    assertThat(instrumentation.requestsQueued().getCount())
+                            .as("queue size is never left inflated or driven negative")
+                            .isZero();
+                }
+            } finally {
+                executor.shutdownNow();
+                assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+            }
+        }
+
+        // Accepts requests while accepting is set, and can run a hook once at the start of the next dispatch attempt.
+        static final class HookedDelegate implements LimitedChannel {
+            private final List<SettableFuture<Response>> dispatched = new CopyOnWriteArrayList<>();
+            private volatile boolean accepting;
+            private volatile Runnable duringNextAttempt = () -> {};
+
+            @Override
+            public Optional<ListenableFuture<Response>> maybeExecute(
+                    Endpoint _endpoint, Request _request, LimitEnforcement limitEnforcement) {
+                Runnable hook = duringNextAttempt;
+                duringNextAttempt = () -> {};
+                hook.run();
+                if (!accepting && limitEnforcement.enforceLimits()) {
+                    return Optional.empty();
+                }
+                SettableFuture<Response> future = SettableFuture.create();
+                dispatched.add(future);
+                return Optional.of(future);
+            }
+        }
+    }
+
+    @Nested
     class QueueTimeoutTests {
         private static final long QUEUE_TIMEOUT_NANOS = Duration.ofHours(10).toNanos();
         private static final String CHANNEL_NAME = "timeout-test";
@@ -1294,6 +1501,91 @@ public class QueuedChannelTest {
                     .succeedsWithin(Duration.ZERO)
                     .extracting(Response::code)
                     .isEqualTo(202);
+        }
+
+        @Test
+        void cancellation_after_requeue_is_not_counted_as_a_timeout() {
+            setInFlightRequest();
+            ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
+            // A rejected drain re-queues the call with a fresh timeout task, replacing the one created on enqueue.
+            queuedChannel.schedule();
+
+            callerFuture.cancel(false);
+            // Without a drain in between, the re-queued call's timeout task still fires, and finds it cancelled.
+            scheduler.tick(QUEUE_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
+
+            assertSoftly(softly -> {
+                softly.assertThat(callerFuture).isCancelled();
+                softly.assertThat(instrumentation.requestQueueCancelled().getCount())
+                        .isOne();
+                softly.assertThat(instrumentation.requestQueueTimeout().getCount())
+                        .isZero();
+                softly.assertThat(instrumentation.requestsQueued().getCount()).isZero();
+                softly.assertThat(instrumentation.requestQueuedTime().getCount())
+                        .isOne();
+            });
+        }
+
+        @Test
+        void timeout_then_cancellation_is_counted_as_a_timeout_only() {
+            setInFlightRequest();
+            ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
+
+            scheduler.tick(QUEUE_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
+            assertThat(callerFuture.cancel(true))
+                    .as("the timed out future cannot be cancelled")
+                    .isFalse();
+
+            assertSoftly(softly -> {
+                softly.assertThat(instrumentation.requestQueueTimeout().getCount())
+                        .isOne();
+                softly.assertThat(instrumentation.requestQueueCancelled().getCount())
+                        .isZero();
+                softly.assertThat(instrumentation.requestsQueued().getCount()).isZero();
+                softly.assertThat(instrumentation.requestQueuedTime().getCount())
+                        .isOne();
+            });
+        }
+
+        @Test
+        void cancellation_then_already_running_timeout_is_counted_as_a_cancellation_only() {
+            AtomicReference<Runnable> timeoutAction = new AtomicReference<>();
+            DeterministicScheduler capturingScheduler = spy(scheduler);
+            doAnswer(invocation -> {
+                        timeoutAction.set(invocation.getArgument(0));
+                        return invocation.callRealMethod();
+                    })
+                    .when(capturingScheduler)
+                    .schedule(any(Runnable.class), anyLong(), eq(TimeUnit.NANOSECONDS));
+            queuedChannel = new QueuedChannel(
+                    delegate,
+                    CHANNEL_NAME,
+                    "channel",
+                    instrumentation,
+                    1,
+                    OptionalLong.of(QUEUE_TIMEOUT_NANOS),
+                    ticker,
+                    capturingScheduler);
+            setInFlightRequest();
+            ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
+            Runnable runningTimeout = timeoutAction.get();
+
+            callerFuture.cancel(false);
+            // A timeout task that had already started cannot be stopped by cancel(false), so it still runs.
+            runningTimeout.run();
+            queuedChannel.schedule();
+
+            assertSoftly(softly -> {
+                softly.assertThat(callerFuture).isCancelled();
+                softly.assertThat(instrumentation.requestQueueCancelled().getCount())
+                        .isOne();
+                softly.assertThat(instrumentation.requestQueueTimeout().getCount())
+                        .isZero();
+                softly.assertThat(instrumentation.requestsQueued().getCount()).isZero();
+                softly.assertThat(instrumentation.requestQueuedTime().getCount())
+                        .isOne();
+            });
+            assertSingleQueueSlotAvailable();
         }
 
         private void assertSingleQueueSlotAvailable() {
