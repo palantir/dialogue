@@ -60,6 +60,7 @@ final class CachingFallbackDnsResolver implements DialogueDnsResolver {
             lookupFailure.mark();
             return ImmutableSet.of();
         }
+
         if (addresses.isEmpty()) {
             ImmutableSet<InetAddress> maybeFallback = fallbackCache.getIfPresent(hostname);
             if (maybeFallback != null) {
@@ -70,13 +71,13 @@ final class CachingFallbackDnsResolver implements DialogueDnsResolver {
                             UnsafeArg.of("hostname", hostname));
                 }
                 return maybeFallback;
-            } else {
-                lookupFailure.mark();
             }
-        } else {
-            lookupSuccess.mark();
-            fallbackCache.put(hostname, addresses);
+            lookupFailure.mark();
+            return ImmutableSet.of();
         }
+
+        lookupSuccess.mark();
+        fallbackCache.put(hostname, addresses);
         return addresses;
     }
 }

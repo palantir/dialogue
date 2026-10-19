@@ -28,8 +28,6 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashSet;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class CachingFallbackDnsResolverTest {
@@ -92,17 +90,16 @@ class CachingFallbackDnsResolverTest {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
         SetMultimap<String, InetAddress> dnsEntries =
                 SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
-        Set<String> nonexistentHosts = new HashSet<>();
         InetAddress address = InetAddress.getByAddress("host", new byte[] {127, 0, 0, 1});
         dnsEntries.put("host", address);
-        DialogueDnsResolver cached =
-                new CachingFallbackDnsResolver(new MapBasedDnsResolver(dnsEntries, nonexistentHosts), registry);
+        MapBasedDnsResolver delegate = new MapBasedDnsResolver(dnsEntries);
+        DialogueDnsResolver cached = new CachingFallbackDnsResolver(delegate, registry);
         assertThat(cached.resolve("host")).containsExactly(address);
 
         dnsEntries.clear();
-        nonexistentHosts.add("host");
+        delegate.addNonexistentHost("host");
         assertThat(cached.resolve("host")).isEmpty();
-        nonexistentHosts.clear();
+        delegate.removeNonexistentHost("host");
         assertThat(cached.resolve("host"))
                 .as("a later failure must not restore the removed address")
                 .isEmpty();

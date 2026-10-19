@@ -59,7 +59,10 @@ final class DefaultDialogueDnsResolver implements DetailedDialogueDnsResolver {
                         e);
             }
             metrics.failure(gaiError.name()).mark();
-            return gaiError == GaiError.EAI_NONAME ? Optional.empty() : Optional.of(ImmutableSet.of());
+            if (gaiError == GaiError.EAI_NONAME) {
+                return Optional.empty();
+            }
+            return Optional.of(ImmutableSet.of());
         }
     }
 

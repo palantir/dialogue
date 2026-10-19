@@ -19,20 +19,24 @@ package com.palantir.dialogue.clients;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.SetMultimap;
 import java.net.InetAddress;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
 final class MapBasedDnsResolver implements DetailedDialogueDnsResolver {
     private final SetMultimap<String, InetAddress> map;
-    private final Set<String> nonexistentHosts;
+    private final Set<String> nonexistentHosts = new HashSet<>();
 
     MapBasedDnsResolver(SetMultimap<String, InetAddress> map) {
-        this(map, Set.of());
+        this.map = map;
     }
 
-    MapBasedDnsResolver(SetMultimap<String, InetAddress> map, Set<String> nonexistentHosts) {
-        this.map = map;
-        this.nonexistentHosts = nonexistentHosts;
+    void addNonexistentHost(String hostname) {
+        nonexistentHosts.add(hostname);
+    }
+
+    void removeNonexistentHost(String hostname) {
+        nonexistentHosts.remove(hostname);
     }
 
     @Override

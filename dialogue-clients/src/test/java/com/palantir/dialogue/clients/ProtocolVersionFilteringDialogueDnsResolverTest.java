@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class ProtocolVersionFilteringDialogueDnsResolverTest {
@@ -68,10 +67,11 @@ class ProtocolVersionFilteringDialogueDnsResolverTest {
 
     @Test
     void preserves_host_not_found() {
-        DetailedDialogueDnsResolver resolver = new ProtocolVersionFilteringDialogueDnsResolver(
-                new MapBasedDnsResolver(ImmutableSetMultimap.of(), Set.of("gone.com")));
+        MapBasedDnsResolver delegate = new MapBasedDnsResolver(ImmutableSetMultimap.of());
+        delegate.addNonexistentHost("gone.com");
+        DetailedDialogueDnsResolver resolver = new ProtocolVersionFilteringDialogueDnsResolver(delegate);
 
         assertThat(resolver.resolveDetailed("gone.com")).isEmpty();
-        assertThat(resolver.resolveDetailed("flaky.com")).hasValue(ImmutableSet.of());
+        assertThat(resolver.resolveDetailed("foo.com")).hasValue(ImmutableSet.of());
     }
 }
