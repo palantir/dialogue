@@ -97,9 +97,9 @@ class CachingFallbackDnsResolverTest {
         assertThat(cached.resolve("host")).containsExactly(address);
 
         dnsEntries.clear();
-        delegate.addNonexistentHost("host");
+        delegate.addNonexistentHostname("host");
         assertThat(cached.resolve("host")).isEmpty();
-        delegate.removeNonexistentHost("host");
+        delegate.removeNonexistentHostname("host");
         assertThat(cached.resolve("host"))
                 .as("a later failure must not restore the removed address")
                 .isEmpty();

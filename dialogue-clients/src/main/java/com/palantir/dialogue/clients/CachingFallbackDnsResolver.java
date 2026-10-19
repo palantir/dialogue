@@ -55,13 +55,6 @@ final class CachingFallbackDnsResolver implements DialogueDnsResolver {
     public ImmutableSet<InetAddress> resolve(String hostname) {
         ImmutableSet<InetAddress> addresses = delegate.resolveDetailed(hostname).orElse(null);
         if (addresses == null) {
-            // The fallback covers DNS outages; a removed host must stop receiving requests at its old address.
-            fallbackCache.invalidate(hostname);
-            lookupFailure.mark();
-            return ImmutableSet.of();
-        }
-
-        if (addresses.isEmpty()) {
             ImmutableSet<InetAddress> maybeFallback = fallbackCache.getIfPresent(hostname);
             if (maybeFallback != null) {
                 lookupFallback.mark();
@@ -74,6 +67,13 @@ final class CachingFallbackDnsResolver implements DialogueDnsResolver {
             }
             lookupFailure.mark();
             return ImmutableSet.of();
+        }
+
+        if (addresses.isEmpty()) {
+            // The fallback covers DNS outages; a removed host must stop receiving requests at its old address.
+            fallbackCache.invalidate(hostname);
+            lookupFailure.mark();
+            return addresses;
         }
 
         lookupSuccess.mark();

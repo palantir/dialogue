@@ -24,8 +24,8 @@ import java.util.Optional;
 interface DetailedDialogueDnsResolver extends DialogueDnsResolver {
 
     /**
-     * Returns {@link Optional#empty()} only when DNS reported that the name does not exist. Other failures, where the
-     * name may still be valid, return an empty set.
+     * Returns an empty set only when DNS reported that the name does not exist. Other failures, where the name may
+     * still be valid, return {@link Optional#empty()}.
      */
     Optional<ImmutableSet<InetAddress>> resolveDetailed(String hostname);
 

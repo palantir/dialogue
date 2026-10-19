@@ -45,7 +45,7 @@ final class DefaultDialogueDnsResolver implements DetailedDialogueDnsResolver {
             InetAddress[] results = InetAddress.getAllByName(hostname);
             if (results == null || results.length == 0) {
                 // Defensive check, this should not be possible
-                return Optional.of(ImmutableSet.of());
+                return Optional.empty();
             }
             return Optional.of(ImmutableSet.copyOf(results));
         } catch (UnknownHostException e) {
@@ -60,9 +60,9 @@ final class DefaultDialogueDnsResolver implements DetailedDialogueDnsResolver {
             }
             metrics.failure(gaiError.name()).mark();
             if (gaiError == GaiError.EAI_NONAME) {
-                return Optional.empty();
+                return Optional.of(ImmutableSet.of());
             }
-            return Optional.of(ImmutableSet.of());
+            return Optional.empty();
         }
     }
 

@@ -25,23 +25,26 @@ import java.util.Set;
 
 final class MapBasedDnsResolver implements DetailedDialogueDnsResolver {
     private final SetMultimap<String, InetAddress> map;
-    private final Set<String> nonexistentHosts = new HashSet<>();
+    private final Set<String> nonexistentHostnames = new HashSet<>();
 
     MapBasedDnsResolver(SetMultimap<String, InetAddress> map) {
         this.map = map;
     }
 
-    void addNonexistentHost(String hostname) {
-        nonexistentHosts.add(hostname);
+    void addNonexistentHostname(String hostname) {
+        nonexistentHostnames.add(hostname);
     }
 
-    void removeNonexistentHost(String hostname) {
-        nonexistentHosts.remove(hostname);
+    void removeNonexistentHostname(String hostname) {
+        nonexistentHostnames.remove(hostname);
     }
 
     @Override
     public Optional<ImmutableSet<InetAddress>> resolveDetailed(String hostname) {
-        if (nonexistentHosts.contains(hostname)) {
+        if (nonexistentHostnames.contains(hostname)) {
+            return Optional.of(ImmutableSet.of());
+        }
+        if (!map.containsKey(hostname)) {
             return Optional.empty();
         }
         return Optional.of(ImmutableSet.copyOf(map.get(hostname)));

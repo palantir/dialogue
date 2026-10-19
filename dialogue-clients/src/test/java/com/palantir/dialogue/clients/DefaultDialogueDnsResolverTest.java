@@ -83,7 +83,7 @@ class DefaultDialogueDnsResolverTest {
 
         String badHost = UUID.randomUUID() + ".palantir.com";
 
-        assertThat(resolver.resolveDetailed(badHost)).isEmpty();
+        assertThat(resolver.resolveDetailed(badHost)).hasValue(ImmutableSet.of());
         ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
         assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
     }
@@ -101,7 +101,7 @@ class DefaultDialogueDnsResolverTest {
         assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
 
         // should resolve from cache
-        assertThat(resolver.resolveDetailed(badHost)).hasValue(ImmutableSet.of());
+        assertThat(resolver.resolveDetailed(badHost)).isEmpty();
         assertThat(metrics.failure("CACHED").getCount()).isEqualTo(1);
     }
 

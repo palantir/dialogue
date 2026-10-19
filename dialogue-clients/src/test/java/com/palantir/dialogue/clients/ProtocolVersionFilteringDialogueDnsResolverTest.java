@@ -68,10 +68,10 @@ class ProtocolVersionFilteringDialogueDnsResolverTest {
     @Test
     void preserves_host_not_found() {
         MapBasedDnsResolver delegate = new MapBasedDnsResolver(ImmutableSetMultimap.of());
-        delegate.addNonexistentHost("gone.com");
+        delegate.addNonexistentHostname("gone.com");
         DetailedDialogueDnsResolver resolver = new ProtocolVersionFilteringDialogueDnsResolver(delegate);
 
-        assertThat(resolver.resolveDetailed("gone.com")).isEmpty();
-        assertThat(resolver.resolveDetailed("foo.com")).hasValue(ImmutableSet.of());
+        assertThat(resolver.resolveDetailed("gone.com")).hasValue(ImmutableSet.of());
+        assertThat(resolver.resolveDetailed("foo.com")).isEmpty();
     }
 }
