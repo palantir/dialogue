@@ -320,6 +320,11 @@ final class ExceptionDeserializingErrorDecoder {
         return ErrorExceptionPair.getExceptionFromSerializableError(error, pair.exceptionType(), code);
     }
 
+    @VisibleForTesting
+    static Optional<Deserializer<?>> cachedErrorDeserializer(Type errorType) {
+        return Optional.ofNullable(ERROR_DESERIALIZERS.get(errorType));
+    }
+
     @SuppressWarnings("unchecked")
     private static <U extends AbstractSerializableError<?>> Deserializer<U> errorDeserializer(TypeMarker<U> errorType) {
         // Keyed by Type rather than TypeMarker: anonymous TypeMarker subclasses retain the client that created them.

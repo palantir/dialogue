@@ -20,12 +20,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
+import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.ComplexArg;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.ConjureError;
@@ -34,6 +39,7 @@ import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
+import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.SafeArg;
@@ -42,8 +48,15 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -510,6 +523,158 @@ final class ExceptionDeserializingDecoderTest {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Test
+    void errorDeserializerIsBuiltOnFirstDecode() throws IOException {
+        Deserializer<String> deserializer = conjureBodySerDe("application/json")
+                .deserializer(ExceptionDeserializerArgs.<String>builder()
+                        .returnType(new TypeMarker<>() {})
+                        .exception(
+                                LAZY_ERROR_NAME,
+                                new TypeMarker<LazyError>() {},
+                                new TypeMarker<LazyErrorException>() {})
+                        .build());
+        assertThat(ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(LazyError.class))
+                .as("constructing the deserializer must not build the error reader")
+                .isEmpty();
+
+        assertThat(deserializer.deserialize(TestResponse.withBody("\"ok\"")
+                        .contentType("application/json")
+                        .code(200)))
+                .isEqualTo("ok");
+        assertThat(ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(LazyError.class))
+                .as("a successful response must not build the error reader")
+                .isEmpty();
+
+        assertThatThrownBy(() -> deserializer.deserialize(errorResponse(LAZY_ERROR_NAME, "lazy")))
+                .isInstanceOfSatisfying(
+                        LazyErrorException.class,
+                        exception ->
+                                assertThat(exception.error().errorInstanceId()).isEqualTo("lazy"));
+        assertThat(ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(LazyError.class))
+                .isPresent();
+    }
+
+    @Test
+    void errorDeserializerIsSharedAcrossConcurrentDecoders() throws Exception {
+        assertThat(ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(SharedError.class))
+                .isEmpty();
+        int threads = 16;
+        // Distinct decoders, as built for distinct endpoints declaring the same error.
+        List<ExceptionDeserializingErrorDecoder> decoders = IntStream.range(0, threads)
+                .mapToObj(_i -> new ExceptionDeserializingErrorDecoder(
+                        ImmutableMap.of(
+                                SHARED_ERROR_NAME,
+                                new ErrorExceptionPair<>(
+                                        TypeMarker.of(SharedError.class), TypeMarker.of(SharedErrorException.class))),
+                        true))
+                .toList();
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<RuntimeException>> futures = decoders.stream()
+                    .map(decoder -> executor.submit(() -> {
+                        start.await();
+                        return decoder.decode(errorResponse(SHARED_ERROR_NAME, "shared"));
+                    }))
+                    .toList();
+            start.countDown();
+            for (Future<RuntimeException> future : futures) {
+                assertThat(future.get())
+                        .isInstanceOfSatisfying(
+                                SharedErrorException.class,
+                                exception -> assertThat(exception.error().errorInstanceId())
+                                        .isEqualTo("shared"));
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        Encoding.Deserializer<?> shared = ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(SharedError.class)
+                .orElseThrow();
+        decoders.get(0).decode(errorResponse(SHARED_ERROR_NAME, "again"));
+        assertThat(ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(SharedError.class))
+                .hasValueSatisfying(deserializer -> assertThat(deserializer).isSameAs(shared));
+    }
+
+    private static TestResponse errorResponse(String errorName, String errorInstanceId) throws IOException {
+        return TestResponse.withBody(MAPPER.writeValueAsString(
+                        new ConjureError("INVALID_ARGUMENT", errorName, errorInstanceId, Map.of("arg", "foo"))))
+                .contentType("application/json")
+                .code(400);
+    }
+
+    // The error reader cache is static, so these types are used only by the tests above, to keep their
+    // "not built yet" assertions independent of test order.
+    private static final String LAZY_ERROR_NAME = "Test:LazyError";
+    private static final String SHARED_ERROR_NAME = "Test:SharedError";
+
+    record SimpleParameters(@JsonProperty("arg") String arg) {}
+
+    static final class LazyError extends AbstractSerializableError<SimpleParameters> {
+        @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+        LazyError(
+                @JsonProperty("errorCode") String errorCode,
+                @JsonProperty("errorName") String errorName,
+                @JsonProperty("errorInstanceId") String errorInstanceId,
+                @JsonProperty("parameters") SimpleParameters parameters) {
+            super(errorCode, errorName, errorInstanceId, parameters);
+        }
+    }
+
+    public static final class LazyErrorException extends RemoteException
+            implements SerializableErrorProvider<SimpleParameters> {
+        private final LazyError error;
+
+        // Constructor needs to be public so that the exception can be created via reflection
+        @SuppressWarnings("RedundantModifier")
+        public LazyErrorException(LazyError error, int status) {
+            super(toSerializableError(error), status);
+            this.error = error;
+        }
+
+        @Override
+        public LazyError error() {
+            return error;
+        }
+    }
+
+    static final class SharedError extends AbstractSerializableError<SimpleParameters> {
+        @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
+        SharedError(
+                @JsonProperty("errorCode") String errorCode,
+                @JsonProperty("errorName") String errorName,
+                @JsonProperty("errorInstanceId") String errorInstanceId,
+                @JsonProperty("parameters") SimpleParameters parameters) {
+            super(errorCode, errorName, errorInstanceId, parameters);
+        }
+    }
+
+    public static final class SharedErrorException extends RemoteException
+            implements SerializableErrorProvider<SimpleParameters> {
+        private final SharedError error;
+
+        // Constructor needs to be public so that the exception can be created via reflection
+        @SuppressWarnings("RedundantModifier")
+        public SharedErrorException(SharedError error, int status) {
+            super(toSerializableError(error), status);
+            this.error = error;
+        }
+
+        @Override
+        public SharedError error() {
+            return error;
+        }
+    }
+
+    private static SerializableError toSerializableError(AbstractSerializableError<SimpleParameters> error) {
+        return SerializableError.builder()
+                .errorCode(error.errorCode())
+                .errorName(error.errorName())
+                .errorInstanceId(error.errorInstanceId())
+                .putParameters("arg", error.parameters().arg())
+                .build();
     }
 
     private ConjureBodySerDe conjureBodySerDe(String... contentTypes) {
