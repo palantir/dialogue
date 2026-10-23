@@ -54,7 +54,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -70,27 +70,38 @@ final class ExceptionDeserializingErrorDecoder {
     // https://palantir.github.io/conjure/#/docs/spec/wire?id=_55-conjure-errors. As there is greater adoption of
     // endpoint associated errors and larger parameters, we may be interested in supporting SMILE/CBOR for more
     // performant handling of larger paramater payloads.
-    private static final Encoding JSON_ENCODING = Encodings.json();
+    private static final Encoding JSON_ENCODING = new LazilyInitializedEncoding(Encodings.json());
     private static final Deserializer<NamedError> NAMED_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(TypeMarker.of(NamedError.class));
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
-    // Built lazily on the first decode of each error type and shared across all decoders. Most endpoints never see
-    // most of their declared errors, so eagerly building a reader per (endpoint, error) wastes a lot of memory.
-    // Class unloading: Not supported, Jackson keeps strong references to the types it sees anyway.
-    private static final Map<Type, Deserializer<?>> ERROR_DESERIALIZERS = new ConcurrentHashMap<>();
 
     private final ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap;
     private final boolean expectJsonErrors;
+    // Looked up on each decode rather than held per error: most endpoints never see most of their declared errors.
+    private final Function<Type, Deserializer<?>> errorDeserializers;
 
     static ExceptionDeserializingErrorDecoder withoutExceptions() {
-        return new ExceptionDeserializingErrorDecoder(Collections.emptyMap(), false);
+        return new ExceptionDeserializingErrorDecoder(
+                Collections.emptyMap(), false, ExceptionDeserializingErrorDecoder::errorDeserializer);
     }
 
+    /**
+     * Creates a decoder for the given errors. {@code errorDeserializers} returns the deserializer for an error
+     * {@link Type}, and is expected to be shared and cached across decoders.
+     */
     ExceptionDeserializingErrorDecoder(
-            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap, boolean expectJsonErrors) {
+            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap,
+            boolean expectJsonErrors,
+            Function<Type, Deserializer<?>> errorDeserializers) {
         this.errorNameToExceptionTypeMap = ImmutableMap.copyOf(errorNameToExceptionTypeMap);
         this.expectJsonErrors = expectJsonErrors;
+        this.errorDeserializers = errorDeserializers;
+    }
+
+    /** Creates the deserializer for an error {@link Type}. The underlying reader is built on first use. */
+    static Deserializer<?> errorDeserializer(Type errorType) {
+        return JSON_ENCODING.deserializer(TypeMarker.of(errorType));
     }
 
     boolean isError(Response response) {
@@ -312,23 +323,15 @@ final class ExceptionDeserializingErrorDecoder {
     record NamedError(@JsonProperty("errorName") String errorName) {}
 
     // Captures the pair's wildcards so the error and exception types line up.
-    private static <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
+    @SuppressWarnings("unchecked")
+    private <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
             V deserializeException(ErrorExceptionPair<U, V> pair, byte[] body, int code) throws Exception {
+        // Keyed by Type rather than TypeMarker: anonymous TypeMarker subclasses retain the client that created them.
+        Deserializer<U> deserializer =
+                (Deserializer<U>) errorDeserializers.apply(pair.errorType().getType());
         // The concrete error type is a subtype of AbstractSerializableError<?> at runtime.
         // AbstractSerializableError is an abstract class.
-        U error = errorDeserializer(pair.errorType()).deserialize(new ByteArrayInputStream(body));
+        U error = deserializer.deserialize(new ByteArrayInputStream(body));
         return ErrorExceptionPair.getExceptionFromSerializableError(error, pair.exceptionType(), code);
-    }
-
-    @VisibleForTesting
-    static Optional<Deserializer<?>> cachedErrorDeserializer(Type errorType) {
-        return Optional.ofNullable(ERROR_DESERIALIZERS.get(errorType));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <U extends AbstractSerializableError<?>> Deserializer<U> errorDeserializer(TypeMarker<U> errorType) {
-        // Keyed by Type rather than TypeMarker: anonymous TypeMarker subclasses retain the client that created them.
-        return (Deserializer<U>) ERROR_DESERIALIZERS.computeIfAbsent(
-                errorType.getType(), type -> JSON_ENCODING.deserializer(TypeMarker.of(type)));
     }
 }

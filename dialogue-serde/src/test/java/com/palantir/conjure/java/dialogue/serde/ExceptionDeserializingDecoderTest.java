@@ -23,6 +23,8 @@ import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
@@ -46,6 +48,7 @@ import com.palantir.logsafe.SafeArg;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Type;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -55,6 +58,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -526,7 +531,58 @@ final class ExceptionDeserializingDecoderTest {
     }
 
     @Test
-    void errorDeserializerIsBuiltOnFirstDecode() throws IOException {
+    void errorDeserializerIsBuiltOnceOnFirstDecode() throws IOException {
+        CountingErrorDeserializers errorDeserializers = new CountingErrorDeserializers();
+        ExceptionDeserializingErrorDecoder decoder = lazyErrorDecoder(errorDeserializers);
+        assertThat(errorDeserializers.loads())
+                .as("constructing the decoder must not build the error deserializer")
+                .isZero();
+
+        for (String errorInstanceId : List.of("first", "second", "third")) {
+            assertThat(decoder.decode(errorResponse(errorInstanceId)))
+                    .isInstanceOfSatisfying(
+                            LazyErrorException.class,
+                            exception -> assertThat(exception.error().errorInstanceId())
+                                    .isEqualTo(errorInstanceId));
+        }
+        assertThat(errorDeserializers.loads())
+                .as("decoding the same error type repeatedly must reuse its deserializer")
+                .isOne();
+    }
+
+    @Test
+    void errorDeserializerIsSharedAcrossConcurrentDecoders() throws Exception {
+        CountingErrorDeserializers errorDeserializers = new CountingErrorDeserializers();
+        int threads = 16;
+        // Distinct decoders, as built for distinct endpoints declaring the same error.
+        List<ExceptionDeserializingErrorDecoder> decoders = IntStream.range(0, threads)
+                .mapToObj(_i -> lazyErrorDecoder(errorDeserializers))
+                .toList();
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<RuntimeException>> futures = decoders.stream()
+                    .map(decoder -> executor.submit(() -> {
+                        start.await();
+                        return decoder.decode(errorResponse("shared"));
+                    }))
+                    .toList();
+            start.countDown();
+            for (Future<RuntimeException> future : futures) {
+                assertThat(future.get())
+                        .isInstanceOfSatisfying(
+                                LazyErrorException.class,
+                                exception -> assertThat(exception.error().errorInstanceId())
+                                        .isEqualTo("shared"));
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        assertThat(errorDeserializers.loads()).isOne();
+    }
+
+    @Test
+    void errorsDecodeThroughSerDeErrorDeserializerCache() throws IOException {
         Deserializer<String> deserializer = conjureBodySerDe("application/json")
                 .deserializer(ExceptionDeserializerArgs.<String>builder()
                         .returnType(new TypeMarker<>() {})
@@ -535,80 +591,57 @@ final class ExceptionDeserializingDecoderTest {
                                 new TypeMarker<LazyError>() {},
                                 new TypeMarker<LazyErrorException>() {})
                         .build());
-        assertThat(ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(LazyError.class))
-                .as("constructing the deserializer must not build the error reader")
-                .isEmpty();
-
         assertThat(deserializer.deserialize(TestResponse.withBody("\"ok\"")
                         .contentType("application/json")
                         .code(200)))
                 .isEqualTo("ok");
-        assertThat(ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(LazyError.class))
-                .as("a successful response must not build the error reader")
-                .isEmpty();
-
-        assertThatThrownBy(() -> deserializer.deserialize(errorResponse(LAZY_ERROR_NAME, "lazy")))
-                .isInstanceOfSatisfying(
-                        LazyErrorException.class,
-                        exception ->
-                                assertThat(exception.error().errorInstanceId()).isEqualTo("lazy"));
-        assertThat(ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(LazyError.class))
-                .isPresent();
-    }
-
-    @Test
-    void errorDeserializerIsSharedAcrossConcurrentDecoders() throws Exception {
-        assertThat(ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(SharedError.class))
-                .isEmpty();
-        int threads = 16;
-        // Distinct decoders, as built for distinct endpoints declaring the same error.
-        List<ExceptionDeserializingErrorDecoder> decoders = IntStream.range(0, threads)
-                .mapToObj(_i -> new ExceptionDeserializingErrorDecoder(
-                        ImmutableMap.of(
-                                SHARED_ERROR_NAME,
-                                new ErrorExceptionPair<>(
-                                        TypeMarker.of(SharedError.class), TypeMarker.of(SharedErrorException.class))),
-                        true))
-                .toList();
-        CountDownLatch start = new CountDownLatch(1);
-        ExecutorService executor = Executors.newFixedThreadPool(threads);
-        try {
-            List<Future<RuntimeException>> futures = decoders.stream()
-                    .map(decoder -> executor.submit(() -> {
-                        start.await();
-                        return decoder.decode(errorResponse(SHARED_ERROR_NAME, "shared"));
-                    }))
-                    .toList();
-            start.countDown();
-            for (Future<RuntimeException> future : futures) {
-                assertThat(future.get())
-                        .isInstanceOfSatisfying(
-                                SharedErrorException.class,
-                                exception -> assertThat(exception.error().errorInstanceId())
-                                        .isEqualTo("shared"));
-            }
-        } finally {
-            executor.shutdownNow();
+        for (String errorInstanceId : List.of("first", "second")) {
+            assertThatThrownBy(() -> deserializer.deserialize(errorResponse(errorInstanceId)))
+                    .isInstanceOfSatisfying(
+                            LazyErrorException.class,
+                            exception -> assertThat(exception.error().errorInstanceId())
+                                    .isEqualTo(errorInstanceId));
         }
-
-        Encoding.Deserializer<?> shared = ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(SharedError.class)
-                .orElseThrow();
-        decoders.get(0).decode(errorResponse(SHARED_ERROR_NAME, "again"));
-        assertThat(ExceptionDeserializingErrorDecoder.cachedErrorDeserializer(SharedError.class))
-                .hasValueSatisfying(deserializer -> assertThat(deserializer).isSameAs(shared));
     }
 
-    private static TestResponse errorResponse(String errorName, String errorInstanceId) throws IOException {
+    private static ExceptionDeserializingErrorDecoder lazyErrorDecoder(
+            Function<Type, Encoding.Deserializer<?>> errorDeserializers) {
+        return new ExceptionDeserializingErrorDecoder(
+                ImmutableMap.of(
+                        LAZY_ERROR_NAME,
+                        new ErrorExceptionPair<>(
+                                TypeMarker.of(LazyError.class), TypeMarker.of(LazyErrorException.class))),
+                true,
+                errorDeserializers);
+    }
+
+    private static TestResponse errorResponse(String errorInstanceId) throws IOException {
         return TestResponse.withBody(MAPPER.writeValueAsString(
-                        new ConjureError("INVALID_ARGUMENT", errorName, errorInstanceId, Map.of("arg", "foo"))))
+                        new ConjureError("INVALID_ARGUMENT", LAZY_ERROR_NAME, errorInstanceId, Map.of("arg", "foo"))))
                 .contentType("application/json")
                 .code(400);
     }
 
-    // The error reader cache is static, so these types are used only by the tests above, to keep their
-    // "not built yet" assertions independent of test order.
+    /** Strongly caches error deserializers, so that loads are counted deterministically regardless of GC. */
+    private static final class CountingErrorDeserializers implements Function<Type, Encoding.Deserializer<?>> {
+        private final AtomicInteger loads = new AtomicInteger();
+        private final LoadingCache<Type, Encoding.Deserializer<?>> cache = Caffeine.newBuilder()
+                .build(type -> {
+                    loads.incrementAndGet();
+                    return ExceptionDeserializingErrorDecoder.errorDeserializer(type);
+                });
+
+        @Override
+        public Encoding.Deserializer<?> apply(Type type) {
+            return cache.get(type);
+        }
+
+        int loads() {
+            return loads.get();
+        }
+    }
+
     private static final String LAZY_ERROR_NAME = "Test:LazyError";
-    private static final String SHARED_ERROR_NAME = "Test:SharedError";
 
     record SimpleParameters(@JsonProperty("arg") String arg) {}
 
@@ -636,34 +669,6 @@ final class ExceptionDeserializingDecoderTest {
 
         @Override
         public LazyError error() {
-            return error;
-        }
-    }
-
-    static final class SharedError extends AbstractSerializableError<SimpleParameters> {
-        @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-        SharedError(
-                @JsonProperty("errorCode") String errorCode,
-                @JsonProperty("errorName") String errorName,
-                @JsonProperty("errorInstanceId") String errorInstanceId,
-                @JsonProperty("parameters") SimpleParameters parameters) {
-            super(errorCode, errorName, errorInstanceId, parameters);
-        }
-    }
-
-    public static final class SharedErrorException extends RemoteException
-            implements SerializableErrorProvider<SimpleParameters> {
-        private final SharedError error;
-
-        // Constructor needs to be public so that the exception can be created via reflection
-        @SuppressWarnings("RedundantModifier")
-        public SharedErrorException(SharedError error, int status) {
-            super(toSerializableError(error), status);
-            this.error = error;
-        }
-
-        @Override
-        public SharedError error() {
             return error;
         }
     }
