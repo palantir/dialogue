@@ -26,7 +26,6 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.core.DialogueDnsResolver;
-import com.palantir.dialogue.util.MapBasedDnsResolver;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;

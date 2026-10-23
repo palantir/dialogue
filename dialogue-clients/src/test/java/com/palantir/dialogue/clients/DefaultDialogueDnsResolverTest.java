@@ -79,12 +79,11 @@ class DefaultDialogueDnsResolverTest {
                 .isTrue();
 
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
+        DefaultDialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
 
         String badHost = UUID.randomUUID() + ".palantir.com";
-        ImmutableSet<InetAddress> result = resolver.resolve(badHost);
 
-        assertThat(result).isEmpty();
+        assertThat(resolver.resolveDetailed(badHost)).hasValue(ImmutableSet.of());
         ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
         assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
     }
@@ -92,7 +91,7 @@ class DefaultDialogueDnsResolverTest {
     @Test
     void unknown_host_from_cache() {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
+        DefaultDialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
         ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
 
         String badHost = UUID.randomUUID() + ".palantir.com";
@@ -102,8 +101,7 @@ class DefaultDialogueDnsResolverTest {
         assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
 
         // should resolve from cache
-        ImmutableSet<InetAddress> result2 = resolver.resolve(badHost);
-        assertThat(result2).isEmpty();
+        assertThat(resolver.resolveDetailed(badHost)).isEmpty();
         assertThat(metrics.failure("CACHED").getCount()).isEqualTo(1);
     }
 
