@@ -25,6 +25,7 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.SettableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -44,6 +45,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.concurrent.CancellationException;
 import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -100,6 +102,34 @@ public final class TimingEndpointChannelTest {
         testThat().failedResponse(new RuntimeException()).isIgnored();
     }
 
+    @Test
+    public void addsMetricsForCancellations() {
+        testThat().failedResponse(new CancellationException()).isCountedAsCancelled();
+    }
+
+    @Test
+    public void addsMetricsWhenCallerCancels() {
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        SettableFuture<Response> pending = SettableFuture.create();
+        when(delegate.execute(any())).thenReturn(pending);
+
+        new TimingEndpointChannel(delegate, ticker, registry, "my-channel", TestEndpoint.POST)
+                .execute(Request.builder().build())
+                .cancel(true);
+
+        assertThat(cancelledTimer(registry, TestEndpoint.POST).getCount()).isEqualTo(1);
+        assertThat(registry.getMetrics()).as("client.response is not recorded").hasSize(1);
+    }
+
+    private static Timer cancelledTimer(TaggedMetricRegistry registry, Endpoint endpoint) {
+        return DialogueClientMetrics.of(registry)
+                .requestCancelled()
+                .channelName("my-channel")
+                .serviceName(endpoint.serviceName())
+                .endpoint(endpoint.endpointName())
+                .build();
+    }
+
     private TestCase testThat() {
         return new TestCase();
     }
@@ -122,6 +152,7 @@ public final class TimingEndpointChannelTest {
                 .endpoint(endpoint.endpointName())
                 .status("failure")
                 .build();
+        private final Timer cancelled = cancelledTimer(registry, endpoint);
 
         private OptionalInt maybeCode = OptionalInt.empty();
         private Optional<Throwable> maybeThrowable = Optional.empty();
@@ -147,21 +178,26 @@ public final class TimingEndpointChannelTest {
         }
 
         void isCountedAsSuccess() {
-            assertMetrics(1, 0);
+            assertMetrics(1, 0, 0);
         }
 
         void isCountedAsFailure() {
-            assertMetrics(0, 1);
+            assertMetrics(0, 1, 0);
+        }
+
+        void isCountedAsCancelled() {
+            assertMetrics(0, 0, 1);
         }
 
         void isIgnored() {
-            assertMetrics(0, 0);
+            assertMetrics(0, 0, 0);
         }
 
-        private void assertMetrics(int successCount, int failureCount) {
+        private void assertMetrics(int successCount, int failureCount, int cancelledCount) {
             runRequest();
             assertThat(success.getCount()).isEqualTo(successCount);
             assertThat(failure.getCount()).isEqualTo(failureCount);
+            assertThat(cancelled.getCount()).isEqualTo(cancelledCount);
         }
 
         private void runRequest() {

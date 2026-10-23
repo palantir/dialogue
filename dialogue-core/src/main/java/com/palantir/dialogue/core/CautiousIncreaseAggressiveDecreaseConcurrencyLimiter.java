@@ -20,6 +20,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Result;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -60,6 +61,9 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter implements Conc
 
     private final Behavior behavior;
 
+    // Volatile because it may be set from a different thread than the one completing permits.
+    private volatile ConcurrencyLimiterDecisionRecorder decisionRecorder = ConcurrencyLimiterDecisionRecorder.NOOP;
+
     // Used strictly for providing the channel name in debug logs.
     // Volatile because it may be set from a different thread than the one emitting the log line.
     private volatile String channelNameForLogging = "unknown";
@@ -71,6 +75,11 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter implements Conc
     @Override
     public void setChannelNameForLogging(String value) {
         this.channelNameForLogging = value;
+    }
+
+    @Override
+    public void setDecisionRecorder(ConcurrencyLimiterDecisionRecorder value) {
+        this.decisionRecorder = value;
     }
 
     /**
@@ -115,6 +124,9 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter implements Conc
     final class Permit implements Behavior.PermitControl, ConcurrencyLimiter.Permit {
         private final int inFlightSnapshot;
 
+        // The outcome that completed this permit, set before the behavior makes its decision.
+        private String cause = ConcurrencyLimiterDecisionRecorder.OTHER_CAUSE;
+
         Permit(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;
         }
@@ -131,23 +143,27 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter implements Conc
         @Override
         public void onSuccess(@Nullable Response result) {
             if (result != null) {
+                cause = ConcurrencyLimiterDecisionRecorder.causeOf(result);
                 behavior.onSuccess(result, this);
             }
         }
 
         @Override
         public void onFailure(Throwable throwable) {
+            cause = ConcurrencyLimiterDecisionRecorder.causeOf(throwable);
             behavior.onFailure(throwable, this);
         }
 
         @Override
         public void ignore() {
             inFlight.decrementAndGet();
+            decisionRecorder.record(Decision_Result.IGNORED, cause);
         }
 
         @Override
         public void dropped() {
             inFlight.decrementAndGet();
+            decisionRecorder.record(Decision_Result.DROPPED, cause);
             double newLimit = accumulateAndGetLimit(inFlightSnapshot, LimitUpdater.DROPPED);
             if (log.isDebugEnabled()) {
                 log.debug(
@@ -162,6 +178,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter implements Conc
         @Override
         public void success() {
             inFlight.decrementAndGet();
+            decisionRecorder.record(Decision_Result.SUCCESS, cause);
             double newLimit = accumulateAndGetLimit(inFlightSnapshot, LimitUpdater.SUCCESS);
             if (log.isDebugEnabled()) {
                 log.debug(
