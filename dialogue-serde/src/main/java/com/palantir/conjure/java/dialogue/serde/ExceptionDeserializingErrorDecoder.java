@@ -69,7 +69,7 @@ final class ExceptionDeserializingErrorDecoder {
     // https://palantir.github.io/conjure/#/docs/spec/wire?id=_55-conjure-errors. As there is greater adoption of
     // endpoint associated errors and larger parameters, we may be interested in supporting SMILE/CBOR for more
     // performant handling of larger paramater payloads.
-    private static final Encoding JSON_ENCODING = Encodings.json();
+    private static final Encoding JSON_ENCODING = new LazilyInitializedEncoding(Encodings.json());
     private static final Deserializer<NamedError> NAMED_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(TypeMarker.of(NamedError.class));
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
@@ -85,8 +85,7 @@ final class ExceptionDeserializingErrorDecoder {
     ExceptionDeserializingErrorDecoder(
             Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap, boolean expectJsonErrors) {
         this.errorNameToExceptionDeserializerMap = ImmutableMap.copyOf(Maps.transformValues(
-                errorNameToExceptionTypeMap,
-                errorExceptionPair -> createDeserializerForException(JSON_ENCODING, errorExceptionPair)));
+                errorNameToExceptionTypeMap, ExceptionDeserializingErrorDecoder::createDeserializerForException));
         this.expectJsonErrors = expectJsonErrors;
     }
 
@@ -319,8 +318,7 @@ final class ExceptionDeserializingErrorDecoder {
 
     // Purely to provide Java type inference information.
     private static <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
-            DeserializerExceptionPair<U, V> createDeserializerForException(
-                    Encoding encoding, ErrorExceptionPair<U, V> pair) {
-        return new DeserializerExceptionPair<>(encoding.deserializer(pair.errorType()), pair.exceptionType());
+            DeserializerExceptionPair<U, V> createDeserializerForException(ErrorExceptionPair<U, V> pair) {
+        return new DeserializerExceptionPair<>(JSON_ENCODING.deserializer(pair.errorType()), pair.exceptionType());
     }
 }
