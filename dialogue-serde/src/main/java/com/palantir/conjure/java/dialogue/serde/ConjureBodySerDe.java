@@ -19,6 +19,7 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.CaffeineSpec;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -183,6 +184,11 @@ final class ConjureBodySerDe implements BodySerDe {
     public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
         return (Deserializer<Void>) exceptionDeserializers.get(
                 ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.EMPTY_BODY));
+    }
+
+    @VisibleForTesting
+    Optional<Encoding.Deserializer<?>> cachedErrorDeserializer(Type errorType) {
+        return Optional.ofNullable(errorDeserializers.getIfPresent(errorType));
     }
 
     @Override

@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.CaffeineSpec;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -582,26 +583,46 @@ final class ExceptionDeserializingDecoderTest {
     }
 
     @Test
-    void errorsDecodeThroughSerDeErrorDeserializerCache() throws IOException {
-        Deserializer<String> deserializer = conjureBodySerDe("application/json")
-                .deserializer(ExceptionDeserializerArgs.<String>builder()
-                        .returnType(new TypeMarker<>() {})
-                        .exception(
-                                LAZY_ERROR_NAME,
-                                new TypeMarker<LazyError>() {},
-                                new TypeMarker<LazyErrorException>() {})
-                        .build());
-        assertThat(deserializer.deserialize(TestResponse.withBody("\"ok\"")
+    void errorDeserializerIsSharedAcrossSerDeEndpoints() throws IOException {
+        // A strong cache spec, so the sharing assertions can't be affected by GC.
+        ConjureBodySerDe serDe = conjureBodySerDe(CaffeineSpec.parse("maximumSize=1000"), "application/json");
+        // Distinct return types, so each endpoint gets its own decoder.
+        Deserializer<String> stringEndpoint = serDe.deserializer(lazyErrorArgs(new TypeMarker<String>() {}));
+        Deserializer<Integer> integerEndpoint = serDe.deserializer(lazyErrorArgs(new TypeMarker<Integer>() {}));
+        assertThat(serDe.cachedErrorDeserializer(LazyError.class))
+                .as("constructing the deserializers must not build the error deserializer")
+                .isEmpty();
+
+        assertThat(stringEndpoint.deserialize(TestResponse.withBody("\"ok\"")
                         .contentType("application/json")
                         .code(200)))
                 .isEqualTo("ok");
-        for (String errorInstanceId : List.of("first", "second")) {
-            assertThatThrownBy(() -> deserializer.deserialize(errorResponse(errorInstanceId)))
-                    .isInstanceOfSatisfying(
-                            LazyErrorException.class,
-                            exception -> assertThat(exception.error().errorInstanceId())
-                                    .isEqualTo(errorInstanceId));
-        }
+        assertThat(serDe.cachedErrorDeserializer(LazyError.class))
+                .as("a successful response must not build the error deserializer")
+                .isEmpty();
+
+        assertThatThrownBy(() -> stringEndpoint.deserialize(errorResponse("first")))
+                .isInstanceOfSatisfying(
+                        LazyErrorException.class,
+                        exception ->
+                                assertThat(exception.error().errorInstanceId()).isEqualTo("first"));
+        Encoding.Deserializer<?> shared =
+                serDe.cachedErrorDeserializer(LazyError.class).orElseThrow();
+
+        assertThatThrownBy(() -> integerEndpoint.deserialize(errorResponse("second")))
+                .isInstanceOfSatisfying(
+                        LazyErrorException.class,
+                        exception ->
+                                assertThat(exception.error().errorInstanceId()).isEqualTo("second"));
+        assertThat(serDe.cachedErrorDeserializer(LazyError.class))
+                .hasValueSatisfying(deserializer -> assertThat(deserializer).isSameAs(shared));
+    }
+
+    private static <T> ExceptionDeserializerArgs<T> lazyErrorArgs(TypeMarker<T> returnType) {
+        return ExceptionDeserializerArgs.<T>builder()
+                .returnType(returnType)
+                .exception(LAZY_ERROR_NAME, new TypeMarker<LazyError>() {}, new TypeMarker<LazyErrorException>() {})
+                .build();
     }
 
     private static ExceptionDeserializingErrorDecoder lazyErrorDecoder(
@@ -683,13 +704,17 @@ final class ExceptionDeserializingDecoderTest {
     }
 
     private ConjureBodySerDe conjureBodySerDe(String... contentTypes) {
+        return conjureBodySerDe(DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC, contentTypes);
+    }
+
+    private static ConjureBodySerDe conjureBodySerDe(CaffeineSpec cacheSpec, String... contentTypes) {
         return new ConjureBodySerDe(
                 Arrays.stream(contentTypes)
                         .map(c ->
                                 WeightedEncoding.of(new ExceptionDeserializationTestUtils.TypeReturningStubEncoding(c)))
                         .collect(ImmutableList.toImmutableList()),
                 Encodings.emptyContainerDeserializer(),
-                DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
+                cacheSpec);
     }
 
     /**
