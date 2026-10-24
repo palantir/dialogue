@@ -36,7 +36,7 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.16.0 (1 constraints: 3b05413b)
 
-com.palantir.conjure.java:conjure-lib:8.95.0 (2 constraints: 3d24657c)
+com.palantir.conjure.java:conjure-lib:8.96.0 (2 constraints: 3e24b77c)
 
 com.palantir.conjure.java.api:errors:2.81.0 (3 constraints: 7b293814)
 
