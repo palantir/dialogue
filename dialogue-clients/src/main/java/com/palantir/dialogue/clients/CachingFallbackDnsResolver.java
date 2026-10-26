@@ -76,8 +76,8 @@ final class CachingFallbackDnsResolver implements DialogueDnsResolver {
             return addresses;
         }
 
-        lookupSuccess.mark();
         fallbackCache.put(hostname, addresses);
+        lookupSuccess.mark();
         return addresses;
     }
 }
