@@ -42,12 +42,7 @@ final class DefaultDialogueDnsResolver implements DetailedDialogueDnsResolver {
     public Optional<ImmutableSet<InetAddress>> resolveDetailed(String hostname) {
         Preconditions.checkNotNull(hostname, "hostname is required");
         try {
-            InetAddress[] results = InetAddress.getAllByName(hostname);
-            if (results == null || results.length == 0) {
-                // Defensive check, this should not be possible
-                return Optional.empty();
-            }
-            return Optional.of(ImmutableSet.copyOf(results));
+            return Optional.of(ImmutableSet.copyOf(InetAddress.getAllByName(hostname)));
         } catch (UnknownHostException e) {
             GaiError gaiError = extractGaiError(e, hostname);
             if (log.isDebugEnabled()) {
