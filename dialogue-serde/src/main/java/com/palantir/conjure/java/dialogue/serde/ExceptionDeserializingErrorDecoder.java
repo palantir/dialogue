@@ -82,11 +82,11 @@ final class ExceptionDeserializingErrorDecoder {
         return new ExceptionDeserializingErrorDecoder(Collections.emptyMap(), false);
     }
 
-    ExceptionDeserializingErrorDecoder(
+    static ExceptionDeserializingErrorDecoder withExceptions(
             Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap,
             boolean expectJsonErrors,
             ErrorDeserializers errorDeserializers) {
-        this(
+        return new ExceptionDeserializingErrorDecoder(
                 ImmutableMap.copyOf(Maps.transformValues(
                         errorNameToExceptionTypeMap,
                         errorExceptionPair -> createDeserializerForException(errorDeserializers, errorExceptionPair))),

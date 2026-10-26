@@ -120,7 +120,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         key.type(),
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
-                        new ExceptionDeserializingErrorDecoder(
+                        ExceptionDeserializingErrorDecoder.withExceptions(
                                 key.errorNameToExceptionTypeMarkers(), expectJsonErrors(), errorDeserializers)));
     }
 
