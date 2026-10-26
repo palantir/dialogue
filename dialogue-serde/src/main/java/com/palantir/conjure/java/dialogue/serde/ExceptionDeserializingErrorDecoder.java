@@ -304,6 +304,6 @@ final class ExceptionDeserializingErrorDecoder {
 
     /** Deserializes the body of an error response into the exception for that error. */
     interface ExceptionDeserializer {
-        RemoteException deserialize(InputStream input, int status) throws IOException, ReflectiveOperationException;
+        RemoteException deserialize(InputStream input, int code) throws IOException, ReflectiveOperationException;
     }
 }

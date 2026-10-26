@@ -20,16 +20,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.google.common.collect.ImmutableList;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
+import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.ComplexArg;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.ConjureError;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorException;
+import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorParameters;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
@@ -42,7 +50,6 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -515,56 +522,38 @@ final class ExceptionDeserializingDecoderTest {
     }
 
     @Test
-    void errorDeserializerIsBuiltOnceOnFirstDecode() throws IOException {
-        CountingEncoding encoding = new CountingEncoding();
-        Deserializer<String> deserializer = conjureBodySerDe(encoding, "application/json")
-                .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
-        assertThat(encoding.deserializersBuilt())
+    void errorDeserializerIsBuiltOnFirstDecode() throws IOException {
+        Deserializer<String> deserializer = conjureBodySerDe("application/json")
+                .deserializer(ExceptionDeserializerArgs.<String>builder()
+                        .returnType(new TypeMarker<>() {})
+                        .exception(
+                                ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name(),
+                                new TypeMarker<CountedTestError>() {},
+                                new TypeMarker<CountedTestErrorException>() {})
+                        .build());
+        assertThat(CountedTestErrorDeserializer.INSTANCES)
                 .as("constructing the deserializer must not build the error deserializer")
-                .isZero();
+                .hasValue(0);
 
         assertThat(deserializer.deserialize(TestResponse.withBody("\"ok\"")
                         .contentType("application/json")
                         .code(200)))
                 .isEqualTo("ok");
-        assertThat(encoding.deserializersBuilt())
+        assertThat(CountedTestErrorDeserializer.INSTANCES)
                 .as("a successful response must not build the error deserializer")
-                .isZero();
+                .hasValue(0);
 
         for (int i = 0; i < 3; i++) {
             ServiceException error = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
             assertThatThrownBy(() -> deserializer.deserialize(testErrorResponse(error)))
                     .isInstanceOfSatisfying(
-                            TestErrorException.class,
-                            exception -> ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
-                                    exception, error.getErrorInstanceId()));
+                            CountedTestErrorException.class,
+                            exception -> assertThat(exception.error().errorInstanceId())
+                                    .isEqualTo(error.getErrorInstanceId()));
         }
-        assertThat(encoding.deserializersBuilt())
+        assertThat(CountedTestErrorDeserializer.INSTANCES)
                 .as("decoding the same error type repeatedly must reuse its deserializer")
-                .isOne();
-    }
-
-    @Test
-    void errorDeserializerIsSharedAcrossSerDeEndpoints() throws IOException {
-        CountingEncoding encoding = new CountingEncoding();
-        ConjureBodySerDe serDe = conjureBodySerDe(encoding, "application/json");
-        // Distinct return types, so each endpoint gets its own decoder.
-        Deserializer<String> stringEndpoint =
-                serDe.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
-        Deserializer<Void> voidEndpoint =
-                serDe.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs());
-
-        for (Deserializer<?> endpoint : List.of(stringEndpoint, voidEndpoint)) {
-            ServiceException error = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
-            assertThatThrownBy(() -> endpoint.deserialize(testErrorResponse(error)))
-                    .isInstanceOfSatisfying(
-                            TestErrorException.class,
-                            exception -> ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
-                                    exception, error.getErrorInstanceId()));
-        }
-        assertThat(encoding.deserializersBuilt())
-                .as("endpoints declaring the same error must share its deserializer")
-                .isOne();
+                .hasValue(1);
     }
 
     private static TestResponse testErrorResponse(ServiceException error) throws IOException {
@@ -574,50 +563,64 @@ final class ExceptionDeserializingDecoderTest {
                 .code(400);
     }
 
-    /** JSON encoding that counts the deserializers it builds. */
-    private static final class CountingEncoding implements Encoding {
-        private final Encoding delegate = Encodings.json();
-        private final AtomicInteger deserializersBuilt = new AtomicInteger();
+    // Jackson creates a CountedTestErrorDeserializer when it builds a reader for CountedTestError, so the instance
+    // count shows when that happens. Only the test above uses CountedTestError, so no other test builds its reader.
+    @JsonDeserialize(using = CountedTestErrorDeserializer.class)
+    static final class CountedTestError extends AbstractSerializableError<TestErrorParameters> {
+        CountedTestError(String errorCode, String errorName, String errorInstanceId, TestErrorParameters parameters) {
+            super(errorCode, errorName, errorInstanceId, parameters);
+        }
+    }
 
-        @Override
-        public <T> Encoding.Serializer<T> serializer(TypeMarker<T> type) {
-            return delegate.serializer(type);
+    static final class CountedTestErrorDeserializer extends JsonDeserializer<CountedTestError> {
+        static final AtomicInteger INSTANCES = new AtomicInteger();
+
+        CountedTestErrorDeserializer() {
+            INSTANCES.incrementAndGet();
         }
 
         @Override
-        public <T> Encoding.Deserializer<T> deserializer(TypeMarker<T> type) {
-            deserializersBuilt.incrementAndGet();
-            return delegate.deserializer(type);
+        public CountedTestError deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+            JsonNode node = parser.readValueAsTree();
+            return new CountedTestError(
+                    node.get("errorCode").asText(),
+                    node.get("errorName").asText(),
+                    node.get("errorInstanceId").asText(),
+                    context.readTreeAsValue(node.get("parameters"), TestErrorParameters.class));
+        }
+    }
+
+    public static final class CountedTestErrorException extends RemoteException
+            implements SerializableErrorProvider<TestErrorParameters> {
+        private final CountedTestError error;
+
+        // Constructor needs to be public so that the exception can be created via reflection
+        @SuppressWarnings("RedundantModifier")
+        public CountedTestErrorException(CountedTestError error, int code) {
+            super(
+                    SerializableError.builder()
+                            .errorCode(error.errorCode())
+                            .errorName(error.errorName())
+                            .errorInstanceId(error.errorInstanceId())
+                            .build(),
+                    code);
+            this.error = error;
         }
 
         @Override
-        public String getContentType() {
-            return delegate.getContentType();
-        }
-
-        @Override
-        public boolean supportsContentType(String contentType) {
-            return delegate.supportsContentType(contentType);
-        }
-
-        int deserializersBuilt() {
-            return deserializersBuilt.get();
+        public CountedTestError error() {
+            return error;
         }
     }
 
     private ConjureBodySerDe conjureBodySerDe(String... contentTypes) {
-        return conjureBodySerDe(Encodings.json(), contentTypes);
-    }
-
-    private static ConjureBodySerDe conjureBodySerDe(Encoding errorEncoding, String... contentTypes) {
         return new ConjureBodySerDe(
                 Arrays.stream(contentTypes)
                         .map(c ->
                                 WeightedEncoding.of(new ExceptionDeserializationTestUtils.TypeReturningStubEncoding(c)))
                         .collect(ImmutableList.toImmutableList()),
                 Encodings.emptyContainerDeserializer(),
-                DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC,
-                errorEncoding);
+                DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
     }
 
     /**
