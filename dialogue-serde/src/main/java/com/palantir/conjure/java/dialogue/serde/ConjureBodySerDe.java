@@ -24,8 +24,13 @@ import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
+import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
+import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializingErrorDecoder.ExceptionDeserializer;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
@@ -67,6 +72,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
+    private final LoadingCache<Type, Encoding.Deserializer<?>> errorDeserializers;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -77,7 +83,8 @@ final class ConjureBodySerDe implements BodySerDe {
             List<WeightedEncoding> rawEncodings,
             EmptyContainerDeserializer emptyContainerDeserializer,
             CaffeineSpec cacheSpec) {
-        this(rawEncodings, emptyContainerDeserializer, cacheSpec, new ErrorDeserializers());
+        // Errors are always JSON, see ExceptionDeserializingErrorDecoder.
+        this(rawEncodings, emptyContainerDeserializer, cacheSpec, Encodings.json());
     }
 
     @VisibleForTesting
@@ -85,7 +92,7 @@ final class ConjureBodySerDe implements BodySerDe {
             List<WeightedEncoding> rawEncodings,
             EmptyContainerDeserializer emptyContainerDeserializer,
             CaffeineSpec cacheSpec,
-            ErrorDeserializers errorDeserializers) {
+            Encoding errorEncoding) {
         List<WeightedEncoding> encodings = decorateEncodings(rawEncodings);
         this.encodingsSortedByWeight = sortByWeight(encodings);
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
@@ -111,6 +118,14 @@ final class ConjureBodySerDe implements BodySerDe {
                         emptyContainerDeserializer,
                         TypeMarker.of(type),
                         ExceptionDeserializingErrorDecoder.withoutExceptions()));
+        // Built when a decoder for that error type is constructed, but a deserializer's reader is only built when an
+        // error of that type is first decoded: most endpoints never see most of their errors. Weak values keep a
+        // deserializer shared for as long as any decoder holds it. There is no size bound, because evicting a
+        // deserializer that decoders still hold would only stop it from being shared. Keyed by Type for the same reason
+        // as ExceptionDeserializerCacheKey.
+        Encoding lazyErrorEncoding = new LazilyInitializedEncoding(errorEncoding);
+        this.errorDeserializers =
+                Caffeine.newBuilder().weakValues().build(type -> lazyErrorEncoding.deserializer(TypeMarker.of(type)));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
@@ -120,8 +135,21 @@ final class ConjureBodySerDe implements BodySerDe {
                         key.type(),
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
-                        ExceptionDeserializingErrorDecoder.withExceptions(
-                                key.errorNameToExceptionTypeMarkers(), expectJsonErrors(), errorDeserializers)));
+                        new ExceptionDeserializingErrorDecoder(
+                                Maps.transformValues(
+                                        key.errorNameToExceptionTypeMarkers(), this::exceptionDeserializer),
+                                expectJsonErrors())));
+    }
+
+    // Captures the pair's wildcards so the error and exception types line up.
+    @SuppressWarnings("unchecked")
+    private <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
+            ExceptionDeserializer exceptionDeserializer(ErrorExceptionPair<U, V> pair) {
+        Encoding.Deserializer<U> errorDeserializer = (Encoding.Deserializer<U>)
+                errorDeserializers.get(pair.errorType().getType());
+        TypeMarker<V> exceptionType = pair.exceptionType();
+        return (input, status) -> ErrorExceptionPair.getExceptionFromSerializableError(
+                errorDeserializer.deserialize(input), exceptionType, status);
     }
 
     @SuppressWarnings("unchecked")

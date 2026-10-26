@@ -517,17 +517,23 @@ final class ExceptionDeserializingDecoderTest {
     @Test
     void errorDeserializerIsBuiltOnceOnFirstDecode() throws IOException {
         CountingEncoding encoding = new CountingEncoding();
-        ExceptionDeserializingErrorDecoder decoder = ExceptionDeserializingErrorDecoder.withExceptions(
-                ExceptionDeserializationTestUtils.createStringDeserializerArgs().errorNameToExceptionTypeMarkers(),
-                true,
-                new ErrorDeserializers(encoding));
+        Deserializer<String> deserializer = conjureBodySerDe(encoding, "application/json")
+                .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
         assertThat(encoding.deserializersBuilt())
-                .as("constructing the decoder must not build the error deserializer")
+                .as("constructing the deserializer must not build the error deserializer")
+                .isZero();
+
+        assertThat(deserializer.deserialize(TestResponse.withBody("\"ok\"")
+                        .contentType("application/json")
+                        .code(200)))
+                .isEqualTo("ok");
+        assertThat(encoding.deserializersBuilt())
+                .as("a successful response must not build the error deserializer")
                 .isZero();
 
         for (int i = 0; i < 3; i++) {
             ServiceException error = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
-            assertThat(decoder.decode(testErrorResponse(error)))
+            assertThatThrownBy(() -> deserializer.deserialize(testErrorResponse(error)))
                     .isInstanceOfSatisfying(
                             TestErrorException.class,
                             exception -> ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
@@ -541,23 +547,12 @@ final class ExceptionDeserializingDecoderTest {
     @Test
     void errorDeserializerIsSharedAcrossSerDeEndpoints() throws IOException {
         CountingEncoding encoding = new CountingEncoding();
-        ConjureBodySerDe serDe = conjureBodySerDe(new ErrorDeserializers(encoding), "application/json");
+        ConjureBodySerDe serDe = conjureBodySerDe(encoding, "application/json");
         // Distinct return types, so each endpoint gets its own decoder.
         Deserializer<String> stringEndpoint =
                 serDe.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
         Deserializer<Void> voidEndpoint =
                 serDe.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs());
-        assertThat(encoding.deserializersBuilt())
-                .as("constructing the deserializers must not build the error deserializer")
-                .isZero();
-
-        assertThat(stringEndpoint.deserialize(TestResponse.withBody("\"ok\"")
-                        .contentType("application/json")
-                        .code(200)))
-                .isEqualTo("ok");
-        assertThat(encoding.deserializersBuilt())
-                .as("a successful response must not build the error deserializer")
-                .isZero();
 
         for (Deserializer<?> endpoint : List.of(stringEndpoint, voidEndpoint)) {
             ServiceException error = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
@@ -611,10 +606,10 @@ final class ExceptionDeserializingDecoderTest {
     }
 
     private ConjureBodySerDe conjureBodySerDe(String... contentTypes) {
-        return conjureBodySerDe(new ErrorDeserializers(), contentTypes);
+        return conjureBodySerDe(Encodings.json(), contentTypes);
     }
 
-    private static ConjureBodySerDe conjureBodySerDe(ErrorDeserializers errorDeserializers, String... contentTypes) {
+    private static ConjureBodySerDe conjureBodySerDe(Encoding errorEncoding, String... contentTypes) {
         return new ConjureBodySerDe(
                 Arrays.stream(contentTypes)
                         .map(c ->
@@ -622,7 +617,7 @@ final class ExceptionDeserializingDecoderTest {
                         .collect(ImmutableList.toImmutableList()),
                 Encodings.emptyContainerDeserializer(),
                 DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC,
-                errorDeserializers);
+                errorEncoding);
     }
 
     /**
