@@ -23,9 +23,6 @@ import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.CaffeineSpec;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
@@ -49,7 +46,6 @@ import com.palantir.logsafe.SafeArg;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.lang.reflect.Type;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -60,7 +56,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -533,9 +528,9 @@ final class ExceptionDeserializingDecoderTest {
 
     @Test
     void errorDeserializerIsBuiltOnceOnFirstDecode() throws IOException {
-        CountingErrorDeserializers errorDeserializers = new CountingErrorDeserializers();
-        ExceptionDeserializingErrorDecoder decoder = lazyErrorDecoder(errorDeserializers);
-        assertThat(errorDeserializers.loads())
+        CountingEncoding encoding = new CountingEncoding();
+        ExceptionDeserializingErrorDecoder decoder = lazyErrorDecoder(new ErrorDeserializers(encoding));
+        assertThat(encoding.deserializersBuilt())
                 .as("constructing the decoder must not build the error deserializer")
                 .isZero();
 
@@ -546,14 +541,15 @@ final class ExceptionDeserializingDecoderTest {
                             exception -> assertThat(exception.error().errorInstanceId())
                                     .isEqualTo(errorInstanceId));
         }
-        assertThat(errorDeserializers.loads())
+        assertThat(encoding.deserializersBuilt())
                 .as("decoding the same error type repeatedly must reuse its deserializer")
                 .isOne();
     }
 
     @Test
     void errorDeserializerIsSharedAcrossConcurrentDecoders() throws Exception {
-        CountingErrorDeserializers errorDeserializers = new CountingErrorDeserializers();
+        CountingEncoding encoding = new CountingEncoding();
+        ErrorDeserializers errorDeserializers = new ErrorDeserializers(encoding);
         int threads = 16;
         // Distinct decoders, as built for distinct endpoints declaring the same error.
         List<ExceptionDeserializingErrorDecoder> decoders = IntStream.range(0, threads)
@@ -579,43 +575,41 @@ final class ExceptionDeserializingDecoderTest {
         } finally {
             executor.shutdownNow();
         }
-        assertThat(errorDeserializers.loads()).isOne();
+        assertThat(encoding.deserializersBuilt()).isOne();
     }
 
     @Test
     void errorDeserializerIsSharedAcrossSerDeEndpoints() throws IOException {
-        // A strong cache spec, so the sharing assertions can't be affected by GC.
-        ConjureBodySerDe serDe = conjureBodySerDe(CaffeineSpec.parse("maximumSize=1000"), "application/json");
+        CountingEncoding encoding = new CountingEncoding();
+        ConjureBodySerDe serDe = conjureBodySerDe(new ErrorDeserializers(encoding), "application/json");
         // Distinct return types, so each endpoint gets its own decoder.
         Deserializer<String> stringEndpoint = serDe.deserializer(lazyErrorArgs(new TypeMarker<String>() {}));
         Deserializer<Integer> integerEndpoint = serDe.deserializer(lazyErrorArgs(new TypeMarker<Integer>() {}));
-        assertThat(serDe.cachedErrorDeserializer(LazyError.class))
+        assertThat(encoding.deserializersBuilt())
                 .as("constructing the deserializers must not build the error deserializer")
-                .isEmpty();
+                .isZero();
 
         assertThat(stringEndpoint.deserialize(TestResponse.withBody("\"ok\"")
                         .contentType("application/json")
                         .code(200)))
                 .isEqualTo("ok");
-        assertThat(serDe.cachedErrorDeserializer(LazyError.class))
+        assertThat(encoding.deserializersBuilt())
                 .as("a successful response must not build the error deserializer")
-                .isEmpty();
+                .isZero();
 
         assertThatThrownBy(() -> stringEndpoint.deserialize(errorResponse("first")))
                 .isInstanceOfSatisfying(
                         LazyErrorException.class,
                         exception ->
                                 assertThat(exception.error().errorInstanceId()).isEqualTo("first"));
-        Encoding.Deserializer<?> shared =
-                serDe.cachedErrorDeserializer(LazyError.class).orElseThrow();
-
         assertThatThrownBy(() -> integerEndpoint.deserialize(errorResponse("second")))
                 .isInstanceOfSatisfying(
                         LazyErrorException.class,
                         exception ->
                                 assertThat(exception.error().errorInstanceId()).isEqualTo("second"));
-        assertThat(serDe.cachedErrorDeserializer(LazyError.class))
-                .hasValueSatisfying(deserializer -> assertThat(deserializer).isSameAs(shared));
+        assertThat(encoding.deserializersBuilt())
+                .as("endpoints declaring the same error must share its deserializer")
+                .isOne();
     }
 
     private static <T> ExceptionDeserializerArgs<T> lazyErrorArgs(TypeMarker<T> returnType) {
@@ -625,8 +619,7 @@ final class ExceptionDeserializingDecoderTest {
                 .build();
     }
 
-    private static ExceptionDeserializingErrorDecoder lazyErrorDecoder(
-            Function<Type, Encoding.Deserializer<?>> errorDeserializers) {
+    private static ExceptionDeserializingErrorDecoder lazyErrorDecoder(ErrorDeserializers errorDeserializers) {
         return new ExceptionDeserializingErrorDecoder(
                 ImmutableMap.of(
                         LAZY_ERROR_NAME,
@@ -643,22 +636,34 @@ final class ExceptionDeserializingDecoderTest {
                 .code(400);
     }
 
-    /** Strongly caches error deserializers, so that loads are counted deterministically regardless of GC. */
-    private static final class CountingErrorDeserializers implements Function<Type, Encoding.Deserializer<?>> {
-        private final AtomicInteger loads = new AtomicInteger();
-        private final LoadingCache<Type, Encoding.Deserializer<?>> cache = Caffeine.newBuilder()
-                .build(type -> {
-                    loads.incrementAndGet();
-                    return ExceptionDeserializingErrorDecoder.errorDeserializer(type);
-                });
+    /** JSON encoding that counts the deserializers it builds. */
+    private static final class CountingEncoding implements Encoding {
+        private final Encoding delegate = Encodings.json();
+        private final AtomicInteger deserializersBuilt = new AtomicInteger();
 
         @Override
-        public Encoding.Deserializer<?> apply(Type type) {
-            return cache.get(type);
+        public <T> Encoding.Serializer<T> serializer(TypeMarker<T> type) {
+            return delegate.serializer(type);
         }
 
-        int loads() {
-            return loads.get();
+        @Override
+        public <T> Encoding.Deserializer<T> deserializer(TypeMarker<T> type) {
+            deserializersBuilt.incrementAndGet();
+            return delegate.deserializer(type);
+        }
+
+        @Override
+        public String getContentType() {
+            return delegate.getContentType();
+        }
+
+        @Override
+        public boolean supportsContentType(String contentType) {
+            return delegate.supportsContentType(contentType);
+        }
+
+        int deserializersBuilt() {
+            return deserializersBuilt.get();
         }
     }
 
@@ -704,17 +709,18 @@ final class ExceptionDeserializingDecoderTest {
     }
 
     private ConjureBodySerDe conjureBodySerDe(String... contentTypes) {
-        return conjureBodySerDe(DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC, contentTypes);
+        return conjureBodySerDe(new ErrorDeserializers(), contentTypes);
     }
 
-    private static ConjureBodySerDe conjureBodySerDe(CaffeineSpec cacheSpec, String... contentTypes) {
+    private static ConjureBodySerDe conjureBodySerDe(ErrorDeserializers errorDeserializers, String... contentTypes) {
         return new ConjureBodySerDe(
                 Arrays.stream(contentTypes)
                         .map(c ->
                                 WeightedEncoding.of(new ExceptionDeserializationTestUtils.TypeReturningStubEncoding(c)))
                         .collect(ImmutableList.toImmutableList()),
                 Encodings.emptyContainerDeserializer(),
-                cacheSpec);
+                DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC,
+                errorDeserializers);
     }
 
     /**

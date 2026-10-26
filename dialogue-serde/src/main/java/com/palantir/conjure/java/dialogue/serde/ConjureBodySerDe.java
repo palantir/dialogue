@@ -67,7 +67,6 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
-    private final LoadingCache<Type, Encoding.Deserializer<?>> errorDeserializers;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -78,6 +77,15 @@ final class ConjureBodySerDe implements BodySerDe {
             List<WeightedEncoding> rawEncodings,
             EmptyContainerDeserializer emptyContainerDeserializer,
             CaffeineSpec cacheSpec) {
+        this(rawEncodings, emptyContainerDeserializer, cacheSpec, new ErrorDeserializers());
+    }
+
+    @VisibleForTesting
+    ConjureBodySerDe(
+            List<WeightedEncoding> rawEncodings,
+            EmptyContainerDeserializer emptyContainerDeserializer,
+            CaffeineSpec cacheSpec,
+            ErrorDeserializers errorDeserializers) {
         List<WeightedEncoding> encodings = decorateEncodings(rawEncodings);
         this.encodingsSortedByWeight = sortByWeight(encodings);
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
@@ -103,8 +111,6 @@ final class ConjureBodySerDe implements BodySerDe {
                         emptyContainerDeserializer,
                         TypeMarker.of(type),
                         ExceptionDeserializingErrorDecoder.withoutExceptions()));
-        // Shared by every error decoder below, and only populated when an error of that type is first decoded.
-        this.errorDeserializers = Caffeine.from(cacheSpec).build(ExceptionDeserializingErrorDecoder::errorDeserializer);
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
@@ -115,7 +121,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
                         new ExceptionDeserializingErrorDecoder(
-                                key.errorNameToExceptionTypeMarkers(), expectJsonErrors(), errorDeserializers::get)));
+                                key.errorNameToExceptionTypeMarkers(), expectJsonErrors(), errorDeserializers)));
     }
 
     @SuppressWarnings("unchecked")
@@ -184,11 +190,6 @@ final class ConjureBodySerDe implements BodySerDe {
     public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
         return (Deserializer<Void>) exceptionDeserializers.get(
                 ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.EMPTY_BODY));
-    }
-
-    @VisibleForTesting
-    Optional<Encoding.Deserializer<?>> cachedErrorDeserializer(Type errorType) {
-        return Optional.ofNullable(errorDeserializers.getIfPresent(errorType));
     }
 
     @Override
