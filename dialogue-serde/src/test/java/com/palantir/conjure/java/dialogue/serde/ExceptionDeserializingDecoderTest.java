@@ -552,7 +552,7 @@ final class ExceptionDeserializingDecoderTest {
                                     .isEqualTo(error.getErrorInstanceId()));
         }
         assertThat(CountedTestErrorDeserializer.INSTANCES)
-                .as("decoding the same error type repeatedly must reuse its deserializer")
+                .as("decoding the error must use its deserializer")
                 .hasValue(1);
     }
 
