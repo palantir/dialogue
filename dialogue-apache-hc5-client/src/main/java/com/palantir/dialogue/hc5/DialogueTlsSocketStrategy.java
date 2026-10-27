@@ -79,7 +79,7 @@ final class DialogueTlsSocketStrategy implements TlsSocketStrategy {
         sslParameters.setProtocols(supportedProtocols);
         sslParameters.setCipherSuites(supportedCipherSuites);
 
-        DialogueTlsPostQuantumHybridKeyExchange.excludePostQuantumHybridNamedGroup(sslParameters);
+        DialogueTlsPostQuantumHybridKeyExchange.reorderPostQuantumHybridNamedGroup(sslParameters);
 
         // If we want to enable the builtin hostname verification support:
         // sslParameters.setEndpointIdentificationAlgorithm(URIScheme.HTTPS.id);
