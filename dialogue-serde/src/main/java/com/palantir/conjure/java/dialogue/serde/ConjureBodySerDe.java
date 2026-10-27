@@ -112,7 +112,7 @@ final class ConjureBodySerDe implements BodySerDe {
         // Weak values keep an error's deserializer shared for as long as any decoder holds it. There is no size bound,
         // because evicting a deserializer that decoders still hold would only stop it from being shared.
         this.errorDeserializers =
-                Caffeine.newBuilder().weakValues().build(key -> errorDeserializer(errorEncoding, key));
+                Caffeine.newBuilder().weakValues().build(key -> new ReflectiveErrorDeserializer(errorEncoding, key));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
@@ -125,31 +125,6 @@ final class ConjureBodySerDe implements BodySerDe {
                         new ExceptionDeserializingErrorDecoder(
                                 ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)),
                                 expectJsonErrors())));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static ErrorDeserializer errorDeserializer(Encoding errorEncoding, ErrorDeserializerCacheKey key) {
-        Encoding.Deserializer<AbstractSerializableError<?>> deserializer =
-                (Encoding.Deserializer<AbstractSerializableError<?>>)
-                        errorEncoding.deserializer(TypeMarker.of(key.errorType()));
-        return (input, code) -> newException(deserializer.deserialize(input), key.exceptionType(), code);
-    }
-
-    // RemoteExceptions constructible from a serializable error MUST have a constructor that takes such an error as the
-    // first argument and an integer http status code as the second argument.
-    private static RemoteException newException(AbstractSerializableError<?> error, Type exceptionType, int code) {
-        try {
-            Class<?> exceptionClass = Class.forName(exceptionType.getTypeName());
-            return (RemoteException)
-                    exceptionClass.getConstructor(error.getClass(), int.class).newInstance(error, code);
-        } catch (ReflectiveOperationException e) {
-            throw new SafeRuntimeException(
-                    "Failed to construct exception using a constructor which has an AbstractSerializableError as the "
-                            + "first argument and an integer http status code as the second argument",
-                    e,
-                    SafeArg.of("exceptionType", exceptionType),
-                    SafeArg.of("error", error.getClass().getSimpleName()));
-        }
     }
 
     @SuppressWarnings("unchecked")
@@ -477,6 +452,38 @@ final class ConjureBodySerDe implements BodySerDe {
         @Override
         public String toString() {
             return "EmptyBodyDeserializer{}";
+        }
+    }
+
+    private static final class ReflectiveErrorDeserializer implements ErrorDeserializer {
+        private final Encoding.Deserializer<AbstractSerializableError<?>> deserializer;
+        private final Type exceptionType;
+
+        @SuppressWarnings("unchecked")
+        ReflectiveErrorDeserializer(Encoding errorEncoding, ErrorDeserializerCacheKey key) {
+            this.deserializer = (Encoding.Deserializer<AbstractSerializableError<?>>)
+                    errorEncoding.deserializer(TypeMarker.of(key.errorType()));
+            this.exceptionType = key.exceptionType();
+        }
+
+        // RemoteExceptions constructible from a serializable error MUST have a constructor that takes such an error as
+        // the first argument and an integer http status code as the second argument.
+        @Override
+        public RemoteException deserialize(InputStream input, int code) throws IOException {
+            AbstractSerializableError<?> error = deserializer.deserialize(input);
+            try {
+                Class<?> exceptionClass = Class.forName(exceptionType.getTypeName());
+                return (RemoteException) exceptionClass
+                        .getConstructor(error.getClass(), int.class)
+                        .newInstance(error, code);
+            } catch (ReflectiveOperationException e) {
+                throw new SafeRuntimeException(
+                        "Failed to construct exception using a constructor which has an AbstractSerializableError as "
+                                + "the first argument and an integer http status code as the second argument",
+                        e,
+                        SafeArg.of("exceptionType", exceptionType),
+                        SafeArg.of("error", error.getClass().getSimpleName()));
+            }
         }
     }
 
