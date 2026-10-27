@@ -18,7 +18,6 @@ package com.palantir.dialogue.clients;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
-import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.UnsafeArg;
@@ -27,19 +26,20 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.util.Optional;
 
-class ProtocolVersionFilteringDialogueDnsResolver implements DialogueDnsResolver {
+class ProtocolVersionFilteringDialogueDnsResolver implements DetailedDialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(ProtocolVersionFilteringDialogueDnsResolver.class);
 
-    private final DialogueDnsResolver delegate;
+    private final DetailedDialogueDnsResolver delegate;
 
-    ProtocolVersionFilteringDialogueDnsResolver(DialogueDnsResolver delegate) {
+    ProtocolVersionFilteringDialogueDnsResolver(DetailedDialogueDnsResolver delegate) {
         this.delegate = delegate;
     }
 
     @Override
-    public ImmutableSet<InetAddress> resolve(String hostname) {
-        return filter(delegate.resolve(hostname), hostname);
+    public Optional<ImmutableSet<InetAddress>> resolveDetailed(String hostname) {
+        return delegate.resolveDetailed(hostname).map(addresses -> filter(addresses, hostname));
     }
 
     @Override

@@ -32,14 +32,14 @@ import java.time.Duration;
 final class CachingFallbackDnsResolver implements DialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(CachingFallbackDnsResolver.class);
 
-    private final DialogueDnsResolver delegate;
+    private final DetailedDialogueDnsResolver delegate;
     private final Meter lookupSuccess;
     private final Meter lookupFallback;
     private final Meter lookupFailure;
 
     private final Cache<String, ImmutableSet<InetAddress>> fallbackCache;
 
-    CachingFallbackDnsResolver(DialogueDnsResolver delegate, TaggedMetricRegistry registry) {
+    CachingFallbackDnsResolver(DetailedDialogueDnsResolver delegate, TaggedMetricRegistry registry) {
         this.delegate = delegate;
         this.fallbackCache = Caffeine.newBuilder()
                 .maximumSize(1000)
@@ -53,8 +53,8 @@ final class CachingFallbackDnsResolver implements DialogueDnsResolver {
 
     @Override
     public ImmutableSet<InetAddress> resolve(String hostname) {
-        ImmutableSet<InetAddress> result = delegate.resolve(hostname);
-        if (result.isEmpty()) {
+        ImmutableSet<InetAddress> addresses = delegate.resolveDetailed(hostname).orElse(null);
+        if (addresses == null) {
             ImmutableSet<InetAddress> maybeFallback = fallbackCache.getIfPresent(hostname);
             if (maybeFallback != null) {
                 lookupFallback.mark();
@@ -64,13 +64,20 @@ final class CachingFallbackDnsResolver implements DialogueDnsResolver {
                             UnsafeArg.of("hostname", hostname));
                 }
                 return maybeFallback;
-            } else {
-                lookupFailure.mark();
             }
-        } else {
-            lookupSuccess.mark();
-            fallbackCache.put(hostname, result);
+            lookupFailure.mark();
+            return ImmutableSet.of();
         }
-        return result;
+
+        if (addresses.isEmpty()) {
+            // The fallback covers DNS outages; a removed host must stop receiving requests at its old address.
+            fallbackCache.invalidate(hostname);
+            lookupFailure.mark();
+            return addresses;
+        }
+
+        fallbackCache.put(hostname, addresses);
+        lookupSuccess.mark();
+        return addresses;
     }
 }

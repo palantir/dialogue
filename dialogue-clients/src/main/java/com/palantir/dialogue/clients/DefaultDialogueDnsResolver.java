@@ -17,7 +17,6 @@
 package com.palantir.dialogue.clients;
 
 import com.google.common.collect.ImmutableSet;
-import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -30,7 +29,7 @@ import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.Optional;
 
-final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
+final class DefaultDialogueDnsResolver implements DetailedDialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(DefaultDialogueDnsResolver.class);
 
     private final ClientDnsMetrics metrics;
@@ -40,15 +39,10 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
     }
 
     @Override
-    public ImmutableSet<InetAddress> resolve(String hostname) {
+    public Optional<ImmutableSet<InetAddress>> resolveDetailed(String hostname) {
         Preconditions.checkNotNull(hostname, "hostname is required");
         try {
-            InetAddress[] results = InetAddress.getAllByName(hostname);
-            if (results == null || results.length == 0) {
-                // Defensive check, this should not be possible
-                return ImmutableSet.of();
-            }
-            return ImmutableSet.copyOf(results);
+            return Optional.of(ImmutableSet.copyOf(InetAddress.getAllByName(hostname)));
         } catch (UnknownHostException e) {
             GaiError gaiError = extractGaiError(e, hostname);
             if (log.isDebugEnabled()) {
@@ -60,7 +54,10 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
                         e);
             }
             metrics.failure(gaiError.name()).mark();
-            return ImmutableSet.of();
+            return switch (gaiError) {
+                case EAI_NONAME -> Optional.of(ImmutableSet.of());
+                default -> Optional.empty();
+            };
         }
     }
 
