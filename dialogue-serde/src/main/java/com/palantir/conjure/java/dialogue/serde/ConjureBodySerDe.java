@@ -123,9 +123,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
                         new ExceptionDeserializingErrorDecoder(
-                                ImmutableMap.copyOf(Maps.transformValues(
-                                        key.errorNameToExceptionTypeMarkers(),
-                                        pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))),
+                                ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)),
                                 expectJsonErrors())));
     }
 
@@ -501,12 +499,13 @@ final class ConjureBodySerDe implements BodySerDe {
     private record ExceptionDeserializerCacheKey(
             // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
             // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
-            Type returnType,
-            ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers,
-            DeserializerType type) {
+            Type returnType, ImmutableMap<String, ErrorDeserializerCacheKey> errors, DeserializerType type) {
         static <T> ExceptionDeserializerCacheKey of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
             return new ExceptionDeserializerCacheKey(
-                    args.returnType().getType(), args.errorNameToExceptionTypeMarkers(), type);
+                    args.returnType().getType(),
+                    ImmutableMap.copyOf(Maps.transformValues(
+                            args.errorNameToExceptionTypeMarkers(), ErrorDeserializerCacheKey::of)),
+                    type);
         }
     }
 }
