@@ -70,6 +70,8 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
     private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
+    private final LoadingCache<ImmutableMap<String, ErrorDeserializerCacheKey>, ExceptionDeserializingErrorDecoder>
+            errorDecoders;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
 
     /**
@@ -113,6 +115,13 @@ final class ConjureBodySerDe implements BodySerDe {
         // because evicting a deserializer that decoders still hold would only stop it from being shared.
         this.errorDeserializers =
                 Caffeine.newBuilder().weakValues().build(key -> errorDeserializer(errorEncoding, key));
+        // Generated clients register the same errors for every return type, so a decoder only depends on its set of
+        // errors. Sharing it per set leaves one error map per set rather than one per return type.
+        this.errorDecoders = Caffeine.newBuilder()
+                .weakValues()
+                .build(errors -> new ExceptionDeserializingErrorDecoder(
+                        ImmutableMap.copyOf(Maps.transformValues(errors, errorDeserializers::get)),
+                        expectJsonErrors()));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
@@ -122,9 +131,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         key.type(),
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
-                        new ExceptionDeserializingErrorDecoder(
-                                ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)),
-                                expectJsonErrors())));
+                        errorDecoders.get(key.errors())));
     }
 
     @SuppressWarnings("unchecked")
