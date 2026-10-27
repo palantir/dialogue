@@ -46,15 +46,13 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Extracts the error from a {@link Response}.
- * <p>If the response body is an error, and the error's name is in the {@link #exceptionDeserializers},
+ * <p>If the response body is an error, and the error's name is in the {@link #errorDeserializers},
  * this class attempts to deserialize the {@link Response} body as JSON, to the error type, and throw the corresponding
  * exception. Otherwise, a {@link RemoteException} is thrown. If the
  * {@link Response} does not adhere to the expected format, an {@link UnknownRemoteException} is thrown.
@@ -71,16 +69,16 @@ final class ExceptionDeserializingErrorDecoder {
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
 
-    private final Map<String, ExceptionDeserializer> exceptionDeserializers;
+    private final ImmutableMap<String, ErrorDeserializer> errorDeserializers;
     private final boolean expectJsonErrors;
 
     static ExceptionDeserializingErrorDecoder withoutExceptions() {
-        return new ExceptionDeserializingErrorDecoder(Collections.emptyMap(), false);
+        return new ExceptionDeserializingErrorDecoder(ImmutableMap.of(), false);
     }
 
     ExceptionDeserializingErrorDecoder(
-            Map<String, ExceptionDeserializer> exceptionDeserializers, boolean expectJsonErrors) {
-        this.exceptionDeserializers = ImmutableMap.copyOf(exceptionDeserializers);
+            ImmutableMap<String, ErrorDeserializer> errorDeserializers, boolean expectJsonErrors) {
+        this.errorDeserializers = errorDeserializers;
         this.expectJsonErrors = expectJsonErrors;
     }
 
@@ -184,8 +182,8 @@ final class ExceptionDeserializingErrorDecoder {
             log.debug("Could not find errorName field in error response body - falling back to RemoteException");
             return createRemoteException(body, code);
         }
-        ExceptionDeserializer exceptionDeserializer = exceptionDeserializers.get(errorName);
-        if (exceptionDeserializer == null) {
+        ErrorDeserializer errorDeserializer = errorDeserializers.get(errorName);
+        if (errorDeserializer == null) {
             if (log.isDebugEnabled()) {
                 log.debug(
                         "No deserializer found for error name - falling back to RemoteException",
@@ -195,7 +193,7 @@ final class ExceptionDeserializingErrorDecoder {
         }
         // Attempt to deserialize the error using the deserializer for the specific exception type.
         try {
-            return exceptionDeserializer.deserialize(new ByteArrayInputStream(body), code);
+            return errorDeserializer.deserialize(new ByteArrayInputStream(body), code);
         } catch (Exception e) {
             // If we're unable to deserialize the error as JSON, throw a RemoteException.
             if (expectJsonErrors) {
@@ -303,7 +301,7 @@ final class ExceptionDeserializingErrorDecoder {
     record NamedError(@JsonProperty("errorName") String errorName) {}
 
     /** Deserializes the body of an error response into the exception for that error. */
-    interface ExceptionDeserializer {
-        RemoteException deserialize(InputStream input, int code) throws IOException, ReflectiveOperationException;
+    interface ErrorDeserializer {
+        RemoteException deserialize(InputStream input, int code) throws IOException;
     }
 }

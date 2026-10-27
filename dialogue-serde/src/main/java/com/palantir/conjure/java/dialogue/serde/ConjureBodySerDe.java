@@ -28,8 +28,7 @@ import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
 import com.palantir.conjure.java.api.errors.RemoteException;
-import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
-import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializingErrorDecoder.ExceptionDeserializer;
+import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializingErrorDecoder.ErrorDeserializer;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
@@ -70,8 +69,8 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<Void> emptyBodyDeserializer;
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
+    private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
-    private final LoadingCache<ErrorExceptionTypes, ExceptionDeserializer> errorDeserializers;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -113,7 +112,7 @@ final class ConjureBodySerDe implements BodySerDe {
         // Weak values keep an error's deserializer shared for as long as any decoder holds it. There is no size bound,
         // because evicting a deserializer that decoders still hold would only stop it from being shared.
         this.errorDeserializers =
-                Caffeine.newBuilder().weakValues().build(types -> exceptionDeserializer(errorEncoding, types));
+                Caffeine.newBuilder().weakValues().build(key -> errorDeserializer(errorEncoding, key));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
@@ -124,22 +123,35 @@ final class ConjureBodySerDe implements BodySerDe {
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
                         new ExceptionDeserializingErrorDecoder(
-                                Maps.transformValues(
+                                ImmutableMap.copyOf(Maps.transformValues(
                                         key.errorNameToExceptionTypeMarkers(),
-                                        pair -> errorDeserializers.get(ErrorExceptionTypes.of(pair))),
+                                        pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))),
                                 expectJsonErrors())));
     }
 
-    // Built from the Types rather than a pair's TypeMarkers, which can retain the client that created them and would
-    // outlive it here, since the deserializer is shared with other clients' decoders.
     @SuppressWarnings("unchecked")
-    private static <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
-            ExceptionDeserializer exceptionDeserializer(Encoding errorEncoding, ErrorExceptionTypes types) {
-        Encoding.Deserializer<U> deserializer =
-                (Encoding.Deserializer<U>) errorEncoding.deserializer(TypeMarker.of(types.errorType()));
-        TypeMarker<V> exceptionType = (TypeMarker<V>) TypeMarker.of(types.exceptionType());
-        return (input, code) -> ErrorExceptionPair.getExceptionFromSerializableError(
-                deserializer.deserialize(input), exceptionType, code);
+    private static ErrorDeserializer errorDeserializer(Encoding errorEncoding, ErrorDeserializerCacheKey key) {
+        Encoding.Deserializer<AbstractSerializableError<?>> deserializer =
+                (Encoding.Deserializer<AbstractSerializableError<?>>)
+                        errorEncoding.deserializer(TypeMarker.of(key.errorType()));
+        return (input, code) -> newException(deserializer.deserialize(input), key.exceptionType(), code);
+    }
+
+    // RemoteExceptions constructible from a serializable error MUST have a constructor that takes such an error as the
+    // first argument and an integer http status code as the second argument.
+    private static RemoteException newException(AbstractSerializableError<?> error, Type exceptionType, int code) {
+        try {
+            Class<?> exceptionClass = Class.forName(exceptionType.getTypeName());
+            return (RemoteException)
+                    exceptionClass.getConstructor(error.getClass(), int.class).newInstance(error, code);
+        } catch (ReflectiveOperationException e) {
+            throw new SafeRuntimeException(
+                    "Failed to construct exception using a constructor which has an AbstractSerializableError as the "
+                            + "first argument and an integer http status code as the second argument",
+                    e,
+                    SafeArg.of("exceptionType", exceptionType),
+                    SafeArg.of("error", error.getClass().getSimpleName()));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -476,9 +488,12 @@ final class ConjureBodySerDe implements BodySerDe {
         INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
     }
 
-    private record ErrorExceptionTypes(Type errorType, Type exceptionType) {
-        static ErrorExceptionTypes of(ErrorExceptionPair<?, ?> pair) {
-            return new ErrorExceptionTypes(
+    private record ErrorDeserializerCacheKey(
+            // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
+            // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
+            Type errorType, Type exceptionType) {
+        static ErrorDeserializerCacheKey of(ErrorExceptionPair<?, ?> pair) {
+            return new ErrorDeserializerCacheKey(
                     pair.errorType().getType(), pair.exceptionType().getType());
         }
     }
@@ -489,13 +504,6 @@ final class ConjureBodySerDe implements BodySerDe {
             Type returnType,
             ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers,
             DeserializerType type) {
-        ExceptionDeserializerCacheKey {
-            Preconditions.checkNotNull(returnType, "returnType must be non-null");
-            Preconditions.checkNotNull(
-                    errorNameToExceptionTypeMarkers, "errorNameToExceptionTypeMarkers must be non-null");
-            Preconditions.checkNotNull(type, "type must be non-null");
-        }
-
         static <T> ExceptionDeserializerCacheKey of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
             return new ExceptionDeserializerCacheKey(
                     args.returnType().getType(), args.errorNameToExceptionTypeMarkers(), type);
