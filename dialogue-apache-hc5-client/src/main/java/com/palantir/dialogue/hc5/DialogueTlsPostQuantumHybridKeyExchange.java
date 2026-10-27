@@ -38,6 +38,12 @@ import org.jspecify.annotations.Nullable;
  * hybrid key agreement scheme used, which combines X25519 with ML-KEM (JEP 527 adds two other hybrid schemes which
  * use different curves, but they are not enabled by default).
  * <p>
+ * See:
+ * <ul>
+ *     <li><a href="https://bugs.openjdk.org/browse/JDK-8314323">JDK-8314323</a></li>
+ *     <li><a href="https://github.com/openjdk/jdk25u/commit/83e90e7d76e9ca804384d47a4d529e91f79d8981">jdk25u commit 83e90e7d76</a></li>
+ * </ul>
+ * <p>
  * The hybrid scheme causes the JVM to send a ClientHello TLS handshake message containing information for both
  * X25519 and ML-KEM key exchange protocols. Unfortunately, some TLS implementations do not properly handle such
  * messages as they can be large enough to require the receiver to perform multiple TCP read operations. Correct
