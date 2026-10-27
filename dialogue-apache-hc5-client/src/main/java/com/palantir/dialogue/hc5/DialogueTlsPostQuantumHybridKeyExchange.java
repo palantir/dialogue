@@ -76,7 +76,7 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Because we forcibly reorder the configured named groups, {@code X25519MLKEM768} cannot be made the preferred group
  * again using standard JSSE configuration options. Instead, setting the Dialogue-specific
- * {@code dialogue.tls.allowPostQuantumHybridKeyExchange} system property to {@code true} will bypass this logic and
+ * {@code dialogue.tls.useJvmDefaultNamedGroupsOrdering} system property to {@code true} will bypass this logic and
  * use the named groups exactly as configured.
  * <p>
  * A future change should look at allowing post-quantum key exchange algorithms at first, and falling back to
@@ -92,11 +92,11 @@ final class DialogueTlsPostQuantumHybridKeyExchange {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueTlsPostQuantumHybridKeyExchange.class);
 
     // dialogue-specific system property to opt-out of reordering HYBRID_PQ_NAMED_GROUP in the configured namedGroups
-    private static final String DIALOGUE_ALLOW_POST_QUANTUM_HYBRID_KEY_EXCHANGE =
-            "dialogue.tls.allowPostQuantumHybridKeyExchange";
+    private static final String DIALOGUE_USE_JVM_DEFAULT_NAMED_GROUPS_ORDERING =
+            "dialogue.tls.useJvmDefaultNamedGroupsOrdering";
     // Read once when this class is initialized, which happens on the first TLS handshake.
-    private static final boolean IS_ALLOW_POST_QUANTUM_HYBRID_KEY_EXCHANGE =
-            Boolean.getBoolean(DIALOGUE_ALLOW_POST_QUANTUM_HYBRID_KEY_EXCHANGE);
+    private static final boolean IS_USE_JVM_DEFAULT_NAMED_GROUPS_ORDERING =
+            Boolean.getBoolean(DIALOGUE_USE_JVM_DEFAULT_NAMED_GROUPS_ORDERING);
 
     // Hybrid post-quantum key exchange added by JEP 527. Its key share makes the ClientHello large enough to span
     // multiple TCP packets, which some servers and middleboxes fail to handle (see https://tldr.fail/).
@@ -119,19 +119,19 @@ final class DialogueTlsPostQuantumHybridKeyExchange {
      * request it with a HelloRetryRequest.
      */
     static void reorderPostQuantumHybridNamedGroup(SSLParameters sslParameters) {
-        reorderPostQuantumHybridNamedGroup(sslParameters, IS_ALLOW_POST_QUANTUM_HYBRID_KEY_EXCHANGE);
+        reorderPostQuantumHybridNamedGroup(sslParameters, IS_USE_JVM_DEFAULT_NAMED_GROUPS_ORDERING);
     }
 
     /**
      * As {@link #reorderPostQuantumHybridNamedGroup(SSLParameters)}, but with the opt-out passed explicitly rather
-     * than read from the {@code dialogue.tls.allowPostQuantumHybridKeyExchange} system property.
+     * than read from the {@code dialogue.tls.useJvmDefaultNamedGroupsOrdering} system property.
      */
     @VisibleForTesting
     static void reorderPostQuantumHybridNamedGroup(
-            SSLParameters sslParameters, boolean allowPostQuantumHybridKeyExchange) {
-        // if the dialogue-specific system property to allow post-quantum hybrid key exchange schemes is enabled,
-        // then do nothing; this reverts to the JVM's default behavior.
-        if (allowPostQuantumHybridKeyExchange) {
+            SSLParameters sslParameters, boolean useJvmDefaultNamedGroupsOrdering) {
+        // if the dialogue-specific system property to use the JVM's named groups ordering is enabled, then do
+        // nothing; this reverts to the JVM's default behavior.
+        if (useJvmDefaultNamedGroupsOrdering) {
             return;
         }
 
