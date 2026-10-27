@@ -21,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.common.util.concurrent.Futures;
@@ -107,6 +109,32 @@ public final class StickyEndpointChannels2Test {
 
         assertThat(QueueAttachments.getQueueOverride(request1.rawRequest))
                 .isNotEqualTo(QueueAttachments.getQueueOverride(request2.rawRequest));
+    }
+
+    @Test
+    @SuppressWarnings("FutureReturnValueIgnored")
+    public void channels_share_delegate_endpoint_channel_for_enum_endpoint() {
+        Channel channel1 = sticky.get();
+        Channel channel2 = sticky.get();
+
+        TestHarness request1 =
+                new TestHarness(channel1).expectAddStickyTokenRequest().execute();
+        TestHarness request2 =
+                new TestHarness(channel2).expectAddStickyTokenRequest().execute();
+
+        verify(endpointChannelFactory, times(1)).endpoint(endpoint);
+        assertThat(QueueAttachments.getQueueOverride(request1.rawRequest))
+                .isNotEqualTo(QueueAttachments.getQueueOverride(request2.rawRequest));
+    }
+
+    @Test
+    public void channels_do_not_share_delegate_endpoint_channel_for_non_enum_endpoint() {
+        Endpoint nonEnumEndpoint = mock(Endpoint.class);
+
+        ((EndpointChannelFactory) sticky.get()).endpoint(nonEnumEndpoint);
+        ((EndpointChannelFactory) sticky.get()).endpoint(nonEnumEndpoint);
+
+        verify(endpointChannelFactory, times(2)).endpoint(nonEnumEndpoint);
     }
 
     @Test
