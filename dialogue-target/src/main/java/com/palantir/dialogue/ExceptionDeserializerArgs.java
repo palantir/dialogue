@@ -139,6 +139,12 @@ public final class ExceptionDeserializerArgs<T> {
     public record ErrorExceptionPair<
             U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>(
             TypeMarker<U> errorType, TypeMarker<V> exceptionType) {
+        /**
+         * Retained for older versions of dialogue-serde, which may share a classpath with a newer dialogue-target.
+         *
+         * @deprecated unused by current versions of dialogue-serde
+         */
+        @Deprecated
         @SuppressWarnings("unchecked")
         public static <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
                 V getExceptionFromSerializableError(U error, TypeMarker<V> exceptionType, int code)

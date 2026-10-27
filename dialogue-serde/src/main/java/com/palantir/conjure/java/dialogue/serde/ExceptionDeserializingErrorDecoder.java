@@ -20,20 +20,16 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
-import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.QosReasons;
 import com.palantir.conjure.java.api.errors.QosReasons.QosResponseDecodingAdapter;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
-import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer;
-import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Arg;
@@ -50,15 +46,13 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Extracts the error from a {@link Response}.
- * <p>If the response body is an error, and the error's name is in the {@link #errorNameToExceptionDeserializerMap},
+ * <p>If the response body is an error, and the error's name is in the {@link #errorDeserializers},
  * this class attempts to deserialize the {@link Response} body as JSON, to the error type, and throw the corresponding
  * exception. Otherwise, a {@link RemoteException} is thrown. If the
  * {@link Response} does not adhere to the expected format, an {@link UnknownRemoteException} is thrown.
@@ -75,18 +69,16 @@ final class ExceptionDeserializingErrorDecoder {
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
 
-    private final Map<String, DeserializerExceptionPair<?, ?>> errorNameToExceptionDeserializerMap;
+    private final ImmutableMap<String, ErrorDeserializer> errorDeserializers;
     private final boolean expectJsonErrors;
 
     static ExceptionDeserializingErrorDecoder withoutExceptions() {
-        return new ExceptionDeserializingErrorDecoder(Collections.emptyMap(), false);
+        return new ExceptionDeserializingErrorDecoder(ImmutableMap.of(), false);
     }
 
     ExceptionDeserializingErrorDecoder(
-            Map<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMap, boolean expectJsonErrors) {
-        this.errorNameToExceptionDeserializerMap = ImmutableMap.copyOf(Maps.transformValues(
-                errorNameToExceptionTypeMap,
-                errorExceptionPair -> createDeserializerForException(JSON_ENCODING, errorExceptionPair)));
+            ImmutableMap<String, ErrorDeserializer> errorDeserializers, boolean expectJsonErrors) {
+        this.errorDeserializers = errorDeserializers;
         this.expectJsonErrors = expectJsonErrors;
     }
 
@@ -190,8 +182,8 @@ final class ExceptionDeserializingErrorDecoder {
             log.debug("Could not find errorName field in error response body - falling back to RemoteException");
             return createRemoteException(body, code);
         }
-        DeserializerExceptionPair<?, ?> deserializerExceptionPair = errorNameToExceptionDeserializerMap.get(errorName);
-        if (deserializerExceptionPair == null) {
+        ErrorDeserializer errorDeserializer = errorDeserializers.get(errorName);
+        if (errorDeserializer == null) {
             if (log.isDebugEnabled()) {
                 log.debug(
                         "No deserializer found for error name - falling back to RemoteException",
@@ -201,12 +193,7 @@ final class ExceptionDeserializingErrorDecoder {
         }
         // Attempt to deserialize the error using the deserializer for the specific exception type.
         try {
-            // The concrete error type is a subtype of AbstractSerializableError<?> at runtime.
-            // AbstractSerializableError is an abstract class.
-            AbstractSerializableError<?> error =
-                    deserializerExceptionPair.deserializer().deserialize(new ByteArrayInputStream(body));
-            return ErrorExceptionPair.getExceptionFromSerializableError(
-                    error, deserializerExceptionPair.exceptionType(), code);
+            return errorDeserializer.deserialize(new ByteArrayInputStream(body), code);
         } catch (Exception e) {
             // If we're unable to deserialize the error as JSON, throw a RemoteException.
             if (expectJsonErrors) {
@@ -313,14 +300,8 @@ final class ExceptionDeserializingErrorDecoder {
 
     record NamedError(@JsonProperty("errorName") String errorName) {}
 
-    private record DeserializerExceptionPair<
-            U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>(
-            Encoding.Deserializer<U> deserializer, TypeMarker<V> exceptionType) {}
-
-    // Purely to provide Java type inference information.
-    private static <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
-            DeserializerExceptionPair<U, V> createDeserializerForException(
-                    Encoding encoding, ErrorExceptionPair<U, V> pair) {
-        return new DeserializerExceptionPair<>(encoding.deserializer(pair.errorType()), pair.exceptionType());
+    /** Deserializes the body of an error response into the exception for that error. */
+    interface ErrorDeserializer {
+        RemoteException deserialize(InputStream input, int code) throws IOException;
     }
 }

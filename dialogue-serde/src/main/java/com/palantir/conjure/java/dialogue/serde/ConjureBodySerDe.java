@@ -23,8 +23,12 @@ import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
+import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializingErrorDecoder.ErrorDeserializer;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
@@ -65,6 +69,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<Void> emptyBodyDeserializer;
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
+    private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
 
     /**
@@ -101,6 +106,13 @@ final class ConjureBodySerDe implements BodySerDe {
                         emptyContainerDeserializer,
                         TypeMarker.of(type),
                         ExceptionDeserializingErrorDecoder.withoutExceptions()));
+        // Errors are always JSON, see ExceptionDeserializingErrorDecoder. Readers are only built when an error of that
+        // type is first decoded: most endpoints never see most of their errors.
+        Encoding errorEncoding = new LazilyInitializedEncoding(Encodings.json());
+        // Weak values keep an error's deserializer shared for as long as any decoder holds it. There is no size bound,
+        // because evicting a deserializer that decoders still hold would only stop it from being shared.
+        this.errorDeserializers =
+                Caffeine.newBuilder().weakValues().build(key -> new ReflectiveErrorDeserializer(errorEncoding, key));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
@@ -111,7 +123,8 @@ final class ConjureBodySerDe implements BodySerDe {
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
                         new ExceptionDeserializingErrorDecoder(
-                                key.errorNameToExceptionTypeMarkers(), expectJsonErrors())));
+                                ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)),
+                                expectJsonErrors())));
     }
 
     @SuppressWarnings("unchecked")
@@ -442,28 +455,64 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
+    private static final class ReflectiveErrorDeserializer implements ErrorDeserializer {
+        private final Encoding.Deserializer<AbstractSerializableError<?>> deserializer;
+        private final Type exceptionType;
+
+        @SuppressWarnings("unchecked")
+        ReflectiveErrorDeserializer(Encoding errorEncoding, ErrorDeserializerCacheKey key) {
+            this.deserializer = (Encoding.Deserializer<AbstractSerializableError<?>>)
+                    errorEncoding.deserializer(TypeMarker.of(key.errorType()));
+            this.exceptionType = key.exceptionType();
+        }
+
+        // RemoteExceptions constructible from a serializable error MUST have a constructor that takes such an error as
+        // the first argument and an integer http status code as the second argument.
+        @Override
+        public RemoteException deserialize(InputStream input, int code) throws IOException {
+            AbstractSerializableError<?> error = deserializer.deserialize(input);
+            try {
+                Class<?> exceptionClass = Class.forName(exceptionType.getTypeName());
+                return (RemoteException) exceptionClass
+                        .getConstructor(error.getClass(), int.class)
+                        .newInstance(error, code);
+            } catch (ReflectiveOperationException e) {
+                throw new SafeRuntimeException(
+                        "Failed to construct exception using a constructor which has an AbstractSerializableError as "
+                                + "the first argument and an integer http status code as the second argument",
+                        e,
+                        SafeArg.of("exceptionType", exceptionType),
+                        SafeArg.of("error", error.getClass().getSimpleName()));
+            }
+        }
+    }
+
     private enum DeserializerType {
         STANDARD,
         EMPTY_BODY,
         INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
     }
 
+    private record ErrorDeserializerCacheKey(
+            // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
+            // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
+            Type errorType, Type exceptionType) {
+        static ErrorDeserializerCacheKey of(ErrorExceptionPair<?, ?> pair) {
+            return new ErrorDeserializerCacheKey(
+                    pair.errorType().getType(), pair.exceptionType().getType());
+        }
+    }
+
     private record ExceptionDeserializerCacheKey(
             // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
             // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
-            Type returnType,
-            ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers,
-            DeserializerType type) {
-        ExceptionDeserializerCacheKey {
-            Preconditions.checkNotNull(returnType, "returnType must be non-null");
-            Preconditions.checkNotNull(
-                    errorNameToExceptionTypeMarkers, "errorNameToExceptionTypeMarkers must be non-null");
-            Preconditions.checkNotNull(type, "type must be non-null");
-        }
-
+            Type returnType, ImmutableMap<String, ErrorDeserializerCacheKey> errors, DeserializerType type) {
         static <T> ExceptionDeserializerCacheKey of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
             return new ExceptionDeserializerCacheKey(
-                    args.returnType().getType(), args.errorNameToExceptionTypeMarkers(), type);
+                    args.returnType().getType(),
+                    ImmutableMap.copyOf(Maps.transformValues(
+                            args.errorNameToExceptionTypeMarkers(), ErrorDeserializerCacheKey::of)),
+                    type);
         }
     }
 }

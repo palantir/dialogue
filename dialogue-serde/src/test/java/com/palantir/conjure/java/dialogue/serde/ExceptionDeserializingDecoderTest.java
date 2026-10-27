@@ -20,16 +20,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.google.common.collect.ImmutableList;
+import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
+import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.ComplexArg;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.ConjureError;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorException;
+import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorParameters;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
@@ -43,6 +51,7 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -509,6 +518,98 @@ final class ExceptionDeserializingDecoderTest {
             return is.readAllBytes();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    @Test
+    void errorDeserializerIsBuiltOnFirstDecode() throws IOException {
+        Deserializer<String> deserializer = conjureBodySerDe("application/json")
+                .deserializer(ExceptionDeserializerArgs.<String>builder()
+                        .returnType(new TypeMarker<>() {})
+                        .exception(
+                                ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name(),
+                                new TypeMarker<CountedTestError>() {},
+                                new TypeMarker<CountedTestErrorException>() {})
+                        .build());
+        assertThat(CountedTestErrorDeserializer.INSTANCES)
+                .as("constructing the deserializer must not build the error deserializer")
+                .hasValue(0);
+
+        assertThat(deserializer.deserialize(TestResponse.withBody("\"ok\"")
+                        .contentType("application/json")
+                        .code(200)))
+                .isEqualTo("ok");
+        assertThat(CountedTestErrorDeserializer.INSTANCES)
+                .as("a successful response must not build the error deserializer")
+                .hasValue(0);
+
+        for (int i = 0; i < 3; i++) {
+            ServiceException error = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
+            assertThatThrownBy(() -> deserializer.deserialize(testErrorResponse(error)))
+                    .isInstanceOfSatisfying(
+                            CountedTestErrorException.class,
+                            exception -> assertThat(exception.error().errorInstanceId())
+                                    .isEqualTo(error.getErrorInstanceId()));
+        }
+        assertThat(CountedTestErrorDeserializer.INSTANCES)
+                .as("decoding the error must use its deserializer")
+                .hasValue(1);
+    }
+
+    private static TestResponse testErrorResponse(ServiceException error) throws IOException {
+        return TestResponse.withBody(MAPPER.writeValueAsString(
+                        ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(error)))
+                .contentType("application/json")
+                .code(400);
+    }
+
+    // Jackson creates a CountedTestErrorDeserializer when it builds a reader for CountedTestError, so the instance
+    // count shows when that happens. Only the test above uses CountedTestError, so no other test builds its reader.
+    @JsonDeserialize(using = CountedTestErrorDeserializer.class)
+    static final class CountedTestError extends AbstractSerializableError<TestErrorParameters> {
+        CountedTestError(String errorCode, String errorName, String errorInstanceId, TestErrorParameters parameters) {
+            super(errorCode, errorName, errorInstanceId, parameters);
+        }
+    }
+
+    static final class CountedTestErrorDeserializer extends JsonDeserializer<CountedTestError> {
+        static final AtomicInteger INSTANCES = new AtomicInteger();
+
+        CountedTestErrorDeserializer() {
+            INSTANCES.incrementAndGet();
+        }
+
+        @Override
+        public CountedTestError deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+            JsonNode node = parser.readValueAsTree();
+            return new CountedTestError(
+                    node.get("errorCode").asText(),
+                    node.get("errorName").asText(),
+                    node.get("errorInstanceId").asText(),
+                    context.readTreeAsValue(node.get("parameters"), TestErrorParameters.class));
+        }
+    }
+
+    public static final class CountedTestErrorException extends RemoteException
+            implements SerializableErrorProvider<TestErrorParameters> {
+        private final CountedTestError error;
+
+        // Constructor needs to be public so that the exception can be created via reflection
+        @SuppressWarnings("RedundantModifier")
+        public CountedTestErrorException(CountedTestError error, int code) {
+            super(
+                    SerializableError.builder()
+                            .errorCode(error.errorCode())
+                            .errorName(error.errorName())
+                            .errorInstanceId(error.errorInstanceId())
+                            .build(),
+                    code);
+            this.error = error;
+        }
+
+        @Override
+        public CountedTestError error() {
+            return error;
         }
     }
 
