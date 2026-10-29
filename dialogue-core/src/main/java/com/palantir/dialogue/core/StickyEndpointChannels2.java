@@ -29,7 +29,9 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -94,6 +96,10 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         private final Supplier<Channel> queueOverrideSupplier;
         private final EndpointChannelFactory delegate;
 
+        // Sticky sessions may be created at a high rate, so the delegate chain is shared between sessions.
+        // Only enum endpoints are cached: they are finite, while other Endpoint instances may be created per call.
+        private final Map<Endpoint, EndpointChannel> enumEndpointChannels = new ConcurrentHashMap<>();
+
         StickyEndpointChannels2EndpointFactorySupplier(
                 Supplier<Channel> queueOverrideSupplier, EndpointChannelFactory delegate) {
             this.queueOverrideSupplier = queueOverrideSupplier;
@@ -104,12 +110,19 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         public EndpointChannelFactory get() {
             Channel queueOverride = queueOverrideSupplier.get();
             return endpoint -> {
-                EndpointChannel endpointChannel = delegate.endpoint(endpoint);
+                EndpointChannel endpointChannel = delegateEndpoint(endpoint);
                 return (EndpointChannel) request -> {
                     QueueAttachments.setQueueOverride(request, queueOverride);
                     return endpointChannel.execute(request);
                 };
             };
+        }
+
+        private EndpointChannel delegateEndpoint(Endpoint endpoint) {
+            if (endpoint instanceof Enum<?>) {
+                return enumEndpointChannels.computeIfAbsent(endpoint, delegate::endpoint);
+            }
+            return delegate.endpoint(endpoint);
         }
     }
 
