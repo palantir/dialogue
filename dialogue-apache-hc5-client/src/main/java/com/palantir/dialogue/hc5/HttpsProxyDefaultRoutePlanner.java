@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.hc5;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.client.config.HttpsProxies;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -43,9 +44,11 @@ import org.jspecify.annotations.Nullable;
 final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
     /**
      * Each client only talks to the hosts in its configured URIs, but the client outlives URI reloads, so we bound
-     * the cache and start over if a client sees more distinct targets than this.
+     * the cache and start over if a client sees more distinct targets than this. This is a generous guess rather than
+     * a measured limit, and it is approximate: concurrent misses may briefly push the size a little past it.
      */
-    private static final int MAX_CACHED_TARGET_URIS = 256;
+    @VisibleForTesting
+    static final int MAX_CACHED_TARGET_URIS = 256;
 
     private final ProxySelector proxySelector;
 

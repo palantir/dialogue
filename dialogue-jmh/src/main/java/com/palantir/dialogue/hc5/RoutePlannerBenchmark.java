@@ -47,13 +47,21 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 public class RoutePlannerBenchmark {
 
     private final DialogueRoutePlanner planner = new DialogueRoutePlanner(ProxySelector.getDefault());
-    private final HttpHost host = new HttpHost("https", "some-service.example.com", 8443);
+    private final String hostName = "some-service.example.com";
+    private final HttpHost sharedHost = new HttpHost("https", hostName, 8443);
     private final HttpClientContext context = HttpClientContext.create();
 
+    /** Like real requests, which create an equal but distinct target host each time. */
     @Threads(1)
     @Benchmark
     public HttpRoute determineRoute() throws HttpException {
-        return planner.determineRoute(host, context);
+        return planner.determineRoute(new HttpHost("https", hostName, 8443), context);
+    }
+
+    @Threads(1)
+    @Benchmark
+    public HttpRoute determineRouteSharedHost() throws HttpException {
+        return planner.determineRoute(sharedHost, context);
     }
 
     public static void main(String[] _args) throws Exception {

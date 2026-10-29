@@ -32,7 +32,9 @@ import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 
+@Isolated // nullSelectorUsesDefault replaces the JVM-wide default ProxySelector
 final class HttpsProxyDefaultRoutePlannerTest {
 
     private static final InetSocketAddress PROXY_ADDRESS =
@@ -130,11 +132,33 @@ final class HttpsProxyDefaultRoutePlannerTest {
     }
 
     @Test
+    void clearsWhenFull() throws HttpException {
+        TestProxySelector selector = new TestProxySelector(_uri -> List.of(Proxy.NO_PROXY));
+        HttpsProxyDefaultRoutePlanner planner = new HttpsProxyDefaultRoutePlanner(selector);
+        HttpHost first = new HttpHost("https", "host-0.example.com", 443);
+        determineProxy(planner, first);
+        for (int i = 1; i <= HttpsProxyDefaultRoutePlanner.MAX_CACHED_TARGET_URIS; i++) {
+            determineProxy(planner, new HttpHost("https", "host-" + i + ".example.com", 443));
+        }
+        determineProxy(planner, first);
+
+        URI firstUri = selector.uris.get(0);
+        URI lastUri = selector.uris.get(selector.uris.size() - 1);
+        assertThat(lastUri).isEqualTo(firstUri).isNotSameAs(firstUri);
+    }
+
+    @Test
     @SuppressWarnings("NullAway") // exercising the null selector fallback
     void nullSelectorUsesDefault() throws HttpException {
-        HttpHost target = new HttpHost("https", "some-host.example.com", 443);
-        assertThat(determineProxy(new HttpsProxyDefaultRoutePlanner(null), target))
-                .isEqualTo(determineProxy(new HttpsProxyDefaultRoutePlanner(ProxySelector.getDefault()), target));
+        ProxySelector original = ProxySelector.getDefault();
+        ProxySelector.setDefault(new TestProxySelector(_uri -> List.of(new Proxy(Proxy.Type.HTTP, PROXY_ADDRESS))));
+        try {
+            HttpHost target = new HttpHost("https", "some-host.example.com", 443);
+            assertThat(determineProxy(new HttpsProxyDefaultRoutePlanner(null), target))
+                    .isEqualTo(new HttpHost("http", "proxy.example.com", 3128));
+        } finally {
+            ProxySelector.setDefault(original);
+        }
     }
 
     private static HttpHost determineProxy(HttpsProxyDefaultRoutePlanner planner, HttpHost target)
