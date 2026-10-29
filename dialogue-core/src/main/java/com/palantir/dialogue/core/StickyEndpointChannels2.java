@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -100,13 +99,11 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         // Sticky sessions may be created at a high rate, so the delegate chain is shared between sessions.
         // Only enum endpoints are cached: they are finite, while other Endpoint instances may be created per call.
         private final Map<Endpoint, EndpointChannel> enumEndpointChannels = new ConcurrentHashMap<>();
-        private final Function<Endpoint, EndpointChannel> createDelegate;
 
         StickyEndpointChannels2EndpointFactorySupplier(
                 Supplier<Channel> queueOverrideSupplier, EndpointChannelFactory delegate) {
             this.queueOverrideSupplier = queueOverrideSupplier;
             this.delegate = delegate;
-            this.createDelegate = delegate::endpoint;
         }
 
         @Override
@@ -123,7 +120,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
 
         private EndpointChannel delegateEndpoint(Endpoint endpoint) {
             if (endpoint instanceof Enum<?>) {
-                return enumEndpointChannels.computeIfAbsent(endpoint, createDelegate);
+                return enumEndpointChannels.computeIfAbsent(endpoint, delegate::endpoint);
             }
             return delegate.endpoint(endpoint);
         }
