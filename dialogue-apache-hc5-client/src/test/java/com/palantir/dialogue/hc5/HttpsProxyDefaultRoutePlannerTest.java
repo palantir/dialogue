@@ -77,30 +77,25 @@ final class HttpsProxyDefaultRoutePlannerTest {
         });
         HttpsProxyDefaultRoutePlanner planner = new HttpsProxyDefaultRoutePlanner(selector);
 
-        for (int round = 0; round < 3; round++) {
+        for (int round = 0; round < 2; round++) {
             for (int i = 0; i < targets.size(); i++) {
                 assertThat(determineProxy(planner, targets.get(i))).isEqualTo(new HttpHost("http", "proxy", 1000 + i));
             }
         }
-        assertThat(selector.uris).hasSize(3 * targets.size());
+        assertThat(selector.uris).hasSize(2 * targets.size());
     }
 
     @Test
-    void preservesHostNameCase() throws Exception {
+    void hostNameCaseVariantsShareTargetUri() throws HttpException {
         TestProxySelector selector = new TestProxySelector(_uri -> List.of(Proxy.NO_PROXY));
         HttpsProxyDefaultRoutePlanner planner = new HttpsProxyDefaultRoutePlanner(selector);
-        HttpHost upper = new HttpHost("https", "Some-Host.example.com", 443);
-        HttpHost lower = new HttpHost("https", "some-host.example.com", 443);
-        assertThat(upper).isEqualTo(lower);
 
-        determineProxy(planner, upper);
-        determineProxy(planner, lower);
-        determineProxy(planner, upper);
+        determineProxy(planner, new HttpHost("https", "Some-Host.example.com", 443));
+        determineProxy(planner, new HttpHost("https", "some-host.example.com", 443));
 
-        assertThat(selector.uris)
-                .containsExactly(new URI(upper.toURI()), new URI(lower.toURI()), new URI(upper.toURI()))
-                .extracting(URI::getHost)
-                .containsExactly("Some-Host.example.com", "some-host.example.com", "Some-Host.example.com");
+        assertThat(selector.uris).hasSize(2);
+        assertThat(selector.uris.get(1)).isSameAs(selector.uris.get(0));
+        assertThat(selector.uris.get(0).getHost()).isEqualTo("Some-Host.example.com");
     }
 
     @Test
@@ -135,9 +130,9 @@ final class HttpsProxyDefaultRoutePlannerTest {
     void clearsWhenFull() throws HttpException {
         TestProxySelector selector = new TestProxySelector(_uri -> List.of(Proxy.NO_PROXY));
         HttpsProxyDefaultRoutePlanner planner = new HttpsProxyDefaultRoutePlanner(selector);
-        HttpHost first = new HttpHost("https", "host-0.example.com", 443);
+        HttpHost first = new HttpHost("https", "first.example.com", 443);
         determineProxy(planner, first);
-        for (int i = 1; i <= HttpsProxyDefaultRoutePlanner.MAX_CACHED_TARGET_URIS; i++) {
+        for (int i = 0; i < HttpsProxyDefaultRoutePlanner.MAX_CACHED_TARGET_URIS; i++) {
             determineProxy(planner, new HttpHost("https", "host-" + i + ".example.com", 443));
         }
         determineProxy(planner, first);

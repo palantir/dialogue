@@ -57,7 +57,7 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
      * The {@link ProxySelector} result is not cached, since selectors like the JDK default read system properties
      * on every call.
      */
-    private final ConcurrentMap<HttpHost, TargetUri> targetUris = new ConcurrentHashMap<>();
+    private final ConcurrentMap<HttpHost, URI> targetUris = new ConcurrentHashMap<>();
 
     HttpsProxyDefaultRoutePlanner(ProxySelector proxySelector) {
         super(null);
@@ -93,10 +93,11 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
     }
 
     private URI getTargetUri(HttpHost target) throws HttpException {
-        TargetUri cached = targetUris.get(target);
-        // HttpHost equality ignores host name case, but toURI preserves it
-        if (cached != null && cached.hostName().equals(target.getHostName())) {
-            return cached.uri();
+        // HttpHost equality ignores host name case, so case variants share a URI. That's fine since the scheme and
+        // host components of a URI are case-insensitive.
+        URI cached = targetUris.get(target);
+        if (cached != null) {
+            return cached;
         }
         final URI targetUri;
         try {
@@ -107,7 +108,7 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
         if (targetUris.size() >= MAX_CACHED_TARGET_URIS) {
             targetUris.clear();
         }
-        targetUris.put(target, new TargetUri(target.getHostName(), targetUri));
+        targetUris.put(target, targetUri);
         return targetUri;
     }
 
@@ -132,6 +133,4 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
         }
         return result;
     }
-
-    private record TargetUri(String hostName, URI uri) {}
 }
