@@ -63,6 +63,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
@@ -108,7 +109,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
                 .deadlineEnforcement(params.deadlineEnforcement())
                 .concurrencyLimiterExponentialRamp(params.concurrencyLimiterExponentialRamp())
-                .concurrencyLimiterExponentialRampInitialLimit(params.concurrencyLimiterExponentialRampInitialLimit())
                 .build();
     }
 
@@ -168,15 +168,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         Optional<Boolean> deadlineEnforcement();
 
-        @Value.Default
-        default boolean concurrencyLimiterExponentialRamp() {
-            return false;
-        }
-
-        @Value.Default
-        default int concurrencyLimiterExponentialRampInitialLimit() {
-            return 20;
-        }
+        OptionalInt concurrencyLimiterExponentialRamp();
     }
 
     @Override
@@ -464,16 +456,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled) {
-        return new ReloadingClientFactory(params.withConcurrencyLimiterExponentialRamp(enabled), cache);
-    }
-
-    @Override
-    public ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled, int limit) {
-        return new ReloadingClientFactory(
-                params.withConcurrencyLimiterExponentialRamp(enabled)
-                        .withConcurrencyLimiterExponentialRampInitialLimit(limit),
-                cache);
+    public ReloadingFactory withConcurrencyLimiterExponentialRamp(OptionalInt initialLimit) {
+        return new ReloadingClientFactory(params.withConcurrencyLimiterExponentialRamp(initialLimit), cache);
     }
 
     @Override

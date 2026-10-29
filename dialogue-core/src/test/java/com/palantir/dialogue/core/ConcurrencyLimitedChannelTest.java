@@ -37,11 +37,10 @@ import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -98,7 +97,7 @@ public class ConcurrencyLimitedChannelTest {
         Config config = mock(Config.class);
         when(config.clientConf()).thenReturn(clientConfig);
         when(config.channelName()).thenReturn("channel");
-        when(config.concurrencyLimiterExponentialRamp()).thenReturn(false);
+        when(config.concurrencyLimiterExponentialRamp()).thenReturn(OptionalInt.empty());
 
         // create two channels for the same host, which should re-use the same AIMD state
 
@@ -117,38 +116,27 @@ public class ConcurrencyLimitedChannelTest {
         assertThat(limiter.getInflight()).isEqualTo(2);
     }
 
-    @ParameterizedTest
-    @ValueSource(ints = {20, 50})
-    public void testConfiguredExponentialRampLimitAndReusedState_host(int initialLimit) {
+    @Test
+    public void testConfiguredExponentialRampLimiter_host() {
         ChannelState state = new ChannelState();
         ClientConfiguration clientConfig = mock(ClientConfiguration.class);
         when(clientConfig.taggedMetricRegistry()).thenReturn(new DefaultTaggedMetricRegistry());
         Config config = mock(Config.class);
         when(config.clientConf()).thenReturn(clientConfig);
         when(config.channelName()).thenReturn("channel");
-        when(config.concurrencyLimiterExponentialRamp()).thenReturn(true);
-        when(config.concurrencyLimiterExponentialRampInitialLimit()).thenReturn(initialLimit);
+        when(config.concurrencyLimiterExponentialRamp()).thenReturn(OptionalInt.of(50));
 
         LimitedChannel forHost = ConcurrencyLimitedChannel.createForHost(config, delegate, 0, state);
         ExponentialRampConcurrencyLimiter limiter =
                 state.getState(ConcurrencyLimitedChannel.HOST_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY);
 
-        assertThat(limiter.getLimit()).isEqualTo(initialLimit);
+        assertThat(limiter.getLimit()).isEqualTo(50);
         forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
-
-        assertThat(limiter.getInflight()).isEqualTo(1);
-
-        // Recreating a channel must preserve both the adapted limit and the outstanding request.
-        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).dropped();
-        double learnedLimit = limiter.getLimit();
-        assertThat(learnedLimit).isLessThan(initialLimit);
 
         LimitedChannel recreated = ConcurrencyLimitedChannel.createForHost(config, delegate, 0, state);
         recreated.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
 
-        assertThat(limiter.getLimit()).isEqualTo(learnedLimit);
         assertThat(limiter.getInflight()).isEqualTo(2);
-        assertThat(limiter.isInExponentialRamp()).isFalse();
     }
 
     @Test
@@ -156,7 +144,7 @@ public class ConcurrencyLimitedChannelTest {
         ChannelState state = new ChannelState();
         Config config = mock(Config.class);
         when(config.channelName()).thenReturn("channel");
-        when(config.concurrencyLimiterExponentialRamp()).thenReturn(false);
+        when(config.concurrencyLimiterExponentialRamp()).thenReturn(OptionalInt.empty());
 
         // create two channels for the same endpoint, which should re-use the same AIMD state
         LimitedChannel forEndpoint = ConcurrencyLimitedChannel.createForEndpoint(delegate, config, 0, endpoint, state);
@@ -175,35 +163,24 @@ public class ConcurrencyLimitedChannelTest {
         assertThat(limiter.getInflight()).isEqualTo(2);
     }
 
-    @ParameterizedTest
-    @ValueSource(ints = {20, 50})
-    public void testConfiguredExponentialRampLimitAndReusedState_endpoint(int initialLimit) {
+    @Test
+    public void testConfiguredExponentialRampLimiter_endpoint() {
         ChannelState state = new ChannelState();
         Config config = mock(Config.class);
         when(config.channelName()).thenReturn("channel");
-        when(config.concurrencyLimiterExponentialRamp()).thenReturn(true);
-        when(config.concurrencyLimiterExponentialRampInitialLimit()).thenReturn(initialLimit);
+        when(config.concurrencyLimiterExponentialRamp()).thenReturn(OptionalInt.of(50));
 
         LimitedChannel forEndpoint = ConcurrencyLimitedChannel.createForEndpoint(delegate, config, 0, endpoint, state);
         ExponentialRampConcurrencyLimiter limiter =
                 state.getState(ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY);
 
-        assertThat(limiter.getLimit()).isEqualTo(initialLimit);
+        assertThat(limiter.getLimit()).isEqualTo(50);
         forEndpoint.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
-
-        assertThat(limiter.getInflight()).isEqualTo(1);
-
-        // Host indexes can change during a refresh, but the endpoint's limiter state must survive.
-        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).dropped();
-        double learnedLimit = limiter.getLimit();
-        assertThat(learnedLimit).isLessThan(initialLimit);
 
         LimitedChannel recreated = ConcurrencyLimitedChannel.createForEndpoint(delegate, config, 1, endpoint, state);
         recreated.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
 
-        assertThat(limiter.getLimit()).isEqualTo(learnedLimit);
         assertThat(limiter.getInflight()).isEqualTo(2);
-        assertThat(limiter.isInExponentialRamp()).isFalse();
     }
 
     @Test

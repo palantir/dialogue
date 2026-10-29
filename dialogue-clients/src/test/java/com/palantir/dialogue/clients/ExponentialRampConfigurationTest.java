@@ -27,14 +27,14 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
-import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.Reference;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ExponentialRampConfigurationTest {
     private static final String SERVICE = "service";
@@ -50,18 +50,14 @@ class ExponentialRampConfigurationTest {
             .build();
 
     @ParameterizedTest
-    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
-    void initial_limit_reaches_cached_and_direct_channels(boolean direct, boolean customLimit) {
+    @ValueSource(booleans = {false, true})
+    void initial_limit_reaches_cached_and_direct_channels(boolean direct) {
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
         ReloadingFactory factory = DialogueClients.create(Refreshable.only(SERVICES))
                 .withUserAgent(TestConfigurations.AGENT)
                 .withTaggedMetrics(metrics)
-                .withDnsNodeDiscovery(false);
-        if (customLimit) {
-            factory = factory.withConcurrencyLimiterExponentialRamp(true, 50);
-        }
-        // The boolean-only overload must preserve a previously configured initial limit.
-        factory = factory.withConcurrencyLimiterExponentialRamp(true);
+                .withDnsNodeDiscovery(false)
+                .withConcurrencyLimiterExponentialRamp(OptionalInt.of(50));
 
         Channel channel = direct
                 ? factory.getNonReloadingChannel(
@@ -77,7 +73,7 @@ class ExponentialRampConfigurationTest {
                             .filter(entry -> entry.getKey().safeName().equals("dialogue.concurrencylimiter.max"))
                             .map(entry -> ((Gauge<?>) entry.getValue()).getValue()))
                     .singleElement()
-                    .isEqualTo(customLimit ? 50D : 20D);
+                    .isEqualTo(50D);
         } finally {
             // The gauge holds its limiter weakly, so retain the channel until after reading it.
             Reference.reachabilityFence(channel);
@@ -91,17 +87,12 @@ class ExponentialRampConfigurationTest {
                 .scb(Refreshable.only(SERVICES))
                 .userAgent(TestConfigurations.AGENT)
                 .dnsNodeDiscovery(false)
-                .concurrencyLimiterExponentialRamp(true)
+                .concurrencyLimiterExponentialRamp(OptionalInt.of(20))
                 .build();
-        ImmutableReloadingParams customParams = params.withConcurrencyLimiterExponentialRampInitialLimit(50);
+        Channel channel = cache.getNonReloadingChannel(params, SERVICE_CONFIG, SERVICE);
 
-        DialogueChannel defaultChannel = cache.getNonReloadingChannel(params, SERVICE_CONFIG, SERVICE);
-        DialogueChannel customChannel = cache.getNonReloadingChannel(customParams, SERVICE_CONFIG, SERVICE);
-
-        assertThat(customChannel).isNotSameAs(defaultChannel);
-        assertThat(cache.getNonReloadingChannel(params, SERVICE_CONFIG, SERVICE))
-                .isSameAs(defaultChannel);
-        assertThat(cache.getNonReloadingChannel(customParams, SERVICE_CONFIG, SERVICE))
-                .isSameAs(customChannel);
+        assertThat(cache.getNonReloadingChannel(
+                        params.withConcurrencyLimiterExponentialRamp(OptionalInt.of(50)), SERVICE_CONFIG, SERVICE))
+                .isNotSameAs(channel);
     }
 }

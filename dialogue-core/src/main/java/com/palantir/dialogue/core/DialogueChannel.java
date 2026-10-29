@@ -151,16 +151,13 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
-        /** Experimental: select whether the exponential-ramp concurrency limiter is used. Disabled by default. */
+        /**
+         * Experimental: use the exponential-ramp concurrency limiter with an initial limit between 1 and 1,000,
+         * inclusive. An empty value (the default) uses the default limiter.
+         */
         @Beta
-        public Builder concurrencyLimiterExponentialRamp(boolean concurrencyLimiterExponentialRamp) {
-            builder.concurrencyLimiterExponentialRamp(concurrencyLimiterExponentialRamp);
-            return this;
-        }
-
-        @Beta
-        public Builder concurrencyLimiterExponentialRampInitialLimit(int limit) {
-            builder.concurrencyLimiterExponentialRampInitialLimit(limit);
+        public Builder concurrencyLimiterExponentialRamp(OptionalInt initialLimit) {
+            builder.concurrencyLimiterExponentialRamp(initialLimit);
             return this;
         }
 
