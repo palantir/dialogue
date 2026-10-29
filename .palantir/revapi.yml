@@ -358,12 +358,21 @@ acceptedBreaks:
       new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
         \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withConcurrencyLimiterExponentialRamp(boolean)"
       justification: "Adding support for new concurrency limiter"
-  "6.39.0":
+  "6.50.0":
     com.palantir.dialogue:dialogue-clients:
-      - code: "java.method.addedToInterface"
-        new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
-        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withConcurrencyLimiterExponentialRamp(boolean, int)"
-        justification: "Adding support for custom initial limit for exponential ramping"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withConcurrencyLimiterExponentialRamp(===boolean===)"
+      new: "parameter com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withConcurrencyLimiterExponentialRamp(===java.util.OptionalInt===)"
+      justification: "Experimental @Beta API: replace the boolean toggle with a single\
+        \ optional initial limit"
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter com.palantir.dialogue.core.DialogueChannel.Builder com.palantir.dialogue.core.DialogueChannel.Builder::concurrencyLimiterExponentialRamp(===boolean===)"
+      new: "parameter com.palantir.dialogue.core.DialogueChannel.Builder com.palantir.dialogue.core.DialogueChannel.Builder::concurrencyLimiterExponentialRamp(===java.util.OptionalInt===)"
+      justification: "Experimental @Beta API: replace the boolean toggle with a single\
+        \ optional initial limit"
   "6.7.0":
     com.palantir.dialogue:dialogue-target:
     - code: "java.class.removed"

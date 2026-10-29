@@ -36,10 +36,10 @@ import org.jspecify.annotations.Nullable;
 final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
 
     private static final SafeLogger log = SafeLoggerFactory.get(ExponentialRampConcurrencyLimiter.class);
-    static final int INITIAL_LIMIT = 20;
+    private static final int INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
-    static final double MIN_LIMIT = 1;
-    static final double MAX_LIMIT = 1_000_000D;
+    private static final double MIN_LIMIT = 1;
+    private static final double MAX_LIMIT = 1_000_000D;
 
     private final AtomicDouble limit;
 

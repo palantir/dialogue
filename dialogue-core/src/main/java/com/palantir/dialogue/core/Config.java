@@ -92,26 +92,21 @@ interface Config {
         return rawConfig().queueTimeout();
     }
 
-    @Value.Default
-    default boolean concurrencyLimiterExponentialRamp() {
-        return false;
-    }
-
-    @Value.Default
-    default int concurrencyLimiterExponentialRampInitialLimit() {
-        return ExponentialRampConcurrencyLimiter.INITIAL_LIMIT;
-    }
+    /**
+     * Initial limit for the exponential-ramp concurrency limiter, between 1 and 1,000 inclusive, or empty to use the
+     * default limiter.
+     */
+    OptionalInt concurrencyLimiterExponentialRamp();
 
     @Value.Check
     default void check() {
-        Preconditions.checkArgument(
-                concurrencyLimiterExponentialRampInitialLimit() >= ExponentialRampConcurrencyLimiter.MIN_LIMIT
-                        && concurrencyLimiterExponentialRampInitialLimit()
-                                <= ExponentialRampConcurrencyLimiter.MAX_LIMIT,
-                "initialLimit must be within the supported range",
-                SafeArg.of("initialLimit", concurrencyLimiterExponentialRampInitialLimit()),
-                SafeArg.of("minLimit", ExponentialRampConcurrencyLimiter.MIN_LIMIT),
-                SafeArg.of("maxLimit", ExponentialRampConcurrencyLimiter.MAX_LIMIT));
+        concurrencyLimiterExponentialRamp()
+                .ifPresent(initialLimit -> Preconditions.checkArgument(
+                        initialLimit >= 1 && initialLimit <= 1_000,
+                        "Exponential Ramp Concurrency Limiter's initialLimit must be within the supported range",
+                        SafeArg.of("initialLimit", initialLimit),
+                        SafeArg.of("minLimit", 1),
+                        SafeArg.of("maxLimit", 1_000)));
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");
         Preconditions.checkArgument(rawConfig().userAgent().isPresent(), "userAgent must be specified");
         Preconditions.checkArgument(

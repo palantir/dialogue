@@ -30,6 +30,7 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.stream.LongStream;
 import org.jspecify.annotations.Nullable;
 
@@ -73,11 +74,12 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex, ChannelState hostSpecificState) {
         TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-        ConcurrencyLimiter limiter = exponentialRampEnabled(cf)
+        OptionalInt exponentialRampInitialLimit = cf.concurrencyLimiterExponentialRamp();
+        ConcurrencyLimiter limiter = exponentialRampInitialLimit.isPresent()
                 ? hostSpecificState.getState(
                         HOST_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY,
                         () -> new ExponentialRampConcurrencyLimiter(
-                                Behavior.HOST_LEVEL, cf.concurrencyLimiterExponentialRampInitialLimit()))
+                                Behavior.HOST_LEVEL, exponentialRampInitialLimit.getAsInt()))
                 : hostSpecificState.getState(HOST_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
@@ -91,20 +93,17 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      */
     static LimitedChannel createForEndpoint(
             Channel channel, Config cf, int uriIndex, Endpoint endpoint, ChannelState endpointChannelState) {
-        ConcurrencyLimiter limiter = exponentialRampEnabled(cf)
+        OptionalInt exponentialRampInitialLimit = cf.concurrencyLimiterExponentialRamp();
+        ConcurrencyLimiter limiter = exponentialRampInitialLimit.isPresent()
                 ? endpointChannelState.getState(
                         ENDPOINT_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY,
                         () -> new ExponentialRampConcurrencyLimiter(
-                                Behavior.ENDPOINT_LEVEL, cf.concurrencyLimiterExponentialRampInitialLimit()))
+                                Behavior.ENDPOINT_LEVEL, exponentialRampInitialLimit.getAsInt()))
                 : endpointChannelState.getState(ENDPOINT_SPECIFIC_STATE_KEY);
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new EndpointConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, endpoint);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
         return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
-    }
-
-    static boolean exponentialRampEnabled(Config cf) {
-        return cf.concurrencyLimiterExponentialRamp();
     }
 
     ConcurrencyLimitedChannel(

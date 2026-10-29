@@ -32,6 +32,7 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -234,16 +235,12 @@ public final class DialogueClients {
         ReloadingFactory withMaxResponseSize(long maxResponseSize);
 
         /**
-         * Experimental: opt into the exponential-ramp concurrency limiter, which ramps the per-host and per-endpoint
-         * concurrency limits up exponentially from a cold start (until the server first pushes back) rather than the
-         * default AIMD limiter's cautious linear probe. Intended for clients that suffer queueing during cold-start
-         * bursts.
+         * Experimental: ramp per-host and per-endpoint concurrency exponentially from {@code initialLimit} until the
+         * server pushes back. The initial limit must be between 1 and 1,000, inclusive; empty (the default) uses
+         * the default limiter.
          */
         @Beta
-        ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled);
-
-        @Beta
-        ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled, int initialLimit);
+        ReloadingFactory withConcurrencyLimiterExponentialRamp(OptionalInt initialLimit);
 
         StickyChannelFactory getStickyChannels(String serviceName);
 
