@@ -105,6 +105,9 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
         } catch (final URISyntaxException ex) {
             throw new HttpException("Cannot convert host to URI: " + target, ex);
         }
+        // Not computeIfAbsent: its mapping function must not modify the map, so it couldn't clear it when full, and
+        // parsing throws a checked exception. The size bound is approximate since concurrent misses can all pass the
+        // check before inserting, which is fine for a cache this small.
         if (targetUris.size() >= MAX_CACHED_TARGET_URIS) {
             targetUris.clear();
         }
