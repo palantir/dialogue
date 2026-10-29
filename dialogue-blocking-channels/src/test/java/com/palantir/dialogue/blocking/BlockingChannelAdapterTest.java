@@ -23,6 +23,8 @@ import static org.mockito.Mockito.verify;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.Uninterruptibles;
+import com.palantir.callcontext.CallContextScope;
+import com.palantir.callcontext.Deadlines;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -30,12 +32,14 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +60,24 @@ public class BlockingChannelAdapterTest {
     public void afterEach() {
         assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(3)))
                 .isTrue();
+    }
+
+    @Test
+    public void testDefaultExecutorPropagatesCallContext() {
+        AtomicReference<Optional<Duration>> remainingDeadline = new AtomicReference<>();
+        Channel channel = BlockingChannelAdapter.of((_endpoint, _request) -> {
+            remainingDeadline.set(Deadlines.getRemainingDeadline());
+            return stubResponse;
+        });
+
+        ListenableFuture<Response> result;
+        try (CallContextScope ignored = Deadlines.withDeadline(Duration.ofSeconds(1))) {
+            result = channel.execute(TestEndpoint.POST, Request.builder().build());
+        }
+
+        assertThat(result).succeedsWithin(Duration.ofSeconds(3)).isSameAs(stubResponse);
+        assertThat(remainingDeadline.get())
+                .hasValueSatisfying(remaining -> assertThat(remaining).isLessThanOrEqualTo(Duration.ofSeconds(1)));
     }
 
     @Test

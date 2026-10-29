@@ -7,6 +7,7 @@ dependencies {
     api 'org.jspecify:jspecify'
 
     implementation project(':dialogue-futures')
+    implementation 'com.palantir.callcontext:call-context'
     implementation 'com.palantir.tracing:tracing'
     implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'com.palantir.safe-logging:logger'

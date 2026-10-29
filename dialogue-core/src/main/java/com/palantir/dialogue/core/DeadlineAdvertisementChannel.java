@@ -18,10 +18,11 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.callcontext.Deadlines;
 import com.palantir.deadlines.DeadlineExpiredException;
 import com.palantir.deadlines.DeadlineExpiredReasons;
-import com.palantir.deadlines.Deadlines;
 import com.palantir.deadlines.Deadlines.Enforcement;
+import com.palantir.deadlines.Deadlines.RequestEncodingAdapter;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -35,7 +36,7 @@ final class DeadlineAdvertisementChannel implements Channel {
 
     private final Channel delegate;
     private final Duration readTimeout;
-    private final Deadlines.Enforcement enforcement;
+    private final Enforcement enforcement;
 
     static DeadlineAdvertisementChannel create(Channel delegate, Duration readTimeout) {
         return new DeadlineAdvertisementChannel(delegate, readTimeout, Enforcement.DEFER);
@@ -49,7 +50,7 @@ final class DeadlineAdvertisementChannel implements Channel {
         return new DeadlineAdvertisementChannel(delegate, readTimeout, deadlineEnforcement);
     }
 
-    private DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, Deadlines.Enforcement enforcement) {
+    private DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, Enforcement enforcement) {
         this.delegate = delegate;
         // a readTimeout of zero effectively means "no timeout", but we don't want to put 0 on the wire,
         // so set a very large value instead
@@ -80,7 +81,7 @@ final class DeadlineAdvertisementChannel implements Channel {
         });
     }
 
-    private enum RequestBuilderEncodingAdapter implements Deadlines.RequestEncodingAdapter<Request.Builder> {
+    private enum RequestBuilderEncodingAdapter implements RequestEncodingAdapter<Request.Builder> {
         INSTANCE;
 
         @Override

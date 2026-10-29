@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.Iterables;
+import com.palantir.callcontext.CallContext;
+import com.palantir.callcontext.CallContextScope;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
@@ -44,6 +46,7 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.BlockingHandler;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
@@ -230,6 +233,43 @@ class DeadlineEnforcementTest {
         }
     }
 
+    @Test
+    void client_encodes_call_context_deadline() {
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withDeadlineEnforcement(true);
+
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "test-service");
+        try (CallContextScope ignored = com.palantir.callcontext.Deadlines.withDeadline(Duration.ofSeconds(1))) {
+            assertThatCode(client::voidToVoid).doesNotThrowAnyException();
+        }
+        assertThat(undertowHandler.getReceivedDeadlineHeader())
+                .hasValueSatisfying(value -> assertThat(Duration.ofNanos((long) (Double.parseDouble(value) * 1e9d)))
+                        .isPositive()
+                        .isLessThanOrEqualTo(Duration.ofSeconds(1)));
+    }
+
+    @Test
+    void client_throws_when_call_context_deadline_expired() {
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withDeadlineEnforcement(true);
+
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "test-service");
+        CallContext context = com.palantir.callcontext.Deadlines.withRequestDeadline(
+                CallContext.empty(),
+                Optional.empty(),
+                Map.of("Expect-Within", "0"),
+                DummyRequestDecoder.INSTANCE,
+                Deadlines.Enforcement.DEFER);
+        try (CallContextScope ignored = context.attach()) {
+            assertThatThrownBy(client::voidToVoid).isInstanceOf(DeadlineExpiredException.class);
+        }
+        assertThat(undertowHandler.getReceivedDeadlineHeader())
+                .as("no request is sent")
+                .isNull();
+    }
+
     private enum DummyRequestDecoder implements RequestDecodingAdapter<Map<String, String>> {
         INSTANCE;
 
@@ -246,6 +286,7 @@ class DeadlineEnforcementTest {
 
     private static final class Handler implements HttpHandler {
         private Optional<String> receivedEnforcementHeader;
+        private Optional<String> receivedDeadlineHeader;
 
         private synchronized void setReceivedEnforcementHeader(@Nullable String receivedEnforcementHeader) {
             this.receivedEnforcementHeader = Optional.ofNullable(receivedEnforcementHeader);
@@ -255,9 +296,18 @@ class DeadlineEnforcementTest {
             return receivedEnforcementHeader;
         }
 
+        private synchronized void setReceivedDeadlineHeader(@Nullable String receivedDeadlineHeader) {
+            this.receivedDeadlineHeader = Optional.ofNullable(receivedDeadlineHeader);
+        }
+
+        synchronized Optional<String> getReceivedDeadlineHeader() {
+            return receivedDeadlineHeader;
+        }
+
         @Override
         public void handleRequest(HttpServerExchange exchange) throws Exception {
             setReceivedEnforcementHeader(exchange.getRequestHeaders().getFirst("Expect-Within-Enforced"));
+            setReceivedDeadlineHeader(exchange.getRequestHeaders().getFirst("Expect-Within"));
             exchange.setStatusCode(200);
         }
     }

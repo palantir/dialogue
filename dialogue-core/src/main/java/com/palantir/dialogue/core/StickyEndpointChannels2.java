@@ -20,6 +20,8 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.callcontext.CallContext;
+import com.palantir.callcontext.CallContextScope;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -208,9 +210,14 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     // Each subsequent (parallel) call may be independently cancelled, that cancellation
                     // must not leak to other pending calls.
                     SettableFuture<Response> result = SettableFuture.create();
+                    // This call runs on the thread that completes the call in flight, so bind the caller's context.
+                    CallContext callContext = CallContext.current();
                     DialogueFutures.addDirectListener(callInFlightSnapshot, () -> {
                         if (!result.isDone()) {
-                            ListenableFuture<Response> queuedRequestResponse = execute(request, endpointChannel);
+                            ListenableFuture<Response> queuedRequestResponse;
+                            try (CallContextScope ignored = callContext.attach()) {
+                                queuedRequestResponse = execute(request, endpointChannel);
+                            }
                             DialogueFutures.addDirectCallback(queuedRequestResponse, new FutureCallback<>() {
                                 @Override
                                 public void onSuccess(@Nullable Response response) {

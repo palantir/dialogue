@@ -158,6 +158,28 @@ Instrumentation for the PIN_UNTIL_ERROR node selection strategy.
 Instrumentation for the ROUND_ROBIN node selection strategy (currently implemented by BalancedChannel).
 - `dialogue.roundrobin.success` tagged `channel-name`, `hostIndex` (meter): Meter of the requests that were successfully made, tagged by the index of the host. (Note if there are >10 nodes this metric will not be recorded).
 
+## Call Context
+
+`com.palantir.callcontext:call-context`
+
+### deadline
+Metrics for deadlines.
+- `deadline.expired` (meter): Marked every time a deadline expiration is reached
+  - `cause`
+    - `internal`: A deadline expiration was caused by an internal process, such as a server's inability to meet its own internal deadline even though a client provided ample time.
+    - `external`: A deadline expiration was caused due to the inability to meet an externally provided deadline, such as a server being unable to complete required work before a client-provided deadline elapses.
+  - `intent`: Describes the intent (or not) to propagate an expired deadline on further RPC calls.
+    - `throw`: Enforcement was enabled for this trace at the time the deadline expiration was reached, and an exception was thrown.
+    - `propagate`: Deadline propagation was enabled for this trace at the time the deadline expiration was reached. This means that further RPC calls will still potentially propagate an expired deadline value.
+    - `propagate-already-expired`: Deadline propagation was enabled for this trace, but the deadline had already expired by the time it was first received.
+    - `ignore`: Deadline propagation was disabled for this trace at the time the deadline expiration was reached. This means that further RPC calls will not propagate an expired deadline value any more.
+  - `budget`: Records the original deadline budget bucket at the time of a deadline expiration.
+    - `sub-100ms`: Original deadline budget was less than 100 milliseconds.
+    - `sub-1s`: Original deadline budget was less than 1 second.
+    - `sub-10s`: Original deadline budget was less than 10 seconds.
+    - `sub-100s`: Original deadline budget was less than 100 seconds.
+    - `above-100s`: Original deadline budget was 100 seconds or more.
+
 ## Conjure Java Jackson Serialization
 
 `com.palantir.conjure.java.runtime:conjure-java-jackson-serialization`
