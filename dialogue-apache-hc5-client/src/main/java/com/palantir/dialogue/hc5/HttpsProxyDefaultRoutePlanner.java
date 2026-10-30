@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.hc5;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.client.config.HttpsProxies;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -23,6 +24,8 @@ import java.net.ProxySelector;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.apache.hc.client5.http.impl.routing.DefaultRoutePlanner;
 import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
 import org.apache.hc.core5.http.HttpException;
@@ -39,7 +42,22 @@ import org.jspecify.annotations.Nullable;
  * that this implementation was based off of provided to determine if this class requires changes.
  */
 final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
+    /**
+     * Each client only talks to the hosts in its configured URIs, but the client outlives URI reloads, so we bound
+     * the cache and start over if a client sees more distinct targets than this. This is a generous guess rather than
+     * a measured limit, and it is approximate: concurrent misses may briefly push the size a little past it.
+     */
+    @VisibleForTesting
+    static final int MAX_CACHED_TARGET_URIS = 256;
+
     private final ProxySelector proxySelector;
+
+    /**
+     * Parsing the target {@link URI} is the most expensive part of route planning, and it only depends on the target.
+     * The {@link ProxySelector} result is not cached, since selectors like the JDK default read system properties
+     * on every call.
+     */
+    private final ConcurrentMap<HttpHost, URI> targetUris = new ConcurrentHashMap<>();
 
     HttpsProxyDefaultRoutePlanner(ProxySelector proxySelector) {
         super(null);
@@ -49,12 +67,7 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
     @Override
     @Nullable
     public HttpHost determineProxy(final HttpHost target, final HttpContext _context) throws HttpException {
-        final URI targetUri;
-        try {
-            targetUri = new URI(target.toURI());
-        } catch (final URISyntaxException ex) {
-            throw new HttpException("Cannot convert host to URI: " + target, ex);
-        }
+        final URI targetUri = getTargetUri(target);
         ProxySelector proxySelectorInstance = this.proxySelector;
         if (proxySelectorInstance == null) {
             proxySelectorInstance = ProxySelector.getDefault();
@@ -77,6 +90,29 @@ final class HttpsProxyDefaultRoutePlanner extends DefaultRoutePlanner {
         }
 
         return result;
+    }
+
+    private URI getTargetUri(HttpHost target) throws HttpException {
+        // HttpHost equality ignores host name case, so case variants share a URI. That's fine since the scheme and
+        // host components of a URI are case-insensitive.
+        URI cached = targetUris.get(target);
+        if (cached != null) {
+            return cached;
+        }
+        final URI targetUri;
+        try {
+            targetUri = new URI(target.toURI());
+        } catch (final URISyntaxException ex) {
+            throw new HttpException("Cannot convert host to URI: " + target, ex);
+        }
+        // Not computeIfAbsent: its mapping function must not modify the map, so it couldn't clear it when full, and
+        // parsing throws a checked exception. The size bound is approximate since concurrent misses can all pass the
+        // check before inserting, which is fine for a cache this small.
+        if (targetUris.size() >= MAX_CACHED_TARGET_URIS) {
+            targetUris.clear();
+        }
+        targetUris.put(target, targetUri);
+        return targetUri;
     }
 
     private Proxy chooseProxy(final List<Proxy> proxies) {
