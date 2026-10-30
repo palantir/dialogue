@@ -33,13 +33,17 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.ConcurrencyLimitedChannel.ConcurrencyLimitedChannelInstrumentation;
 import com.palantir.dialogue.core.ConcurrencyLimitedChannel.HostConcurrencyLimitedChannelInstrumentation;
+import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Result;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.net.SocketTimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -288,6 +292,46 @@ public class ConcurrencyLimitedChannelTest {
         when(mockLimiter.getLimit()).thenReturn(21D);
 
         assertThat(getMax()).isEqualTo(21D);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void testRecordsDecisions_host(boolean exponentialRamp) {
+        LimitedChannel forHost =
+                ConcurrencyLimitedChannel.createForHost(config(exponentialRamp), delegate, 2, new ChannelState());
+
+        forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+        responseFuture.setException(new SocketTimeoutException("read timed out"));
+
+        SettableFuture<Response> cancelled = SettableFuture.create();
+        when(delegate.execute(endpoint, request)).thenReturn(cancelled);
+        forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+        cancelled.cancel(false);
+
+        assertThat(decisionCount("2", Decision_Result.DROPPED, "SocketTimeoutException"))
+                .isEqualTo(1);
+        assertThat(decisionCount("2", Decision_Result.IGNORED, "CancellationException"))
+                .isEqualTo(1);
+    }
+
+    private ClientConfiguration clientConfig() {
+        ClientConfiguration clientConfig = mock(ClientConfiguration.class);
+        when(clientConfig.taggedMetricRegistry()).thenReturn(metrics);
+        return clientConfig;
+    }
+
+    private Config config(boolean exponentialRamp) {
+        ClientConfiguration clientConfig = clientConfig();
+        Config config = mock(Config.class);
+        when(config.clientConf()).thenReturn(clientConfig);
+        when(config.channelName()).thenReturn("channel");
+        when(config.concurrencyLimiterExponentialRamp()).thenReturn(exponentialRamp);
+        return config;
+    }
+
+    private long decisionCount(String hostIndex, Decision_Result result, String cause) {
+        return ConcurrencyLimiterDecisionRecorderTest.decisionMeter(metrics, hostIndex, result, cause)
+                .getCount();
     }
 
     private void mockResponseCode(int code) {

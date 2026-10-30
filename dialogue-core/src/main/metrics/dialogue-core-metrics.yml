@@ -30,6 +30,11 @@ namespaces:
         type: meter
         tags: [client-name, service-name, endpoint]
         docs: Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
+      request.cancelled:
+        type: timer
+        tags: [channel-name, service-name, endpoint]
+        docs: Time until a request was cancelled by the caller (measured as the time taken by the dialogue client method
+          call, including retries, as well as queued time). Cancelled requests are not recorded by `client.response`.
       request.retry:
         type: meter
         tags: [channel-name, reason]
@@ -129,6 +134,27 @@ namespaces:
         type: gauge
         tags: [channel-name, hostIndex]
         docs: The number of concurrent requests which are currently running.
+      decision:
+        type: meter
+        tags:
+          - name: channel-name
+          - name: hostIndex
+          - name: result
+            values:
+              - value: success
+                docs: Increases the limit when enough requests were in flight.
+              - value: dropped
+                docs: Decreases the limit, to a minimum of 1.
+              - value: ignored
+                docs: Does not change the limit.
+            docs: Describes how the concurrency limiter interpreted the response or failure.
+          - name: cause
+            docs: Describes the response status or failure that released the permit. Responses are one of
+              `http-2xx`, `http-308` (QoS RetryOther), `http-4xx`, `http-429`, `http-500`, `http-503`, `http-5xx`,
+              `qos-custom` (a QoS response due to a custom cause) or `other` (any other status, such as 1xx or a 3xx
+              other than QoS RetryOther). Failures are the simple class name of the exception (e.g.
+              `SafeSocketTimeoutException`).
+        docs: Marked every time a request releases a per-host concurrency limiter permit.
 
   dialogue.pinuntilerror:
     docs: Instrumentation for the PIN_UNTIL_ERROR node selection strategy.
