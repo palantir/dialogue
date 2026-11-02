@@ -207,7 +207,7 @@ public final class DialogueChannelTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1_001})
+    @ValueSource(ints = {0, 501})
     void rejectsInvalidExponentialRampInitialLimit(int initialLimit) {
         assertThatThrownBy(() -> DialogueChannel.builder()
                         .channelName("my-channel")
@@ -220,7 +220,7 @@ public final class DialogueChannelTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 1_000})
+    @ValueSource(ints = {1, 500})
     void acceptsValidExponentialRampInitialLimit(int initialLimit) {
         assertThatCode(() -> DialogueChannel.builder()
                         .channelName("my-channel")

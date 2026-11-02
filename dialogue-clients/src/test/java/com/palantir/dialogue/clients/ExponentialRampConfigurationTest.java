@@ -100,7 +100,7 @@ class ExponentialRampConfigurationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1_001})
+    @ValueSource(ints = {0, 501})
     void rejects_invalid_initial_limit_when_configured(int initialLimit) {
         ReloadingFactory factory = DialogueClients.create(Refreshable.only(SERVICES));
 
@@ -110,7 +110,7 @@ class ExponentialRampConfigurationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 1_000})
+    @ValueSource(ints = {1, 500})
     void accepts_valid_initial_limit_when_configured(int initialLimit) {
         ReloadingFactory factory = DialogueClients.create(Refreshable.only(SERVICES));
 
