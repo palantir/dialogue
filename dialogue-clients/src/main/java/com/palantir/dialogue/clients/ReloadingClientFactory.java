@@ -457,6 +457,14 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public ReloadingFactory withConcurrencyLimiterExponentialRamp(OptionalInt initialLimit) {
+        // Validate eagerly: DialogueChannel also checks this, but a channel first built during a config reload would
+        // only log the failure and leave the client on its previous channel.
+        initialLimit.ifPresent(limit -> Preconditions.checkArgument(
+                limit >= 1 && limit <= 1_000,
+                "Exponential Ramp Concurrency Limiter's initialLimit must be within the supported range",
+                SafeArg.of("initialLimit", limit),
+                SafeArg.of("minLimit", 1),
+                SafeArg.of("maxLimit", 1_000)));
         return new ReloadingClientFactory(params.withConcurrencyLimiterExponentialRamp(initialLimit), cache);
     }
 

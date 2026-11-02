@@ -17,6 +17,8 @@
 package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codahale.metrics.Gauge;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
@@ -27,6 +29,7 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -94,5 +97,24 @@ class ExponentialRampConfigurationTest {
         assertThat(cache.getNonReloadingChannel(
                         params.withConcurrencyLimiterExponentialRamp(OptionalInt.of(50)), SERVICE_CONFIG, SERVICE))
                 .isNotSameAs(channel);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1_001})
+    void rejects_invalid_initial_limit_when_configured(int initialLimit) {
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(SERVICES));
+
+        assertThatThrownBy(() -> factory.withConcurrencyLimiterExponentialRamp(OptionalInt.of(initialLimit)))
+                .isInstanceOf(SafeIllegalArgumentException.class)
+                .hasMessageContaining("must be within the supported range");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 1_000})
+    void accepts_valid_initial_limit_when_configured(int initialLimit) {
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(SERVICES));
+
+        assertThatCode(() -> factory.withConcurrencyLimiterExponentialRamp(OptionalInt.of(initialLimit)))
+                .doesNotThrowAnyException();
     }
 }
