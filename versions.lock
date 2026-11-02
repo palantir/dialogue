@@ -24,11 +24,11 @@ com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.50.0 (19 constraints: d42e6f6d)
+com.google.errorprone:error_prone_annotations:2.52.0 (19 constraints: d62ea773)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
-com.google.guava:guava:33.7.2-jre (18 constraints: 1540d0ec)
+com.google.guava:guava:33.8.0-jre (18 constraints: 144051e9)
 
 com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (1 constraints: bd17c918)
 
