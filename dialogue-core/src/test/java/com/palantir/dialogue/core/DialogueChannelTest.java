@@ -72,7 +72,6 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -213,7 +212,7 @@ public final class DialogueChannelTest {
                         .channelName("my-channel")
                         .clientConfiguration(stubConfig)
                         .factory(_args -> mockChannel)
-                        .concurrencyLimiterExponentialRamp(OptionalInt.of(initialLimit))
+                        .concurrencyLimiterExponentialRamp(initialLimit)
                         .build())
                 .isInstanceOf(SafeIllegalArgumentException.class)
                 .hasMessageContaining("must be within the supported range");
@@ -226,7 +225,7 @@ public final class DialogueChannelTest {
                         .channelName("my-channel")
                         .clientConfiguration(stubConfig)
                         .factory(_args -> mockChannel)
-                        .concurrencyLimiterExponentialRamp(OptionalInt.of(initialLimit))
+                        .concurrencyLimiterExponentialRamp(initialLimit)
                         .build())
                 .doesNotThrowAnyException();
     }
