@@ -26,6 +26,7 @@ import com.palantir.dialogue.core.ConcurrencyLimiter.Permit;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -55,18 +56,17 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                     () -> new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL));
 
     // Experimental exponential-ramp limiters. Kept under separate state keys so selecting the alternate implementation
-    // does not clobber the default limiter's state.
+    // does not clobber the default limiter's state. They have no default factory because the initial limit comes from
+    // Config, so the limiters are created by createForHost/createForEndpoint.
     @VisibleForTesting
     static final ChannelState.Key<ExponentialRampConcurrencyLimiter> HOST_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY =
             new ChannelState.Key<>(
-                    ExponentialRampConcurrencyLimiter.class,
-                    () -> new ExponentialRampConcurrencyLimiter(Behavior.HOST_LEVEL));
+                    ExponentialRampConcurrencyLimiter.class, ConcurrencyLimitedChannel::requireConfiguredInitialLimit);
 
     @VisibleForTesting
     static final ChannelState.Key<ExponentialRampConcurrencyLimiter> ENDPOINT_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY =
             new ChannelState.Key<>(
-                    ExponentialRampConcurrencyLimiter.class,
-                    () -> new ExponentialRampConcurrencyLimiter(Behavior.ENDPOINT_LEVEL));
+                    ExponentialRampConcurrencyLimiter.class, ConcurrencyLimitedChannel::requireConfiguredInitialLimit);
 
     private final NeverThrowChannel delegate;
     private final ConcurrencyLimiter limiter;
@@ -104,6 +104,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 new EndpointConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, endpoint);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
         return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
+    }
+
+    private static ExponentialRampConcurrencyLimiter requireConfiguredInitialLimit() {
+        throw new SafeIllegalStateException(
+                "Exponential-ramp limiter state must be created with the configured initial limit");
     }
 
     ConcurrencyLimitedChannel(

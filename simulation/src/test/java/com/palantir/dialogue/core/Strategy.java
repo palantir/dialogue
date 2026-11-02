@@ -28,7 +28,6 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
-import java.util.OptionalInt;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -96,7 +95,7 @@ public enum Strategy {
                 .random(sim.pseudoRandom())
                 .scheduler(sim.scheduler())
                 .ticker(sim.clock())
-                .concurrencyLimiterExponentialRamp(exponentialRampEnabled ? OptionalInt.of(20) : OptionalInt.empty())
+                .concurrencyLimiterExponentialRamp(exponentialRampEnabled)
                 .build();
     }
 

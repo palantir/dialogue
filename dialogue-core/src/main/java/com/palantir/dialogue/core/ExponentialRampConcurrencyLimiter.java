@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.palantir.dialogue.Response;
@@ -33,10 +34,13 @@ import org.jspecify.annotations.Nullable;
  * Deliberately not applied to sticky channels, which keep AIMD: {@link Behavior#STICKY} suppresses the server
  * congestion signals (QoS/5xx/IOException) this ramp relies on.
  */
-final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
+@Beta
+public final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
+
+    /** Initial limit used when the exponential ramp is enabled without choosing one. */
+    public static final int DEFAULT_INITIAL_LIMIT = 20;
 
     private static final SafeLogger log = SafeLoggerFactory.get(ExponentialRampConcurrencyLimiter.class);
-    private static final int INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
     private static final double MIN_LIMIT = 1;
     private static final double MAX_LIMIT = 1_000_000D;
@@ -56,10 +60,6 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
     // Used strictly for providing the channel name in debug logs.
     // Volatile because it may be set from a different thread than the one emitting the log line.
     private volatile String channelNameForLogging = "unknown";
-
-    ExponentialRampConcurrencyLimiter(Behavior behavior) {
-        this(behavior, INITIAL_LIMIT);
-    }
 
     ExponentialRampConcurrencyLimiter(Behavior behavior, int initialLimit) {
         this.behavior = behavior;

@@ -19,6 +19,8 @@ package com.palantir.dialogue.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import com.codahale.metrics.Gauge;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
@@ -60,7 +62,7 @@ class ExponentialRampConfigurationTest {
                 .withUserAgent(TestConfigurations.AGENT)
                 .withTaggedMetrics(metrics)
                 .withDnsNodeDiscovery(false)
-                .withConcurrencyLimiterExponentialRamp(OptionalInt.of(50));
+                .withConcurrencyLimiterExponentialRamp(50);
 
         Channel channel = direct
                 ? factory.getNonReloadingChannel(
@@ -104,7 +106,7 @@ class ExponentialRampConfigurationTest {
     void rejects_invalid_initial_limit_when_configured(int initialLimit) {
         ReloadingFactory factory = DialogueClients.create(Refreshable.only(SERVICES));
 
-        assertThatThrownBy(() -> factory.withConcurrencyLimiterExponentialRamp(OptionalInt.of(initialLimit)))
+        assertThatThrownBy(() -> factory.withConcurrencyLimiterExponentialRamp(initialLimit))
                 .isInstanceOf(SafeIllegalArgumentException.class)
                 .hasMessageContaining("must be within the supported range");
     }
@@ -114,7 +116,16 @@ class ExponentialRampConfigurationTest {
     void accepts_valid_initial_limit_when_configured(int initialLimit) {
         ReloadingFactory factory = DialogueClients.create(Refreshable.only(SERVICES));
 
-        assertThatCode(() -> factory.withConcurrencyLimiterExponentialRamp(OptionalInt.of(initialLimit)))
+        assertThatCode(() -> factory.withConcurrencyLimiterExponentialRamp(initialLimit))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void enabling_uses_default_initial_limit() {
+        ReloadingFactory factory = spy(DialogueClients.create(Refreshable.only(SERVICES)));
+
+        factory.withConcurrencyLimiterExponentialRamp(true);
+
+        verify(factory).withConcurrencyLimiterExponentialRamp(20);
     }
 }
