@@ -236,8 +236,12 @@ public final class DialogueClients {
 
         /**
          * Experimental: ramp per-host and per-endpoint concurrency exponentially from {@code initialLimit} until the
-         * server pushes back. The initial limit must be between 1 and 1,000, inclusive; empty (the default) uses
+         * server pushes back. The initial limit must be between 1 and 500, inclusive; empty (the default) uses
          * the default limiter.
+         *
+         * <p>Caution: a higher initial limit lets every client send more concurrent requests, over more connections,
+         * to each host before the server can push back. This can overwhelm downstream servers, particularly when many
+         * clients start at once or a new host is added.
          */
         @Beta
         ReloadingFactory withConcurrencyLimiterExponentialRamp(OptionalInt initialLimit);
