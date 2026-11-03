@@ -57,6 +57,7 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -357,8 +358,23 @@ final class RetryingChannel implements EndpointChannel {
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
             ListenableFuture<Response> result = input;
             result = DialogueFutures.transformAsync(result, this::handleHttpResponse);
-            result = DialogueFutures.catchingAllAsync(result, this::handleThrowable);
+            result = DialogueFutures.catchingAllAsync(result, throwable -> {
+                // Failures from a nested retry future were already handled by that retry's own wrap.
+                if (!attemptFailed(input)) {
+                    return Futures.immediateFailedFuture(throwable);
+                }
+                return handleThrowable(throwable);
+            });
             return result;
+        }
+
+        private static boolean attemptFailed(ListenableFuture<Response> attempt) {
+            try {
+                Futures.getDone(attempt);
+                return false;
+            } catch (ExecutionException e) {
+                return true;
+            }
         }
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {

@@ -947,6 +947,48 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void retryCountFailureHistogramUpdatedWhenRetriesExhaustedDueToExceptionAfter429() {
+        when(channel.execute(any()))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenReturn(FAILED);
+
+        EndpointChannel retryer = channel(4);
+
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
+        verify(channel, times(5)).execute(REQUEST);
+
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 5, "SafeIoException"),
+                "retries exhausted due to exception after a 429");
+    }
+
+    @Test
+    public void retryCountFailureHistogramUpdatedWhenExceptionFollowsMaxRetries429s() {
+        when(channel.execute(any()))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenReturn(FAILED);
+
+        EndpointChannel retryer = channel(4);
+
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
+        verify(channel, times(5)).execute(REQUEST);
+
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 5, "SafeIoException"),
+                "retries exhausted due to exception after four 429s");
+    }
+
+    @Test
     public void testIoExceptionFailuresThenQosResponseThenSuccess() throws Exception {
         when(channel.execute(any()))
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException("connect timed out")))
