@@ -93,6 +93,40 @@ public final class RequestTest {
     }
 
     @Test
+    void from_method_copies_query_params_with_mutation() {
+        Request request1 = Request.builder()
+                .putQueryParams("a", "A1")
+                .putQueryParams("b", "B")
+                .putQueryParams("a", "A2")
+                .build();
+        Request request2 =
+                Request.builder().from(request1).putQueryParams("c", "C").build();
+        assertThat(request2.queryParams())
+                .isEqualTo(ImmutableListMultimap.of("a", "A1", "a", "A2", "b", "B", "c", "C"));
+    }
+
+    @Test
+    void from_method_replaces_previously_mutated_params() {
+        Request existing = Request.builder()
+                .putHeaderParams("header", "existing")
+                .putQueryParams("query", "existing")
+                .putPathParams("path", "existing")
+                .build();
+        Request request = Request.builder()
+                .putHeaderParams("header", "discarded")
+                .putQueryParams("query", "discarded")
+                .putPathParams("path", "discarded")
+                .from(existing)
+                .putHeaderParams("header", "added")
+                .putQueryParams("query", "added")
+                .putPathParams("path", "added")
+                .build();
+        assertThat(request.headerParams()).isEqualTo(ImmutableListMultimap.of("header", "existing", "header", "added"));
+        assertThat(request.queryParams()).isEqualTo(ImmutableListMultimap.of("query", "existing", "query", "added"));
+        assertThat(request.pathParameters()).isEqualTo(ImmutableListMultimap.of("path", "existing", "path", "added"));
+    }
+
+    @Test
     void request_body_rejects_null() {
         assertThatThrownBy(() ->
                         Request.builder().body((Optional<RequestBody>) null).build())
