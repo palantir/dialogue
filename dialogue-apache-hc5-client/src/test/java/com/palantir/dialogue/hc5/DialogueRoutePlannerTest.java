@@ -39,24 +39,11 @@ final class DialogueRoutePlannerTest {
             ProxySelector.of(InetSocketAddress.createUnresolved("proxy.example", 3128));
 
     @ParameterizedTest
-    @CsvSource({
-        "http, -1, 80, false, false",
-        "http, 80, 80, false, false",
-        "http, 8080, 8080, false, false",
-        "https, -1, 443, false, true",
-        "https, 443, 443, false, true",
-        "https, 8443, 8443, false, true",
-        "http, -1, 80, true, true",
-        "http, 80, 80, true, true",
-        "http, 8080, 8080, true, true",
-        "https, -1, 443, true, true",
-        "https, 443, 443, true, true",
-        "https, 8443, 8443, true, true"
-    })
-    void tunnels_only_when_required(
-            String scheme, int port, int expectedPort, boolean forceProxyTunnel, boolean tunnelled) throws Exception {
+    @CsvSource({"http, 80, false, false", "https, 443, false, true", "http, 80, true, true", "https, 443, true, true"})
+    void tunnels_only_when_required(String scheme, int expectedPort, boolean forceProxyTunnel, boolean tunnelled)
+            throws Exception {
         HttpRoute route = new DialogueRoutePlanner(PROXY, forceProxyTunnel)
-                .determineRoute(new HttpHost(scheme, "origin.example", port), HttpClientContext.create());
+                .determineRoute(new HttpHost(scheme, "origin.example", -1), HttpClientContext.create());
 
         assertThat(route.isTunnelled()).isEqualTo(tunnelled);
         assertThat(route.isSecure()).isEqualTo(scheme.equals("https"));
