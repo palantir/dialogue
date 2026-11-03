@@ -47,6 +47,7 @@ import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -308,7 +309,9 @@ final class QueuedChannel implements Channel {
         int newSize = accounting.incrementAndGet();
 
         // The next drain only runs on a later submission or completion, which may be far away, so clean up a
-        // cancelled request as soon as the caller cancels it rather than when a drain pops it.
+        // cancelled request and remove it from the deque as soon as the caller cancels it, rather than when a drain
+        // pops it. Otherwise each cancellation would free a slot for a new request while its entry stayed behind a
+        // head that the delegate keeps rejecting, letting the deque grow beyond maxQueueSize.
         DialogueFutures.addDirectListener(responseFuture, () -> cleanupIfCancelledWhileQueued(components));
 
         if (log.isDebugEnabled()) {
@@ -560,15 +563,42 @@ final class QueuedChannel implements Channel {
     }
 
     /**
-     * Cleans up a call that the caller cancelled while it was still queued, and counts it. This runs from the cancel
-     * listener and from a drain that pops a cancelled entry, and only the one that removes the call from the queue
-     * size counts it, so each cancellation is counted once. A call only leaves the queue size once the delegate accepts
-     * it, so a cancellation during that dispatch attempt is also counted.
+     * Cleans up a call that the caller cancelled while it was still queued, counts it, and removes it from the deque.
+     * This runs from the cancel listener and from a drain that pops a cancelled entry, and only the one that removes
+     * the call from the queue size counts it, so each cancellation is counted once. A call only leaves the queue size
+     * once the delegate accepts it, so a cancellation during that dispatch attempt is also counted. The deque is only
+     * scanned on that first cleanup, so a request cancelled after it was dispatched does not pay for a scan, and a drain
+     * only scans when it pops the entry before the cancel listener runs.
      */
     private void cleanupIfCancelledWhileQueued(DeferredCall call) {
         if (call.response().isCancelled() && call.accounting().decrementIfCounted()) {
             cleanupDeferredCall(call);
             queueCancelledCounter.get().inc();
+            removeFromQueue(call.response());
+        }
+    }
+
+    /**
+     * Removes the call for the given response from the deque if it is still there. Matches on the response because a
+     * re-queued call is a new {@link DeferredCall} for the same response. A call that is out of the deque for a dispatch
+     * attempt is not found, but if the delegate rejects it, it goes back to the head, where the next drain cleans it up.
+     * <p>
+     * This is a linear scan, because {@link ConcurrentLinkedDeque} has no faster way to remove an inner element. Queues
+     * are typically far smaller than {@code maxQueueSize}, so this is cheap in practice.
+     */
+    private void removeFromQueue(SettableFuture<Response> response) {
+        Iterator<DeferredCall> iterator = queuedCalls.iterator();
+        while (iterator.hasNext()) {
+            DeferredCall queued = iterator.next();
+            // Futures have no equality semantics, so they are compared by identity.
+            if (queued.response() == response) {
+                // A drain may poll the same entry concurrently, which is harmless because its cleanup is idempotent.
+                iterator.remove();
+                // A re-queued call has its own timeout task, which the cleanup of the original call did not cancel, and
+                // no drain will pop this entry to cancel it.
+                queued.timeoutFuture().ifPresent(future -> future.cancel(false));
+                return;
+            }
         }
     }
 

@@ -55,6 +55,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -843,13 +844,13 @@ public class QueuedChannelTest {
                         .isOne();
             });
 
-            // The cancelled entry is still in the deque, but no longer occupies the only queue slot.
+            // The cancelled entry no longer occupies the only queue slot.
             assertThat(queuedChannel.maybeExecute(
                             TestEndpoint.GET, Request.builder().build()))
                     .hasValueSatisfying(response -> assertThat(response).isNotDone());
             assertThat(instrumentation.requestsQueued().getCount()).isOne();
 
-            // Draining skips the cancelled entry without any further accounting.
+            // Draining does no further accounting for the cancelled request.
             queuedChannel.schedule();
             assertSoftly(softly -> {
                 softly.assertThat(instrumentation.requestsQueued().getCount()).isOne();
@@ -902,6 +903,8 @@ public class QueuedChannelTest {
                         .isOne();
             });
 
+            // The cancel listener could not find the call during the attempt, so it was re-queued at the head, and the
+            // next drain cleans it up.
             queuedChannel.schedule();
             assertSoftly(softly -> {
                 softly.assertThat(instrumentation.requestsQueued().getCount()).isZero();
@@ -1505,14 +1508,37 @@ public class QueuedChannelTest {
 
         @Test
         void cancellation_after_requeue_is_not_counted_as_a_timeout() {
+            AtomicReference<ScheduledFuture<?>> latestTimeoutTask = new AtomicReference<>();
+            DeterministicScheduler capturingScheduler = spy(scheduler);
+            doAnswer(invocation -> {
+                        ScheduledFuture<?> task = (ScheduledFuture<?>) invocation.callRealMethod();
+                        latestTimeoutTask.set(task);
+                        return task;
+                    })
+                    .when(capturingScheduler)
+                    .schedule(any(Runnable.class), anyLong(), eq(TimeUnit.NANOSECONDS));
+            queuedChannel = new QueuedChannel(
+                    delegate,
+                    CHANNEL_NAME,
+                    "channel",
+                    instrumentation,
+                    QUEUE_SIZE,
+                    OptionalLong.of(QUEUE_TIMEOUT_NANOS),
+                    ticker,
+                    capturingScheduler);
             setInFlightRequest();
             ListenableFuture<Response> callerFuture = queuedChannel.execute(TestEndpoint.POST, request);
             // A rejected drain re-queues the call with a fresh timeout task, replacing the one created on enqueue.
             queuedChannel.schedule();
+            ScheduledFuture<?> requeuedTimeoutTask = latestTimeoutTask.get();
 
             callerFuture.cancel(false);
-            // Without a drain in between, the re-queued call's timeout task still fires, and finds it cancelled.
-            scheduler.tick(QUEUE_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
+            // The re-queued call is a new entry for the same response. Removing it from the deque cancels its timeout
+            // task, since no drain will pop the entry to cancel it.
+            assertThat(requeuedTimeoutTask.isCancelled())
+                    .as("the re-queued call's timeout task is cancelled")
+                    .isTrue();
+            capturingScheduler.tick(QUEUE_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
 
             assertSoftly(softly -> {
                 softly.assertThat(callerFuture).isCancelled();
