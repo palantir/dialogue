@@ -27,6 +27,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.Safe;
 import java.time.Duration;
 import java.util.Optional;
 import javax.annotation.Nullable;
@@ -42,11 +43,13 @@ final class DeadlineAdvertisementChannel implements Channel {
     }
 
     static DeadlineAdvertisementChannel create(
-            Channel delegate, Duration readTimeout, Optional<Boolean> enforceDeadlines) {
+            Channel delegate, @Safe String channelName, Duration readTimeout, Optional<Boolean> enforceDeadlines) {
         Enforcement deadlineEnforcement = enforceDeadlines
                 .map(value -> value ? Enforcement.ENFORCE : Enforcement.DISABLE)
                 .orElse(Enforcement.DEFER);
-        return new DeadlineAdvertisementChannel(delegate, readTimeout, deadlineEnforcement);
+        Channel maybeInjectingDelegate =
+                DeadlineFailureInjectionChannel.wrapDelegateIfEnabled(delegate, channelName, deadlineEnforcement);
+        return new DeadlineAdvertisementChannel(maybeInjectingDelegate, readTimeout, deadlineEnforcement);
     }
 
     private DeadlineAdvertisementChannel(Channel delegate, Duration readTimeout, Deadlines.Enforcement enforcement) {
