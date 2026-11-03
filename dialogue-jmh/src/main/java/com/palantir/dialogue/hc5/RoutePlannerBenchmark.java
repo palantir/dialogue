@@ -46,7 +46,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @SuppressWarnings({"VisibilityModifier", "DesignForExtension"})
 public class RoutePlannerBenchmark {
 
-    private final DialogueRoutePlanner planner = new DialogueRoutePlanner(ProxySelector.getDefault());
+    private final DialogueRoutePlanner planner = new DialogueRoutePlanner(ProxySelector.getDefault(), false);
     private final String hostName = "some-service.example.com";
     private final HttpHost sharedHost = new HttpHost("https", hostName, 8443);
     private final HttpClientContext context = HttpClientContext.create();

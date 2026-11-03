@@ -19,6 +19,7 @@ package com.palantir.dialogue.hc5;
 import java.net.InetAddress;
 import java.net.ProxySelector;
 import org.apache.hc.client5.http.HttpRoute;
+import org.apache.hc.client5.http.RouteInfo.TunnelType;
 import org.apache.hc.client5.http.routing.HttpRoutePlanner;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
@@ -34,14 +35,26 @@ import org.jspecify.annotations.Nullable;
 final class DialogueRoutePlanner implements HttpRoutePlanner {
     private static final String ATTRIBUTE = "dialogueResolvedAddress";
     private final HttpRoutePlanner delegate;
+    private final boolean forceProxyTunnel;
 
-    DialogueRoutePlanner(ProxySelector proxySelector) {
+    DialogueRoutePlanner(ProxySelector proxySelector, boolean forceProxyTunnel) {
         delegate = new HttpsProxyDefaultRoutePlanner(proxySelector);
+        this.forceProxyTunnel = forceProxyTunnel;
     }
 
     @Override
     public HttpRoute determineRoute(HttpHost host, HttpContext context) throws HttpException {
         HttpRoute route = delegate.determineRoute(host, context);
+        if (forceProxyTunnel && route.getProxyHost() != null && !route.isTunnelled()) {
+            route = new HttpRoute(
+                    route.getTargetHost(),
+                    route.getTargetName(),
+                    route.getLocalAddress(),
+                    extractProxies(route),
+                    route.isSecure(),
+                    TunnelType.TUNNELLED,
+                    route.getLayerType());
+        }
         if (route.getTargetHost().getAddress() == null) {
             InetAddress resolvedAddress = get(context);
             if (resolvedAddress != null) {

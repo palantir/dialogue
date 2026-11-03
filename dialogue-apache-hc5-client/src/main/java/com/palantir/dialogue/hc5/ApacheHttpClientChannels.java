@@ -406,6 +406,8 @@ public final class ApacheHttpClientChannels {
 
         private Optional<DialogueDnsResolver> dnsResolver = Optional.empty();
 
+        private boolean forceProxyTunnel;
+
         private ClientBuilder() {}
 
         public ClientBuilder clientConfiguration(ClientConfiguration value) {
@@ -441,6 +443,11 @@ public final class ApacheHttpClientChannels {
          */
         public ClientBuilder dnsResolver(DialogueDnsResolver value) {
             this.dnsResolver = Optional.of(Preconditions.checkNotNull(value, "DialogueDnsResolver is required"));
+            return this;
+        }
+
+        public ClientBuilder forceProxyTunnel(boolean value) {
+            this.forceProxyTunnel = value;
             return this;
         }
 
@@ -534,7 +541,7 @@ public final class ApacheHttpClientChannels {
                     .setKeepAliveStrategy(
                             new InactivityValidationAwareConnectionKeepAliveStrategy(connectionConfigResolver, name))
                     .setConnectionManager(connectionManager)
-                    .setRoutePlanner(new DialogueRoutePlanner(conf.proxy()))
+                    .setRoutePlanner(new DialogueRoutePlanner(conf.proxy(), forceProxyTunnel))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
                     .disableConnectionState()

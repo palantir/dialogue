@@ -29,7 +29,11 @@ import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.UncheckedExecutionException;
+import com.palantir.conjure.java.api.config.service.BasicCredentials;
+import com.palantir.conjure.java.api.config.service.ProxyConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.HttpMethod;
@@ -43,21 +47,105 @@ import com.palantir.dialogue.hc5.DialogueClientMetrics.ConnectionCreate_Result;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import io.undertow.Undertow;
+import io.undertow.server.handlers.ConnectHandler;
+import io.undertow.server.handlers.ResponseCodeHandler;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import mockwebserver3.RecordedRequest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
     @Override
     protected Channel createChannel(ClientConfiguration config) {
         return ApacheHttpClientChannels.create(config);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+    void tunnels_http_with_reactive_proxy_authentication_when_enabled(boolean httpsProxy, boolean forceProxyTunnel)
+            throws Exception {
+        List<String> credentials = new CopyOnWriteArrayList<>();
+        String expectedAuthorization = "Basic OnBhc3N3b3Jk";
+        Undertow.Builder proxyBuilder = Undertow.builder()
+                .setIoThreads(1)
+                .setWorkerThreads(2)
+                .setHandler(exchange -> {
+                    if (!exchange.getRequestMethod().equals(Methods.CONNECT)) {
+                        exchange.setStatusCode(404);
+                        return;
+                    }
+                    assertThat(exchange.getRequestHeaders().getFirst(Headers.AUTHORIZATION))
+                            .isNull();
+                    String authorization = exchange.getRequestHeaders().getFirst(Headers.PROXY_AUTHORIZATION);
+                    credentials.add(authorization == null ? "missing" : authorization);
+                    if (!expectedAuthorization.equals(authorization)) {
+                        exchange.setStatusCode(407);
+                        exchange.getResponseHeaders().put(Headers.PROXY_AUTHENTICATE, "Basic realm=proxy");
+                        return;
+                    }
+                    new ConnectHandler(ResponseCodeHandler.HANDLE_404).handleRequest(exchange);
+                });
+        if (httpsProxy) {
+            proxyBuilder.addHttpsListener(
+                    0, "localhost", SslSocketFactories.createSslContext(TestConfigurations.SSL_CONFIG));
+        } else {
+            proxyBuilder.addHttpListener(0, "localhost");
+        }
+        Undertow proxy = proxyBuilder.build();
+        proxy.start();
+        try {
+            int proxyPort = ((InetSocketAddress) proxy.getListenerInfo().get(0).getAddress()).getPort();
+            String uri = server.url("").url().toString();
+            ClientConfiguration config = ClientConfiguration.builder()
+                    .from(TestConfigurations.create(uri))
+                    .proxy(ClientConfigurations.createProxySelector(ProxyConfiguration.builder()
+                            .type(httpsProxy ? ProxyConfiguration.Type.HTTPS : ProxyConfiguration.Type.HTTP)
+                            .hostAndPort("localhost:" + proxyPort)
+                            .build()))
+                    .proxyCredentials(BasicCredentials.of("", "password"))
+                    .build();
+            try (ApacheHttpClientChannels.CloseableClient client = ApacheHttpClientChannels.clientBuilder()
+                            .clientConfiguration(config)
+                            .clientName("forced-proxy-tunnel")
+                            .forceProxyTunnel(forceProxyTunnel)
+                            .build();
+                    Response response = ApacheHttpClientChannels.createSingleUri(uri, client)
+                            .execute(
+                                    TestEndpoint.GET,
+                                    Request.builder()
+                                            .putHeaderParams("Authorization", "Bearer origin-token")
+                                            .build())
+                            .get(10, TimeUnit.SECONDS)) {
+                assertThat(response.code()).isEqualTo(forceProxyTunnel ? 200 : 404);
+                if (!forceProxyTunnel) {
+                    assertThat(credentials).isEmpty();
+                    assertThat(server.getRequestCount()).isZero();
+                    return;
+                }
+                assertThat(response.body()).hasContent("body");
+            }
+            assertThat(credentials).containsExactly("missing", expectedAuthorization);
+            RecordedRequest originRequest = server.takeRequest();
+            assertThat(originRequest.getHeaders().get("Authorization")).isEqualTo("Bearer origin-token");
+            assertThat(originRequest.getHeaders().get("Proxy-Authorization")).isNull();
+        } finally {
+            proxy.stop();
+        }
     }
 
     @SuppressWarnings("for-rollout:deprecation")
