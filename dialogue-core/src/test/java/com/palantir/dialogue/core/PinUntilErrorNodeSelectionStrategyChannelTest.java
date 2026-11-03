@@ -244,6 +244,28 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
     }
 
     @Test
+    public void out_of_order_responses_after_reshuffle_dont_cause_us_to_switch_channel() {
+        SettableFuture<Response> future = SettableFuture.create();
+        when(channel2.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(Optional.of(future));
+        assertThat(pinUntilError.maybeExecute(null, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED))
+                .isPresent();
+
+        setResponse(channel1, 100);
+        setResponse(channel2, 204);
+        when(clock.read()).thenReturn(Duration.ofMinutes(11).toNanos());
+        assertThat(getCode(pinUntilError))
+                .describedAs("Reshuffle gave us channel1")
+                .isEqualTo(100);
+
+        future.set(response(500));
+
+        assertThat(getCode(pinUntilError))
+                .describedAs("We're still on channel1, as a 500 from channel2 doesn't mark channel1 as bad")
+                .isEqualTo(100);
+    }
+
+    @Test
     public void finds_first_non_limited_channel() {
         when(channel1.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
                 .thenReturn(Optional.empty());
