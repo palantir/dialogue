@@ -329,7 +329,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                     .reason("throwable")
                     .build();
 
-            if (numChannels < 10) {
+            if (numChannels <= 10) {
                 // hard limit ensures we don't create unbounded tags
                 this.successesPerHost = IntStream.range(0, numChannels)
                         .mapToObj(index -> metrics.success()

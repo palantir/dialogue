@@ -296,6 +296,31 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                 .contains(100, 100, 100, 100, 100, 100);
     }
 
+    @Test
+    void success_is_recorded_per_host_with_ten_nodes() {
+        LimitedChannel delegate = Mockito.mock(LimitedChannel.class);
+        setResponse(delegate, 200);
+        ImmutableList<PinUntilErrorNodeSelectionStrategyChannel.PinChannel> channels = IntStream.range(0, 10)
+                .mapToObj(index -> ImmutablePinChannel.builder()
+                        .delegate(delegate)
+                        .stableIndex(index)
+                        .build())
+                .collect(ImmutableList.toImmutableList());
+        DialoguePinuntilerrorMetrics pinMetrics = DialoguePinuntilerrorMetrics.of(new DefaultTaggedMetricRegistry());
+        PinUntilErrorNodeSelectionStrategyChannel channel = new PinUntilErrorNodeSelectionStrategyChannel(
+                new PinUntilErrorNodeSelectionStrategyChannel.ConstantNodeList(channels), 9, pinMetrics, channelName);
+
+        assertThat(getCode(channel)).isEqualTo(200);
+
+        assertThat(pinMetrics
+                        .success()
+                        .channelName(channelName)
+                        .hostIndex("9")
+                        .build()
+                        .getCount())
+                .isOne();
+    }
+
     private int getCode(PinUntilErrorNodeSelectionStrategyChannel channel) {
         return getCode(channel, Request.builder().build());
     }
