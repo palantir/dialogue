@@ -58,6 +58,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.function.Supplier;
 import java.util.stream.LongStream;
 import javax.net.ssl.SSLSocketFactory;
 import org.apache.hc.client5.http.AuthenticationStrategy;
@@ -84,7 +85,15 @@ import org.apache.hc.client5.http.io.DetachedSocketFactory;
 import org.apache.hc.client5.http.io.HttpClientConnectionOperator;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
+import org.apache.hc.core5.http.ClassicHttpRequest;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.Method;
 import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.impl.io.HttpRequestExecutor;
+import org.apache.hc.core5.http.io.HttpClientConnection;
+import org.apache.hc.core5.http.io.HttpResponseInformationCallback;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
@@ -406,6 +415,9 @@ public final class ApacheHttpClientChannels {
 
         private Optional<DialogueDnsResolver> dnsResolver = Optional.empty();
 
+        @Nullable
+        private Supplier<String> proxyAuthorization;
+
         private ClientBuilder() {}
 
         public ClientBuilder clientConfiguration(ClientConfiguration value) {
@@ -444,6 +456,11 @@ public final class ApacheHttpClientChannels {
             return this;
         }
 
+        public ClientBuilder proxyAuthorization(Supplier<String> value) {
+            this.proxyAuthorization = Preconditions.checkNotNull(value, "proxyAuthorization is required");
+            return this;
+        }
+
         public CloseableClient build() {
             ClientConfiguration conf =
                     Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is required");
@@ -451,6 +468,9 @@ public final class ApacheHttpClientChannels {
             Preconditions.checkArgument(
                     !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
             Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
+            Preconditions.checkArgument(
+                    proxyAuthorization == null || conf.proxyCredentials().isEmpty(),
+                    "proxyAuthorization and proxyCredentials cannot both be configured");
 
             Timeout socketTimeout = getSocketTimeout(conf, name);
 
@@ -557,6 +577,27 @@ public final class ApacheHttpClientChannels {
                             .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeFactory>create()
                                     .register(StandardAuthScheme.BASIC, BasicSchemeFactory.INSTANCE)
                                     .build()));
+
+            Supplier<String> authorization = proxyAuthorization;
+            if (authorization != null) {
+                builder.setRequestExecutor(new HttpRequestExecutor() {
+                    @Override
+                    public ClassicHttpResponse execute(
+                            ClassicHttpRequest request,
+                            HttpClientConnection connection,
+                            HttpResponseInformationCallback informationCallback,
+                            HttpContext context)
+                            throws IOException, HttpException {
+                        if (Method.CONNECT.isSame(request.getMethod())) {
+                            request.setHeader(
+                                    HttpHeaders.PROXY_AUTHORIZATION,
+                                    Preconditions.checkNotNull(
+                                            authorization.get(), "proxyAuthorization returned null"));
+                        }
+                        return super.execute(request, connection, informationCallback, context);
+                    }
+                });
+            }
 
             CloseableHttpClient apacheClient = builder.build();
             ScheduledFuture<?> connectionEvictorFuture =

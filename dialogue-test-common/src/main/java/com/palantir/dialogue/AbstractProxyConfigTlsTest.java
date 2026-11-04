@@ -88,6 +88,22 @@ public abstract class AbstractProxyConfigTlsTest {
 
     protected abstract Channel create(ClientConfiguration config);
 
+    protected final String serverUri() {
+        return "https://localhost:" + serverPort;
+    }
+
+    protected final ProxySelector httpsProxySelector() {
+        return createProxySelector("localhost", httpsProxyPort, true);
+    }
+
+    protected final void setServerHandler(HttpHandler handler) {
+        serverHandler = handler;
+    }
+
+    protected final void setProxyHandler(HttpHandler handler) {
+        proxyHandler = handler;
+    }
+
     @BeforeEach
     public void beforeEach() {
         SSLContext sslContext = SslSocketFactories.createSslContext(TestConfigurations.SSL_CONFIG);
