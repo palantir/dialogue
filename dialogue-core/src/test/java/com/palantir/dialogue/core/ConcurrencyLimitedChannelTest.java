@@ -103,7 +103,7 @@ public class ConcurrencyLimitedChannelTest {
 
         LimitedChannel forHost = ConcurrencyLimitedChannel.createForHost(config, delegate, 0, state);
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
-                state.getState(ConcurrencyLimitedChannel.HOST_SPECIFIC_STATE_KEY);
+                existingState(state, ConcurrencyLimitedChannel.HOST_SPECIFIC_STATE_KEY);
 
         assertThat(limiter.getInflight()).isEqualTo(0);
 
@@ -128,7 +128,7 @@ public class ConcurrencyLimitedChannelTest {
 
         LimitedChannel forHost = ConcurrencyLimitedChannel.createForHost(config, delegate, 0, state);
         ExponentialRampConcurrencyLimiter limiter =
-                state.getState(ConcurrencyLimitedChannel.HOST_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY);
+                existingState(state, ConcurrencyLimitedChannel.HOST_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY);
 
         assertThat(limiter.getLimit()).isEqualTo(50);
         forHost.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
@@ -149,7 +149,7 @@ public class ConcurrencyLimitedChannelTest {
         // create two channels for the same endpoint, which should re-use the same AIMD state
         LimitedChannel forEndpoint = ConcurrencyLimitedChannel.createForEndpoint(delegate, config, 0, endpoint, state);
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter =
-                state.getState(ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_STATE_KEY);
+                existingState(state, ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_STATE_KEY);
 
         assertThat(limiter.getInflight()).isEqualTo(0);
 
@@ -172,7 +172,7 @@ public class ConcurrencyLimitedChannelTest {
 
         LimitedChannel forEndpoint = ConcurrencyLimitedChannel.createForEndpoint(delegate, config, 0, endpoint, state);
         ExponentialRampConcurrencyLimiter limiter =
-                state.getState(ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY);
+                existingState(state, ConcurrencyLimitedChannel.ENDPOINT_SPECIFIC_EXPONENTIAL_RAMP_STATE_KEY);
 
         assertThat(limiter.getLimit()).isEqualTo(50);
         forEndpoint.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
@@ -318,6 +318,12 @@ public class ConcurrencyLimitedChannelTest {
 
     private void mockEndpointLimitUnavailable() {
         when(mockLimiter.acquire(any())).thenReturn(null);
+    }
+
+    private static <T> T existingState(ChannelState state, ChannelState.Key<T> key) {
+        return state.getState(key, () -> {
+            throw new AssertionError("Expected the channel to have already created this state");
+        });
     }
 
     @SuppressWarnings("unchecked")
