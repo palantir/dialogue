@@ -17,6 +17,8 @@
 package com.palantir.dialogue;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Interner;
+import com.google.common.collect.Interners;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
@@ -37,6 +39,11 @@ import org.jspecify.annotations.Nullable;
  * @param <T> the return type for successful responses
  */
 public final class ExceptionDeserializerArgs<T> {
+    // Generated clients build one ExceptionDeserializerArgs per return type, and each registers the same errors, so
+    // equal error maps are shared instead of being held once per return type. Weak, so a map is only kept while some
+    // ExceptionDeserializerArgs still holds it.
+    private static final Interner<ImmutableMap<String, ErrorExceptionPair<?, ?>>> ERRORS = Interners.newWeakInterner();
+
     private final TypeMarker<T> returnType;
     private final ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers;
 
@@ -107,16 +114,28 @@ public final class ExceptionDeserializerArgs<T> {
             this.errorNameToExceptionTypeMarkers.put(
                     Preconditions.checkNotNull(errorName, "error name must be non-null"),
                     new ErrorExceptionPair<>(
-                            Preconditions.checkNotNull(errorType, "error type must be non-null"),
-                            Preconditions.checkNotNull(exceptionType, "exception type must be non-null")));
+                            withoutSubclass(Preconditions.checkNotNull(errorType, "error type must be non-null")),
+                            withoutSubclass(
+                                    Preconditions.checkNotNull(exceptionType, "exception type must be non-null"))));
             return this;
+        }
+
+        // A shared error map can outlive the client that built it, and `new TypeMarker<T>() {}` subclasses retain the
+        // class (and classloader) that created them, so only keep the Type.
+        @SuppressWarnings("unchecked")
+        private static <U> TypeMarker<U> withoutSubclass(TypeMarker<U> marker) {
+            return (TypeMarker<U>) TypeMarker.of(marker.getType());
         }
 
         public ExceptionDeserializerArgs<T> build() {
             checkNotBuilt();
             Preconditions.checkNotNull(returnType, "base type must be set");
             buildInvoked = true;
-            return new ExceptionDeserializerArgs<>(returnType, errorNameToExceptionTypeMarkers.buildOrThrow());
+            ImmutableMap<String, ErrorExceptionPair<?, ?>> errors = errorNameToExceptionTypeMarkers.buildOrThrow();
+            ImmutableMap<String, ErrorExceptionPair<?, ?>> shared = ERRORS.intern(errors);
+            // Map equality ignores order, so only share a map registered in the same order to keep iteration order.
+            return new ExceptionDeserializerArgs<>(
+                    returnType, shared.keySet().asList().equals(errors.keySet().asList()) ? shared : errors);
         }
 
         private void checkNotBuilt() {

@@ -95,4 +95,57 @@ public final class ExceptionDeserializerArgsTest {
                         + "$TestErrorException}"
                         + "]}}");
     }
+
+    @Test
+    public void testEqualErrorsAreShared() {
+        ExceptionDeserializerArgs<String> stringArgs = ExceptionDeserializationTestUtils.createStringDeserializerArgs();
+        ExceptionDeserializerArgs<InputStream> inputStreamArgs =
+                ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs();
+        assertThat(inputStreamArgs.errorNameToExceptionTypeMarkers())
+                .isSameAs(stringArgs.errorNameToExceptionTypeMarkers());
+    }
+
+    @Test
+    public void testDifferentErrorsAreNotShared() {
+        ExceptionDeserializerArgs<String> args1 = ExceptionDeserializationTestUtils.createStringDeserializerArgs();
+        ExceptionDeserializerArgs<String> args2 = ExceptionDeserializerArgs.<String>builder()
+                .returnType(new TypeMarker<>() {})
+                .exception(
+                        "differentErrorName",
+                        new TypeMarker<TestErrorSerializableError>() {},
+                        new TypeMarker<TestErrorException>() {})
+                .build();
+        assertThat(args2.errorNameToExceptionTypeMarkers()).isNotSameAs(args1.errorNameToExceptionTypeMarkers());
+    }
+
+    @Test
+    public void testKeepsRegistrationOrder() {
+        ExceptionDeserializerArgs<String> ab = ExceptionDeserializerArgs.<String>builder()
+                .returnType(new TypeMarker<>() {})
+                .exception(
+                        "A", TypeMarker.of(TestErrorSerializableError.class), TypeMarker.of(TestErrorException.class))
+                .exception(
+                        "B", TypeMarker.of(TestErrorSerializableError.class), TypeMarker.of(TestErrorException.class))
+                .build();
+        ExceptionDeserializerArgs<String> ba = ExceptionDeserializerArgs.<String>builder()
+                .returnType(new TypeMarker<>() {})
+                .exception(
+                        "B", TypeMarker.of(TestErrorSerializableError.class), TypeMarker.of(TestErrorException.class))
+                .exception(
+                        "A", TypeMarker.of(TestErrorSerializableError.class), TypeMarker.of(TestErrorException.class))
+                .build();
+        assertThat(ab.errorNameToExceptionTypeMarkers().keySet()).containsExactly("A", "B");
+        assertThat(ba.errorNameToExceptionTypeMarkers().keySet()).containsExactly("B", "A");
+    }
+
+    @Test
+    public void testDoesNotRetainTypeMarkerSubclasses() {
+        ExceptionDeserializerArgs<String> args = ExceptionDeserializationTestUtils.createStringDeserializerArgs();
+        assertThat(args.errorNameToExceptionTypeMarkers().values()).allSatisfy(pair -> {
+            assertThat(pair.errorType().getClass().isAnonymousClass()).isFalse();
+            assertThat(pair.exceptionType().getClass().isAnonymousClass()).isFalse();
+            assertThat(pair.errorType()).isEqualTo(TypeMarker.of(TestErrorSerializableError.class));
+            assertThat(pair.exceptionType()).isEqualTo(TypeMarker.of(TestErrorException.class));
+        });
+    }
 }
