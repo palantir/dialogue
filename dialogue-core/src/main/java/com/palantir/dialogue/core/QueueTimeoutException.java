@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.palantir.dialogue.ClientTimeout;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -25,9 +26,10 @@ import java.util.List;
 import java.util.OptionalLong;
 
 /**
- * Thrown when a request waits in a {@link QueuedChannel} longer than the configured queue timeout.
+ * Thrown when a request waits in a {@link QueuedChannel} longer than the configured queue timeout. The request was
+ * never sent.
  */
-public final class QueueTimeoutException extends RuntimeException implements SafeLoggable {
+public final class QueueTimeoutException extends RuntimeException implements SafeLoggable, ClientTimeout {
     private static final String MESSAGE = "Request queued for longer than queue timeout";
 
     private final List<Arg<?>> args;

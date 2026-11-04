@@ -14,32 +14,30 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.hc5;
+package com.palantir.dialogue;
 
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.exceptions.SafeExceptions;
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 /**
  * An exception describing a connect timeout. Note that this importantly implements {@link IOException} but
- * not {@link java.net.SocketTimeoutException} so that it can be safely retried. Connect timeouts are safe
+ * not {@link SocketTimeoutException} so that it can be safely retried. Connect timeouts are safe
  * to retry because requests are not sent during connection establishment.
+ * <p>
+ * This type is public so that blocking clients can report connect timeouts as a {@link DialogueConnectException}.
  */
-final class SafeConnectTimeoutException extends IOException implements SafeLoggable {
+public final class SafeConnectTimeoutException extends IOException implements SafeLoggable {
     private static final String MESSAGE = "Connect timed out";
 
     private final List<Arg<?>> arguments;
 
-    SafeConnectTimeoutException(org.apache.hc.client5.http.ConnectTimeoutException cause) {
-        super(MESSAGE, cause);
-        this.arguments = Collections.emptyList();
-    }
-
-    SafeConnectTimeoutException(org.apache.hc.client5.http.ConnectTimeoutException cause, Arg<?>... args) {
+    public SafeConnectTimeoutException(SocketTimeoutException cause, Arg<?>... args) {
         super(SafeExceptions.renderMessage(MESSAGE, args), cause);
         this.arguments = Collections.unmodifiableList(Arrays.asList(args));
     }

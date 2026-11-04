@@ -27,7 +27,7 @@ import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Deserializer;
-import com.palantir.dialogue.DialogueException;
+import com.palantir.dialogue.DialogueInterruptedException;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
@@ -117,7 +117,7 @@ enum DefaultClients implements Clients {
             if (!future.cancel(true)) {
                 Futures.addCallback(future, CancelListener.INSTANCE, DialogueFutures.safeDirectExecutor());
             }
-            throw new DialogueException(e);
+            throw new DialogueInterruptedException(e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
 
@@ -151,7 +151,7 @@ enum DefaultClients implements Clients {
                 cause.addSuppressed(new SafeRuntimeException("Rethrown by dialogue"));
                 throw error;
             }
-            throw new DialogueException(cause);
+            throw DialogueExceptions.wrap(cause);
         }
     }
 

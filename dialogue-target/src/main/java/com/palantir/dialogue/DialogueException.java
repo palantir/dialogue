@@ -22,21 +22,35 @@ import com.palantir.logsafe.SafeLoggable;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
-/** Internal marker type for Dialogue network layer failures where no response is returned. */
-public final class DialogueException extends RuntimeException implements SafeLoggable {
+/**
+ * Internal marker type for Dialogue network layer failures where no response is returned.
+ * <p>
+ * Blocking clients throw a subclass when they can tell what went wrong: {@link DialogueResponseTimeoutException},
+ * {@link DialogueConnectException} or {@link DialogueInterruptedException}. Every subclass keeps the same message and
+ * the same cause as a plain {@code DialogueException}.
+ */
+public sealed class DialogueException extends RuntimeException implements SafeLoggable
+        permits DialogueResponseTimeoutException, DialogueConnectException, DialogueInterruptedException {
     private static final String MESSAGE = "Network transport failure";
 
+    private final List<Arg<?>> args;
+
     public DialogueException(@Nullable Throwable cause) {
+        this(cause, ImmutableList.of());
+    }
+
+    DialogueException(@Nullable Throwable cause, List<Arg<?>> args) {
         super(MESSAGE, cause);
+        this.args = args;
     }
 
     @Override
-    public String getLogMessage() {
+    public final String getLogMessage() {
         return MESSAGE;
     }
 
     @Override
-    public List<Arg<?>> getArgs() {
-        return ImmutableList.of();
+    public final List<Arg<?>> getArgs() {
+        return args;
     }
 }

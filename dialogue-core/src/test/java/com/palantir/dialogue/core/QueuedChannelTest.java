@@ -31,6 +31,7 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.dialogue.ClientTimeout;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -852,7 +853,10 @@ public class QueuedChannelTest {
             assertThat(callerFuture)
                     .failsWithin(Duration.ZERO)
                     .withThrowableThat()
-                    .withCauseInstanceOf(QueueTimeoutException.class);
+                    .withCauseInstanceOf(QueueTimeoutException.class)
+                    .havingCause()
+                    .as("servers report a queue timeout as an expired internal deadline")
+                    .isInstanceOf(ClientTimeout.class);
             assertThat(instrumentation.requestsQueued().getCount())
                     .as("the timeout task proactively decrements the queue size")
                     .isEqualTo(0);

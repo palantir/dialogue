@@ -32,14 +32,26 @@ import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
+import com.palantir.dialogue.ClientTimeout;
+import com.palantir.dialogue.DialogueConnectException;
 import com.palantir.dialogue.DialogueException;
+import com.palantir.dialogue.DialogueInterruptedException;
+import com.palantir.dialogue.DialogueResponseTimeoutException;
+import com.palantir.dialogue.SafeConnectTimeoutException;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.Optional;
+import javax.net.ssl.SSLHandshakeException;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -250,6 +262,93 @@ public class DefaultClientsBlockingTest {
         @Override
         public MySerializableError error() {
             return this.error;
+        }
+    }
+
+    @Nested
+    class TransportFailures {
+
+        @Test
+        void readTimeoutIsResponseTimeout() {
+            assertResponseTimeout(new SocketTimeoutException("Read timed out"));
+        }
+
+        @Test
+        void connectionTimedOutIsResponseTimeout() {
+            assertResponseTimeout(new SocketException("Connection timed out"));
+        }
+
+        @Test
+        void connectTimeoutIsConnectFailure() {
+            assertConnectFailure(
+                    new SafeConnectTimeoutException(new SocketTimeoutException("Connect timed out")),
+                    DialogueConnectException.Reason.CONNECT_TIMEOUT);
+        }
+
+        @Test
+        void socketConnectTimeoutIsConnectFailure() {
+            assertConnectFailure(
+                    new SocketTimeoutException("connect timed out"), DialogueConnectException.Reason.CONNECT_TIMEOUT);
+        }
+
+        @Test
+        void unknownHostIsConnectFailure() {
+            assertConnectFailure(new UnknownHostException("example.com"), DialogueConnectException.Reason.DNS);
+        }
+
+        @Test
+        void refusedConnectionIsConnectFailure() {
+            assertConnectFailure(
+                    new ConnectException("Connection refused"), DialogueConnectException.Reason.CONNECTION_REFUSED);
+        }
+
+        @Test
+        void tlsHandshakeFailureIsConnectFailure() {
+            assertConnectFailure(
+                    new SSLHandshakeException("PKIX path building failed"), DialogueConnectException.Reason.TLS);
+        }
+
+        @Test
+        void interruptionIsInterrupted() {
+            ListenableFuture<Object> future = SettableFuture.create();
+            Thread.currentThread().interrupt();
+            assertThatThrownBy(() -> DefaultClients.INSTANCE.block(future))
+                    .isExactlyInstanceOf(DialogueInterruptedException.class)
+                    .hasMessage("Network transport failure")
+                    .hasCauseInstanceOf(InterruptedException.class);
+            assertThat(Thread.interrupted())
+                    .as("block should not clear the interrupted state")
+                    .isTrue();
+        }
+
+        @Test
+        void otherFailuresStayPlainDialogueExceptions() {
+            SocketException reset = new SocketException("Connection reset");
+            assertThatThrownBy(() -> DefaultClients.INSTANCE.block(Futures.immediateFailedFuture(reset)))
+                    .isExactlyInstanceOf(DialogueException.class)
+                    .hasMessage("Network transport failure")
+                    .hasCause(reset);
+        }
+
+        private void assertResponseTimeout(IOException failure) {
+            assertThatThrownBy(() -> DefaultClients.INSTANCE.block(Futures.immediateFailedFuture(failure)))
+                    .isExactlyInstanceOf(DialogueResponseTimeoutException.class)
+                    .isInstanceOf(ClientTimeout.class)
+                    .hasMessage("Network transport failure")
+                    .hasCause(failure);
+        }
+
+        private void assertConnectFailure(IOException failure, DialogueConnectException.Reason reason) {
+            assertThatThrownBy(() -> DefaultClients.INSTANCE.block(Futures.immediateFailedFuture(failure)))
+                    .isExactlyInstanceOf(DialogueConnectException.class)
+                    .isNotInstanceOf(ClientTimeout.class)
+                    .hasMessage("Network transport failure")
+                    .hasCause(failure)
+                    .satisfies(thrown -> {
+                        DialogueConnectException connectFailure = (DialogueConnectException) thrown;
+                        assertThat(connectFailure.reason()).isEqualTo(reason);
+                        assertThat(connectFailure.getArgs()).containsExactly(SafeArg.of("reason", reason));
+                    });
         }
     }
 
