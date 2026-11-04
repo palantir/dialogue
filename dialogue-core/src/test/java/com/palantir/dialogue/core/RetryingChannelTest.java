@@ -947,6 +947,52 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void retryCountFailureHistogramUpdatedWhenExceptionFollows429() {
+        setupResponses(429).thenReturn(FAILED);
+
+        ListenableFuture<Response> response = channel(4).execute(REQUEST);
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
+        verify(channel, times(5)).execute(REQUEST);
+
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 5, "SafeIoException"),
+                "retries exhausted due to exception after a 429");
+    }
+
+    @Test
+    public void retryCountFailureHistogramUpdatedWhenExceptionFollowsMaxRetries429s() {
+        setupResponses(429, 429, 429, 429).thenReturn(FAILED);
+
+        ListenableFuture<Response> response = channel(4).execute(REQUEST);
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
+        verify(channel, times(5)).execute(REQUEST);
+
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 5, "SafeIoException"),
+                "retries exhausted due to exception after four 429s");
+    }
+
+    @Test
+    public void retriesNotExhaustedWhenNonRetryableExceptionFollows429s() {
+        setupResponses(429, 429).thenReturn(Futures.immediateFailedFuture(new SafeRuntimeException("non-retryable")));
+
+        ListenableFuture<Response> response = channel(4).execute(REQUEST);
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeRuntimeException.class);
+        verify(channel, times(3)).execute(REQUEST);
+
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 3), "non-retryable exception after two 429s");
+        assertThat(DialogueClientMetrics.of(registry)
+                        .requestRetryExhausted()
+                        .channelName("my-channel")
+                        .reason("SafeRuntimeException")
+                        .build()
+                        .getCount())
+                .as("3 of 5 attempts were used, so retries were not exhausted")
+                .isZero();
+    }
+
+    @Test
     public void testIoExceptionFailuresThenQosResponseThenSuccess() throws Exception {
         when(channel.execute(any()))
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException("connect timed out")))
@@ -1058,11 +1104,12 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DISABLED);
     }
 
-    private void setupResponses(int... codes) {
+    private OngoingStubbing<ListenableFuture<Response>> setupResponses(int... codes) {
         OngoingStubbing<ListenableFuture<Response>> stubbing = when(channel.execute(any()));
         for (int code : codes) {
             stubbing = stubbing.thenAnswer(_invocation -> Futures.immediateFuture(new TestResponse().code(code)));
         }
+        return stubbing;
     }
 
     private record ExpectedMetrics(
