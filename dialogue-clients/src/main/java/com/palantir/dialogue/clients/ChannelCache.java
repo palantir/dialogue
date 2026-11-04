@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -174,7 +175,7 @@ final class ChannelCache {
                             dnsResolutionResults.resolvedHosts(),
                             channelCacheRequest.taggedMetrics()));
         }
-        return DialogueChannel.builder()
+        DialogueChannel.Builder builder = DialogueChannel.builder()
                 .channelName(channelCacheRequest.channelName())
                 .clientConfiguration(ClientConfiguration.builder()
                         .from(apacheClient.conf())
@@ -185,9 +186,9 @@ final class ChannelCache {
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
                         .mapToInt(OverrideHostIndex::index)
                         .findAny())
-                .deadlineEnforcement(channelCacheRequest.deadlineEnforcement())
-                .concurrencyLimiterExponentialRamp(channelCacheRequest.concurrencyLimiterExponentialRamp())
-                .build();
+                .deadlineEnforcement(channelCacheRequest.deadlineEnforcement());
+        channelCacheRequest.concurrencyLimiterExponentialRamp().ifPresent(builder::concurrencyLimiterExponentialRamp);
+        return builder.build();
     }
 
     @VisibleForTesting
@@ -282,7 +283,7 @@ final class ChannelCache {
 
         Optional<Boolean> deadlineEnforcement();
 
-        boolean concurrencyLimiterExponentialRamp();
+        OptionalInt concurrencyLimiterExponentialRamp();
     }
 
     @Unsafe

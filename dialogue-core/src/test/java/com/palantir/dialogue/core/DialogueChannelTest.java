@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -52,6 +53,7 @@ import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRequests_Result;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryDiagnosticRetries_Result;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
@@ -84,6 +86,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -200,6 +203,31 @@ public final class DialogueChannelTest {
                         .build()
                         .getCount())
                 .isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 501})
+    void rejectsInvalidExponentialRampInitialLimit(int initialLimit) {
+        assertThatThrownBy(() -> DialogueChannel.builder()
+                        .channelName("my-channel")
+                        .clientConfiguration(stubConfig)
+                        .factory(_args -> mockChannel)
+                        .concurrencyLimiterExponentialRamp(initialLimit)
+                        .build())
+                .isInstanceOf(SafeIllegalArgumentException.class)
+                .hasMessageContaining("must be within the supported range");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 500})
+    void acceptsValidExponentialRampInitialLimit(int initialLimit) {
+        assertThatCode(() -> DialogueChannel.builder()
+                        .channelName("my-channel")
+                        .clientConfiguration(stubConfig)
+                        .factory(_args -> mockChannel)
+                        .concurrencyLimiterExponentialRamp(initialLimit)
+                        .build())
+                .doesNotThrowAnyException();
     }
 
     @Test

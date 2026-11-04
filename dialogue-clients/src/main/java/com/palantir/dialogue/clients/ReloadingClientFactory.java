@@ -47,6 +47,7 @@ import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.dialogue.core.ExponentialRampConcurrencyLimiter;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
@@ -63,6 +64,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
@@ -89,7 +91,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .dnsResolver(params.dnsResolver());
         params.blockingExecutor().ifPresent(clientBuilder::executor);
         ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
-        return DialogueChannel.builder()
+        DialogueChannel.Builder builder = DialogueChannel.builder()
                 .channelName(channelName)
                 .clientConfiguration(clientConf)
                 .uris(DnsSupport.pollForChanges(
@@ -106,9 +108,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 dnsResult.resolvedHosts(),
                                 params.taggedMetrics())))
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
-                .deadlineEnforcement(params.deadlineEnforcement())
-                .concurrencyLimiterExponentialRamp(params.concurrencyLimiterExponentialRamp())
-                .build();
+                .deadlineEnforcement(params.deadlineEnforcement());
+        params.concurrencyLimiterExponentialRamp().ifPresent(builder::concurrencyLimiterExponentialRamp);
+        return builder.build();
     }
 
     @Value.Immutable
@@ -167,10 +169,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         Optional<Boolean> deadlineEnforcement();
 
-        @Value.Default
-        default boolean concurrencyLimiterExponentialRamp() {
-            return false;
-        }
+        OptionalInt concurrencyLimiterExponentialRamp();
     }
 
     @Override
@@ -459,7 +458,17 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public ReloadingFactory withConcurrencyLimiterExponentialRamp(boolean enabled) {
-        return new ReloadingClientFactory(params.withConcurrencyLimiterExponentialRamp(enabled), cache);
+        return enabled
+                ? withConcurrencyLimiterExponentialRamp(ExponentialRampConcurrencyLimiter.DEFAULT_INITIAL_LIMIT)
+                : new ReloadingClientFactory(params.withConcurrencyLimiterExponentialRamp(OptionalInt.empty()), cache);
+    }
+
+    @Override
+    public ReloadingFactory withConcurrencyLimiterExponentialRamp(int initialLimit) {
+        // Validate eagerly: DialogueChannel also checks this, but a channel first built during a config reload would
+        // only log the failure and leave the client on its previous channel.
+        ExponentialRampConcurrencyLimiter.checkInitialLimit(initialLimit);
+        return new ReloadingClientFactory(params.withConcurrencyLimiterExponentialRamp(initialLimit), cache);
     }
 
     @Override
