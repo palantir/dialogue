@@ -44,14 +44,15 @@ public final class Encodings {
 
     private abstract static class AbstractJacksonEncoding implements Encoding {
 
-        private final ObjectMapper mapper;
+        private final Supplier<? extends ObjectMapper> mapperSupplier;
 
-        AbstractJacksonEncoding(ObjectMapper mapper) {
-            this.mapper = Preconditions.checkNotNull(mapper, "ObjectMapper is required");
+        AbstractJacksonEncoding(Supplier<? extends ObjectMapper> mapperSupplier) {
+            this.mapperSupplier = Preconditions.checkNotNull(mapperSupplier, "ObjectMapper supplier is required");
         }
 
         @Override
         public final <T> Serializer<T> serializer(TypeMarker<T> type) {
+            ObjectMapper mapper = mapperSupplier.get();
             ObjectWriter writer = mapper.writerFor(mapper.constructType(type.getType()));
             return (value, output) ->
                     writer.writeValue(output, Preconditions.checkNotNull(value, "cannot serialize null value"));
@@ -59,6 +60,7 @@ public final class Encodings {
 
         @Override
         public final <T> Deserializer<T> deserializer(TypeMarker<T> type) {
+            ObjectMapper mapper = mapperSupplier.get();
             ObjectReader reader = mapper.readerFor(mapper.constructType(type.getType()));
             return input -> {
                 try (InputStream inputStream = input) {
@@ -76,7 +78,7 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure JSON wire format. */
     public static Encoding json() {
-        return new AbstractJacksonEncoding(JSON_MAPPER.get()) {
+        return new AbstractJacksonEncoding(JSON_MAPPER) {
             private static final String CONTENT_TYPE = "application/json";
 
             @Override
@@ -93,7 +95,7 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure CBOR wire format. */
     public static Encoding cbor() {
-        return new AbstractJacksonEncoding(CBOR_MAPPER.get()) {
+        return new AbstractJacksonEncoding(CBOR_MAPPER) {
             private static final String CONTENT_TYPE = "application/cbor";
 
             @Override
@@ -110,7 +112,7 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure Smile wire format. */
     public static Encoding smile() {
-        return new AbstractJacksonEncoding(SMILE_MAPPER.get()) {
+        return new AbstractJacksonEncoding(SMILE_MAPPER) {
             private static final String CONTENT_TYPE = "application/x-jackson-smile";
 
             @Override
