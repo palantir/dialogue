@@ -6,9 +6,9 @@ com.fasterxml.jackson.core:jackson-core:2.22.4 (11 constraints: 6ae55fd7)
 
 com.fasterxml.jackson.core:jackson-databind:2.22.4 (15 constraints: 65316275)
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.22.4 (1 constraints: 801c9ea4)
+com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.22.4 (2 constraints: bb21f377)
 
-com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.22.4 (1 constraints: 801c9ea4)
+com.fasterxml.jackson.dataformat:jackson-dataformat-smile:2.22.4 (2 constraints: bb21f377)
 
 com.fasterxml.jackson.datatype:jackson-datatype-guava:2.22.4 (1 constraints: 801c9ea4)
 
