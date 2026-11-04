@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
@@ -45,6 +46,7 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.assertj.core.util.introspection.FieldSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -109,6 +111,24 @@ public class ConjureBodySerDeTest {
         ExceptionDeserializerArgs<String> args = ExceptionDeserializationTestUtils.createStringDeserializerArgs();
         assertThat(errorDecoder(conjureBodySerDe("application/json").deserializer(args)))
                 .isNotSameAs(errorDecoder(conjureBodySerDe("application/json").deserializer(args)));
+    }
+
+    @Test
+    public void testErrorKeysAreSharedAcrossReturnTypes() {
+        ConjureBodySerDe serde = conjureBodySerDe("application/json");
+        Deserializer<String> string =
+                serde.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
+        Deserializer<Void> empty =
+                serde.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs());
+        LoadingCache<?, ?> cache =
+                FieldSupport.EXTRACTION.fieldValue("exceptionDeserializers", LoadingCache.class, serde);
+        List<Object> errors = cache.asMap().keySet().stream()
+                .map(key -> FieldSupport.EXTRACTION.fieldValue("errors", Object.class, key))
+                .collect(Collectors.toList());
+        assertThat(errors).hasSize(2);
+        assertThat(errors.get(0)).isSameAs(errors.get(1));
+        // keep the deserializers (the cache's weak values) reachable until here
+        assertThat(string).isNotSameAs(empty);
     }
 
     private static Object errorDecoder(Deserializer<?> deserializer) {

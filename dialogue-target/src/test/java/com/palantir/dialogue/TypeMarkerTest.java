@@ -78,4 +78,18 @@ final class TypeMarkerTest {
         assertThat(factoryMarker.getType().getTypeName())
                 .isEqualTo(anonymousMarker.getType().getTypeName());
     }
+
+    @Test
+    void withoutSubclassKeepsPlainMarkers() {
+        TypeMarker<String> plain = TypeMarker.of(String.class);
+        assertThat(TypeMarker.withoutSubclass(plain)).isSameAs(plain);
+    }
+
+    @Test
+    void withoutSubclassReplacesAnonymousMarkers() {
+        TypeMarker<List<String>> anonymous = new TypeMarker<>() {};
+        TypeMarker<List<String>> result = TypeMarker.withoutSubclass(anonymous);
+        assertThat(result).isEqualTo(anonymous);
+        assertThat(result.getClass().isAnonymousClass()).isFalse();
+    }
 }

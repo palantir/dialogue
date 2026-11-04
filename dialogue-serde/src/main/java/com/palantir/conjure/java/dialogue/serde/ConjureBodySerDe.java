@@ -512,8 +512,8 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
-    // Equal error maps are shared across cache keys, the same way ExceptionDeserializerArgs shares them. Weak, so a
-    // map is only kept while some key still holds it.
+    // Equal error maps are shared across cache keys. Unlike ExceptionDeserializerArgs, order doesn't matter here: these
+    // maps are only compared and looked up by error name. Weak, so a map is only kept while some key still holds it.
     private static final Interner<ImmutableMap<String, ErrorDeserializerCacheKey>> ERROR_KEYS =
             Interners.newWeakInterner();
 

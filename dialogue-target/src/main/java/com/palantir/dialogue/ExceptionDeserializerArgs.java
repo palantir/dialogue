@@ -111,22 +111,19 @@ public final class ExceptionDeserializerArgs<T> {
         public <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
                 Builder<T> exception(String errorName, TypeMarker<U> errorType, TypeMarker<V> exceptionType) {
             checkNotBuilt();
+            // A shared error map can outlive this client, so it only keeps the types, not the caller's markers.
             this.errorNameToExceptionTypeMarkers.put(
                     Preconditions.checkNotNull(errorName, "error name must be non-null"),
                     new ErrorExceptionPair<>(
-                            withoutSubclass(Preconditions.checkNotNull(errorType, "error type must be non-null")),
-                            withoutSubclass(
+                            TypeMarker.withoutSubclass(
+                                    Preconditions.checkNotNull(errorType, "error type must be non-null")),
+                            TypeMarker.withoutSubclass(
                                     Preconditions.checkNotNull(exceptionType, "exception type must be non-null"))));
             return this;
         }
 
-        // A shared error map can outlive the client that built it, and `new TypeMarker<T>() {}` subclasses retain the
-        // class (and classloader) that created them, so only keep the Type.
-        @SuppressWarnings("unchecked")
-        private static <U> TypeMarker<U> withoutSubclass(TypeMarker<U> marker) {
-            return (TypeMarker<U>) TypeMarker.of(marker.getType());
-        }
-
+        // The identity check is deliberate: the first build of each set of errors gets its own map back.
+        @SuppressWarnings("ReferenceEquality")
         public ExceptionDeserializerArgs<T> build() {
             checkNotBuilt();
             Preconditions.checkNotNull(returnType, "base type must be set");
@@ -134,8 +131,9 @@ public final class ExceptionDeserializerArgs<T> {
             ImmutableMap<String, ErrorExceptionPair<?, ?>> errors = errorNameToExceptionTypeMarkers.buildOrThrow();
             ImmutableMap<String, ErrorExceptionPair<?, ?>> shared = ERRORS.intern(errors);
             // Map equality ignores order, so only share a map registered in the same order to keep iteration order.
-            return new ExceptionDeserializerArgs<>(
-                    returnType, shared.keySet().asList().equals(errors.keySet().asList()) ? shared : errors);
+            boolean sameOrder = shared == errors
+                    || shared.keySet().asList().equals(errors.keySet().asList());
+            return new ExceptionDeserializerArgs<>(returnType, sameOrder ? shared : errors);
         }
 
         private void checkNotBuilt() {
