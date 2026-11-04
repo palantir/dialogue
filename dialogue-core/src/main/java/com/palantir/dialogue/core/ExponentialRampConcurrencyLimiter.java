@@ -21,6 +21,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -39,6 +40,12 @@ public final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimit
 
     /** Initial limit used when the exponential ramp is enabled without choosing one. */
     public static final int DEFAULT_INITIAL_LIMIT = 20;
+
+    /** Smallest configurable initial limit, inclusive. */
+    public static final int MIN_INITIAL_LIMIT = 1;
+
+    /** Largest configurable initial limit, inclusive. */
+    public static final int MAX_INITIAL_LIMIT = 500;
 
     private static final SafeLogger log = SafeLoggerFactory.get(ExponentialRampConcurrencyLimiter.class);
     private static final double BACKOFF_RATIO = .9D;
@@ -64,6 +71,19 @@ public final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimit
     ExponentialRampConcurrencyLimiter(Behavior behavior, int initialLimit) {
         this.behavior = behavior;
         this.limit = new AtomicDouble(initialLimit);
+    }
+
+    /**
+     * Throws if {@code initialLimit} is not between {@value #MIN_INITIAL_LIMIT} and {@value #MAX_INITIAL_LIMIT},
+     * inclusive.
+     */
+    public static void checkInitialLimit(int initialLimit) {
+        Preconditions.checkArgument(
+                initialLimit >= MIN_INITIAL_LIMIT && initialLimit <= MAX_INITIAL_LIMIT,
+                "Exponential Ramp Concurrency Limiter's initialLimit must be within the supported range",
+                SafeArg.of("initialLimit", initialLimit),
+                SafeArg.of("minLimit", MIN_INITIAL_LIMIT),
+                SafeArg.of("maxLimit", MAX_INITIAL_LIMIT));
     }
 
     @Override

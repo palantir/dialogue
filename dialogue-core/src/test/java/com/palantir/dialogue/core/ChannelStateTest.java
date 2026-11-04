@@ -57,36 +57,35 @@ class ChannelStateTest {
     @Test
     public void invokes_factory_when_retrieving_state() {
         ChannelState state = new ChannelState();
-        ChannelState.Key<String> key = new ChannelState.Key<>(String.class, ChannelStateTest::createStringValue);
-        assertThat(state.getState(key)).isEqualTo(STRING_VALUE);
+        ChannelState.Key<String> key = new ChannelState.Key<>(String.class);
+        assertThat(state.getState(key, ChannelStateTest::createStringValue)).isEqualTo(STRING_VALUE);
     }
 
     @Test
     public void can_store_state_for_multiple_key_types() {
         ChannelState state = new ChannelState();
-        ChannelState.Key<String> key1 = new ChannelState.Key<>(String.class, ChannelStateTest::createStringValue);
-        ChannelState.Key<OuterType> key2 =
-                new ChannelState.Key<>(OuterType.class, ChannelStateTest::createComplexValue);
+        ChannelState.Key<String> key1 = new ChannelState.Key<>(String.class);
+        ChannelState.Key<OuterType> key2 = new ChannelState.Key<>(OuterType.class);
 
-        assertThat(state.getState(key1)).isEqualTo(STRING_VALUE);
-        assertThat(state.getState(key2)).isEqualTo(COMPLEX_VALUE);
+        assertThat(state.getState(key1, ChannelStateTest::createStringValue)).isEqualTo(STRING_VALUE);
+        assertThat(state.getState(key2, ChannelStateTest::createComplexValue)).isEqualTo(COMPLEX_VALUE);
     }
 
     @Test
     public void retrieves_existing_state_without_invoking_factory() {
         ChannelState state = new ChannelState();
-        ChannelState.Key<UUID> key = new ChannelState.Key<>(UUID.class, UUID::randomUUID);
+        ChannelState.Key<UUID> key = new ChannelState.Key<>(UUID.class);
 
-        UUID stored = state.getState(key);
-        assertThat(state.getState(key)).isEqualTo(stored);
+        UUID stored = state.getState(key, UUID::randomUUID);
+        assertThat(state.getState(key, UUID::randomUUID)).isEqualTo(stored);
     }
 
     @Test
     public void throws_when_factory_produces_null_value() {
         ChannelState state = new ChannelState();
-        ChannelState.Key<String> key = new ChannelState.Key<>(String.class, () -> null);
+        ChannelState.Key<String> key = new ChannelState.Key<>(String.class);
 
-        assertThatThrownBy(() -> state.getState(key)).isInstanceOf(Exception.class);
+        assertThatThrownBy(() -> state.getState(key, () -> null)).isInstanceOf(Exception.class);
     }
 
     @Value.Immutable

@@ -24,29 +24,20 @@ import java.util.function.Supplier;
 final class ChannelState {
     static final class Key<T> {
         private final Class<T> valueClass;
-        private final Supplier<T> factory;
 
         private T cast(final Object value) {
             return valueClass.cast(value);
         }
 
-        private Supplier<T> getFactory() {
-            return factory;
-        }
-
-        Key(final Class<T> valueClass, Supplier<T> factory) {
+        Key(final Class<T> valueClass) {
             this.valueClass = valueClass;
-            this.factory = factory;
         }
     }
 
     @SuppressWarnings("DangerousIdentityKey")
     private final Map<Key<?>, Object> state = new HashMap<>();
 
-    <T> T getState(Key<T> key) {
-        return getState(key, key.getFactory());
-    }
-
+    /** Returns the state stored for {@code key}, creating it with {@code factory} if absent. */
     <T> T getState(Key<T> key, Supplier<T> factory) {
         return key.cast(Preconditions.checkNotNull(
                 state.computeIfAbsent(key, _key -> factory.get()), "state factory cannot produce a null value"));

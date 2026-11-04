@@ -93,20 +93,15 @@ interface Config {
     }
 
     /**
-     * Initial limit for the exponential-ramp concurrency limiter, between 1 and 500 inclusive, or empty to use the
-     * default limiter.
+     * Initial limit for the exponential-ramp concurrency limiter, between
+     * {@value ExponentialRampConcurrencyLimiter#MIN_INITIAL_LIMIT} and
+     * {@value ExponentialRampConcurrencyLimiter#MAX_INITIAL_LIMIT} inclusive, or empty to use the default limiter.
      */
     OptionalInt concurrencyLimiterExponentialRamp();
 
     @Value.Check
     default void check() {
-        concurrencyLimiterExponentialRamp()
-                .ifPresent(initialLimit -> Preconditions.checkArgument(
-                        initialLimit >= 1 && initialLimit <= 500,
-                        "Exponential Ramp Concurrency Limiter's initialLimit must be within the supported range",
-                        SafeArg.of("initialLimit", initialLimit),
-                        SafeArg.of("minLimit", 1),
-                        SafeArg.of("maxLimit", 500)));
+        concurrencyLimiterExponentialRamp().ifPresent(ExponentialRampConcurrencyLimiter::checkInitialLimit);
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");
         Preconditions.checkArgument(rawConfig().userAgent().isPresent(), "userAgent must be specified");
         Preconditions.checkArgument(
