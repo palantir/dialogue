@@ -20,6 +20,9 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.dataformat.cbor.databind.CBORMapper;
+import com.fasterxml.jackson.dataformat.smile.databind.SmileMapper;
 import com.google.common.base.Suppliers;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.TypeMarker;
@@ -32,8 +35,12 @@ public final class Encodings {
 
     private Encodings() {}
 
-    private static final Supplier<ObjectMapper> JSON_MAPPER =
-            Suppliers.memoize(() -> configure(ObjectMappers.newClientObjectMapper()));
+    private static final Supplier<JsonMapper> JSON_MAPPER =
+            Suppliers.memoize(() -> configure(ObjectMappers.newClientJsonMapper()));
+    private static final Supplier<CBORMapper> CBOR_MAPPER =
+            Suppliers.memoize(() -> configure(ObjectMappers.newClientCborMapper()));
+    private static final Supplier<SmileMapper> SMILE_MAPPER =
+            Suppliers.memoize(() -> configure(ObjectMappers.newClientSmileMapper()));
 
     private abstract static class AbstractJacksonEncoding implements Encoding {
 
@@ -86,7 +93,7 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure CBOR wire format. */
     public static Encoding cbor() {
-        return new AbstractJacksonEncoding(configure(ObjectMappers.newCborClientObjectMapper())) {
+        return new AbstractJacksonEncoding(CBOR_MAPPER.get()) {
             private static final String CONTENT_TYPE = "application/cbor";
 
             @Override
@@ -103,7 +110,7 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure Smile wire format. */
     public static Encoding smile() {
-        return new AbstractJacksonEncoding(configure(ObjectMappers.newSmileClientObjectMapper())) {
+        return new AbstractJacksonEncoding(SMILE_MAPPER.get()) {
             private static final String CONTENT_TYPE = "application/x-jackson-smile";
 
             @Override
@@ -129,10 +136,11 @@ public final class Encodings {
                 && typeToCheck.startsWith(contentType);
     }
 
-    private static ObjectMapper configure(ObjectMapper mapper) {
+    private static <T extends ObjectMapper> T configure(T mapper) {
         // See documentation on Encoding.Serializer#serialize: Implementations must not close the stream.
-        return mapper.disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET)
-                // Avoid flushing, allowing us to set content-length if the length is below the buffer size.
-                .disable(JsonGenerator.Feature.FLUSH_PASSED_TO_STREAM);
+        mapper.disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET);
+        // Avoid flushing, allowing us to set content-length if the length is below the buffer size.
+        mapper.disable(JsonGenerator.Feature.FLUSH_PASSED_TO_STREAM);
+        return mapper;
     }
 }
