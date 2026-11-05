@@ -564,7 +564,7 @@ final class ExceptionDeserializingDecoderTest {
     }
 
     // Jackson creates a CountedTestErrorDeserializer when it builds a reader for CountedTestError, so the instance
-    // count shows when that happens. Only the test above uses CountedTestError, so no other test builds its reader.
+    // count shows when that happens. Only the test above decodes CountedTestError, so no other test builds its reader.
     @JsonDeserialize(using = CountedTestErrorDeserializer.class)
     static final class CountedTestError extends AbstractSerializableError<TestErrorParameters> {
         CountedTestError(String errorCode, String errorName, String errorInstanceId, TestErrorParameters parameters) {

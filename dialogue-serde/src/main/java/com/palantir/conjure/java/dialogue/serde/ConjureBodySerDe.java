@@ -22,6 +22,8 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Interner;
+import com.google.common.collect.Interners;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
@@ -62,6 +64,9 @@ import java.util.stream.Collectors;
 final class ConjureBodySerDe implements BodySerDe {
 
     private static final SafeLogger log = SafeLoggerFactory.get(ConjureBodySerDe.class);
+    // Share equal error maps across endpoints without keeping unused maps alive. Canonical error deserializers
+    // use identity equality, so maps with errors remain specific to each runtime.
+    private static final Interner<ImmutableMap<String, ErrorDeserializer>> ERROR_MAPS = Interners.newWeakInterner();
     private final List<Encoding> encodingsSortedByWeight;
     private final Encoding defaultEncoding;
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
@@ -122,9 +127,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         key.type(),
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
-                        new ExceptionDeserializingErrorDecoder(
-                                ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)),
-                                expectJsonErrors())));
+                        new ExceptionDeserializingErrorDecoder(key.errors(), expectJsonErrors())));
     }
 
     @SuppressWarnings("unchecked")
@@ -180,7 +183,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
         return (Deserializer<T>) exceptionDeserializers.get(
-                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.STANDARD));
+                exceptionDeserializerCacheKey(exceptionDeserializerArgs, DeserializerType.STANDARD));
     }
 
     @Override
@@ -192,7 +195,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
         return (Deserializer<Void>) exceptionDeserializers.get(
-                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.EMPTY_BODY));
+                exceptionDeserializerCacheKey(exceptionDeserializerArgs, DeserializerType.EMPTY_BODY));
     }
 
     @Override
@@ -204,7 +207,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public Deserializer<InputStream> inputStreamDeserializer(
             ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
-        return (Deserializer<InputStream>) exceptionDeserializers.get(ExceptionDeserializerCacheKey.of(
+        return (Deserializer<InputStream>) exceptionDeserializers.get(exceptionDeserializerCacheKey(
                 exceptionDeserializerArgs, DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
     }
 
@@ -217,7 +220,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
             ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
-        return (Deserializer<Optional<InputStream>>) exceptionDeserializers.get(ExceptionDeserializerCacheKey.of(
+        return (Deserializer<Optional<InputStream>>) exceptionDeserializers.get(exceptionDeserializerCacheKey(
                 exceptionDeserializerArgs, DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
     }
 
@@ -503,16 +506,17 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
+    private ExceptionDeserializerCacheKey exceptionDeserializerCacheKey(
+            ExceptionDeserializerArgs<?> args, DeserializerType type) {
+        ImmutableMap<String, ErrorDeserializer> errors = ERROR_MAPS.intern(ImmutableMap.copyOf(Maps.transformValues(
+                args.errorNameToExceptionTypeMarkers(),
+                pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))));
+        return new ExceptionDeserializerCacheKey(args.returnType().getType(), errors, type);
+    }
+
     private record ExceptionDeserializerCacheKey(
             // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
-            // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
-            Type returnType, ImmutableMap<String, ErrorDeserializerCacheKey> errors, DeserializerType type) {
-        static <T> ExceptionDeserializerCacheKey of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
-            return new ExceptionDeserializerCacheKey(
-                    args.returnType().getType(),
-                    ImmutableMap.copyOf(Maps.transformValues(
-                            args.errorNameToExceptionTypeMarkers(), ErrorDeserializerCacheKey::of)),
-                    type);
-        }
-    }
+            // to the dialogue clients which construct them, which causes memory to leak when stored in the cache.
+            // The key and decoder share the same canonical error map instead of retaining separate maps per endpoint.
+            Type returnType, ImmutableMap<String, ErrorDeserializer> errors, DeserializerType type) {}
 }
