@@ -17,10 +17,15 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
 
 import com.github.benmanes.caffeine.cache.Cache;
+import com.google.common.collect.Interners;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorException;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorSerializableError;
+import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
 import com.palantir.dialogue.TypeMarker;
 import java.lang.ref.WeakReference;
@@ -28,8 +33,10 @@ import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 final class ConjureBodySerDeErrorMapSharingTest {
 
@@ -109,6 +116,41 @@ final class ConjureBodySerDeErrorMapSharingTest {
             ((Cache<?, ?>) field(bodySerDe, "errorDeserializers")).cleanUp();
             references.forEach(reference -> assertThat(reference.get()).isNull());
         });
+    }
+
+    @Test
+    @SuppressWarnings("CheckReturnValue") // Mockito verification ignores the factory return value.
+    void internerIsInitializedOnlyForDeclaredErrors() {
+        try (MockedStatic<Interners> interners = mockStatic(Interners.class, CALLS_REAL_METHODS)) {
+            BodySerDe serde = DefaultConjureRuntime.builder().build().bodySerDe();
+            assertThat(serde.deserializer(exceptionArgs(TypeMarker.of(String.class))))
+                    .isNotNull();
+            interners.verifyNoInteractions();
+
+            assertThat(serde.deserializer(exceptionArgs(TypeMarker.of(String.class), "Conjure:First")))
+                    .isNotNull();
+            assertThat(serde.deserializer(exceptionArgs(TypeMarker.of(Integer.class), "Conjure:First")))
+                    .isNotNull();
+            interners.verify(Interners::newWeakInterner, times(1));
+        }
+    }
+
+    @Test
+    void internerCanBeCollectedWithItsRuntime() throws ReflectiveOperationException {
+        List<WeakReference<?>> references = createUnusedRuntimeAndInterner();
+        Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            System.gc();
+            references.forEach(reference -> assertThat(reference.get()).isNull());
+        });
+    }
+
+    private static List<WeakReference<?>> createUnusedRuntimeAndInterner() throws ReflectiveOperationException {
+        DefaultConjureRuntime runtime = DefaultConjureRuntime.builder().build();
+        BodySerDe serde = runtime.bodySerDe();
+        assertThat(serde.deserializer(exceptionArgs(TypeMarker.of(String.class), "Conjure:First")))
+                .isNotNull();
+        Object interner = ((Supplier<?>) field(serde, "errorMapInterner")).get();
+        return List.of(new WeakReference<>(runtime), new WeakReference<>(serde), new WeakReference<>(interner));
     }
 
     private List<WeakReference<?>> cacheUnusedErrorMap() throws ReflectiveOperationException {

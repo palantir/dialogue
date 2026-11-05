@@ -64,9 +64,6 @@ import java.util.stream.Collectors;
 final class ConjureBodySerDe implements BodySerDe {
 
     private static final SafeLogger log = SafeLoggerFactory.get(ConjureBodySerDe.class);
-    // Share equal error maps across endpoints without keeping unused maps alive. Canonical error deserializers
-    // use identity equality, so maps with errors remain specific to each runtime.
-    private static final Interner<ImmutableMap<String, ErrorDeserializer>> ERROR_MAPS = Interners.newWeakInterner();
     private final List<Encoding> encodingsSortedByWeight;
     private final Encoding defaultEncoding;
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
@@ -76,6 +73,10 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<Type, Deserializer<?>> deserializers;
     private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
+    // Initialize only when an endpoint declares errors. Scoping the interner to this runtime lets its entries and
+    // backing tables be collected with the runtime, even if the interner never receives another write to clean them up.
+    private final Supplier<Interner<ImmutableMap<String, ErrorDeserializer>>> errorMapInterner =
+            Suppliers.memoize(Interners::newWeakInterner);
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -508,9 +509,14 @@ final class ConjureBodySerDe implements BodySerDe {
 
     private ExceptionDeserializerCacheKey exceptionDeserializerCacheKey(
             ExceptionDeserializerArgs<?> args, DeserializerType type) {
-        ImmutableMap<String, ErrorDeserializer> errors = ERROR_MAPS.intern(ImmutableMap.copyOf(Maps.transformValues(
-                args.errorNameToExceptionTypeMarkers(),
-                pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))));
+        ImmutableMap<String, ErrorDeserializer> errors =
+                args.errorNameToExceptionTypeMarkers().isEmpty()
+                        ? ImmutableMap.of()
+                        : errorMapInterner
+                                .get()
+                                .intern(ImmutableMap.copyOf(Maps.transformValues(
+                                        args.errorNameToExceptionTypeMarkers(),
+                                        pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))));
         return new ExceptionDeserializerCacheKey(args.returnType().getType(), errors, type);
     }
 
