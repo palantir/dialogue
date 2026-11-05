@@ -38,19 +38,19 @@ com.palantir.common:streams:2.16.0 (1 constraints: 3b05413b)
 
 com.palantir.conjure.java:conjure-lib:8.99.0 (2 constraints: 4724bf7d)
 
-com.palantir.conjure.java.api:errors:2.83.0 (3 constraints: 7f294d15)
+com.palantir.conjure.java.api:errors:2.83.0 (3 constraints: 80295015)
 
-com.palantir.conjure.java.api:service-config:2.83.0 (2 constraints: 5c191add)
+com.palantir.conjure.java.api:service-config:2.83.0 (2 constraints: 5d191ddd)
 
-com.palantir.conjure.java.api:ssl-config:2.83.0 (4 constraints: 063f6aa0)
+com.palantir.conjure.java.api:ssl-config:2.83.0 (4 constraints: 083fa5a0)
 
-com.palantir.conjure.java.runtime:client-config:8.48.0 (1 constraints: 4605773b)
+com.palantir.conjure.java.runtime:client-config:8.49.0 (1 constraints: 47057a3b)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.48.0 (1 constraints: 8a1cd8a4)
+com.palantir.conjure.java.runtime:conjure-java-jackson-optimizations:8.49.0 (1 constraints: 8b1cdba4)
 
-com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.48.0 (2 constraints: 69167610)
+com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.49.0 (2 constraints: 6a16aa10)
 
-com.palantir.conjure.java.runtime:keystores:8.48.0 (2 constraints: 6b19f2de)
+com.palantir.conjure.java.runtime:keystores:8.49.0 (2 constraints: 6d1931df)
 
 com.palantir.deadlines:deadlines:0.29.0 (1 constraints: 3d05423b)
 
