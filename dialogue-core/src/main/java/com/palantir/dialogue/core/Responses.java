@@ -37,6 +37,15 @@ final class Responses {
     @VisibleForTesting
     static final String RETRIES_EXHAUSTED = "Dialogue-Retries-Exhausted";
 
+    /** {@link #RETRIES_EXHAUSTED} value for a failure that already went through a full retry loop. */
+    static final String EXHAUSTED = "true";
+
+    /**
+     * {@link #RETRIES_EXHAUSTED} value for a failure that no caller should retry, such as a timeout that Dialogue
+     * chose not to retry.
+     */
+    static final String DO_NOT_RETRY = "do-not-retry";
+
     static boolean isRetryOther(@Nullable Response response) {
         // Note that a 308 status may be a non-retryable signal, for instance google sometimes
         // uses a '308 Resume Incomplete', so we must verify the presence of a Location header
@@ -119,10 +128,20 @@ final class Responses {
         return 0;
     }
 
-    /** Returns true if the response reports that retries were already exhausted at or below the server. */
+    /**
+     * Returns true if the response reports that retries were already exhausted at or below the server, including
+     * responses marked {@link #DO_NOT_RETRY}.
+     */
     static boolean hasRetriesExhaustedHeader(Response response) {
         Optional<String> value = response.getFirstHeader(RETRIES_EXHAUSTED);
-        return value.isPresent() && "true".equalsIgnoreCase(value.get());
+        return value.isPresent()
+                && (EXHAUSTED.equalsIgnoreCase(value.get()) || DO_NOT_RETRY.equalsIgnoreCase(value.get()));
+    }
+
+    /** Returns true if the response tells callers not to retry it. */
+    static boolean hasDoNotRetryHeader(Response response) {
+        Optional<String> value = response.getFirstHeader(RETRIES_EXHAUSTED);
+        return value.isPresent() && DO_NOT_RETRY.equalsIgnoreCase(value.get());
     }
 
     private Responses() {}

@@ -38,6 +38,10 @@ import java.util.function.Supplier;
  * An exhausted network failure gets an equivalent diagnostic. A response that already carried the header keeps it, so
  * the signal also passes through hops that did not retry themselves. Servers read the diagnostic from the failure they
  * are about to return and set the header on their own response.
+ *
+ * <p>The value {@code do-not-retry} marks a timeout that Dialogue chose not to retry. It travels the same way, but
+ * unlike {@code true}, callers honor it: Dialogue never retries a response that carries it, so a timeout isn't retried
+ * by every service above the one that saw it.
  */
 final class RetriesExhausted {
 
@@ -50,12 +54,21 @@ final class RetriesExhausted {
 
     /** Tags an exhausted network failure with the same diagnostic the error decoder records for the header. */
     static void addDiagnostic(Throwable failure) {
+        tag(failure, Responses.EXHAUSTED);
+    }
+
+    /** Tags a timeout that Dialogue chose not to retry, so that callers further up don't retry it either. */
+    static void addDoNotRetryDiagnostic(Throwable failure) {
+        tag(failure, Responses.DO_NOT_RETRY);
+    }
+
+    private static void tag(Throwable failure, String value) {
         for (Throwable suppressed : failure.getSuppressed()) {
             if (suppressed instanceof RetriesExhaustedDiagnostic) {
                 return;
             }
         }
-        failure.addSuppressed(new RetriesExhaustedDiagnostic());
+        failure.addSuppressed(new RetriesExhaustedDiagnostic(value));
     }
 
     private static final class RetriesExhaustedResponse implements Response {
@@ -114,11 +127,13 @@ final class RetriesExhausted {
 
     private static final class RetriesExhaustedDiagnostic extends RuntimeException implements SafeLoggable {
         private static final String SAFE_MESSAGE = "Dialogue retries exhausted";
-        private static final List<Arg<?>> ARGS = List.of(SafeArg.of(Responses.RETRIES_EXHAUSTED, "true"));
 
-        RetriesExhaustedDiagnostic() {
+        private final List<Arg<?>> args;
+
+        RetriesExhaustedDiagnostic(String value) {
             // No stack trace: this only tags the failure it is attached to.
             super(SAFE_MESSAGE, null, false, false);
+            this.args = List.of(SafeArg.of(Responses.RETRIES_EXHAUSTED, value));
         }
 
         @Override
@@ -128,7 +143,7 @@ final class RetriesExhausted {
 
         @Override
         public List<Arg<?>> getArgs() {
-            return ARGS;
+            return args;
         }
     }
 }

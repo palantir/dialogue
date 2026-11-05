@@ -40,6 +40,9 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TestResponseQosEncoder;
 import com.palantir.dialogue.core.DialogueClientMetrics.RequestRetryCount_Result;
+import com.palantir.logsafe.Arg;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
@@ -50,11 +53,15 @@ import java.net.ConnectException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -727,6 +734,131 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
+    }
+
+    @Nested
+    class DoNotRetry {
+        @Test
+        void doesNotRetryServerErrorMarkedDoNotRetry() throws Exception {
+            when(channel.execute(any()))
+                    .thenReturn(Futures.immediateFuture(doNotRetryResponse(500)))
+                    .thenReturn(SUCCESS);
+
+            ListenableFuture<Response> response = retryingChannel().execute(REQUEST);
+
+            assertThat(response.get().code()).isEqualTo(500);
+            assertThat(response.get().getFirstHeader(Responses.RETRIES_EXHAUSTED))
+                    .as("callers above should see the marker too")
+                    .hasValue("do-not-retry");
+            verify(channel, times(1)).execute(REQUEST);
+        }
+
+        @Test
+        void doesNotRetryQosResponseMarkedDoNotRetry() throws Exception {
+            when(channel.execute(any()))
+                    .thenReturn(Futures.immediateFuture(doNotRetryResponse(503)))
+                    .thenReturn(SUCCESS);
+
+            ListenableFuture<Response> response = retryingChannel().execute(REQUEST);
+
+            assertThat(response.get().code()).isEqualTo(503);
+            verify(channel, times(1)).execute(REQUEST);
+        }
+
+        @Test
+        void stillRetriesServerErrorMarkedExhausted() throws Exception {
+            when(channel.execute(any()))
+                    .thenReturn(Futures.immediateFuture(
+                            new TestResponse().code(500).withHeader(Responses.RETRIES_EXHAUSTED, "true")))
+                    .thenReturn(SUCCESS);
+
+            ListenableFuture<Response> response = retryingChannel().execute(REQUEST);
+
+            assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
+            verify(channel, times(2)).execute(REQUEST);
+        }
+
+        @Test
+        void marksResponseTimeoutDoNotRetry() {
+            SocketTimeoutException timeout = new SocketTimeoutException("Read timed out");
+            when(channel.execute(any())).thenReturn(Futures.immediateFailedFuture(timeout));
+
+            ListenableFuture<Response> response = retryingChannel().execute(REQUEST);
+
+            assertThatThrownBy(response::get).hasRootCause(timeout);
+            assertThat(retriesExhaustedArgs(timeout))
+                    .containsExactly(SafeArg.of(Responses.RETRIES_EXHAUSTED, "do-not-retry"));
+            verify(channel, times(1)).execute(REQUEST);
+        }
+
+        @Test
+        void marksQueueTimeoutDoNotRetry() {
+            QueueTimeoutException timeout =
+                    new QueueTimeoutException("my-channel", OptionalLong.of(TimeUnit.SECONDS.toNanos(1)));
+            when(channel.execute(any())).thenReturn(Futures.immediateFailedFuture(timeout));
+
+            ListenableFuture<Response> response = retryingChannel().execute(REQUEST);
+
+            assertThatThrownBy(response::get).hasRootCause(timeout);
+            assertThat(retriesExhaustedArgs(timeout))
+                    .containsExactly(SafeArg.of(Responses.RETRIES_EXHAUSTED, "do-not-retry"));
+        }
+
+        @Test
+        void marksTimeoutThatRanOutOfRetriesAsExhausted() {
+            SocketTimeoutException timeout = new SocketTimeoutException("Read timed out");
+            when(channel.execute(any())).thenReturn(Futures.immediateFailedFuture(timeout));
+
+            ListenableFuture<Response> response = new RetryingChannel(
+                            registry,
+                            channel,
+                            TestEndpoint.GET,
+                            "my-channel",
+                            1,
+                            Duration.ZERO,
+                            ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                            ClientConfiguration.RetryOnTimeout.DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS)
+                    .execute(REQUEST);
+
+            assertThatThrownBy(response::get).hasRootCause(timeout);
+            assertThat(retriesExhaustedArgs(timeout)).containsExactly(SafeArg.of(Responses.RETRIES_EXHAUSTED, "true"));
+            verify(channel, times(2)).execute(REQUEST);
+        }
+
+        @Test
+        void doesNotMarkOtherFailures() {
+            RuntimeException failure = new RuntimeException("not a timeout");
+            when(channel.execute(any())).thenReturn(Futures.immediateFailedFuture(failure));
+
+            ListenableFuture<Response> response = retryingChannel().execute(REQUEST);
+
+            assertThatThrownBy(response::get).hasRootCause(failure);
+            assertThat(retriesExhaustedArgs(failure)).isEmpty();
+        }
+
+        private EndpointChannel retryingChannel() {
+            return new RetryingChannel(
+                    registry,
+                    channel,
+                    TestEndpoint.GET,
+                    "my-channel",
+                    3,
+                    Duration.ZERO,
+                    ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                    ClientConfiguration.RetryOnTimeout.DISABLED);
+        }
+
+        private static TestResponse doNotRetryResponse(int code) {
+            return new TestResponse().code(code).withHeader(Responses.RETRIES_EXHAUSTED, "do-not-retry");
+        }
+
+        private static List<Arg<?>> retriesExhaustedArgs(Throwable failure) {
+            return Arrays.stream(failure.getSuppressed())
+                    .filter(SafeLoggable.class::isInstance)
+                    .flatMap(suppressed -> ((SafeLoggable) suppressed).getArgs().stream())
+                    .filter(arg -> arg.getName().equals(Responses.RETRIES_EXHAUSTED))
+                    .collect(Collectors.toList());
+        }
     }
 
     @Test

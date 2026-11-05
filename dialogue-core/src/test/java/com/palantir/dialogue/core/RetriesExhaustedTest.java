@@ -66,6 +66,33 @@ final class RetriesExhaustedTest {
     }
 
     @Test
+    void doNotRetryDiagnosticCarriesItsValue() {
+        IOException timeout = new IOException("Read timed out");
+
+        RetriesExhausted.addDoNotRetryDiagnostic(timeout);
+
+        assertThat(timeout.getSuppressed()).singleElement().isInstanceOfSatisfying(SafeLoggable.class, loggable -> {
+            assertThat(loggable.getArgs()).containsExactly(SafeArg.of(Responses.RETRIES_EXHAUSTED, "do-not-retry"));
+        });
+    }
+
+    @Test
+    void preservesResponseMarkedDoNotRetry() {
+        TestResponse response = new TestResponse().code(500).withHeader(Responses.RETRIES_EXHAUSTED, "Do-Not-Retry");
+
+        assertThat(RetriesExhausted.withHeader(response)).isSameAs(response);
+        assertThat(Responses.hasRetriesExhaustedHeader(response)).isTrue();
+        assertThat(Responses.hasDoNotRetryHeader(response)).isTrue();
+    }
+
+    @Test
+    void exhaustedResponseIsNotMarkedDoNotRetry() {
+        TestResponse response = new TestResponse().code(500).withHeader(Responses.RETRIES_EXHAUSTED, "true");
+
+        assertThat(Responses.hasDoNotRetryHeader(response)).isFalse();
+    }
+
+    @Test
     void preservesResponseAlreadyMarkedExhausted() {
         TestResponse response = new TestResponse().code(503).withHeader(Responses.RETRIES_EXHAUSTED, "TrUe");
 

@@ -29,6 +29,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.dialogue.ClientTimeout;
 import com.palantir.dialogue.DialogueResponseTimeoutException;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -362,6 +363,11 @@ final class RetryingChannel implements EndpointChannel {
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {
             sawRetriesExhausted |= Responses.hasRetriesExhaustedHeader(response);
+            if (Responses.hasDoNotRetryHeader(response)) {
+                // A service below this one timed out and didn't retry. Retrying here would repeat the call that
+                // timed out, so return the response as it is.
+                return Futures.immediateFuture(response);
+            }
             boolean canRetryRequest = requestCanBeRetried();
             if (canRetryRequest && isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(
@@ -378,6 +384,11 @@ final class RetryingChannel implements EndpointChannel {
 
         private ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
             boolean retryable = requestCanBeRetried() && shouldAttemptToRetry(clientSideThrowable);
+            if (!retryable && isClientTimeout(clientSideThrowable)) {
+                // Tell the services above this one not to retry the timeout either: a retry from any of them would
+                // repeat this call.
+                RetriesExhausted.addDoNotRetryDiagnostic(clientSideThrowable);
+            }
             if (++failures <= maxRetries) {
                 if (retryable) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
@@ -508,6 +519,10 @@ final class RetryingChannel implements EndpointChannel {
                             && !Responses.isUnavailable(response)
                             && Responses.isRetryableQos(response);
             };
+        }
+
+        private static boolean isClientTimeout(Throwable throwable) {
+            return throwable instanceof ClientTimeout || DialogueResponseTimeoutException.isResponseTimeout(throwable);
         }
 
         private boolean shouldAttemptToRetry(Throwable throwable) {

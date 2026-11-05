@@ -149,7 +149,13 @@ final class RetryingChannelDiagnosticMetricsTest {
                 .isSameAs(failure);
 
         verify(delegate, times(2)).execute(REQUEST);
-        assertThat(failure.getSuppressed()).isEmpty();
+        assertThat(failure.getSuppressed())
+                .as("a timeout Dialogue didn't retry is marked do-not-retry, not exhausted")
+                .singleElement()
+                .isInstanceOfSatisfying(
+                        SafeLoggable.class,
+                        diagnostic -> assertThat(diagnostic.getArgs())
+                                .containsExactly(SafeArg.of(Responses.RETRIES_EXHAUSTED, "do-not-retry")));
         assertDiagnosticMetrics(0, 0, 1, 1);
     }
 
