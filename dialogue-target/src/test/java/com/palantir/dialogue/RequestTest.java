@@ -82,14 +82,82 @@ public final class RequestTest {
     }
 
     @Test
-    void from_method_query_param_mutation() {
-        Request request1 = Request.builder().build();
+    void from_method_copies_query_params_no_mutation() {
+        Request request1 = Request.builder().putQueryParams("a", "A").build();
+        Request request2 = Request.builder().from(request1).build();
+        assertThat(request2.queryParams())
+                .describedAs("Re-using the exact same underlying instance is a safe optimization because Requests are"
+                        + " immutable")
+                .isSameAs(request1.queryParams());
+    }
+
+    @Test
+    void from_method_copies_query_params_with_mutation() {
+        Request request1 = Request.builder()
+                .putQueryParams("a", "A")
+                .putQueryParams("b", "B1")
+                .build();
         Request request2 = Request.builder()
                 .from(request1)
-                .queryParams(ImmutableListMultimap.of("a", "A1", "a", "A2", "b", "B"))
+                .putQueryParams("b", "B2")
+                .putQueryParams("c", "C")
                 .build();
+        assertThat(request2.queryParams())
+                .isEqualTo(ImmutableListMultimap.<String, String>builder()
+                        .put("a", "A")
+                        .putAll("b", "B1", "B2")
+                        .put("c", "C")
+                        .build());
+    }
 
-        System.out.println(request2.queryParams());
+    @Test
+    void from_method_copies_path_params_no_mutation() {
+        Request request1 = Request.builder().putPathParams("a", "A").build();
+        Request request2 = Request.builder().from(request1).build();
+        assertThat(request2.pathParameters())
+                .describedAs("Re-using the exact same underlying instance is a safe optimization because Requests are"
+                        + " immutable")
+                .isSameAs(request1.pathParameters());
+    }
+
+    @Test
+    void from_method_copies_path_params_with_mutation() {
+        Request request1 = Request.builder()
+                .putPathParams("a", "A")
+                .putPathParams("b", "B1")
+                .build();
+        Request request2 = Request.builder()
+                .from(request1)
+                .putPathParams("b", "B2")
+                .putPathParams("c", "C")
+                .build();
+        assertThat(request2.pathParameters())
+                .isEqualTo(ImmutableListMultimap.<String, String>builder()
+                        .put("a", "A")
+                        .putAll("b", "B1", "B2")
+                        .put("c", "C")
+                        .build());
+    }
+
+    @Test
+    void from_method_replaces_previously_mutated_params() {
+        Request existing = Request.builder()
+                .putHeaderParams("header", "existing")
+                .putQueryParams("query", "existing")
+                .putPathParams("path", "existing")
+                .build();
+        Request request = Request.builder()
+                .putHeaderParams("header", "discarded")
+                .putQueryParams("query", "discarded")
+                .putPathParams("path", "discarded")
+                .from(existing)
+                .putHeaderParams("header", "added")
+                .putQueryParams("query", "added")
+                .putPathParams("path", "added")
+                .build();
+        assertThat(request.headerParams()).isEqualTo(ImmutableListMultimap.of("header", "existing", "header", "added"));
+        assertThat(request.queryParams()).isEqualTo(ImmutableListMultimap.of("query", "existing", "query", "added"));
+        assertThat(request.pathParameters()).isEqualTo(ImmutableListMultimap.of("path", "existing", "path", "added"));
     }
 
     @Test
