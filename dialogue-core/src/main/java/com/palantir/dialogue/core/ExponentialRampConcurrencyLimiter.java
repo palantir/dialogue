@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Result;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -53,6 +54,9 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
 
     private final Behavior behavior;
 
+    // Volatile because it may be set from a different thread than the one completing permits.
+    private volatile ConcurrencyLimiterDecisionRecorder decisionRecorder = ConcurrencyLimiterDecisionRecorder.NOOP;
+
     // Used strictly for providing the channel name in debug logs.
     // Volatile because it may be set from a different thread than the one emitting the log line.
     private volatile String channelNameForLogging = "unknown";
@@ -64,6 +68,11 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
     @Override
     public void setChannelNameForLogging(String value) {
         this.channelNameForLogging = value;
+    }
+
+    @Override
+    public void setDecisionRecorder(ConcurrencyLimiterDecisionRecorder value) {
+        this.decisionRecorder = value;
     }
 
     @Override
@@ -105,13 +114,15 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
         }
 
         @Override
-        public void ignore() {
+        public void ignore(String cause) {
             inFlight.decrementAndGet();
+            decisionRecorder.record(Decision_Result.IGNORED, cause);
         }
 
         @Override
-        public void dropped() {
+        public void dropped(String cause) {
             inFlight.decrementAndGet();
+            decisionRecorder.record(Decision_Result.DROPPED, cause);
             double newLimit = decreaseLimit();
             if (log.isDebugEnabled()) {
                 log.debug(
@@ -124,8 +135,9 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
         }
 
         @Override
-        public void success() {
+        public void success(String cause) {
             inFlight.decrementAndGet();
+            decisionRecorder.record(Decision_Result.SUCCESS, cause);
             double newLimit = increaseLimit(inFlightSnapshot);
             if (log.isDebugEnabled()) {
                 log.debug(

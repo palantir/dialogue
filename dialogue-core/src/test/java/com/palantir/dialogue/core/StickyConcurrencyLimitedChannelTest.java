@@ -95,7 +95,7 @@ public final class StickyConcurrencyLimitedChannelTest {
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
                 .isEmpty();
         verify(delegate).maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
-        verify(permit).dropped();
+        verify(permit).dropped(ConcurrencyLimiterDecisionRecorder.OTHER_CAUSE);
     }
 
     @Test

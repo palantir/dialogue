@@ -47,6 +47,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
 
+    private static final String CAUSE = ConcurrencyLimiterDecisionRecorder.OTHER_CAUSE;
+
     private static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter(Behavior behavior) {
         return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(behavior);
     }
@@ -67,7 +69,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isNull();
 
         // Release one permit, can acquire new permit.
-        latestPermit.ignore();
+        latestPermit.ignore(CAUSE);
         assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isNotNull();
     }
 
@@ -83,7 +85,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
             assertThat(latestPermit).isNotNull();
         }
 
-        latestPermit.success();
+        latestPermit.success(CAUSE);
         assertThat(limiter.getLimit()).isEqualTo(20.05);
 
         // Now we can only acquire one extra permit, not 2
@@ -113,7 +115,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         assertThat(limiter.getInflight()).isEqualTo(0);
         Permit permit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
         assertThat(limiter.getInflight()).isEqualTo(1);
-        permit.ignore();
+        permit.ignore(CAUSE);
         assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
@@ -122,7 +124,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     public void ignore_doesNotChangeLimits(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
-        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).ignore();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).ignore(CAUSE);
         assertThat(limiter.getLimit()).isEqualTo(max);
     }
 
@@ -133,7 +135,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         assertThat(limiter.getInflight()).isEqualTo(0);
         Permit permit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
         assertThat(limiter.getInflight()).isEqualTo(1);
-        permit.dropped();
+        permit.dropped(CAUSE);
         assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
@@ -142,7 +144,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     public void dropped_reducesLimit(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
-        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).dropped();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).dropped(CAUSE);
         assertThat(limiter.getLimit()).isEqualTo((int) (max * 0.9));
     }
 
@@ -153,7 +155,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         assertThat(limiter.getInflight()).isEqualTo(0);
         Permit permit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
         assertThat(limiter.getInflight()).isEqualTo(1);
-        permit.success();
+        permit.success(CAUSE);
         assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
@@ -167,7 +169,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
             assertThat(limiter.getLimit()).isEqualTo(max);
         }
 
-        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).success();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).success(CAUSE);
         assertThat(limiter.getLimit()).isGreaterThan(max).isLessThanOrEqualTo(max + 1);
     }
 
@@ -384,7 +386,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         latestPermit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
         assertThat(latestPermit).isNotNull();
         assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isNull();
-        latestPermit.ignore();
+        latestPermit.ignore(CAUSE);
 
         // Now let's have some threads fight for that last remaining permit.
         int numTasks = 8;
@@ -402,7 +404,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
                         Permit acquire = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
                         if (acquire != null) {
                             assertThat(acquire.inFlightSnapshot()).isLessThanOrEqualTo(max);
-                            acquire.ignore();
+                            acquire.ignore(CAUSE);
                         }
                     }
                 }));
