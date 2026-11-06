@@ -19,6 +19,7 @@ package com.palantir.conjure.java.dialogue.serde;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
+import static org.awaitility.Awaitility.await;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -38,6 +39,7 @@ import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtil
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.ConjureError;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorException;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorParameters;
+import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorSerializableError;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
@@ -48,8 +50,11 @@ import com.palantir.logsafe.SafeArg;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -511,6 +516,37 @@ final class ExceptionDeserializingDecoderTest {
 
         // Then
         assertThat(stringDeserializer1).isSameAs(stringDeserializer2);
+    }
+
+    @Test
+    void cachedErrorTypesDoNotRetainCallerObjects() {
+        BodySerDe bodySerDe = conjureBodySerDe("application/json");
+        List<WeakReference<?>> callers = cacheCallerArguments(bodySerDe);
+        try {
+            await().atMost(Duration.ofSeconds(10)).until(() -> {
+                System.gc();
+                return callers.stream().allMatch(reference -> reference.refersTo(null));
+            });
+        } finally {
+            Reference.reachabilityFence(bodySerDe);
+        }
+    }
+
+    private static List<WeakReference<?>> cacheCallerArguments(BodySerDe bodySerDe) {
+        Object caller = new Object();
+        ExceptionDeserializerArgs<String> args = ExceptionDeserializerArgs.<String>builder()
+                .returnType(new TypeMarker<>() {})
+                .exception(
+                        ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name(),
+                        new TypeMarker<TestErrorSerializableError>() {
+                            // Model older generated markers which retain the client that created them.
+                            @SuppressWarnings("unused")
+                            private final Object capturedCaller = caller;
+                        },
+                        new TypeMarker<TestErrorException>() {})
+                .build();
+        bodySerDe.deserializer(args);
+        return List.of(new WeakReference<>(args), new WeakReference<>(caller));
     }
 
     private static byte[] readAllBytesUnchecked(Supplier<InputStream> stream) {
