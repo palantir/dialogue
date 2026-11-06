@@ -664,6 +664,26 @@ public class RetryingChannelTest {
         assertThat(delegateResult).as("Failed to cancel the delegate future").isCancelled();
     }
 
+    @Test
+    public void testPropagatesCancelToRetry() {
+        ListenableFuture<Response> retryResult = SettableFuture.create();
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(429)))
+                .thenReturn(retryResult);
+        EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> retryingResult = retryer.execute(REQUEST);
+        assertThat(retryingResult.cancel(true)).isTrue();
+        assertThat(retryResult).as("Failed to cancel the retry future").isCancelled();
+    }
+
     private static SocketException createEtimedoutException() {
         // Message must precisely match:
         // https://github.com/openjdk/jdk/blob/32eb5290c207d5fda398ee09b354b8cf55b89e0c/src/hotspot/share/runtime/os.cpp#L1658
@@ -944,6 +964,48 @@ public class RetryingChannelTest {
         verifyMetrics(
                 new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 5, "qosResponse"),
                 "retries exhausted due to 429 response");
+    }
+
+    @Test
+    public void retryCountFailureHistogramUpdatedWhenRetriesExhaustedDueToExceptionAfter429() {
+        when(channel.execute(any()))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenReturn(FAILED);
+
+        EndpointChannel retryer = channel(4);
+
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
+        verify(channel, times(5)).execute(REQUEST);
+
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 5, "SafeIoException"),
+                "retries exhausted due to exception after a 429");
+    }
+
+    @Test
+    public void retryCountFailureHistogramUpdatedWhenExceptionFollowsMaxRetries429s() {
+        when(channel.execute(any()))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse().code(429)))
+                .thenReturn(FAILED);
+
+        EndpointChannel retryer = channel(4);
+
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
+        verify(channel, times(5)).execute(REQUEST);
+
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 5, "SafeIoException"),
+                "retries exhausted due to exception after four 429s");
     }
 
     @Test
