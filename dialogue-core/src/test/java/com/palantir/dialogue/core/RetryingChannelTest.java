@@ -664,6 +664,26 @@ public class RetryingChannelTest {
         assertThat(delegateResult).as("Failed to cancel the delegate future").isCancelled();
     }
 
+    @Test
+    public void testPropagatesCancelToRetry() {
+        ListenableFuture<Response> retryResult = SettableFuture.create();
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(429)))
+                .thenReturn(retryResult);
+        EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> retryingResult = retryer.execute(REQUEST);
+        assertThat(retryingResult.cancel(true)).isTrue();
+        assertThat(retryResult).as("Failed to cancel the retry future").isCancelled();
+    }
+
     private static SocketException createEtimedoutException() {
         // Message must precisely match:
         // https://github.com/openjdk/jdk/blob/32eb5290c207d5fda398ee09b354b8cf55b89e0c/src/hotspot/share/runtime/os.cpp#L1658

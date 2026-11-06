@@ -57,7 +57,6 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -355,26 +354,13 @@ final class RetryingChannel implements EndpointChannel {
             return body.repeatable();
         }
 
-        private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
-            ListenableFuture<Response> result = input;
-            result = DialogueFutures.transformAsync(result, this::handleHttpResponse);
-            result = DialogueFutures.catchingAllAsync(result, throwable -> {
-                // Failures from a nested retry future were already handled by that retry's own wrap.
-                if (!attemptFailed(input)) {
-                    return Futures.immediateFailedFuture(throwable);
-                }
-                return handleThrowable(throwable);
-            });
-            return result;
-        }
-
-        private static boolean attemptFailed(ListenableFuture<Response> attempt) {
-            try {
-                Futures.getDone(attempt);
-                return false;
-            } catch (ExecutionException e) {
-                return true;
-            }
+        @SuppressWarnings("FutureReturnValueIgnored")
+        private ListenableFuture<Response> wrap(ListenableFuture<Response> attempt) {
+            // The handlers return the next future as a value, so this attempt's catch never sees a retry's failure.
+            ListenableFuture<ListenableFuture<Response>> next = DialogueFutures.catchingAllAsync(
+                    DialogueFutures.transform(attempt, this::handleHttpResponse),
+                    throwable -> Futures.immediateFuture(handleThrowable(throwable)));
+            return DialogueFutures.transformAsync(next, future -> future);
         }
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {
