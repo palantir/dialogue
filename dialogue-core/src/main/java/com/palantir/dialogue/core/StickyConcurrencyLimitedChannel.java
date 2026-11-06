@@ -67,7 +67,8 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
                 DialogueFutures.addDirectCallback(result.get(), maybePermit);
                 return result;
             } else {
-                maybePermit.dropped();
+                // Sticky limiters do not record decisions, so the delegate's rejection has no specific cause.
+                maybePermit.dropped(ConcurrencyLimiterDecisionRecorder.OTHER_CAUSE);
                 return Optional.empty();
             }
         } else {

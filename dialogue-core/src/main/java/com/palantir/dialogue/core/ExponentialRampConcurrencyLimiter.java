@@ -97,9 +97,6 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
     final class Permit implements Behavior.PermitControl, ConcurrencyLimiter.Permit {
         private final int inFlightSnapshot;
 
-        // The outcome that completed this permit, set before the behavior makes its decision.
-        private String cause = ConcurrencyLimiterDecisionRecorder.OTHER_CAUSE;
-
         Permit(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;
         }
@@ -107,25 +104,23 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
         @Override
         public void onSuccess(@Nullable Response result) {
             if (result != null) {
-                cause = ConcurrencyLimiterDecisionRecorder.causeOf(result);
                 behavior.onSuccess(result, this);
             }
         }
 
         @Override
         public void onFailure(Throwable throwable) {
-            cause = ConcurrencyLimiterDecisionRecorder.causeOf(throwable);
             behavior.onFailure(throwable, this);
         }
 
         @Override
-        public void ignore() {
+        public void ignore(String cause) {
             inFlight.decrementAndGet();
             decisionRecorder.record(Decision_Result.IGNORED, cause);
         }
 
         @Override
-        public void dropped() {
+        public void dropped(String cause) {
             inFlight.decrementAndGet();
             decisionRecorder.record(Decision_Result.DROPPED, cause);
             double newLimit = decreaseLimit();
@@ -140,7 +135,7 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
         }
 
         @Override
-        public void success() {
+        public void success(String cause) {
             inFlight.decrementAndGet();
             decisionRecorder.record(Decision_Result.SUCCESS, cause);
             double newLimit = increaseLimit(inFlightSnapshot);

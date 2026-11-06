@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
-import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.DialogueConcurrencylimiterMetrics.Decision_Result;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,7 +32,7 @@ interface ConcurrencyLimiterDecisionRecorder {
     /** Discards decisions, for limiters that do not report them. */
     ConcurrencyLimiterDecisionRecorder NOOP = (_result, _cause) -> {};
 
-    /** The cause of a decision that was not produced by a recognized response status. */
+    /** The cause of a decision that is not identified by a recognized response status or failure. */
     String OTHER_CAUSE = "other";
 
     void record(Decision_Result result, String cause);
@@ -79,39 +78,5 @@ interface ConcurrencyLimiterDecisionRecorder {
             }
             meter.mark();
         }
-    }
-
-    /** Uses the same {@link Responses} predicates as {@link Behavior}, so the cause matches the decision. */
-    static String causeOf(Response response) {
-        if (Responses.isQosDueToCustom(response)) {
-            return "qos-custom";
-        }
-        if (Responses.isRetryOther(response)) {
-            return "http-308";
-        }
-        if (Responses.isTooManyRequests(response)) {
-            return "http-429";
-        }
-        if (Responses.isInternalServerError(response)) {
-            return "http-500";
-        }
-        if (Responses.isUnavailable(response)) {
-            return "http-503";
-        }
-        if (Responses.isSuccess(response)) {
-            return "http-2xx";
-        }
-        if (Responses.isClientError(response)) {
-            return "http-4xx";
-        }
-        if (Responses.isServerErrorRange(response)) {
-            return "http-5xx";
-        }
-        return OTHER_CAUSE;
-    }
-
-    /** Matches the exception tags used by {@code dialogue.client.request.retry} and the Apache client metrics. */
-    static String causeOf(Throwable throwable) {
-        return throwable.getClass().getSimpleName();
     }
 }

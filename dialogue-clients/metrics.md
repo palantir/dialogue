@@ -148,7 +148,7 @@ Instrumentation for the ConcurrencyLimitedChannel
   - `channel-name`
   - `hostIndex`
   - `result`: Describes how the concurrency limiter interpreted the response or failure.
-    - `success`: Increases the limit when enough requests were in flight.
+    - `success`: Counted toward raising the limit, which only rises when at least 90% of it was in flight.
     - `dropped`: Decreases the limit, to a minimum of 1.
     - `ignored`: Does not change the limit.
   - `cause`: Describes the response status or failure that released the permit. Responses are one of `http-2xx`, `http-308` (QoS RetryOther), `http-4xx`, `http-429`, `http-500`, `http-503`, `http-5xx`, `qos-custom` (a QoS response due to a custom cause) or `other` (any other status, such as 1xx or a 3xx other than QoS RetryOther). Failures are the simple class name of the exception (e.g. `SafeSocketTimeoutException`).

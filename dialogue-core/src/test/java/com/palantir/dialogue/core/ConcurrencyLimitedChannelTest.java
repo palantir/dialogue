@@ -185,7 +185,7 @@ public class ConcurrencyLimitedChannelTest {
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
                 .contains(responseFuture);
-        verify(hostPermit).success();
+        verify(hostPermit).success("http-2xx");
     }
 
     @Test
@@ -195,7 +195,7 @@ public class ConcurrencyLimitedChannelTest {
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
                 .contains(responseFuture);
-        verify(endpointPermit).success();
+        verify(endpointPermit).success("http-2xx");
     }
 
     @Test
@@ -205,7 +205,7 @@ public class ConcurrencyLimitedChannelTest {
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
                 .contains(responseFuture);
-        verify(endpointPermit).dropped();
+        verify(endpointPermit).dropped("http-429");
     }
 
     @Test
@@ -215,7 +215,7 @@ public class ConcurrencyLimitedChannelTest {
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
                 .contains(responseFuture);
-        verify(hostPermit).ignore();
+        verify(hostPermit).ignore("http-429");
     }
 
     @Test
@@ -225,7 +225,7 @@ public class ConcurrencyLimitedChannelTest {
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
                 .contains(responseFuture);
-        verify(hostPermit).ignore();
+        verify(hostPermit).ignore("IllegalStateException");
     }
 
     @Test
@@ -235,7 +235,7 @@ public class ConcurrencyLimitedChannelTest {
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
                 .contains(responseFuture);
-        verify(endpointPermit).ignore();
+        verify(endpointPermit).ignore("IllegalStateException");
     }
 
     @Test
@@ -245,7 +245,7 @@ public class ConcurrencyLimitedChannelTest {
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
                 .contains(responseFuture);
-        verify(hostPermit).dropped();
+        verify(hostPermit).dropped("SafeIoException");
     }
 
     @Test
@@ -255,7 +255,7 @@ public class ConcurrencyLimitedChannelTest {
 
         assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
                 .contains(responseFuture);
-        verify(endpointPermit).ignore();
+        verify(endpointPermit).ignore("SafeIoException");
     }
 
     @Test

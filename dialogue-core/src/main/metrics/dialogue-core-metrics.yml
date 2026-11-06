@@ -142,7 +142,7 @@ namespaces:
           - name: result
             values:
               - value: success
-                docs: Increases the limit when enough requests were in flight.
+                docs: Counted toward raising the limit, which only rises when at least 90% of it was in flight.
               - value: dropped
                 docs: Decreases the limit, to a minimum of 1.
               - value: ignored
