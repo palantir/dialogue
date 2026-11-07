@@ -118,6 +118,14 @@ public abstract class TypeMarker<T> {
         return new WrappingTypeMarker<>(new ParameterizedTypeImpl(Map.class, keyType, valueType));
     }
 
+    /**
+     * Returns a marker for the same type that doesn't retain the given marker's class, which for
+     * {@code new TypeMarker<T>() {}} subclasses also retains the class (and classloader) that created it.
+     */
+    static <T> TypeMarker<T> withoutSubclass(TypeMarker<T> marker) {
+        return marker instanceof WrappingTypeMarker ? marker : new WrappingTypeMarker<>(marker.getType());
+    }
+
     private static final class WrappingTypeMarker<T> extends TypeMarker<T> {
         private WrappingTypeMarker(Type type) {
             super(type);
