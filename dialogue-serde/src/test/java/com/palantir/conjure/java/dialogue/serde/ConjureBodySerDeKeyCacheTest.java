@@ -31,6 +31,7 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Type;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -119,18 +120,17 @@ final class ConjureBodySerDeKeyCacheTest {
     }
 
     @Test
-    void canonicalErrorsAreSharedAcrossRuntimesAndEqualMaps() {
+    void equalErrorMapsShareOneDecoder() {
+        ConjureBodySerDe serde = serde();
         ExceptionDeserializerArgs<String> args = ExceptionDeserializationTestUtils.createStringDeserializerArgs();
-        ImmutableMap<String, ?> canonical =
-                ConjureBodySerDe.canonicalErrorsForTesting(args.errorNameToExceptionTypeMarkers());
-        assertThat(serde().deserializer(args)).isNotSameAs(serde().deserializer(args));
-        assertThat(ConjureBodySerDe.canonicalErrorsForTesting(args.errorNameToExceptionTypeMarkers()))
-                .isSameAs(canonical);
+        ExceptionDeserializingErrorDecoder decoder = serde.errorDecoder(args.errorNameToExceptionTypeMarkers());
+        assertThat(serde.errorDecoder(args.errorNameToExceptionTypeMarkers())).isSameAs(decoder);
         // A distinct but equal map, as an older dialogue-target without interning would produce.
         ImmutableMap<String, ErrorExceptionPair<?, ?>> copy =
                 ImmutableMap.copyOf(new LinkedHashMap<>(args.errorNameToExceptionTypeMarkers()));
         assertThat(copy).isNotSameAs(args.errorNameToExceptionTypeMarkers());
-        assertThat(ConjureBodySerDe.canonicalErrorsForTesting(copy)).isSameAs(canonical);
+        assertThat(serde.errorDecoder(copy)).isSameAs(decoder);
+        assertThat(serde().errorDecoder(args.errorNameToExceptionTypeMarkers())).isNotSameAs(decoder);
     }
 
     @Test
@@ -145,12 +145,20 @@ final class ConjureBodySerDeKeyCacheTest {
     }
 
     @Test
-    void canonicalErrorsDoNotRetainCallerMarkers() throws InterruptedException {
+    void decodersDoNotRetainCallerMarkers() throws InterruptedException {
         // Older dialogue-target versions keep the caller's `new TypeMarker<T>() {}` subclasses in their error maps.
-        awaitCollected(canonicalizeCapturingMarkers());
+        ConjureBodySerDe serde = serde();
+        List<Object> decoder = new ArrayList<>();
+        List<WeakReference<?>> references = decodeCapturingMarkers(serde, decoder);
+        try {
+            awaitCollected(references);
+        } finally {
+            Reference.reachabilityFence(decoder);
+            Reference.reachabilityFence(serde);
+        }
     }
 
-    private static List<WeakReference<?>> canonicalizeCapturingMarkers() {
+    private static List<WeakReference<?>> decodeCapturingMarkers(ConjureBodySerDe serde, List<Object> decoder) {
         Object owner = new Object();
         TypeMarker<TestErrorSerializableError> errorType = new TypeMarker<TestErrorSerializableError>() {
             @SuppressWarnings("unused")
@@ -166,7 +174,7 @@ final class ConjureBodySerDeKeyCacheTest {
         };
         ImmutableMap<String, ErrorExceptionPair<?, ?>> errors =
                 ImmutableMap.of("Test:Error", new ErrorExceptionPair<>(errorType, exceptionType));
-        assertThat(ConjureBodySerDe.canonicalErrorsForTesting(errors)).isNotNull();
+        decoder.add(serde.errorDecoder(errors));
         return List.of(
                 new WeakReference<>(owner),
                 new WeakReference<>(errorType),

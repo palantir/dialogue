@@ -76,8 +76,13 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
     private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
-    private final LoadingCache<ImmutableMap<String, ErrorDeserializerCacheKey>, ExceptionDeserializingErrorDecoder>
-            errorDecoders;
+    // See errorDecoder. A single segment each: reads don't lock, and writes only happen the first time a set of
+    // arguments is bound, so more segments would only add fixed overhead to every runtime.
+    private final ConcurrentMap<ImmutableMap<String, ErrorExceptionPair<?, ?>>, ExceptionDeserializingErrorDecoder>
+            errorDecodersByArguments =
+                    new MapMaker().weakKeys().weakValues().concurrencyLevel(1).makeMap();
+    private final Interner<ExceptionDeserializingErrorDecoder> errorDecoders =
+            Interners.newBuilder().weak().concurrencyLevel(1).build();
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
 
     /**
@@ -121,23 +126,13 @@ final class ConjureBodySerDe implements BodySerDe {
         // because evicting a deserializer that decoders still hold would only stop it from being shared.
         this.errorDeserializers =
                 Caffeine.newBuilder().weakValues().build(key -> new ReflectiveErrorDeserializer(errorEncoding, key));
-        // Generated clients register the same errors for every return type, so decoders are shared per set of errors
-        // rather than built per endpoint return type. Weak values for the same reason as errorDeserializers.
-        this.errorDecoders = Caffeine.newBuilder()
-                .weakValues()
-                .build(errors -> new ExceptionDeserializingErrorDecoder(
-                        ImmutableMap.copyOf(Maps.transformValues(errors, errorDeserializers::get)),
-                        expectJsonErrors()));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
                 .expireAfterAccess(Duration.ofMinutes(1))
                 .maximumSize(1_000)
                 .build(key -> deserializerFor(
-                        key.type(),
-                        emptyContainerDeserializer,
-                        TypeMarker.of(key.returnType()),
-                        errorDecoders.get(key.errors())));
+                        key.type(), emptyContainerDeserializer, TypeMarker.of(key.returnType()), key.errorDecoder()));
     }
 
     @SuppressWarnings("unchecked")
@@ -193,7 +188,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
         return (Deserializer<T>) exceptionDeserializers.get(
-                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.STANDARD));
+                exceptionDeserializerKey(exceptionDeserializerArgs, DeserializerType.STANDARD));
     }
 
     @Override
@@ -205,7 +200,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
         return (Deserializer<Void>) exceptionDeserializers.get(
-                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.EMPTY_BODY));
+                exceptionDeserializerKey(exceptionDeserializerArgs, DeserializerType.EMPTY_BODY));
     }
 
     @Override
@@ -217,7 +212,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public Deserializer<InputStream> inputStreamDeserializer(
             ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
-        return (Deserializer<InputStream>) exceptionDeserializers.get(ExceptionDeserializerCacheKey.of(
+        return (Deserializer<InputStream>) exceptionDeserializers.get(exceptionDeserializerKey(
                 exceptionDeserializerArgs, DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
     }
 
@@ -230,7 +225,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @SuppressWarnings("unchecked")
     public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
             ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
-        return (Deserializer<Optional<InputStream>>) exceptionDeserializers.get(ExceptionDeserializerCacheKey.of(
+        return (Deserializer<Optional<InputStream>>) exceptionDeserializers.get(exceptionDeserializerKey(
                 exceptionDeserializerArgs, DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
     }
 
@@ -516,62 +511,57 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
-    // Equal error maps are shared across cache keys. Order doesn't matter here: these maps are only compared and looked
-    // up by error name. Weak, so a map is only kept while something still holds it. Interned maps are canonical, so
-    // keys compare them by identity.
-    private static final Interner<ImmutableMap<String, ErrorDeserializerCacheKey>> ERROR_KEYS =
-            Interners.newWeakInterner();
-
-    // The canonical error keys for each ExceptionDeserializerArgs error map, so binding the same arguments again
-    // doesn't rebuild, rehash and re-intern them. Weak identity keys, so an entry only lives as long as the arguments'
-    // map. Values only hold Types, never the arguments' TypeMarkers, so they don't retain callers even when an older
-    // dialogue-target passes along anonymous `new TypeMarker<T>() {}` subclasses.
-    private static final ConcurrentMap<
-                    ImmutableMap<String, ErrorExceptionPair<?, ?>>, ImmutableMap<String, ErrorDeserializerCacheKey>>
-            CANONICAL_ERRORS = new MapMaker().weakKeys().makeMap();
-
-    @VisibleForTesting
-    static ImmutableMap<String, ?> canonicalErrorsForTesting(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
-        return canonicalErrors(errors);
+    private ExceptionDeserializerCacheKey exceptionDeserializerKey(
+            ExceptionDeserializerArgs<?> args, DeserializerType type) {
+        return new ExceptionDeserializerCacheKey(
+                args.returnType().getType(), errorDecoder(args.errorNameToExceptionTypeMarkers()), type);
     }
 
-    private static ImmutableMap<String, ErrorDeserializerCacheKey> canonicalErrors(
-            ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
-        if (errors.isEmpty()) {
-            return ImmutableMap.of();
+    /**
+     * Generated clients register the same errors for every return type, so decoders are shared per set of errors
+     * rather than built per endpoint return type. Decoders are found by the identity of the arguments' error map, so
+     * binding the same arguments again is a single lookup that doesn't rebuild or rehash anything. Equal errors in
+     * other maps (registered in a different order, or from a dialogue-target that doesn't share equal maps) are
+     * resolved to the same decoder by interning.
+     *
+     * <p>Everything is weak, so nothing is retained beyond what deserializers already hold: an entry only lives as long
+     * as both the arguments' map and the decoder, and the interner only holds decoders weakly. Decoders hold
+     * {@link ErrorDeserializer}s, which only keep Types, so they never retain the arguments' TypeMarkers, which for
+     * older dialogue-target versions may be `new TypeMarker<T>() {}` subclasses retaining the client that made them.
+     */
+    @VisibleForTesting
+    ExceptionDeserializingErrorDecoder errorDecoder(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
+        ExceptionDeserializingErrorDecoder decoder = errorDecodersByArguments.get(errors);
+        if (decoder == null) {
+            // Concurrent first uses may both build a decoder, but interning resolves them to the same instance.
+            decoder = errorDecoders.intern(new ExceptionDeserializingErrorDecoder(
+                    ImmutableMap.copyOf(Maps.transformValues(
+                            errors, pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))),
+                    expectJsonErrors()));
+            errorDecodersByArguments.put(errors, decoder);
         }
-        ImmutableMap<String, ErrorDeserializerCacheKey> canonical = CANONICAL_ERRORS.get(errors);
-        if (canonical == null) {
-            // Concurrent first uses may both build the map, but interning resolves them to the same instance.
-            canonical =
-                    ERROR_KEYS.intern(ImmutableMap.copyOf(Maps.transformValues(errors, ErrorDeserializerCacheKey::of)));
-            CANONICAL_ERRORS.put(errors, canonical);
-        }
-        return canonical;
+        return decoder;
     }
 
     private record ExceptionDeserializerCacheKey(
             // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
             // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
-            Type returnType, ImmutableMap<String, ErrorDeserializerCacheKey> errors, DeserializerType type) {
-        static <T> ExceptionDeserializerCacheKey of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
-            return new ExceptionDeserializerCacheKey(
-                    args.returnType().getType(), canonicalErrors(args.errorNameToExceptionTypeMarkers()), type);
-        }
-
+            Type returnType, ExceptionDeserializingErrorDecoder errorDecoder, DeserializerType type) {
+        // Decoders are interned, so equal decoders are the same instance and are compared by identity. This also avoids
+        // the decoder's own equals and hashCode, which visit every error.
         @Override
-        @SuppressWarnings("ReferenceEquality") // errors are interned, so equal maps are the same instance.
+        @SuppressWarnings("ReferenceEquality")
         public boolean equals(@Nullable Object other) {
             return this == other
                     || (other instanceof ExceptionDeserializerCacheKey that
-                            && errors == that.errors
+                            && errorDecoder == that.errorDecoder
                             && type == that.type
                             && returnType.equals(that.returnType));
         }
 
         @Override
         public int hashCode() {
-            return 31 * (31 * returnType.hashCode() + System.identityHashCode(errors)) + type.hashCode();
+            return 31 * (31 * returnType.hashCode() + System.identityHashCode(errorDecoder)) + type.hashCode();
         }
     }
 }

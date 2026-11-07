@@ -123,7 +123,7 @@ public class ConjureBodySerDeTest {
         LoadingCache<?, ?> cache =
                 FieldSupport.EXTRACTION.fieldValue("exceptionDeserializers", LoadingCache.class, serde);
         List<Object> errors = cache.asMap().keySet().stream()
-                .map(key -> FieldSupport.EXTRACTION.fieldValue("errors", Object.class, key))
+                .map(key -> FieldSupport.EXTRACTION.fieldValue("errorDecoder", Object.class, key))
                 .collect(Collectors.toList());
         assertThat(errors).hasSize(2);
         assertThat(errors.get(0)).isSameAs(errors.get(1));
