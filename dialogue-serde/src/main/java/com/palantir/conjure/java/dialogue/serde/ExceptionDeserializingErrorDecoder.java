@@ -76,8 +76,7 @@ final class ExceptionDeserializingErrorDecoder {
     private final ImmutableMap<String, ErrorDeserializer> errorDeserializers;
     private final boolean expectJsonErrors;
     // Lets caches refer to this decoder without keeping it alive. One per decoder, so it can be compared by identity.
-    // Created on first use, so decoders that are only built to be interned (and then dropped) don't pay for it.
-    private volatile @Nullable WeakReference<ExceptionDeserializingErrorDecoder> reference;
+    private final WeakReference<ExceptionDeserializingErrorDecoder> reference = new WeakReference<>(this);
 
     static ExceptionDeserializingErrorDecoder withoutExceptions() {
         return WITHOUT_EXCEPTIONS;
@@ -90,17 +89,7 @@ final class ExceptionDeserializingErrorDecoder {
     }
 
     WeakReference<ExceptionDeserializingErrorDecoder> reference() {
-        WeakReference<ExceptionDeserializingErrorDecoder> result = reference;
-        if (result == null) {
-            synchronized (this) {
-                result = reference;
-                if (result == null) {
-                    result = new WeakReference<>(this);
-                    reference = result;
-                }
-            }
-        }
-        return result;
+        return reference;
     }
 
     boolean isError(Response response) {
