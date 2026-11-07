@@ -53,10 +53,10 @@ import org.openjdk.jmh.annotations.Warmup;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Warmup(iterations = 4, time = 1)
 @Measurement(iterations = 5, time = 1)
-@Fork(2)
+@Fork(1)
 @SuppressWarnings({"VisibilityModifier", "DesignForExtension"})
 public class ExceptionBindingBenchmark {
-    @Param({"0", "1", "16", "90", "256"})
+    @Param({"0", "90"})
     public int errors;
 
     private BodySerDe serde;
