@@ -24,7 +24,7 @@ com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.52.0 (19 constraints: e42edf82)
+com.google.errorprone:error_prone_annotations:2.52.0 (19 constraints: e62e2f88)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
@@ -36,9 +36,9 @@ com.google.j2objc:j2objc-annotations:3.1 (1 constraints: b809f1a0)
 
 com.palantir.common:streams:2.16.0 (1 constraints: 3b05413b)
 
-com.palantir.conjure.java:conjure-lib:8.99.0 (2 constraints: 4724bf7d)
+com.palantir.conjure.java:conjure-lib:8.100.0 (2 constraints: 6624658e)
 
-com.palantir.conjure.java.api:errors:2.83.0 (3 constraints: 80295015)
+com.palantir.conjure.java.api:errors:2.83.0 (3 constraints: 81298c15)
 
 com.palantir.conjure.java.api:service-config:2.83.0 (2 constraints: 5d191ddd)
 
