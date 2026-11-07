@@ -22,8 +22,6 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Interner;
-import com.google.common.collect.Interners;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
@@ -72,8 +70,6 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
     private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
-    private final LoadingCache<ImmutableMap<String, ErrorDeserializerCacheKey>, ExceptionDeserializingErrorDecoder>
-            errorDecoders;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
 
     /**
@@ -117,13 +113,6 @@ final class ConjureBodySerDe implements BodySerDe {
         // because evicting a deserializer that decoders still hold would only stop it from being shared.
         this.errorDeserializers =
                 Caffeine.newBuilder().weakValues().build(key -> new ReflectiveErrorDeserializer(errorEncoding, key));
-        // Generated clients register the same errors for every return type, so decoders are shared per set of errors
-        // rather than built per endpoint return type. Weak values for the same reason as errorDeserializers.
-        this.errorDecoders = Caffeine.newBuilder()
-                .weakValues()
-                .build(errors -> new ExceptionDeserializingErrorDecoder(
-                        ImmutableMap.copyOf(Maps.transformValues(errors, errorDeserializers::get)),
-                        expectJsonErrors()));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
@@ -133,7 +122,9 @@ final class ConjureBodySerDe implements BodySerDe {
                         key.type(),
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
-                        errorDecoders.get(key.errors())));
+                        new ExceptionDeserializingErrorDecoder(
+                                ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)),
+                                expectJsonErrors())));
     }
 
     @SuppressWarnings("unchecked")
@@ -512,11 +503,6 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
-    // Equal error maps are shared across cache keys. Unlike ExceptionDeserializerArgs, order doesn't matter here: these
-    // maps are only compared and looked up by error name. Weak, so a map is only kept while some key still holds it.
-    private static final Interner<ImmutableMap<String, ErrorDeserializerCacheKey>> ERROR_KEYS =
-            Interners.newWeakInterner();
-
     private record ExceptionDeserializerCacheKey(
             // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
             // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
@@ -524,8 +510,8 @@ final class ConjureBodySerDe implements BodySerDe {
         static <T> ExceptionDeserializerCacheKey of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
             return new ExceptionDeserializerCacheKey(
                     args.returnType().getType(),
-                    ERROR_KEYS.intern(ImmutableMap.copyOf(Maps.transformValues(
-                            args.errorNameToExceptionTypeMarkers(), ErrorDeserializerCacheKey::of))),
+                    ImmutableMap.copyOf(Maps.transformValues(
+                            args.errorNameToExceptionTypeMarkers(), ErrorDeserializerCacheKey::of)),
                     type);
         }
     }
