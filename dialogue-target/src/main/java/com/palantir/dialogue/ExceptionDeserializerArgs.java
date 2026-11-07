@@ -129,6 +129,10 @@ public final class ExceptionDeserializerArgs<T> {
             Preconditions.checkNotNull(returnType, "base type must be set");
             buildInvoked = true;
             ImmutableMap<String, ErrorExceptionPair<?, ?>> errors = errorNameToExceptionTypeMarkers.buildOrThrow();
+            if (errors.isEmpty()) {
+                // Already a shared singleton, and hashing it to intern it would allocate.
+                return new ExceptionDeserializerArgs<>(returnType, errors);
+            }
             ImmutableMap<String, ErrorExceptionPair<?, ?>> shared = ERRORS.intern(errors);
             // Map equality ignores order, so only share a map registered in the same order to keep iteration order.
             boolean sameOrder = shared == errors
