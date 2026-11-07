@@ -122,22 +122,13 @@ public final class ExceptionDeserializerArgs<T> {
             return this;
         }
 
-        // The identity check is deliberate: the first build of each set of errors gets its own map back.
-        @SuppressWarnings("ReferenceEquality")
         public ExceptionDeserializerArgs<T> build() {
             checkNotBuilt();
             Preconditions.checkNotNull(returnType, "base type must be set");
             buildInvoked = true;
             ImmutableMap<String, ErrorExceptionPair<?, ?>> errors = errorNameToExceptionTypeMarkers.buildOrThrow();
-            if (errors.isEmpty()) {
-                // Already a shared singleton, and hashing it to intern it would allocate.
-                return new ExceptionDeserializerArgs<>(returnType, errors);
-            }
-            ImmutableMap<String, ErrorExceptionPair<?, ?>> shared = ERRORS.intern(errors);
-            // Map equality ignores order, so only share a map registered in the same order to keep iteration order.
-            boolean sameOrder = shared == errors
-                    || shared.keySet().asList().equals(errors.keySet().asList());
-            return new ExceptionDeserializerArgs<>(returnType, sameOrder ? shared : errors);
+            // An empty map is already a shared singleton, and hashing it to intern it would allocate.
+            return new ExceptionDeserializerArgs<>(returnType, errors.isEmpty() ? errors : ERRORS.intern(errors));
         }
 
         private void checkNotBuilt() {
@@ -149,6 +140,10 @@ public final class ExceptionDeserializerArgs<T> {
         return returnType;
     }
 
+    /**
+     * The registered errors, by error name. Equal maps are shared between arguments, so the iteration order is
+     * unspecified: it may be the order another {@link Builder} registered the same errors in.
+     */
     public ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers() {
         return errorNameToExceptionTypeMarkers;
     }

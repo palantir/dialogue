@@ -119,23 +119,26 @@ public final class ExceptionDeserializerArgsTest {
     }
 
     @Test
-    public void testKeepsRegistrationOrder() {
-        ExceptionDeserializerArgs<String> ab = ExceptionDeserializerArgs.<String>builder()
-                .returnType(new TypeMarker<>() {})
-                .exception(
-                        "A", TypeMarker.of(TestErrorSerializableError.class), TypeMarker.of(TestErrorException.class))
-                .exception(
-                        "B", TypeMarker.of(TestErrorSerializableError.class), TypeMarker.of(TestErrorException.class))
-                .build();
-        ExceptionDeserializerArgs<String> ba = ExceptionDeserializerArgs.<String>builder()
-                .returnType(new TypeMarker<>() {})
-                .exception(
-                        "B", TypeMarker.of(TestErrorSerializableError.class), TypeMarker.of(TestErrorException.class))
-                .exception(
-                        "A", TypeMarker.of(TestErrorSerializableError.class), TypeMarker.of(TestErrorException.class))
-                .build();
-        assertThat(ab.errorNameToExceptionTypeMarkers().keySet()).containsExactly("A", "B");
-        assertThat(ba.errorNameToExceptionTypeMarkers().keySet()).containsExactly("B", "A");
+    public void testEqualErrorsInAnyOrderAreShared() {
+        ExceptionDeserializerArgs<String> ab = registering("A", "B");
+        ExceptionDeserializerArgs<String> ba = registering("B", "A");
+        ExceptionDeserializerArgs<String> otherBa = registering("B", "A");
+        assertThat(ba.errorNameToExceptionTypeMarkers()).isSameAs(ab.errorNameToExceptionTypeMarkers());
+        assertThat(otherBa.errorNameToExceptionTypeMarkers()).isSameAs(ab.errorNameToExceptionTypeMarkers());
+        assertThat(ba.errorNameToExceptionTypeMarkers().keySet()).containsExactlyInAnyOrder("A", "B");
+        assertThat(ba).isEqualTo(ab);
+    }
+
+    private static ExceptionDeserializerArgs<String> registering(String... errorNames) {
+        ExceptionDeserializerArgs.Builder<String> builder =
+                ExceptionDeserializerArgs.<String>builder().returnType(TypeMarker.of(String.class));
+        for (String errorName : errorNames) {
+            builder.exception(
+                    errorName,
+                    TypeMarker.of(TestErrorSerializableError.class),
+                    TypeMarker.of(TestErrorException.class));
+        }
+        return builder.build();
     }
 
     @Test
