@@ -188,7 +188,6 @@ public final class ErrorDecoderTest {
                         exception -> assertThat(exception.getStatus()).isEqualTo(308));
     }
 
-    @SuppressWarnings("for-rollout:deprecation")
     @Test
     public void testQos308() {
         String expectedLocation = "https://localhost";
