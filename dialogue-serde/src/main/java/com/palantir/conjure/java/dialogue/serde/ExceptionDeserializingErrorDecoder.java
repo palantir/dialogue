@@ -42,6 +42,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -69,11 +70,17 @@ final class ExceptionDeserializingErrorDecoder {
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
 
+    private static final ExceptionDeserializingErrorDecoder WITHOUT_EXCEPTIONS =
+            new ExceptionDeserializingErrorDecoder(ImmutableMap.of(), false);
+
     private final ImmutableMap<String, ErrorDeserializer> errorDeserializers;
     private final boolean expectJsonErrors;
+    // Lets caches refer to this decoder without keeping it alive. One per decoder, so it can be compared by identity.
+    // Created on first use, so decoders that are only built to be interned (and then dropped) don't pay for it.
+    private volatile @Nullable WeakReference<ExceptionDeserializingErrorDecoder> reference;
 
     static ExceptionDeserializingErrorDecoder withoutExceptions() {
-        return new ExceptionDeserializingErrorDecoder(ImmutableMap.of(), false);
+        return WITHOUT_EXCEPTIONS;
     }
 
     ExceptionDeserializingErrorDecoder(
@@ -82,8 +89,36 @@ final class ExceptionDeserializingErrorDecoder {
         this.expectJsonErrors = expectJsonErrors;
     }
 
+    WeakReference<ExceptionDeserializingErrorDecoder> reference() {
+        WeakReference<ExceptionDeserializingErrorDecoder> result = reference;
+        if (result == null) {
+            synchronized (this) {
+                result = reference;
+                if (result == null) {
+                    result = new WeakReference<>(this);
+                    reference = result;
+                }
+            }
+        }
+        return result;
+    }
+
     boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
+    }
+
+    // Decoders are immutable, so equal decoders can be shared. ConjureBodySerDe interns them per set of errors.
+    @Override
+    public boolean equals(@Nullable Object other) {
+        return this == other
+                || (other instanceof ExceptionDeserializingErrorDecoder that
+                        && expectJsonErrors == that.expectJsonErrors
+                        && errorDeserializers.equals(that.errorDeserializers));
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * errorDeserializers.hashCode() + Boolean.hashCode(expectJsonErrors);
     }
 
     public RuntimeException decode(Response response) {
