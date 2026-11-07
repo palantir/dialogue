@@ -42,6 +42,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -69,17 +70,26 @@ final class ExceptionDeserializingErrorDecoder {
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
 
+    private static final ExceptionDeserializingErrorDecoder WITHOUT_EXCEPTIONS =
+            new ExceptionDeserializingErrorDecoder(ImmutableMap.of(), false);
+
     private final ImmutableMap<String, ErrorDeserializer> errorDeserializers;
     private final boolean expectJsonErrors;
+    // Lets caches refer to this decoder without keeping it alive. One per decoder, so it can be compared by identity.
+    private final WeakReference<ExceptionDeserializingErrorDecoder> reference = new WeakReference<>(this);
 
     static ExceptionDeserializingErrorDecoder withoutExceptions() {
-        return new ExceptionDeserializingErrorDecoder(ImmutableMap.of(), false);
+        return WITHOUT_EXCEPTIONS;
     }
 
     ExceptionDeserializingErrorDecoder(
             ImmutableMap<String, ErrorDeserializer> errorDeserializers, boolean expectJsonErrors) {
         this.errorDeserializers = errorDeserializers;
         this.expectJsonErrors = expectJsonErrors;
+    }
+
+    WeakReference<ExceptionDeserializingErrorDecoder> reference() {
+        return reference;
     }
 
     boolean isError(Response response) {

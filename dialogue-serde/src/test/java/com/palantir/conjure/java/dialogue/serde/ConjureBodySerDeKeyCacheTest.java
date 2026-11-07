@@ -36,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import org.assertj.core.util.introspection.FieldSupport;
 import org.junit.jupiter.api.Test;
 
 final class ConjureBodySerDeKeyCacheTest {
@@ -131,6 +132,44 @@ final class ConjureBodySerDeKeyCacheTest {
         assertThat(copy).isNotSameAs(args.errorNameToExceptionTypeMarkers());
         assertThat(serde.errorDecoder(copy)).isSameAs(decoder);
         assertThat(serde().errorDecoder(args.errorNameToExceptionTypeMarkers())).isNotSameAs(decoder);
+    }
+
+    @Test
+    void emptyErrorsShareOneDecoderWithoutIndexing() {
+        ConjureBodySerDe serde = serde();
+        ExceptionDeserializingErrorDecoder empty = serde.errorDecoder(ImmutableMap.of());
+        assertThat(serde.errorDecoder(ExceptionDeserializerArgs.<String>builder()
+                        .returnType(TypeMarker.of(String.class))
+                        .build()
+                        .errorNameToExceptionTypeMarkers()))
+                .isSameAs(empty);
+        assertThat(FieldSupport.EXTRACTION.fieldValue("errorDecoders", Object.class, serde))
+                .isNull();
+    }
+
+    @Test
+    void cacheKeysDoNotRetainDecoders() throws InterruptedException {
+        // Nothing touches the cache after the deserializer is dropped, so its entry isn't evicted, but the decoder
+        // (and its error deserializers) can still be collected.
+        ConjureBodySerDe serde = serde();
+        List<WeakReference<?>> references = bindAndDrop(serde);
+        try {
+            awaitCollected(references);
+        } finally {
+            Reference.reachabilityFence(serde);
+        }
+    }
+
+    private static List<WeakReference<?>> bindAndDrop(ConjureBodySerDe serde) {
+        ExceptionDeserializerArgs<String> args = ExceptionDeserializerArgs.<String>builder()
+                .returnType(TypeMarker.of(String.class))
+                .exception("Test:Dropped", ERROR, EXCEPTION)
+                .build();
+        Deserializer<String> deserializer = serde.deserializer(args);
+        ExceptionDeserializingErrorDecoder decoder = serde.errorDecoder(args.errorNameToExceptionTypeMarkers());
+        assertThat(FieldSupport.EXTRACTION.fieldValue("errorDecoder", Object.class, deserializer))
+                .isSameAs(decoder);
+        return List.of(new WeakReference<>(deserializer), new WeakReference<>(decoder));
     }
 
     @Test

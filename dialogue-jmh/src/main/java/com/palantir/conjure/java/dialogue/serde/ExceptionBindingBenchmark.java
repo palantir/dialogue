@@ -114,6 +114,8 @@ public class ExceptionBindingBenchmark {
         public int bindings;
 
         private final List<ExceptionDeserializerArgs<?>> arguments = new ArrayList<>();
+        // The cache holds deserializers weakly, so keep them like a client would, or a GC turns hits into misses.
+        private final List<Deserializer<?>> retained = new ArrayList<>();
         private int index;
 
         @Setup
@@ -121,7 +123,7 @@ public class ExceptionBindingBenchmark {
             for (Type returnType : returnTypes(bindings)) {
                 ExceptionDeserializerArgs<?> next = shared.args(TypeMarker.of(returnType));
                 arguments.add(next);
-                shared.serde.deserializer(next);
+                retained.add(shared.serde.deserializer(next));
             }
         }
 
