@@ -22,14 +22,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
+import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorException;
+import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorSerializableError;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
+import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.ExceptionDeserializerArgs;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
@@ -41,6 +46,8 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import org.assertj.core.util.introspection.FieldSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -66,6 +73,66 @@ public class ConjureBodySerDeTest {
         BodySerDe serializers = conjureBodySerDe("application/json");
         Optional<String> value = serializers.deserializer(OPTIONAL_TYPE).deserialize(response);
         assertThat(value).isEmpty();
+    }
+
+    @Test
+    public void testErrorDecodersAreSharedAcrossReturnTypes() {
+        ConjureBodySerDe serde = conjureBodySerDe("application/json");
+        Object decoder =
+                errorDecoder(serde.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs()));
+        assertThat(errorDecoder(
+                        serde.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs())))
+                .isSameAs(decoder);
+        assertThat(errorDecoder(serde.inputStreamDeserializer(
+                        ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs())))
+                .isSameAs(decoder);
+        assertThat(errorDecoder(serde.optionalInputStreamDeserializer(
+                        ExceptionDeserializationTestUtils.createOptionalInputStreamDeserializerArgs())))
+                .isSameAs(decoder);
+    }
+
+    @Test
+    public void testErrorDecodersAreNotSharedAcrossErrors() {
+        ConjureBodySerDe serde = conjureBodySerDe("application/json");
+        ExceptionDeserializerArgs<String> otherErrors = ExceptionDeserializerArgs.<String>builder()
+                .returnType(TYPE)
+                .exception(
+                        "Conjure:OtherError",
+                        new TypeMarker<TestErrorSerializableError>() {},
+                        new TypeMarker<TestErrorException>() {})
+                .build();
+        assertThat(errorDecoder(serde.deserializer(otherErrors)))
+                .isNotSameAs(errorDecoder(
+                        serde.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs())));
+    }
+
+    @Test
+    public void testErrorDecodersAreNotSharedAcrossSerDes() {
+        ExceptionDeserializerArgs<String> args = ExceptionDeserializationTestUtils.createStringDeserializerArgs();
+        assertThat(errorDecoder(conjureBodySerDe("application/json").deserializer(args)))
+                .isNotSameAs(errorDecoder(conjureBodySerDe("application/json").deserializer(args)));
+    }
+
+    @Test
+    public void testErrorKeysAreSharedAcrossReturnTypes() {
+        ConjureBodySerDe serde = conjureBodySerDe("application/json");
+        Deserializer<String> string =
+                serde.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
+        Deserializer<Void> empty =
+                serde.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs());
+        LoadingCache<?, ?> cache =
+                FieldSupport.EXTRACTION.fieldValue("exceptionDeserializers", LoadingCache.class, serde);
+        List<Object> errors = cache.asMap().keySet().stream()
+                .map(key -> FieldSupport.EXTRACTION.fieldValue("errors", Object.class, key))
+                .collect(Collectors.toList());
+        assertThat(errors).hasSize(2);
+        assertThat(errors.get(0)).isSameAs(errors.get(1));
+        // keep the deserializers (the cache's weak values) reachable until here
+        assertThat(string).isNotSameAs(empty);
+    }
+
+    private static Object errorDecoder(Deserializer<?> deserializer) {
+        return FieldSupport.EXTRACTION.fieldValue("errorDecoder", Object.class, deserializer);
     }
 
     private ConjureBodySerDe conjureBodySerDe(String... contentTypes) {
