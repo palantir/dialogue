@@ -135,7 +135,7 @@ final class ConjureBodySerDeKeyCacheTest {
     }
 
     @Test
-    void emptyErrorsShareOneDecoderWithoutIndexing() {
+    void emptyErrorsShareOneDecoder() {
         ConjureBodySerDe serde = serde();
         ExceptionDeserializingErrorDecoder empty = serde.errorDecoder(ImmutableMap.of());
         assertThat(serde.errorDecoder(ExceptionDeserializerArgs.<String>builder()
@@ -143,8 +143,6 @@ final class ConjureBodySerDeKeyCacheTest {
                         .build()
                         .errorNameToExceptionTypeMarkers()))
                 .isSameAs(empty);
-        assertThat(FieldSupport.EXTRACTION.fieldValue("errorDecoders", Object.class, serde))
-                .isNull();
     }
 
     @Test

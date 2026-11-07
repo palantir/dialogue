@@ -64,7 +64,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.jspecify.annotations.Nullable;
 
 /** Package private internal API. */
 final class ConjureBodySerDe implements BodySerDe {
@@ -80,7 +79,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
     private final ExceptionDeserializingErrorDecoder emptyErrorDecoder;
     // Created on the first binding that has errors, so runtimes that never bind any don't pay for it. See errorDecoder.
-    private volatile @Nullable ErrorDecoders errorDecoders;
+    private final Supplier<ErrorDecoders> errorDecoders = Suppliers.memoize(ErrorDecoders::new);
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
 
     /**
@@ -536,7 +535,7 @@ final class ConjureBodySerDe implements BodySerDe {
         if (errors.isEmpty()) {
             return emptyErrorDecoder;
         }
-        ErrorDecoders decoders = errorDecoders();
+        ErrorDecoders decoders = errorDecoders.get();
         ExceptionDeserializingErrorDecoder decoder = decoders.byArguments.get(errors);
         if (decoder == null) {
             // Concurrent first uses may both build a decoder, but interning resolves them to the same instance.
@@ -547,20 +546,6 @@ final class ConjureBodySerDe implements BodySerDe {
             decoders.byArguments.put(errors, decoder);
         }
         return decoder;
-    }
-
-    private ErrorDecoders errorDecoders() {
-        ErrorDecoders result = errorDecoders;
-        if (result == null) {
-            synchronized (this) {
-                result = errorDecoders;
-                if (result == null) {
-                    result = new ErrorDecoders();
-                    errorDecoders = result;
-                }
-            }
-        }
-        return result;
     }
 
     private static final class ErrorDecoders {
@@ -581,23 +566,9 @@ final class ConjureBodySerDe implements BodySerDe {
             // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
             Type returnType,
             // Weak, so a key whose deserializer was collected doesn't keep the decoder alive until it's evicted. Each
-            // decoder has a single reference, and decoders are interned, so references are compared by identity. This
-            // also avoids the decoder's own equals and hashCode, which visit every error.
+            // decoder has a single reference, and decoders are interned, so the reference's identity equals and
+            // hashCode identify the decoder. This also avoids the decoder's own equals and hashCode, which visit every
+            // error.
             WeakReference<ExceptionDeserializingErrorDecoder> errorDecoder,
-            DeserializerType type) {
-        @Override
-        @SuppressWarnings("ReferenceEquality")
-        public boolean equals(@Nullable Object other) {
-            return this == other
-                    || (other instanceof ExceptionDeserializerCacheKey that
-                            && errorDecoder == that.errorDecoder
-                            && type == that.type
-                            && returnType.equals(that.returnType));
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * (31 * returnType.hashCode() + System.identityHashCode(errorDecoder)) + type.hashCode();
-        }
-    }
+            DeserializerType type) {}
 }
