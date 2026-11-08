@@ -79,6 +79,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         ConcurrencyLimitedChannelInstrumentation instrumentation =
                 new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
         limiter.setChannelNameForLogging(instrumentation.channelNameForLogging());
+        limiter.setDecisionRecorder(ConcurrencyLimiterDecisionRecorder.create(metrics, cf.channelName(), uriIndex));
         return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
     }
 
