@@ -33,7 +33,7 @@ import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
-import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
+import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorTypes;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
@@ -69,7 +69,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<Void> emptyBodyDeserializer;
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
-    private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
+    private final LoadingCache<ErrorTypes, ErrorDeserializer> errorDeserializers;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
 
     /**
@@ -460,7 +460,7 @@ final class ConjureBodySerDe implements BodySerDe {
         private final Type exceptionType;
 
         @SuppressWarnings("unchecked")
-        ReflectiveErrorDeserializer(Encoding errorEncoding, ErrorDeserializerCacheKey key) {
+        ReflectiveErrorDeserializer(Encoding errorEncoding, ErrorTypes key) {
             this.deserializer = (Encoding.Deserializer<AbstractSerializableError<?>>)
                     errorEncoding.deserializer(TypeMarker.of(key.errorType()));
             this.exceptionType = key.exceptionType();
@@ -493,26 +493,13 @@ final class ConjureBodySerDe implements BodySerDe {
         INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
     }
 
-    private record ErrorDeserializerCacheKey(
-            // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
-            // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
-            Type errorType, Type exceptionType) {
-        static ErrorDeserializerCacheKey of(ErrorExceptionPair<?, ?> pair) {
-            return new ErrorDeserializerCacheKey(
-                    pair.errorType().getType(), pair.exceptionType().getType());
-        }
-    }
-
     private record ExceptionDeserializerCacheKey(
             // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
             // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
-            Type returnType, ImmutableMap<String, ErrorDeserializerCacheKey> errors, DeserializerType type) {
+            Type returnType, ImmutableMap<String, ErrorTypes> errors, DeserializerType type) {
         static <T> ExceptionDeserializerCacheKey of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
             return new ExceptionDeserializerCacheKey(
-                    args.returnType().getType(),
-                    ImmutableMap.copyOf(Maps.transformValues(
-                            args.errorNameToExceptionTypeMarkers(), ErrorDeserializerCacheKey::of)),
-                    type);
+                    args.returnType().getType(), args.errorNameToExceptionTypes(), type);
         }
     }
 }

@@ -17,6 +17,8 @@
 package com.palantir.dialogue;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import com.google.errorprone.annotations.concurrent.LazyInit;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
@@ -25,6 +27,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Type;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
@@ -39,6 +42,9 @@ import org.jspecify.annotations.Nullable;
 public final class ExceptionDeserializerArgs<T> {
     private final TypeMarker<T> returnType;
     private final ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers;
+
+    @LazyInit
+    private @Nullable ImmutableMap<String, ErrorTypes> errorNameToExceptionTypes;
 
     private ExceptionDeserializerArgs(
             TypeMarker<T> returnType, ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers) {
@@ -131,6 +137,29 @@ public final class ExceptionDeserializerArgs<T> {
     public ImmutableMap<String, ErrorExceptionPair<?, ?>> errorNameToExceptionTypeMarkers() {
         return errorNameToExceptionTypeMarkers;
     }
+
+    /**
+     * Internal error-decoder types, shared across uses of these arguments. Unlike type markers, the values do not
+     * retain the callers which created them and can safely be used in deserializer cache keys.
+     */
+    public ImmutableMap<String, ErrorTypes> errorNameToExceptionTypes() {
+        if (errorNameToExceptionTypeMarkers.isEmpty()) {
+            return ImmutableMap.of();
+        }
+        ImmutableMap<String, ErrorTypes> result = errorNameToExceptionTypes;
+        if (result == null) {
+            // Concurrent first uses may build equivalent immutable maps; neither retains the original markers.
+            result = ImmutableMap.copyOf(Maps.transformValues(
+                    errorNameToExceptionTypeMarkers,
+                    pair -> new ErrorTypes(
+                            pair.errorType().getType(), pair.exceptionType().getType())));
+            errorNameToExceptionTypes = result;
+        }
+        return result;
+    }
+
+    /** Internal error-decoder types. Not intended for use by clients. */
+    public record ErrorTypes(Type errorType, Type exceptionType) {}
 
     /**
      * This record is used in the implementation of Dialogue's error decoder. This should not be used by clients. It
