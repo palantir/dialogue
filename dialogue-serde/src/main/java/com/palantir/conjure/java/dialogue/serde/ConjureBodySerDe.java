@@ -77,7 +77,6 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
     private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
-    private final ExceptionDeserializingErrorDecoder emptyErrorDecoder;
     // Created on the first binding that has errors, so runtimes that never bind any don't pay for it. See errorDecoder.
     private final Supplier<ErrorDecoders> errorDecoders;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
@@ -135,7 +134,6 @@ final class ConjureBodySerDe implements BodySerDe {
                         TypeMarker.of(key.returnType()),
                         // Kept alive by exceptionDeserializer while the cache loads.
                         Preconditions.checkNotNull(key.errorDecoder().get(), "Error decoder was collected")));
-        this.emptyErrorDecoder = new ExceptionDeserializingErrorDecoder(ImmutableMap.of(), expectJsonErrors());
     }
 
     @SuppressWarnings("unchecked")
@@ -533,7 +531,9 @@ final class ConjureBodySerDe implements BodySerDe {
      */
     @VisibleForTesting
     ExceptionDeserializingErrorDecoder errorDecoder(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
-        return errors.isEmpty() ? emptyErrorDecoder : errorDecoders.get().get(errors);
+        return errors.isEmpty()
+                ? ExceptionDeserializingErrorDecoder.withoutExceptions()
+                : errorDecoders.get().get(errors);
     }
 
     private static final class ErrorDecoders {
