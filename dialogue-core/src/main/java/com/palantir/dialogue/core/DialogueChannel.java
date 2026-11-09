@@ -151,10 +151,32 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
-        /** Experimental: select whether the exponential-ramp concurrency limiter is used. Disabled by default. */
+        /**
+         * Experimental: select whether the exponential-ramp concurrency limiter is used. Disabled by default. When
+         * enabled, starts from an initial limit of {@value ExponentialRampConcurrencyLimiter#DEFAULT_INITIAL_LIMIT};
+         * use {@link #concurrencyLimiterExponentialRamp(int)} to choose a different one.
+         */
         @Beta
         public Builder concurrencyLimiterExponentialRamp(boolean concurrencyLimiterExponentialRamp) {
-            builder.concurrencyLimiterExponentialRamp(concurrencyLimiterExponentialRamp);
+            builder.concurrencyLimiterExponentialRamp(
+                    concurrencyLimiterExponentialRamp
+                            ? OptionalInt.of(ExponentialRampConcurrencyLimiter.DEFAULT_INITIAL_LIMIT)
+                            : OptionalInt.empty());
+            return this;
+        }
+
+        /**
+         * Experimental: use the exponential-ramp concurrency limiter with an initial limit between
+         * {@value ExponentialRampConcurrencyLimiter#MIN_INITIAL_LIMIT} and
+         * {@value ExponentialRampConcurrencyLimiter#MAX_INITIAL_LIMIT}, inclusive.
+         *
+         * <p>Caution: a higher initial limit lets every client send more concurrent requests, over more connections,
+         * to each host before the server can push back. This can overwhelm downstream servers, particularly when many
+         * clients start at once or a new host is added.
+         */
+        @Beta
+        public Builder concurrencyLimiterExponentialRamp(int initialLimit) {
+            builder.concurrencyLimiterExponentialRamp(initialLimit);
             return this;
         }
 
@@ -274,7 +296,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 LimitedChannel limitedChannel;
                 if (cf.isConcurrencyLimitingEnabled()) {
                     Channel unlimited = channel;
-                    EndpointChannelState endpointChannelState = channelState.getState(EndpointChannelState.KEY);
+                    EndpointChannelState endpointChannelState =
+                            channelState.getState(EndpointChannelState.KEY, EndpointChannelState::create);
                     channel = new ChannelToEndpointChannel(endpoint -> {
                         if (endpoint.tags().contains("dialogue-disable-endpoint-concurrency-limiting")) {
                             return unlimited;
@@ -316,7 +339,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
          */
         private record EndpointChannelState(LoadingCache<Endpoint, ChannelState> cache) {
             private static final ChannelState.Key<EndpointChannelState> KEY =
-                    new ChannelState.Key<>(EndpointChannelState.class, EndpointChannelState::create);
+                    new ChannelState.Key<>(EndpointChannelState.class);
 
             ChannelState get(Endpoint endpoint) {
                 return cache.get(endpoint);
