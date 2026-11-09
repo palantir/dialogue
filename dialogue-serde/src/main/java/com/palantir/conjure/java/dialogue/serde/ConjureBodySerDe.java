@@ -79,7 +79,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
     private final ExceptionDeserializingErrorDecoder emptyErrorDecoder;
     // Created on the first binding that has errors, so runtimes that never bind any don't pay for it. See errorDecoder.
-    private final Supplier<ErrorDecoders> errorDecoders = Suppliers.memoize(ErrorDecoders::new);
+    private final Supplier<ErrorDecoders> errorDecoders;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
 
     /**
@@ -123,6 +123,7 @@ final class ConjureBodySerDe implements BodySerDe {
         // because evicting a deserializer that decoders still hold would only stop it from being shared.
         this.errorDeserializers =
                 Caffeine.newBuilder().weakValues().build(key -> new ReflectiveErrorDeserializer(errorEncoding, key));
+        this.errorDecoders = Suppliers.memoize(() -> new ErrorDecoders(errorDeserializers, expectJsonErrors()));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
@@ -532,23 +533,12 @@ final class ConjureBodySerDe implements BodySerDe {
      */
     @VisibleForTesting
     ExceptionDeserializingErrorDecoder errorDecoder(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
-        if (errors.isEmpty()) {
-            return emptyErrorDecoder;
-        }
-        ErrorDecoders decoders = errorDecoders.get();
-        ExceptionDeserializingErrorDecoder decoder = decoders.byArguments.get(errors);
-        if (decoder == null) {
-            // Concurrent first uses may both build a decoder, but interning resolves them to the same instance.
-            decoder = decoders.interner.intern(new ExceptionDeserializingErrorDecoder(
-                    ImmutableMap.copyOf(Maps.transformValues(
-                            errors, pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))),
-                    expectJsonErrors()));
-            decoders.byArguments.put(errors, decoder);
-        }
-        return decoder;
+        return errors.isEmpty() ? emptyErrorDecoder : errorDecoders.get().get(errors);
     }
 
     private static final class ErrorDecoders {
+        private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
+        private final boolean expectJsonErrors;
         // A single segment each: reads don't lock, and writes only happen the first time a set of arguments is bound,
         // so more segments would only add fixed overhead.
         private final ConcurrentMap<ImmutableMap<String, ErrorExceptionPair<?, ?>>, ExceptionDeserializingErrorDecoder>
@@ -559,6 +549,26 @@ final class ConjureBodySerDe implements BodySerDe {
                         .makeMap();
         private final Interner<ExceptionDeserializingErrorDecoder> interner =
                 Interners.newBuilder().weak().concurrencyLevel(1).build();
+
+        ErrorDecoders(
+                LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers,
+                boolean expectJsonErrors) {
+            this.errorDeserializers = errorDeserializers;
+            this.expectJsonErrors = expectJsonErrors;
+        }
+
+        ExceptionDeserializingErrorDecoder get(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
+            ExceptionDeserializingErrorDecoder decoder = byArguments.get(errors);
+            if (decoder == null) {
+                // Concurrent first uses may both build a decoder, but interning resolves them to the same instance.
+                decoder = interner.intern(new ExceptionDeserializingErrorDecoder(
+                        ImmutableMap.copyOf(Maps.transformValues(
+                                errors, pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))),
+                        expectJsonErrors));
+                byArguments.put(errors, decoder);
+            }
+            return decoder;
+        }
     }
 
     private record ExceptionDeserializerCacheKey(
