@@ -358,7 +358,7 @@ acceptedBreaks:
       new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
         \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withConcurrencyLimiterExponentialRamp(boolean)"
       justification: "Adding support for new concurrency limiter"
-  "6.50.0":
+  "6.53.0":
     com.palantir.dialogue:dialogue-clients:
     - code: "java.method.addedToInterface"
       new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
