@@ -76,7 +76,6 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<Void> emptyBodyDeserializer;
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
-    private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
     // Created on the first binding that has errors, so runtimes that never bind any don't pay for it. See errorDecoder.
     private final Supplier<ErrorDecoders> errorDecoders;
     private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
@@ -115,14 +114,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         emptyContainerDeserializer,
                         TypeMarker.of(type),
                         ExceptionDeserializingErrorDecoder.withoutExceptions()));
-        // Errors are always JSON, see ExceptionDeserializingErrorDecoder. Readers are only built when an error of that
-        // type is first decoded: most endpoints never see most of their errors.
-        Encoding errorEncoding = new LazilyInitializedEncoding(Encodings.json());
-        // Weak values keep an error's deserializer shared for as long as any decoder holds it. There is no size bound,
-        // because evicting a deserializer that decoders still hold would only stop it from being shared.
-        this.errorDeserializers =
-                Caffeine.newBuilder().weakValues().build(key -> new ReflectiveErrorDeserializer(errorEncoding, key));
-        this.errorDecoders = Suppliers.memoize(() -> new ErrorDecoders(errorDeserializers, expectJsonErrors()));
+        this.errorDecoders = Suppliers.memoize(() -> new ErrorDecoders(expectJsonErrors()));
         // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
         this.exceptionDeserializers = Caffeine.newBuilder()
                 .weakValues()
@@ -531,41 +523,47 @@ final class ConjureBodySerDe implements BodySerDe {
      */
     @VisibleForTesting
     ExceptionDeserializingErrorDecoder errorDecoder(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
-        return errors.isEmpty()
-                ? ExceptionDeserializingErrorDecoder.withoutExceptions()
-                : errorDecoders.get().get(errors);
+        if (errors.isEmpty()) {
+            return ExceptionDeserializingErrorDecoder.withoutExceptions();
+        }
+        return errorDecoders.get().get(errors);
     }
 
     private static final class ErrorDecoders {
+        // Weak values keep an error's deserializer shared for as long as any decoder holds it. There is no size bound,
+        // because evicting a deserializer that decoders still hold would only stop it from being shared.
         private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
         private final boolean expectJsonErrors;
         // A single segment each: reads don't lock, and writes only happen the first time a set of arguments is bound,
         // so more segments would only add fixed overhead.
         private final ConcurrentMap<ImmutableMap<String, ErrorExceptionPair<?, ?>>, ExceptionDeserializingErrorDecoder>
-                byArguments = new MapMaker()
+                errorDecoders = new MapMaker()
                         .weakKeys()
                         .weakValues()
                         .concurrencyLevel(1)
                         .makeMap();
-        private final Interner<ExceptionDeserializingErrorDecoder> interner =
+        private final Interner<ExceptionDeserializingErrorDecoder> errorDecoderInterner =
                 Interners.newBuilder().weak().concurrencyLevel(1).build();
 
-        ErrorDecoders(
-                LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers,
-                boolean expectJsonErrors) {
-            this.errorDeserializers = errorDeserializers;
+        ErrorDecoders(boolean expectJsonErrors) {
+            // Errors are always JSON, see ExceptionDeserializingErrorDecoder. Readers are only built when an error of
+            // that type is first decoded: most endpoints never see most of their errors.
+            Encoding errorEncoding = new LazilyInitializedEncoding(Encodings.json());
+            this.errorDeserializers = Caffeine.newBuilder()
+                    .weakValues()
+                    .build(key -> new ReflectiveErrorDeserializer(errorEncoding, key));
             this.expectJsonErrors = expectJsonErrors;
         }
 
         ExceptionDeserializingErrorDecoder get(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
-            ExceptionDeserializingErrorDecoder decoder = byArguments.get(errors);
+            ExceptionDeserializingErrorDecoder decoder = errorDecoders.get(errors);
             if (decoder == null) {
                 // Concurrent first uses may both build a decoder, but interning resolves them to the same instance.
-                decoder = interner.intern(new ExceptionDeserializingErrorDecoder(
+                decoder = errorDecoderInterner.intern(new ExceptionDeserializingErrorDecoder(
                         ImmutableMap.copyOf(Maps.transformValues(
                                 errors, pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))),
                         expectJsonErrors));
-                byArguments.put(errors, decoder);
+                errorDecoders.put(errors, decoder);
             }
             return decoder;
         }
