@@ -510,7 +510,9 @@ final class ConjureBodySerDe implements BodySerDe {
      * Generated clients register the same errors for every return type, so decoders are shared per set of errors
      * rather than built per endpoint return type. {@link ExceptionDeserializerArgs} shares equal error maps, so
      * decoders are found by the identity of the arguments' error map, and binding the same errors again is a single
-     * lookup that doesn't rebuild or rehash anything.
+     * lookup that doesn't rebuild or rehash anything. Each decoder holds the error map it was built from, so equal
+     * errors keep resolving to the same map, and so the same decoder, for as long as the decoder is in use, even if the
+     * arguments that first bound it were collected.
      *
      * <p>Only deserializers hold decoders strongly. The lookup and the exception deserializer cache's keys both refer
      * to them weakly, so a decoder can be collected as soon as its deserializers are, even if their cache entries
@@ -554,6 +556,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
         private ExceptionDeserializingErrorDecoder newDecoder(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
             return new ExceptionDeserializingErrorDecoder(
+                    errors,
                     ImmutableMap.copyOf(Maps.transformValues(
                             errors, pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))),
                     expectJsonErrors);

@@ -133,6 +133,28 @@ final class ConjureBodySerDeKeyCacheTest {
     }
 
     @Test
+    void equalErrorsShareADeserializerAfterEarlierArgumentsAreCollected() throws InterruptedException {
+        ConjureBodySerDe serde = serde();
+        List<Object> deserializer = new ArrayList<>();
+        awaitCollected(List.of(bindAndDropArguments(serde, deserializer)));
+        assertThat(serde.deserializer(argumentsToCollect())).isSameAs(deserializer.get(0));
+    }
+
+    private static WeakReference<?> bindAndDropArguments(ConjureBodySerDe serde, List<Object> deserializer) {
+        ExceptionDeserializerArgs<String> args = argumentsToCollect();
+        deserializer.add(serde.deserializer(args));
+        return new WeakReference<>(args);
+    }
+
+    private static ExceptionDeserializerArgs<String> argumentsToCollect() {
+        // An error no other test registers, so nothing else keeps an equal error map alive.
+        return ExceptionDeserializerArgs.<String>builder()
+                .returnType(TypeMarker.of(String.class))
+                .exception("Test:Collected", ERROR, EXCEPTION)
+                .build();
+    }
+
+    @Test
     void emptyErrorsShareOneDecoder() {
         ConjureBodySerDe serde = serde();
         ExceptionDeserializingErrorDecoder empty = serde.errorDecoder(ImmutableMap.of());

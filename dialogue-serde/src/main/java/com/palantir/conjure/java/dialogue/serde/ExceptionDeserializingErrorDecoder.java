@@ -71,7 +71,12 @@ final class ExceptionDeserializingErrorDecoder {
             JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
 
     private static final ExceptionDeserializingErrorDecoder WITHOUT_EXCEPTIONS =
-            new ExceptionDeserializingErrorDecoder(ImmutableMap.of(), false);
+            new ExceptionDeserializingErrorDecoder(ImmutableMap.of(), ImmutableMap.of(), false);
+
+    // Never read. ExceptionDeserializerArgs only shares equal error maps while one is reachable, so holding the map
+    // this decoder was built from lets later arguments with the same errors find this decoder. See ConjureBodySerDe.
+    @SuppressWarnings("StrictUnusedVariable")
+    private final ImmutableMap<String, ?> errors;
 
     private final ImmutableMap<String, ErrorDeserializer> errorDeserializers;
     private final boolean expectJsonErrors;
@@ -83,7 +88,10 @@ final class ExceptionDeserializingErrorDecoder {
     }
 
     ExceptionDeserializingErrorDecoder(
-            ImmutableMap<String, ErrorDeserializer> errorDeserializers, boolean expectJsonErrors) {
+            ImmutableMap<String, ?> errors,
+            ImmutableMap<String, ErrorDeserializer> errorDeserializers,
+            boolean expectJsonErrors) {
+        this.errors = errors;
         this.errorDeserializers = errorDeserializers;
         this.expectJsonErrors = expectJsonErrors;
     }
