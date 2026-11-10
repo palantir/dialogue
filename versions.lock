@@ -74,7 +74,7 @@ com.palantir.safe-logging:preconditions:3.21.0 (21 constraints: 6653d05b)
 
 com.palantir.safe-logging:safe-logging:3.21.0 (20 constraints: c344da04)
 
-com.palantir.safethreadlocalrandom:safe-thread-local-random:0.15.0 (1 constraints: 3805323b)
+com.palantir.safethreadlocalrandom:safe-thread-local-random:0.16.0 (1 constraints: 3905353b)
 
 com.palantir.tokens:auth-tokens:4.14.0 (3 constraints: 1b28678c)
 
