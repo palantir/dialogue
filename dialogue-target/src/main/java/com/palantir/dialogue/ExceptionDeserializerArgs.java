@@ -108,17 +108,18 @@ public final class ExceptionDeserializerArgs<T> {
          * @param exceptionType the type marker for the exception. It is expected that the exception type implements a
          * constructor that takes the error type as the first parameter, and an integer status code as the second.
          */
+        @SuppressWarnings("unchecked") // TypeMarker.of(Type) drops the type parameter, but the type is the same.
         public <U extends AbstractSerializableError<?>, V extends RemoteException & SerializableErrorProvider<?>>
                 Builder<T> exception(String errorName, TypeMarker<U> errorType, TypeMarker<V> exceptionType) {
             checkNotBuilt();
+            Preconditions.checkNotNull(errorName, "error name must be non-null");
+            Preconditions.checkNotNull(errorType, "error type must be non-null");
+            Preconditions.checkNotNull(exceptionType, "exception type must be non-null");
             // A shared error map can outlive this client, so it only keeps the types, not the caller's markers.
+            TypeMarker<U> plainErrorType = (TypeMarker<U>) TypeMarker.of(errorType.getType());
+            TypeMarker<V> plainExceptionType = (TypeMarker<V>) TypeMarker.of(exceptionType.getType());
             this.errorNameToExceptionTypeMarkers.put(
-                    Preconditions.checkNotNull(errorName, "error name must be non-null"),
-                    new ErrorExceptionPair<>(
-                            TypeMarker.withoutSubclass(
-                                    Preconditions.checkNotNull(errorType, "error type must be non-null")),
-                            TypeMarker.withoutSubclass(
-                                    Preconditions.checkNotNull(exceptionType, "exception type must be non-null"))));
+                    errorName, new ErrorExceptionPair<>(plainErrorType, plainExceptionType));
             return this;
         }
 
