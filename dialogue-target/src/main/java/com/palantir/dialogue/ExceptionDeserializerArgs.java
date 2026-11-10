@@ -116,10 +116,10 @@ public final class ExceptionDeserializerArgs<T> {
             Preconditions.checkNotNull(errorType, "error type must be non-null");
             Preconditions.checkNotNull(exceptionType, "exception type must be non-null");
             // A shared error map can outlive this client, so it only keeps the types, not the caller's markers.
-            TypeMarker<U> plainErrorType = (TypeMarker<U>) TypeMarker.of(errorType.getType());
-            TypeMarker<V> plainExceptionType = (TypeMarker<V>) TypeMarker.of(exceptionType.getType());
             this.errorNameToExceptionTypeMarkers.put(
-                    errorName, new ErrorExceptionPair<>(plainErrorType, plainExceptionType));
+                    errorName,
+                    new ErrorExceptionPair<>((TypeMarker<U>) TypeMarker.of(errorType.getType()), (TypeMarker<V>)
+                            TypeMarker.of(exceptionType.getType())));
             return this;
         }
 
