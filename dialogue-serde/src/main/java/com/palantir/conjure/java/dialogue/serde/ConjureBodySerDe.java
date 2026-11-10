@@ -23,8 +23,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Interner;
-import com.google.common.collect.Interners;
 import com.google.common.collect.Lists;
 import com.google.common.collect.MapMaker;
 import com.google.common.collect.Maps;
@@ -510,16 +508,13 @@ final class ConjureBodySerDe implements BodySerDe {
 
     /**
      * Generated clients register the same errors for every return type, so decoders are shared per set of errors
-     * rather than built per endpoint return type. Decoders are found by the identity of the arguments' error map, so
-     * binding the same arguments again is a single lookup that doesn't rebuild or rehash anything. Equal errors in
-     * other maps (registered in a different order, or from a dialogue-target that doesn't share equal maps) are
-     * resolved to the same decoder by interning.
+     * rather than built per endpoint return type. {@link ExceptionDeserializerArgs} shares equal error maps, so
+     * decoders are found by the identity of the arguments' error map, and binding the same errors again is a single
+     * lookup that doesn't rebuild or rehash anything.
      *
-     * <p>Only deserializers hold decoders strongly. Lookups, the interner and the exception deserializer cache's keys
-     * all refer to them weakly, so a decoder can be collected as soon as its deserializers are, even if their cache
-     * entries haven't been evicted yet. Decoders hold {@link ErrorDeserializer}s, which only keep Types, so they never
-     * retain the arguments' TypeMarkers, which for older dialogue-target versions may be `new TypeMarker<T>() {}`
-     * subclasses retaining the client that made them.
+     * <p>Only deserializers hold decoders strongly. The lookup and the exception deserializer cache's keys both refer
+     * to them weakly, so a decoder can be collected as soon as its deserializers are, even if their cache entries
+     * haven't been evicted yet.
      */
     @VisibleForTesting
     ExceptionDeserializingErrorDecoder errorDecoder(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
@@ -534,16 +529,14 @@ final class ConjureBodySerDe implements BodySerDe {
         // because evicting a deserializer that decoders still hold would only stop it from being shared.
         private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
         private final boolean expectJsonErrors;
-        // A single segment each: reads don't lock, and writes only happen the first time a set of arguments is bound,
-        // so more segments would only add fixed overhead.
+        // A single segment: reads don't lock, and writes only happen the first time a set of errors is bound, so more
+        // segments would only add fixed overhead.
         private final ConcurrentMap<ImmutableMap<String, ErrorExceptionPair<?, ?>>, ExceptionDeserializingErrorDecoder>
                 errorDecoders = new MapMaker()
                         .weakKeys()
                         .weakValues()
                         .concurrencyLevel(1)
                         .makeMap();
-        private final Interner<ExceptionDeserializingErrorDecoder> errorDecoderInterner =
-                Interners.newBuilder().weak().concurrencyLevel(1).build();
 
         ErrorDecoders(boolean expectJsonErrors) {
             // Errors are always JSON, see ExceptionDeserializingErrorDecoder. Readers are only built when an error of
@@ -556,16 +549,14 @@ final class ConjureBodySerDe implements BodySerDe {
         }
 
         ExceptionDeserializingErrorDecoder get(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
-            ExceptionDeserializingErrorDecoder decoder = errorDecoders.get(errors);
-            if (decoder == null) {
-                // Concurrent first uses may both build a decoder, but interning resolves them to the same instance.
-                decoder = errorDecoderInterner.intern(new ExceptionDeserializingErrorDecoder(
-                        ImmutableMap.copyOf(Maps.transformValues(
-                                errors, pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))),
-                        expectJsonErrors));
-                errorDecoders.put(errors, decoder);
-            }
-            return decoder;
+            return errorDecoders.computeIfAbsent(errors, this::newDecoder);
+        }
+
+        private ExceptionDeserializingErrorDecoder newDecoder(ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
+            return new ExceptionDeserializingErrorDecoder(
+                    ImmutableMap.copyOf(Maps.transformValues(
+                            errors, pair -> errorDeserializers.get(ErrorDeserializerCacheKey.of(pair)))),
+                    expectJsonErrors);
         }
     }
 
@@ -574,9 +565,8 @@ final class ConjureBodySerDe implements BodySerDe {
             // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
             Type returnType,
             // Weak, so a key whose deserializer was collected doesn't keep the decoder alive until it's evicted. Each
-            // decoder has a single reference, and decoders are interned, so the reference's identity equals and
-            // hashCode identify the decoder. This also avoids the decoder's own equals and hashCode, which visit every
-            // error.
+            // decoder has a single reference, so the reference's identity equals and hashCode identify the decoder
+            // without visiting its errors.
             WeakReference<ExceptionDeserializingErrorDecoder> errorDecoder,
             DeserializerType type) {}
 }

@@ -96,20 +96,6 @@ final class ExceptionDeserializingErrorDecoder {
         return 300 <= response.code() && response.code() <= 599;
     }
 
-    // Decoders are immutable, so equal decoders can be shared. ConjureBodySerDe interns them per set of errors.
-    @Override
-    public boolean equals(@Nullable Object other) {
-        return this == other
-                || (other instanceof ExceptionDeserializingErrorDecoder that
-                        && expectJsonErrors == that.expectJsonErrors
-                        && errorDeserializers.equals(that.errorDeserializers));
-    }
-
-    @Override
-    public int hashCode() {
-        return 31 * errorDeserializers.hashCode() + Boolean.hashCode(expectJsonErrors);
-    }
-
     public RuntimeException decode(Response response) {
         if (log.isDebugEnabled()) {
             log.debug("Received an error response", diagnosticArgs(response));

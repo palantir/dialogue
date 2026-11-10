@@ -25,7 +25,6 @@ import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtil
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorSerializableError;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.ExceptionDeserializerArgs;
-import com.palantir.dialogue.ExceptionDeserializerArgs.ErrorExceptionPair;
 import com.palantir.dialogue.TypeMarker;
 import java.io.InputStream;
 import java.lang.ref.Reference;
@@ -33,7 +32,6 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Type;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -122,16 +120,15 @@ final class ConjureBodySerDeKeyCacheTest {
     }
 
     @Test
-    void equalErrorMapsShareOneDecoder() {
+    void argumentsWithEqualErrorsShareOneDecoder() {
         ConjureBodySerDe serde = serde();
         ExceptionDeserializerArgs<String> args = ExceptionDeserializationTestUtils.createStringDeserializerArgs();
         ExceptionDeserializingErrorDecoder decoder = serde.errorDecoder(args.errorNameToExceptionTypeMarkers());
         assertThat(serde.errorDecoder(args.errorNameToExceptionTypeMarkers())).isSameAs(decoder);
-        // A distinct but equal map, as an older dialogue-target without interning would produce.
-        ImmutableMap<String, ErrorExceptionPair<?, ?>> copy =
-                ImmutableMap.copyOf(new LinkedHashMap<>(args.errorNameToExceptionTypeMarkers()));
-        assertThat(copy).isNotSameAs(args.errorNameToExceptionTypeMarkers());
-        assertThat(serde.errorDecoder(copy)).isSameAs(decoder);
+        // ExceptionDeserializerArgs shares equal error maps, which is what lets other arguments share the decoder.
+        ExceptionDeserializerArgs<String> other = ExceptionDeserializationTestUtils.createStringDeserializerArgs();
+        assertThat(other.errorNameToExceptionTypeMarkers()).isSameAs(args.errorNameToExceptionTypeMarkers());
+        assertThat(serde.errorDecoder(other.errorNameToExceptionTypeMarkers())).isSameAs(decoder);
         assertThat(serde().errorDecoder(args.errorNameToExceptionTypeMarkers())).isNotSameAs(decoder);
     }
 
@@ -187,44 +184,6 @@ final class ConjureBodySerDeKeyCacheTest {
         } finally {
             Reference.reachabilityFence(serde);
         }
-    }
-
-    @Test
-    void decodersDoNotRetainCallerMarkers() throws InterruptedException {
-        // Older dialogue-target versions keep the caller's `new TypeMarker<T>() {}` subclasses in their error maps.
-        ConjureBodySerDe serde = serde();
-        List<Object> decoder = new ArrayList<>();
-        List<WeakReference<?>> references = decodeCapturingMarkers(serde, decoder);
-        try {
-            awaitCollected(references);
-        } finally {
-            Reference.reachabilityFence(decoder);
-            Reference.reachabilityFence(serde);
-        }
-    }
-
-    private static List<WeakReference<?>> decodeCapturingMarkers(ConjureBodySerDe serde, List<Object> decoder) {
-        Object owner = new Object();
-        TypeMarker<TestErrorSerializableError> errorType = new TypeMarker<TestErrorSerializableError>() {
-            @SuppressWarnings("unused")
-            private Object owner() {
-                return owner;
-            }
-        };
-        TypeMarker<TestErrorException> exceptionType = new TypeMarker<TestErrorException>() {
-            @SuppressWarnings("unused")
-            private Object owner() {
-                return owner;
-            }
-        };
-        ImmutableMap<String, ErrorExceptionPair<?, ?>> errors =
-                ImmutableMap.of("Test:Error", new ErrorExceptionPair<>(errorType, exceptionType));
-        decoder.add(serde.errorDecoder(errors));
-        return List.of(
-                new WeakReference<>(owner),
-                new WeakReference<>(errorType),
-                new WeakReference<>(exceptionType),
-                new WeakReference<>(errors));
     }
 
     private static List<WeakReference<?>> bindCapturingMarkers(ConjureBodySerDe serde) {
