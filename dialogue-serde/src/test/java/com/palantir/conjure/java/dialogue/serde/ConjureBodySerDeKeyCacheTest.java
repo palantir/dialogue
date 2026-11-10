@@ -18,6 +18,7 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializationTestUtils.TestErrorException;
@@ -147,18 +148,20 @@ final class ConjureBodySerDeKeyCacheTest {
 
     @Test
     void cacheKeysDoNotRetainDecoders() throws InterruptedException {
-        // Nothing touches the cache after the deserializer is dropped, so its entry isn't evicted, but the decoder
-        // (and its error deserializers) can still be collected.
+        // Hold the cache key itself, so this checks the key and not whether Caffeine happened to evict the entry
+        // once the deserializer was collected.
         ConjureBodySerDe serde = serde();
-        List<WeakReference<?>> references = bindAndDrop(serde);
+        List<Object> keys = new ArrayList<>();
+        List<WeakReference<?>> references = bindAndDrop(serde, keys);
         try {
             awaitCollected(references);
         } finally {
+            Reference.reachabilityFence(keys);
             Reference.reachabilityFence(serde);
         }
     }
 
-    private static List<WeakReference<?>> bindAndDrop(ConjureBodySerDe serde) {
+    private static List<WeakReference<?>> bindAndDrop(ConjureBodySerDe serde, List<Object> keys) {
         ExceptionDeserializerArgs<String> args = ExceptionDeserializerArgs.<String>builder()
                 .returnType(TypeMarker.of(String.class))
                 .exception("Test:Dropped", ERROR, EXCEPTION)
@@ -167,6 +170,11 @@ final class ConjureBodySerDeKeyCacheTest {
         ExceptionDeserializingErrorDecoder decoder = serde.errorDecoder(args.errorNameToExceptionTypeMarkers());
         assertThat(FieldSupport.EXTRACTION.fieldValue("errorDecoder", Object.class, deserializer))
                 .isSameAs(decoder);
+        keys.addAll(FieldSupport.EXTRACTION
+                .fieldValue("exceptionDeserializers", LoadingCache.class, serde)
+                .asMap()
+                .keySet());
+        assertThat(keys).hasSize(1);
         return List.of(new WeakReference<>(deserializer), new WeakReference<>(decoder));
     }
 
