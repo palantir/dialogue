@@ -16,10 +16,12 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -33,15 +35,24 @@ import org.jspecify.annotations.Nullable;
  * Deliberately not applied to sticky channels, which keep AIMD: {@link Behavior#STICKY} suppresses the server
  * congestion signals (QoS/5xx/IOException) this ramp relies on.
  */
-final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
+@Beta
+public final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
+
+    /** Initial limit used when the exponential ramp is enabled without choosing one. */
+    public static final int DEFAULT_INITIAL_LIMIT = 20;
+
+    /** Smallest configurable initial limit, inclusive. */
+    public static final int MIN_INITIAL_LIMIT = 1;
+
+    /** Largest configurable initial limit, inclusive. */
+    public static final int MAX_INITIAL_LIMIT = 500;
 
     private static final SafeLogger log = SafeLoggerFactory.get(ExponentialRampConcurrencyLimiter.class);
-    private static final double INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
     private static final double MIN_LIMIT = 1;
     private static final double MAX_LIMIT = 1_000_000D;
 
-    private final AtomicDouble limit = new AtomicDouble(INITIAL_LIMIT);
+    private final AtomicDouble limit;
 
     /**
      * Whether the limiter is still in its initial exponential ramp. Starts true and switches to false on the first
@@ -57,8 +68,22 @@ final class ExponentialRampConcurrencyLimiter implements ConcurrencyLimiter {
     // Volatile because it may be set from a different thread than the one emitting the log line.
     private volatile String channelNameForLogging = "unknown";
 
-    ExponentialRampConcurrencyLimiter(Behavior behavior) {
+    ExponentialRampConcurrencyLimiter(Behavior behavior, int initialLimit) {
         this.behavior = behavior;
+        this.limit = new AtomicDouble(initialLimit);
+    }
+
+    /**
+     * Throws if {@code initialLimit} is not between {@value #MIN_INITIAL_LIMIT} and {@value #MAX_INITIAL_LIMIT},
+     * inclusive.
+     */
+    public static void checkInitialLimit(int initialLimit) {
+        Preconditions.checkArgument(
+                initialLimit >= MIN_INITIAL_LIMIT && initialLimit <= MAX_INITIAL_LIMIT,
+                "Exponential Ramp Concurrency Limiter's initialLimit must be within the supported range",
+                SafeArg.of("initialLimit", initialLimit),
+                SafeArg.of("minLimit", MIN_INITIAL_LIMIT),
+                SafeArg.of("maxLimit", MAX_INITIAL_LIMIT));
     }
 
     @Override

@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 final class ExponentialRampConcurrencyLimiterTest {
 
     private final ExponentialRampConcurrencyLimiter limiter =
-            new ExponentialRampConcurrencyLimiter(Behavior.HOST_LEVEL);
+            new ExponentialRampConcurrencyLimiter(Behavior.HOST_LEVEL, 20);
 
     @Test
     void increasesLimitByOne() {
