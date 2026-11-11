@@ -1009,6 +1009,22 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void retryCountFailureHistogramUpdatedWhen429sFollowException() throws Exception {
+        when(channel.execute(any())).thenReturn(FAILED).thenAnswer((Answer<ListenableFuture<Response>>)
+                _invocation -> Futures.immediateFuture(new TestResponse().code(429)));
+
+        EndpointChannel retryer = channel(4);
+
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response.get().code()).isEqualTo(429);
+        verify(channel, times(5)).execute(REQUEST);
+
+        verifyMetrics(
+                new ExpectedMetrics(RequestRetryCount_Result.FAILURE, 5, "qosResponse"),
+                "retries exhausted due to 429s after an exception");
+    }
+
+    @Test
     public void testIoExceptionFailuresThenQosResponseThenSuccess() throws Exception {
         when(channel.execute(any()))
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException("connect timed out")))
