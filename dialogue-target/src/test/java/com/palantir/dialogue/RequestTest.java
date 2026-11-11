@@ -68,6 +68,7 @@ public final class RequestTest {
                 .putHeaderParams("accept-encoding", "bar")
                 .build();
         Request request2 = Request.builder()
+                .putHeaderParams("discarded", "discarded")
                 .from(request1)
                 .putHeaderParams("accept-encoding", "baz") // TODO(dfox): I don't think users will like this behaviour
                 .putHeaderParams("another-header", "another-value")
@@ -98,6 +99,7 @@ public final class RequestTest {
                 .putQueryParams("b", "B1")
                 .build();
         Request request2 = Request.builder()
+                .putQueryParams("discarded", "discarded")
                 .from(request1)
                 .putQueryParams("b", "B2")
                 .putQueryParams("c", "C")
@@ -127,6 +129,7 @@ public final class RequestTest {
                 .putPathParams("b", "B1")
                 .build();
         Request request2 = Request.builder()
+                .putPathParams("discarded", "discarded")
                 .from(request1)
                 .putPathParams("b", "B2")
                 .putPathParams("c", "C")
@@ -137,27 +140,6 @@ public final class RequestTest {
                         .putAll("b", "B1", "B2")
                         .put("c", "C")
                         .build());
-    }
-
-    @Test
-    void from_method_replaces_previously_mutated_params() {
-        Request existing = Request.builder()
-                .putHeaderParams("header", "existing")
-                .putQueryParams("query", "existing")
-                .putPathParams("path", "existing")
-                .build();
-        Request request = Request.builder()
-                .putHeaderParams("header", "discarded")
-                .putQueryParams("query", "discarded")
-                .putPathParams("path", "discarded")
-                .from(existing)
-                .putHeaderParams("header", "added")
-                .putQueryParams("query", "added")
-                .putPathParams("path", "added")
-                .build();
-        assertThat(request.headerParams()).isEqualTo(ImmutableListMultimap.of("header", "existing", "header", "added"));
-        assertThat(request.queryParams()).isEqualTo(ImmutableListMultimap.of("query", "existing", "query", "added"));
-        assertThat(request.pathParameters()).isEqualTo(ImmutableListMultimap.of("path", "existing", "path", "added"));
     }
 
     @Test
