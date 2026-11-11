@@ -172,9 +172,10 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
      * If we have some reason to think the currentIndex is bad, we want to move to the next host. This is done with a
      * compareAndSet, and a check that a reshuffle hasn't placed a different host at {@code pin}, to ensure that out of
      * order responses which signal information about a previous host don't kick us off a good one.
+     * The check isn't atomic with the compareAndSet, so a reshuffle in between can still cause one superfluous rotation.
      */
     private OptionalInt incrementHostIfNecessary(int pin, PinChannel channel) {
-        if (!nodeList.get(pin).equals(channel)) {
+        if (nodeList.get(pin).stableIndex() != channel.stableIndex()) {
             return OptionalInt.empty();
         }
         int nextIndex = (pin + 1) % nodeList.size();

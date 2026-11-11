@@ -253,6 +253,8 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
         setResponse(channel1, 100);
         setResponse(channel2, 204);
+        when(channel1.stableIndex()).thenReturn(0);
+        when(channel2.stableIndex()).thenReturn(1);
         when(clock.read()).thenReturn(Duration.ofMinutes(11).toNanos());
         assertThat(getCode(pinUntilError))
                 .describedAs("Reshuffle gave us channel1")
