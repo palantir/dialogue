@@ -146,6 +146,19 @@ final class ResolvedAddressTest {
 
     @Test
     void testTlsWithUnexpectedHostname() throws Exception {
+        String clientName = "test";
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
+        Timer connectionConnectSuccessTimer = metrics.connectionConnect()
+                .clientName(clientName)
+                .result(DialogueClientMetrics.ConnectionConnect_Result.SUCCESS)
+                .address(DialogueClientMetrics.ConnectionConnect_Address.PRE_RESOLVED)
+                .build();
+        Timer connectionConnectFailureTimer = metrics.connectionConnect()
+                .clientName(clientName)
+                .result(DialogueClientMetrics.ConnectionConnect_Result.FAILURE)
+                .address(DialogueClientMetrics.ConnectionConnect_Address.PRE_RESOLVED)
+                .build();
         String hostname = UUID.randomUUID().toString();
         TestOnlyCertificates.GeneratedKeyPair keyPair = TestOnlyCertificates.generate("localhost");
 
@@ -155,13 +168,14 @@ final class ResolvedAddressTest {
                 .from(TestConfigurations.create())
                 .sslSocketFactory(context.getSocketFactory())
                 .trustManager(TestOnlyCertificates.toTrustManager(keyPair))
+                .taggedMetricRegistry(registry)
                 .build();
 
         Undertow undertow = Undertow.builder()
                 .addHttpsListener(0, null, context, new ResponseCodeHandler(204))
                 .build();
         undertow.start();
-        try (CloseableClient client = ApacheHttpClientChannels.createCloseableHttpClient(config, "test")) {
+        try (CloseableClient client = ApacheHttpClientChannels.createCloseableHttpClient(config, clientName)) {
             int port = port(undertow);
             String uri = "https://" + hostname + ':' + port;
             InetAddress resolved = InetAddress.getByAddress(hostname, new byte[] {127, 0, 0, 1});
@@ -176,6 +190,9 @@ final class ResolvedAddressTest {
         } finally {
             undertow.stop();
         }
+        // The socket connected before the TLS handshake failed, so this is a successful connect.
+        assertThat(connectionConnectSuccessTimer.getCount()).isOne();
+        assertThat(connectionConnectFailureTimer.getCount()).isZero();
     }
 
     @Test

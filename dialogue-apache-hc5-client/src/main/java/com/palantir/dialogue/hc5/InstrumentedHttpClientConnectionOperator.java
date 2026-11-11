@@ -77,9 +77,9 @@ final class InstrumentedHttpClientConnectionOperator extends DefaultHttpClientCo
                     socketConfig,
                     attachment,
                     context);
-        } catch (IOException e) {
+        } finally {
+            // After a successful socket connect there is nothing pending, so this records only failures.
             recordPendingConnect(context, false);
-            throw e;
         }
     }
 
