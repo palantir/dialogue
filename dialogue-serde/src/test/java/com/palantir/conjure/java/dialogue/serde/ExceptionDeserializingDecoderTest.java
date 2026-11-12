@@ -89,7 +89,7 @@ final class ExceptionDeserializingDecoderTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void throttleDetails(boolean retryAfter) {
-        TestResponse response = TestResponse.withBody("{\"details\":\"Quota exceeded\"}")
+        TestResponse response = TestResponse.withBody("{\"qosDetails\":{\"debugMessage\":\"Quota exceeded\"}}")
                 .contentType("application/json")
                 .withHeader("Qos-Due-To", "custom")
                 .code(429);
@@ -101,7 +101,10 @@ final class ExceptionDeserializingDecoderTest {
 
         assertThatThrownBy(() -> deserializer.deserialize(response))
                 .isInstanceOfSatisfying(QosException.Throttle.class, throttle -> {
-                    assertThat(throttle.getThrottleDetails()).contains(QosThrottleDetails.of("Quota exceeded"));
+                    assertThat(throttle.getThrottleDetails())
+                            .contains(QosThrottleDetails.builder()
+                                    .debugMessage("Quota exceeded")
+                                    .build());
                     assertThat(throttle.getReason().dueTo()).contains(QosReason.DueTo.CUSTOM);
                     assertThat(throttle.getRetryAfter())
                             .isEqualTo(retryAfter ? Optional.of(Duration.ofSeconds(3)) : Optional.empty());
@@ -110,7 +113,16 @@ final class ExceptionDeserializingDecoderTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "null", "{}", "{\"details\":null}", "not-json", "{\"errorName\":\"Other:Error\"}"})
+    @ValueSource(
+            strings = {
+                "",
+                "null",
+                "{}",
+                "{\"qosDetails\":null}",
+                "{\"qosDetails\":\"Quota exceeded\"}",
+                "not-json",
+                "{\"errorName\":\"Other:Error\"}"
+            })
     void invalidThrottleBodyPreservesThrottle(String body) {
         TestResponse response =
                 TestResponse.withBody(body).contentType("application/json").code(429);

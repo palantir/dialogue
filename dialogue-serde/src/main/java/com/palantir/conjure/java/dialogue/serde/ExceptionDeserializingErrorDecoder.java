@@ -26,6 +26,7 @@ import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.QosReasons;
 import com.palantir.conjure.java.api.errors.QosReasons.QosResponseDecodingAdapter;
+import com.palantir.conjure.java.api.errors.QosResponseBody;
 import com.palantir.conjure.java.api.errors.QosThrottleDetails;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
@@ -70,8 +71,8 @@ final class ExceptionDeserializingErrorDecoder {
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
 
-    private static final Deserializer<QosThrottleDetails> THROTTLE_DETAILS_DESERIALIZER =
-            JSON_ENCODING.deserializer(TypeMarker.of(QosThrottleDetails.class));
+    private static final Deserializer<QosResponseBody> QOS_BODY_DESERIALIZER =
+            JSON_ENCODING.deserializer(TypeMarker.of(QosResponseBody.class));
 
     private final ImmutableMap<String, ErrorDeserializer> errorDeserializers;
     private final boolean expectJsonErrors;
@@ -124,15 +125,14 @@ final class ExceptionDeserializingErrorDecoder {
                 }
             }
             case 429 -> {
-                Optional<QosThrottleDetails> details = throttleDetails(response);
-                QosReason reason = qosReason(response);
-                return response.getFirstHeader(HttpHeaders.RETRY_AFTER)
+                QosException.Throttle.Builder throttle =
+                        QosException.throttleBuilder().reason(qosReason(response));
+                response.getFirstHeader(HttpHeaders.RETRY_AFTER)
                         .map(Longs::tryParse)
                         .map(Duration::ofSeconds)
-                        .map(duration -> details.map(value -> QosException.throttle(reason, value, duration))
-                                .orElseGet(() -> QosException.throttle(reason, duration)))
-                        .orElseGet(() -> details.map(value -> QosException.throttle(reason, value))
-                                .orElseGet(() -> QosException.throttle(reason)));
+                        .ifPresent(throttle::retryAfter);
+                throttleDetails(response).ifPresent(throttle::details);
+                return throttle.build();
             }
             case 503 -> {
                 return QosException.unavailable(qosReason(response));
@@ -225,7 +225,7 @@ final class ExceptionDeserializingErrorDecoder {
             return Optional.empty();
         }
         try (InputStream body = response.body()) {
-            return Optional.ofNullable(THROTTLE_DETAILS_DESERIALIZER.deserialize(body));
+            return Optional.ofNullable(QOS_BODY_DESERIALIZER.deserialize(body)).flatMap(QosResponseBody::qosDetails);
         } catch (IOException | RuntimeException e) {
             log.debug("Could not deserialize throttle details", e);
             return Optional.empty();
