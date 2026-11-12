@@ -68,21 +68,20 @@ final class ExceptionDeserializingErrorDecoder {
             JSON_ENCODING.deserializer(TypeMarker.of(NamedError.class));
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
+    private static final ExceptionDeserializingErrorDecoder WITHOUT_EXCEPTIONS =
+            new ExceptionDeserializingErrorDecoder(ImmutableMap.of());
 
     private final ImmutableMap<String, ErrorDeserializer> errorDeserializers;
-    private final boolean expectJsonErrors;
 
     static ExceptionDeserializingErrorDecoder withoutExceptions() {
-        return new ExceptionDeserializingErrorDecoder(ImmutableMap.of(), false);
+        return WITHOUT_EXCEPTIONS;
     }
 
-    ExceptionDeserializingErrorDecoder(
-            ImmutableMap<String, ErrorDeserializer> errorDeserializers, boolean expectJsonErrors) {
+    ExceptionDeserializingErrorDecoder(ImmutableMap<String, ErrorDeserializer> errorDeserializers) {
         this.errorDeserializers = errorDeserializers;
-        this.expectJsonErrors = expectJsonErrors;
     }
 
-    boolean isError(Response response) {
+    static boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
     }
 
@@ -196,12 +195,7 @@ final class ExceptionDeserializingErrorDecoder {
             return errorDeserializer.deserialize(new ByteArrayInputStream(body), code);
         } catch (Exception e) {
             // If we're unable to deserialize the error as JSON, throw a RemoteException.
-            if (expectJsonErrors) {
-                log.error(
-                        "Failed to deserialize error response as exception - falling back to RemoteException",
-                        SafeArg.of("errorName", errorName),
-                        e);
-            } else if (log.isDebugEnabled()) {
+            if (log.isDebugEnabled()) {
                 log.debug(
                         "Failed to deserialize error response as exception - falling back to RemoteException",
                         SafeArg.of("errorName", errorName),

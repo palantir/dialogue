@@ -26,7 +26,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
-import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializingErrorDecoder.ErrorDeserializer;
 import com.palantir.dialogue.BinaryRequestBody;
@@ -123,8 +122,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
                         new ExceptionDeserializingErrorDecoder(
-                                ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)),
-                                expectJsonErrors())));
+                                ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)))));
     }
 
     @SuppressWarnings("unchecked")
@@ -252,11 +250,6 @@ final class ConjureBodySerDe implements BodySerDe {
         };
     }
 
-    private boolean expectJsonErrors() {
-        return errorParameterFormat().isPresent()
-                && errorParameterFormat().get().equals(ConjureErrorParameterFormat.JSON_FORMAT);
-    }
-
     private static final class EncodingSerializerRegistry<T> implements Serializer<T> {
 
         private final EncodingSerializerContainer<T> encoding;
@@ -334,7 +327,7 @@ final class ConjureBodySerDe implements BodySerDe {
         public T deserialize(Response response) {
             boolean closeResponse = true;
             try {
-                if (errorDecoder.isError(response)) {
+                if (ExceptionDeserializingErrorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
                 } else if (response.code() == 204) {
                     // TODO(dfox): what if we get a 204 for a non-optional type???
@@ -437,7 +430,7 @@ final class ConjureBodySerDe implements BodySerDe {
         public Void deserialize(Response response) {
             // We should not fail if a server that previously returned nothing starts returning a response
             try (Response unused = response) {
-                if (errorDecoder.isError(response)) {
+                if (ExceptionDeserializingErrorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
                 }
                 return null;
