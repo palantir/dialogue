@@ -59,6 +59,7 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.net.InetAddress;
 import java.security.Provider;
 import java.time.Duration;
 import java.util.List;
@@ -74,6 +75,8 @@ import org.immutables.value.Value;
 
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(ReloadingClientFactory.class);
+    // Shared by every factory because the JVM caches failed lookups process-wide.
+    private static final NonexistentHostnames NONEXISTENT_HOSTNAMES = new NonexistentHostnames();
     private final ImmutableReloadingParams params;
     private final ChannelCache cache;
 
@@ -151,7 +154,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Value.Default
         default DialogueDnsResolver dnsResolver() {
             return new CachingFallbackDnsResolver(
-                    new ProtocolVersionFilteringDialogueDnsResolver(new DefaultDialogueDnsResolver(taggedMetrics())),
+                    new ProtocolVersionFilteringDialogueDnsResolver(new DefaultDialogueDnsResolver(
+                            InetAddress::getAllByName, NONEXISTENT_HOSTNAMES, taggedMetrics())),
                     taggedMetrics());
         }
 
