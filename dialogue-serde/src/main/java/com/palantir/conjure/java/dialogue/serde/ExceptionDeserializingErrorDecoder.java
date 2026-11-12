@@ -81,10 +81,7 @@ final class ExceptionDeserializingErrorDecoder {
         return 300 <= response.code() && response.code() <= 599;
     }
 
-    /**
-     * Returns the exception for an error response. {@code errors} are the endpoint's errors by name, as registered in
-     * its {@link com.palantir.dialogue.ExceptionDeserializerArgs}, and may be empty.
-     */
+    /** Returns the exception for an error response, given the endpoint's errors by name, which may be empty. */
     static RuntimeException decode(Response response, ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
         if (log.isDebugEnabled()) {
             log.debug("Received an error response", diagnosticArgs(response));

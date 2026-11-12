@@ -58,11 +58,11 @@ final class ConjureBodySerDe implements BodySerDe {
     private static final SafeLogger log = SafeLoggerFactory.get(ConjureBodySerDe.class);
     private final List<Encoding> encodingsSortedByWeight;
     private final Encoding defaultEncoding;
-    private final ErrorDecodingDeserializer<InputStream> binaryInputStreamDeserializer;
-    private final ErrorDecodingDeserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
-    private final ErrorDecodingDeserializer<Void> emptyBodyDeserializer;
+    private final Deserializer<InputStream> binaryInputStreamDeserializer;
+    private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
+    private final Deserializer<Void> emptyBodyDeserializer;
     private final LoadingCache<Type, Serializer<?>> serializers;
-    private final LoadingCache<Type, ErrorDecodingDeserializer<?>> deserializers;
+    private final LoadingCache<Type, Deserializer<?>> deserializers;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -91,24 +91,15 @@ final class ConjureBodySerDe implements BodySerDe {
                         encodingsSortedByWeight, emptyContainerDeserializer, TypeMarker.of(type))));
     }
 
-    private static <T> ErrorDecodingDeserializer<T> withoutErrors(Deserializer<T> deserializer) {
+    private static <T> Deserializer<T> withoutErrors(Deserializer<T> deserializer) {
         return new ErrorDecodingDeserializer<>(deserializer, ImmutableMap.of());
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> ErrorDecodingDeserializer<T> deserializerFor(TypeMarker<T> token) {
-        return (ErrorDecodingDeserializer<T>) deserializers.get(token.getType());
-    }
-
     /**
-     * Returns a deserializer that reads successful responses with {@code deserializer}, and decodes error responses
-     * with the endpoint's errors. Errors are resolved by {@link ExceptionDeserializingErrorDecoder} when an error
-     * response arrives, so this builds nothing per error, and holds nothing beyond the arguments' error map, which
-     * equal arguments share. It wraps the cached deserializer itself, which keeps it cached for as long as any binding
-     * uses it.
+     * Wraps a deserializer this already returns, so error responses throw the endpoint's exceptions. It wraps the
+     * cached deserializer rather than building a new one, which also keeps it cached while the binding is in use.
      */
-    private static <T> ErrorDecodingDeserializer<T> withErrors(
-            ErrorDecodingDeserializer<T> deserializer, ExceptionDeserializerArgs<?> args) {
+    private static <T> Deserializer<T> withErrors(Deserializer<T> deserializer, ExceptionDeserializerArgs<T> args) {
         if (args.errorNameToExceptionTypeMarkers().isEmpty()) {
             return deserializer;
         }
@@ -141,12 +132,12 @@ final class ConjureBodySerDe implements BodySerDe {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(TypeMarker<T> token) {
-        return deserializerFor(token);
+        return (Deserializer<T>) deserializers.get(token.getType());
     }
 
     @Override
     public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
-        return withErrors(deserializerFor(exceptionDeserializerArgs.returnType()), exceptionDeserializerArgs);
+        return withErrors(deserializer(exceptionDeserializerArgs.returnType()), exceptionDeserializerArgs);
     }
 
     @Override
@@ -394,8 +385,8 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     /**
-     * Every deserializer this returns. Decodes error responses into the endpoint's exceptions, and leaves successful
-     * responses to the deserializer it wraps.
+     * Throws the exception for error responses, decoding them with the endpoint's errors, and leaves every other
+     * response to the deserializer it wraps. Every deserializer {@link ConjureBodySerDe} returns is one of these.
      */
     private static final class ErrorDecodingDeserializer<T> implements Deserializer<T> {
         private final Deserializer<T> delegate;
@@ -419,11 +410,6 @@ final class ConjureBodySerDe implements BodySerDe {
         @Override
         public Optional<String> accepts() {
             return delegate.accepts();
-        }
-
-        @Override
-        public String toString() {
-            return "ErrorDecodingDeserializer{delegate=" + delegate + ", errors=" + errors.keySet() + '}';
         }
     }
 }

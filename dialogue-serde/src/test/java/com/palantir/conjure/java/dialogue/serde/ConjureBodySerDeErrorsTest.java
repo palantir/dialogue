@@ -40,11 +40,11 @@ import com.palantir.dialogue.TypeMarker;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.assertj.core.util.introspection.FieldSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -82,6 +82,16 @@ final class ConjureBodySerDeErrorsTest {
                             ExceptionDeserializationTestUtils.createOptionalInputStreamDeserializerArgs());
             };
         }
+
+        /** The deserializer for the same type, without errors. */
+        Deserializer<?> bindWithoutErrors(BodySerDe bodySerDe) {
+            return switch (this) {
+                case STANDARD -> bodySerDe.deserializer(TypeMarker.of(String.class));
+                case EMPTY_BODY -> bodySerDe.emptyBodyDeserializer();
+                case INPUT_STREAM -> bodySerDe.inputStreamDeserializer();
+                case OPTIONAL_INPUT_STREAM -> bodySerDe.optionalInputStreamDeserializer();
+            };
+        }
     }
 
     @ParameterizedTest
@@ -116,9 +126,10 @@ final class ConjureBodySerDeErrorsTest {
 
         assertThatThrownBy(() -> binding.bind(serde).deserialize(response))
                 .isExactlyInstanceOf(RemoteException.class)
-                .satisfies(exception -> assertThat(
-                                ((RemoteException) exception).getError().errorName())
-                        .isEqualTo("Test:Unregistered"));
+                .isInstanceOfSatisfying(
+                        RemoteException.class,
+                        exception ->
+                                assertThat(exception.getError().errorName()).isEqualTo("Test:Unregistered"));
         assertThat(response.isClosed()).isTrue();
     }
 
@@ -206,14 +217,8 @@ final class ConjureBodySerDeErrorsTest {
     @ParameterizedTest
     @EnumSource(Binding.class)
     void acceptedContentTypesMatchDeserializersWithoutErrors(Binding binding) {
-        Optional<String> expected = switch (binding) {
-            case STANDARD -> serde.deserializer(TypeMarker.of(String.class)).accepts();
-            case EMPTY_BODY -> serde.emptyBodyDeserializer().accepts();
-            case INPUT_STREAM -> serde.inputStreamDeserializer().accepts();
-            case OPTIONAL_INPUT_STREAM ->
-                serde.optionalInputStreamDeserializer().accepts();
-        };
-        assertThat(binding.bind(serde).accepts()).isEqualTo(expected);
+        assertThat(binding.bind(serde).accepts())
+                .isEqualTo(binding.bindWithoutErrors(serde).accepts());
     }
 
     @Test
@@ -276,20 +281,45 @@ final class ConjureBodySerDeErrorsTest {
         assertThat(response.isClosed()).isTrue();
     }
 
+    @ParameterizedTest
+    @EnumSource(Binding.class)
+    void bindingReusesTheDeserializerForItsType(Binding binding) {
+        assertThat(delegate(binding.bind(serde))).isSameAs(binding.bindWithoutErrors(serde));
+    }
+
+    @Test
+    void bindingWithoutErrorsReturnsTheDeserializerForItsType() {
+        assertThat(serde.deserializer(ExceptionDeserializerArgs.<String>builder()
+                        .returnType(TypeMarker.of(String.class))
+                        .build()))
+                .isSameAs(serde.deserializer(TypeMarker.of(String.class)));
+    }
+
+    @Test
+    void bindingKeepsTheDeserializerForItsTypeCached() throws InterruptedException {
+        // Only bind with errors, like generated clients do, so nothing else holds the deserializer for the type.
+        Deserializer<String> bound =
+                serde.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
+        for (int i = 0; i < 10; i++) {
+            System.gc();
+            Thread.sleep(25);
+        }
+        assertThat(delegate(serde.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs())))
+                .isSameAs(delegate(bound));
+    }
+
     @Test
     void bindingDoesNotRetainCallerTypeMarkers() throws IOException, InterruptedException {
-        List<Object> deserializer = new ArrayList<>();
-        List<WeakReference<?>> references = bindWithCapturingMarkers(deserializer);
+        List<WeakReference<?>> references = new ArrayList<>();
+        Deserializer<String> deserializer = bindWithCapturingMarkers(references);
         awaitCollected(references);
 
         // The deserializer keeps working after the caller's markers, and what they captured, are gone.
         ServiceException error = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
-        @SuppressWarnings("unchecked")
-        Deserializer<String> bound = (Deserializer<String>) deserializer.get(0);
-        assertThatThrownBy(() -> bound.deserialize(errorResponse(error))).isInstanceOf(TestErrorException.class);
+        assertThatThrownBy(() -> deserializer.deserialize(errorResponse(error))).isInstanceOf(TestErrorException.class);
     }
 
-    private List<WeakReference<?>> bindWithCapturingMarkers(List<Object> deserializer) {
+    private Deserializer<String> bindWithCapturingMarkers(List<WeakReference<?>> references) {
         Object owner = new Object();
         TypeMarker<String> returnType = new TypeMarker<String>() {
             @SuppressWarnings("unused")
@@ -313,13 +343,17 @@ final class ConjureBodySerDeErrorsTest {
                 .returnType(returnType)
                 .exception(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name(), errorType, exceptionType)
                 .build();
-        deserializer.add(serde.deserializer(args));
-        return List.of(
+        references.addAll(List.of(
                 new WeakReference<>(owner),
                 new WeakReference<>(returnType),
                 new WeakReference<>(errorType),
                 new WeakReference<>(exceptionType),
-                new WeakReference<>(args));
+                new WeakReference<>(args)));
+        return serde.deserializer(args);
+    }
+
+    private static Object delegate(Deserializer<?> deserializer) {
+        return FieldSupport.EXTRACTION.fieldValue("delegate", Object.class, deserializer);
     }
 
     private static void awaitCollected(List<WeakReference<?>> references) throws InterruptedException {
@@ -332,9 +366,8 @@ final class ConjureBodySerDeErrorsTest {
     }
 
     private static TestResponse errorResponse(ServiceException error) throws IOException {
-        return new TestResponse(MAPPER.writeValueAsString(
-                                ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(error))
-                        .getBytes(StandardCharsets.UTF_8))
+        return TestResponse.withBody(MAPPER.writeValueAsString(
+                        ConjureError.fromServiceExceptionWithJsonSerializedParameterValues(error)))
                 .contentType("application/json")
                 .code(500);
     }
