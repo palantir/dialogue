@@ -96,6 +96,23 @@ public final class ErrorDecoderTest {
     }
 
     @Test
+    public void keepsPropagationAndParametersOfPropagatingErrors() {
+        ServiceException exception = new ServiceException(
+                ErrorType.createPropagating(ErrorType.Code.CUSTOM_CLIENT, "Test:QuotaExceeded"),
+                SafeArg.of("limit", 5));
+        Response response = TestResponse.withBody(createServiceException(exception))
+                .code(400)
+                .contentType("application/json");
+
+        assertThat(decoder.decode(response)).isInstanceOfSatisfying(RemoteException.class, remoteException -> {
+            assertThat(remoteException.getStatus()).isEqualTo(400);
+            assertThat(remoteException.getError().errorName()).isEqualTo("Test:QuotaExceeded");
+            assertThat(remoteException.getError().parameters()).containsEntry("limit", "5");
+            assertThat(remoteException.getError().propagates()).isTrue();
+        });
+    }
+
+    @Test
     public void testQos503() {
         Response response = TestResponse.withBody(SERIALIZED_EXCEPTION).code(503);
         assertThat(decoder.isError(response)).isTrue();
