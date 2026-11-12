@@ -26,7 +26,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
-import com.palantir.conjure.java.api.errors.ConjureErrorParameterFormat;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializingErrorDecoder.ErrorDeserializer;
 import com.palantir.dialogue.BinaryRequestBody;
@@ -123,8 +122,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         emptyContainerDeserializer,
                         TypeMarker.of(key.returnType()),
                         new ExceptionDeserializingErrorDecoder(
-                                ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)),
-                                expectJsonErrors())));
+                                ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)))));
     }
 
     @SuppressWarnings("unchecked")
@@ -250,11 +248,6 @@ final class ConjureBodySerDe implements BodySerDe {
                 }
             }
         };
-    }
-
-    private boolean expectJsonErrors() {
-        return errorParameterFormat().isPresent()
-                && errorParameterFormat().get().equals(ConjureErrorParameterFormat.JSON_FORMAT);
     }
 
     private static final class EncodingSerializerRegistry<T> implements Serializer<T> {
