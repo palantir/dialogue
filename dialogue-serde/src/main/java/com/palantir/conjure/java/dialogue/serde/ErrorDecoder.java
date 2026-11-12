@@ -16,6 +16,7 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
+import com.google.common.collect.ImmutableMap;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.dialogue.Response;
 
@@ -33,6 +34,6 @@ public enum ErrorDecoder {
     }
 
     public RuntimeException decode(Response response) {
-        return ExceptionDeserializingErrorDecoder.withoutExceptions().decode(response);
+        return ExceptionDeserializingErrorDecoder.decode(response, ImmutableMap.of());
     }
 }
