@@ -34,15 +34,11 @@ import org.apache.hc.core5.http.ProtocolVersion;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.util.Timeout;
 
-/**
- * A simple wrapper around a {@link ManagedHttpClientConnection} which provides instrumentation, and reports failures
- * on a request's first write as {@link SafeRequestNotSentException}.
- */
+/** A simple wrapper around a {@link ManagedHttpClientConnection} which provides instrumentation. */
 final class InstrumentedManagedHttpClientConnection implements ManagedHttpClientConnection {
 
     private final ManagedHttpClientConnection delegate;
     private final Timer serverTimingOverhead;
-    private long sentBytesBeforeRequest;
 
     InstrumentedManagedHttpClientConnection(ManagedHttpClientConnection delegate, Timer serverTimingOverhead) {
         this.delegate = delegate;
@@ -86,12 +82,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void sendRequestHeader(ClassicHttpRequest request) throws HttpException, IOException {
-        sentBytesBeforeRequest = delegate.getEndpointDetails().getSentBytesCount();
-        try {
-            delegate.sendRequestHeader(request);
-        } catch (IOException e) {
-            throw requestWriteFailure(e);
-        }
+        delegate.sendRequestHeader(request);
     }
 
     @Override
@@ -101,11 +92,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void sendRequestEntity(ClassicHttpRequest request) throws HttpException, IOException {
-        try {
-            delegate.sendRequestEntity(request);
-        } catch (IOException e) {
-            throw requestWriteFailure(e);
-        }
+        delegate.sendRequestEntity(request);
     }
 
     @Override
@@ -153,19 +140,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void flush() throws IOException {
-        try {
-            delegate.flush();
-        } catch (IOException e) {
-            throw requestWriteFailure(e);
-        }
-    }
-
-    // Apache counts sent bytes only after a socket write returns, so an unchanged count means the first write failed.
-    private IOException requestWriteFailure(IOException failure) {
-        if (delegate.getEndpointDetails().getSentBytesCount() == sentBytesBeforeRequest) {
-            return new SafeRequestNotSentException(failure);
-        }
-        return failure;
+        delegate.flush();
     }
 
     @Override

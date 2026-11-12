@@ -18,9 +18,7 @@ package com.palantir.dialogue.hc5;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,90 +27,81 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.HeaderElements;
-import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.Method;
-import org.apache.hc.core5.http.impl.io.HttpRequestExecutor;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityTemplate;
 import org.apache.hc.core5.http.message.BasicClassicHttpRequest;
 import org.apache.hc.core5.http.protocol.HttpCoreContext;
+import org.apache.hc.core5.http.protocol.RequestContent;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
-public final class InstrumentedManagedHttpClientConnectionTest {
+final class RequestNotSentDetectingHttpRequestExecutorTest {
 
-    @ParameterizedTest
-    @MethodSource
-    public void reportsRequestNotSentWhenReusedConnectionTimedOut(ClassicHttpRequest request) throws Exception {
+    @Test
+    void throwsRequestNotSentWhenFirstWriteFails() throws Exception {
         TimingOutSocket socket = new TimingOutSocket();
-        ManagedHttpClientConnection connection = connect(socket);
-        try (ClassicHttpResponse response =
-                new HttpRequestExecutor().execute(chunkedPost(1024), connection, HttpCoreContext.create())) {
+        ManagedHttpClientConnection connection = connection(socket);
+        try (ClassicHttpResponse response = RequestNotSentDetectingHttpRequestExecutor.INSTANCE.execute(
+                post(body(1024)), connection, HttpCoreContext.create())) {
             assertThat(response.getCode()).isEqualTo(200);
         }
 
         socket.timeOutAfterWrites(0);
 
-        assertThatThrownBy(() -> new HttpRequestExecutor().execute(request, connection, HttpCoreContext.create()))
+        assertThatThrownBy(() -> RequestNotSentDetectingHttpRequestExecutor.INSTANCE.execute(
+                        post(body(1024)), connection, HttpCoreContext.create()))
                 .isExactlyInstanceOf(SafeRequestNotSentException.class)
                 .hasCauseExactlyInstanceOf(SocketException.class)
                 .hasRootCauseMessage("Connection timed out");
     }
 
-    static List<Arguments> reportsRequestNotSentWhenReusedConnectionTimedOut() {
-        ClassicHttpRequest largeHeaders = new BasicClassicHttpRequest(Method.GET, "/");
-        largeHeaders.setHeader("Large", "a".repeat(64 * 1024));
-        return List.of(
-                argumentSet("withBody", chunkedPost(1024)),
-                argumentSet("withoutBody", new BasicClassicHttpRequest(Method.GET, "/")),
-                argumentSet("withLargeHeaders", largeHeaders));
-    }
-
     @Test
-    public void rethrowsFailureAfterPartOfRequestWasSent() throws Exception {
+    void rethrowsWhenPartOfRequestWasSent() throws Exception {
         TimingOutSocket socket = new TimingOutSocket();
         socket.timeOutAfterWrites(1);
 
-        assertThatThrownBy(() -> new HttpRequestExecutor()
-                        .execute(chunkedPost(64 * 1024), connect(socket), HttpCoreContext.create()))
+        // Larger than Apache's 32 KiB output buffer, so the headers and the body are separate socket writes.
+        assertThatThrownBy(() -> RequestNotSentDetectingHttpRequestExecutor.INSTANCE.execute(
+                        post(body(64 * 1024)), connection(socket), HttpCoreContext.create()))
                 .isExactlyInstanceOf(SocketException.class)
                 .hasMessage("Connection timed out");
     }
 
     @Test
-    public void rethrowsRequestBodyFailure() throws Exception {
-        ClassicHttpRequest request = new BasicClassicHttpRequest(Method.POST, "/");
-        request.setHeader(HttpHeaders.TRANSFER_ENCODING, HeaderElements.CHUNKED_ENCODING);
-        request.setEntity(new EntityTemplate(ContentType.APPLICATION_OCTET_STREAM, _output -> {
-            throw new SocketTimeoutException("Read timed out");
-        }));
-
-        assertThatThrownBy(() -> new HttpRequestExecutor()
-                        .execute(request, connect(new TimingOutSocket()), HttpCoreContext.create()))
+    void rethrowsWhenRequestBodyFailsOnLiveConnection() throws Exception {
+        assertThatThrownBy(() -> RequestNotSentDetectingHttpRequestExecutor.INSTANCE.execute(
+                        post(failingBody()), connection(new TimingOutSocket()), HttpCoreContext.create()))
                 .isExactlyInstanceOf(SocketTimeoutException.class)
                 .hasMessage("Read timed out");
     }
 
-    private static ManagedHttpClientConnection connect(Socket socket) throws IOException {
-        return new InstrumentedManagedHttpConnectionFactory(
-                        ManagedHttpClientConnectionFactory.INSTANCE, new DefaultTaggedMetricRegistry(), "test")
-                .createConnection(socket);
+    private static ManagedHttpClientConnection connection(Socket socket) throws IOException {
+        return ManagedHttpClientConnectionFactory.INSTANCE.createConnection(socket);
     }
 
-    private static ClassicHttpRequest chunkedPost(int bodySize) {
+    private static ClassicHttpRequest post(HttpEntity entity) throws HttpException, IOException {
         ClassicHttpRequest request = new BasicClassicHttpRequest(Method.POST, "/");
-        request.setHeader(HttpHeaders.TRANSFER_ENCODING, HeaderElements.CHUNKED_ENCODING);
-        request.setEntity(new ByteArrayEntity(new byte[bodySize], ContentType.APPLICATION_OCTET_STREAM));
+        request.setEntity(entity);
+        // Executing directly skips Apache's interceptors, so apply the one that frames the body.
+        RequestContent.INSTANCE.process(request, entity, HttpCoreContext.create());
         return request;
+    }
+
+    private static HttpEntity body(int size) {
+        return new ByteArrayEntity(new byte[size], ContentType.APPLICATION_OCTET_STREAM);
+    }
+
+    private static HttpEntity failingBody() {
+        return new EntityTemplate(ContentType.APPLICATION_OCTET_STREAM, _output -> {
+            throw new SocketTimeoutException("Read timed out");
+        });
     }
 
     // Throws the error the JDK reports for ETIMEDOUT on Linux, which RetryingChannel does not retry by default.

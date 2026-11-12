@@ -22,12 +22,11 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * An exception describing a connection that failed on a request's first write. This implements {@link IOException}
- * but not {@link java.net.SocketException} so that it is retried like other connection failures, including the
- * {@code ETIMEDOUT} reported by a connection that timed out while idle.
+ * A request that failed before any of its socket writes completed. It is an {@link IOException} but not a
+ * {@link java.net.SocketException}, so it is retried even when the cause is {@code ETIMEDOUT}.
  */
 final class SafeRequestNotSentException extends IOException implements SafeLoggable {
-    private static final String MESSAGE = "Connection failed on the first write of the request";
+    private static final String MESSAGE = "Connection failed before the first write of the request completed";
 
     SafeRequestNotSentException(IOException cause) {
         super(MESSAGE, cause);
