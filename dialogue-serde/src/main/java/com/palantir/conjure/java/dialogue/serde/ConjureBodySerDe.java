@@ -327,7 +327,7 @@ final class ConjureBodySerDe implements BodySerDe {
         public T deserialize(Response response) {
             boolean closeResponse = true;
             try {
-                if (errorDecoder.isError(response)) {
+                if (ExceptionDeserializingErrorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
                 } else if (response.code() == 204) {
                     // TODO(dfox): what if we get a 204 for a non-optional type???
@@ -430,7 +430,7 @@ final class ConjureBodySerDe implements BodySerDe {
         public Void deserialize(Response response) {
             // We should not fail if a server that previously returned nothing starts returning a response
             try (Response unused = response) {
-                if (errorDecoder.isError(response)) {
+                if (ExceptionDeserializingErrorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
                 }
                 return null;

@@ -81,7 +81,7 @@ final class ExceptionDeserializingErrorDecoder {
         this.errorDeserializers = errorDeserializers;
     }
 
-    boolean isError(Response response) {
+    static boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
     }
 

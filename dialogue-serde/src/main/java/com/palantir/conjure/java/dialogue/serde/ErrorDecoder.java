@@ -29,7 +29,7 @@ public enum ErrorDecoder {
     INSTANCE;
 
     public boolean isError(Response response) {
-        return ExceptionDeserializingErrorDecoder.withoutExceptions().isError(response);
+        return ExceptionDeserializingErrorDecoder.isError(response);
     }
 
     public RuntimeException decode(Response response) {
