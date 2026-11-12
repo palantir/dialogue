@@ -23,11 +23,7 @@ import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.net.HttpHeaders;
-import com.palantir.conjure.java.api.errors.AbstractSerializableError;
-import com.palantir.conjure.java.api.errors.RemoteException;
-import com.palantir.conjure.java.dialogue.serde.ExceptionDeserializingErrorDecoder.ErrorDeserializer;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
@@ -49,7 +45,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Type;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -68,8 +63,6 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<Void> emptyBodyDeserializer;
     private final LoadingCache<Type, Serializer<?>> serializers;
     private final LoadingCache<Type, Deserializer<?>> deserializers;
-    private final LoadingCache<ErrorDeserializerCacheKey, ErrorDeserializer> errorDeserializers;
-    private final LoadingCache<ExceptionDeserializerCacheKey, Deserializer<?>> exceptionDeserializers;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -84,65 +77,33 @@ final class ConjureBodySerDe implements BodySerDe {
         this.encodingsSortedByWeight = sortByWeight(encodings);
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
         this.defaultEncoding = encodings.get(0).encoding();
-        this.binaryInputStreamDeserializer = deserializerFor(
-                DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
-                emptyContainerDeserializer,
-                BinaryEncoding.MARKER,
-                ExceptionDeserializingErrorDecoder.withoutExceptions());
-        this.optionalBinaryInputStreamDeserializer = deserializerFor(
-                DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
-                emptyContainerDeserializer,
-                BinaryEncoding.OPTIONAL_MARKER,
-                ExceptionDeserializingErrorDecoder.withoutExceptions());
-        this.emptyBodyDeserializer = new EmptyBodyDeserializer(ExceptionDeserializingErrorDecoder.withoutExceptions());
+        this.binaryInputStreamDeserializer = withoutErrors(new EncodingDeserializerRegistry<>(
+                ImmutableList.of(BinaryEncoding.INSTANCE), emptyContainerDeserializer, BinaryEncoding.MARKER));
+        this.optionalBinaryInputStreamDeserializer = withoutErrors(new EncodingDeserializerRegistry<>(
+                ImmutableList.of(BinaryEncoding.INSTANCE), emptyContainerDeserializer, BinaryEncoding.OPTIONAL_MARKER));
+        this.emptyBodyDeserializer = withoutErrors(new EmptyBodyDeserializer());
         // Class unloading: Not supported, Jackson keeps strong references to the types
         // it sees: https://github.com/FasterXML/jackson-databind/issues/489
         this.serializers = Caffeine.from(cacheSpec)
                 .build(type -> new EncodingSerializerRegistry<>(defaultEncoding, TypeMarker.of(type)));
         this.deserializers = Caffeine.from(cacheSpec)
-                .build(type -> deserializerFor(
-                        DeserializerType.STANDARD,
-                        emptyContainerDeserializer,
-                        TypeMarker.of(type),
-                        ExceptionDeserializingErrorDecoder.withoutExceptions()));
-        // Errors are always JSON, see ExceptionDeserializingErrorDecoder. Readers are only built when an error of that
-        // type is first decoded: most endpoints never see most of their errors.
-        Encoding errorEncoding = new LazilyInitializedEncoding(Encodings.json());
-        // Weak values keep an error's deserializer shared for as long as any decoder holds it. There is no size bound,
-        // because evicting a deserializer that decoders still hold would only stop it from being shared.
-        this.errorDeserializers =
-                Caffeine.newBuilder().weakValues().build(key -> new ReflectiveErrorDeserializer(errorEncoding, key));
-        // Do not use weakKeys. Weak keys leads to equality checks to use == instead of equals().
-        this.exceptionDeserializers = Caffeine.newBuilder()
-                .weakValues()
-                .expireAfterAccess(Duration.ofMinutes(1))
-                .maximumSize(1_000)
-                .build(key -> deserializerFor(
-                        key.type(),
-                        emptyContainerDeserializer,
-                        TypeMarker.of(key.returnType()),
-                        new ExceptionDeserializingErrorDecoder(
-                                ImmutableMap.copyOf(Maps.transformValues(key.errors(), errorDeserializers::get)))));
+                .build(type -> withoutErrors(new EncodingDeserializerRegistry<>(
+                        encodingsSortedByWeight, emptyContainerDeserializer, TypeMarker.of(type))));
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> Deserializer<T> deserializerFor(
-            DeserializerType type,
-            EmptyContainerDeserializer emptyContainerDeserializer,
-            TypeMarker<T> returnType,
-            ExceptionDeserializingErrorDecoder errorDecoder) {
-        return switch (type) {
-            case STANDARD ->
-                new EncodingDeserializerRegistry<>(
-                        encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, returnType);
-            case EMPTY_BODY -> (Deserializer<T>) new EmptyBodyDeserializer(errorDecoder);
-            case INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM ->
-                new EncodingDeserializerRegistry<>(
-                        ImmutableList.of(BinaryEncoding.INSTANCE),
-                        errorDecoder,
-                        emptyContainerDeserializer,
-                        returnType);
-        };
+    private static <T> Deserializer<T> withoutErrors(Deserializer<T> deserializer) {
+        return new ErrorDecodingDeserializer<>(deserializer, ImmutableMap.of());
+    }
+
+    /**
+     * Wraps a deserializer this already returns, so error responses throw the endpoint's exceptions. It wraps the
+     * cached deserializer rather than building a new one, which also keeps it cached while the binding is in use.
+     */
+    private static <T> Deserializer<T> withErrors(Deserializer<T> deserializer, ExceptionDeserializerArgs<T> args) {
+        if (args.errorNameToExceptionTypeMarkers().isEmpty()) {
+            return deserializer;
+        }
+        return new ErrorDecodingDeserializer<>(deserializer, args.errorNameToExceptionTypeMarkers());
     }
 
     private static List<WeightedEncoding> decorateEncodings(List<WeightedEncoding> input) {
@@ -175,10 +136,8 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(ExceptionDeserializerArgs<T> exceptionDeserializerArgs) {
-        return (Deserializer<T>) exceptionDeserializers.get(
-                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.STANDARD));
+        return withErrors(deserializer(exceptionDeserializerArgs.returnType()), exceptionDeserializerArgs);
     }
 
     @Override
@@ -187,10 +146,8 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Deserializer<Void> emptyBodyDeserializer(ExceptionDeserializerArgs<Void> exceptionDeserializerArgs) {
-        return (Deserializer<Void>) exceptionDeserializers.get(
-                ExceptionDeserializerCacheKey.of(exceptionDeserializerArgs, DeserializerType.EMPTY_BODY));
+        return withErrors(emptyBodyDeserializer, exceptionDeserializerArgs);
     }
 
     @Override
@@ -199,11 +156,9 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Deserializer<InputStream> inputStreamDeserializer(
             ExceptionDeserializerArgs<InputStream> exceptionDeserializerArgs) {
-        return (Deserializer<InputStream>) exceptionDeserializers.get(ExceptionDeserializerCacheKey.of(
-                exceptionDeserializerArgs, DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
+        return withErrors(binaryInputStreamDeserializer, exceptionDeserializerArgs);
     }
 
     @Override
@@ -212,11 +167,9 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer(
             ExceptionDeserializerArgs<Optional<InputStream>> exceptionDeserializerArgs) {
-        return (Deserializer<Optional<InputStream>>) exceptionDeserializers.get(ExceptionDeserializerCacheKey.of(
-                exceptionDeserializerArgs, DeserializerType.INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM));
+        return withErrors(optionalBinaryInputStreamDeserializer, exceptionDeserializerArgs);
     }
 
     @Override
@@ -302,20 +255,14 @@ final class ConjureBodySerDe implements BodySerDe {
 
         private static final SafeLogger log = SafeLoggerFactory.get(EncodingDeserializerRegistry.class);
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
-        private final ExceptionDeserializingErrorDecoder errorDecoder;
         private final Optional<String> acceptValue;
         private final Supplier<Optional<T>> emptyInstance;
         private final TypeMarker<T> token;
 
-        EncodingDeserializerRegistry(
-                List<Encoding> encodings,
-                ExceptionDeserializingErrorDecoder errorDecoder,
-                EmptyContainerDeserializer empty,
-                TypeMarker<T> token) {
+        EncodingDeserializerRegistry(List<Encoding> encodings, EmptyContainerDeserializer empty, TypeMarker<T> token) {
             this.encodings = encodings.stream()
                     .map(encoding -> new EncodingDeserializerContainer<>(encoding, token))
                     .collect(ImmutableList.toImmutableList());
-            this.errorDecoder = errorDecoder;
             this.token = token;
             this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(token));
             // Encodings are applied to the accept header in the order of preference based on the provided list.
@@ -327,9 +274,7 @@ final class ConjureBodySerDe implements BodySerDe {
         public T deserialize(Response response) {
             boolean closeResponse = true;
             try {
-                if (ExceptionDeserializingErrorDecoder.isError(response)) {
-                    throw errorDecoder.decode(response);
-                } else if (response.code() == 204) {
+                if (response.code() == 204) {
                     // TODO(dfox): what if we get a 204 for a non-optional type???
                     // TODO(dfox): support http200 & body=null
                     // TODO(dfox): what if we were expecting an empty list but got {}?
@@ -419,20 +364,11 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     private static final class EmptyBodyDeserializer implements Deserializer<Void> {
-        private final ExceptionDeserializingErrorDecoder errorDecoder;
-
-        EmptyBodyDeserializer(ExceptionDeserializingErrorDecoder errorDecoder) {
-            this.errorDecoder = errorDecoder;
-        }
-
         @Override
         @SuppressWarnings("NullAway") // empty body is a special case
         public Void deserialize(Response response) {
             // We should not fail if a server that previously returned nothing starts returning a response
             try (Response unused = response) {
-                if (ExceptionDeserializingErrorDecoder.isError(response)) {
-                    throw errorDecoder.decode(response);
-                }
                 return null;
             }
         }
@@ -448,64 +384,32 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
-    private static final class ReflectiveErrorDeserializer implements ErrorDeserializer {
-        private final Encoding.Deserializer<AbstractSerializableError<?>> deserializer;
-        private final Type exceptionType;
+    /**
+     * Throws the exception for error responses, decoding them with the endpoint's errors, and leaves every other
+     * response to the deserializer it wraps. Every deserializer {@link ConjureBodySerDe} returns is one of these.
+     */
+    private static final class ErrorDecodingDeserializer<T> implements Deserializer<T> {
+        private final Deserializer<T> delegate;
+        private final ImmutableMap<String, ErrorExceptionPair<?, ?>> errors;
 
-        @SuppressWarnings("unchecked")
-        ReflectiveErrorDeserializer(Encoding errorEncoding, ErrorDeserializerCacheKey key) {
-            this.deserializer = (Encoding.Deserializer<AbstractSerializableError<?>>)
-                    errorEncoding.deserializer(TypeMarker.of(key.errorType()));
-            this.exceptionType = key.exceptionType();
+        ErrorDecodingDeserializer(Deserializer<T> delegate, ImmutableMap<String, ErrorExceptionPair<?, ?>> errors) {
+            this.delegate = delegate;
+            this.errors = errors;
         }
 
-        // RemoteExceptions constructible from a serializable error MUST have a constructor that takes such an error as
-        // the first argument and an integer http status code as the second argument.
         @Override
-        public RemoteException deserialize(InputStream input, int code) throws IOException {
-            AbstractSerializableError<?> error = deserializer.deserialize(input);
-            try {
-                Class<?> exceptionClass = Class.forName(exceptionType.getTypeName());
-                return (RemoteException) exceptionClass
-                        .getConstructor(error.getClass(), int.class)
-                        .newInstance(error, code);
-            } catch (ReflectiveOperationException e) {
-                throw new SafeRuntimeException(
-                        "Failed to construct exception using a constructor which has an AbstractSerializableError as "
-                                + "the first argument and an integer http status code as the second argument",
-                        e,
-                        SafeArg.of("exceptionType", exceptionType),
-                        SafeArg.of("error", error.getClass().getSimpleName()));
+        public T deserialize(Response response) {
+            if (ExceptionDeserializingErrorDecoder.isError(response)) {
+                try (Response unused = response) {
+                    throw ExceptionDeserializingErrorDecoder.decode(response, errors);
+                }
             }
+            return delegate.deserialize(response);
         }
-    }
 
-    private enum DeserializerType {
-        STANDARD,
-        EMPTY_BODY,
-        INPUT_STREAM_OR_OPTIONAL_INPUT_STREAM,
-    }
-
-    private record ErrorDeserializerCacheKey(
-            // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
-            // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
-            Type errorType, Type exceptionType) {
-        static ErrorDeserializerCacheKey of(ErrorExceptionPair<?, ?> pair) {
-            return new ErrorDeserializerCacheKey(
-                    pair.errorType().getType(), pair.exceptionType().getType());
-        }
-    }
-
-    private record ExceptionDeserializerCacheKey(
-            // We use Type rather than TypeMarker here, because `new TypeMarker<T>() {}` retains references
-            // to the dialogue clients which construct them, which causes memory to leak when stored in the cache
-            Type returnType, ImmutableMap<String, ErrorDeserializerCacheKey> errors, DeserializerType type) {
-        static <T> ExceptionDeserializerCacheKey of(ExceptionDeserializerArgs<T> args, DeserializerType type) {
-            return new ExceptionDeserializerCacheKey(
-                    args.returnType().getType(),
-                    ImmutableMap.copyOf(Maps.transformValues(
-                            args.errorNameToExceptionTypeMarkers(), ErrorDeserializerCacheKey::of)),
-                    type);
+        @Override
+        public Optional<String> accepts() {
+            return delegate.accepts();
         }
     }
 }

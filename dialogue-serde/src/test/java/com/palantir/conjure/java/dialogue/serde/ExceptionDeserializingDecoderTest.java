@@ -469,50 +469,6 @@ final class ExceptionDeserializingDecoderTest {
         }
     }
 
-    @Test
-    public void testDeserializersAreCached() {
-        // Given
-        BodySerDe bodySerDe = conjureBodySerDe("application/json", "text/plain");
-
-        // When
-        Deserializer<InputStream> inputStreamDeserializer1 = bodySerDe.inputStreamDeserializer(
-                ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs());
-        Deserializer<InputStream> inputStreamDeserializer2 = bodySerDe.inputStreamDeserializer(
-                ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs());
-
-        // Then
-        assertThat(inputStreamDeserializer1).isSameAs(inputStreamDeserializer2);
-
-        // When
-        Deserializer<Optional<InputStream>> optionalInputStreamDeserializer1 =
-                bodySerDe.optionalInputStreamDeserializer(
-                        ExceptionDeserializationTestUtils.createOptionalInputStreamDeserializerArgs());
-        Deserializer<Optional<InputStream>> optionalInputStreamDeserializer2 =
-                bodySerDe.optionalInputStreamDeserializer(
-                        ExceptionDeserializationTestUtils.createOptionalInputStreamDeserializerArgs());
-
-        // Then
-        assertThat(optionalInputStreamDeserializer1).isSameAs(optionalInputStreamDeserializer2);
-
-        // When
-        Deserializer<Void> voidDeserializer1 =
-                bodySerDe.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs());
-        Deserializer<Void> voidDeserializer2 =
-                bodySerDe.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs());
-
-        // Then
-        assertThat(voidDeserializer1).isSameAs(voidDeserializer2);
-
-        // When
-        Deserializer<String> stringDeserializer1 =
-                bodySerDe.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
-        Deserializer<String> stringDeserializer2 =
-                bodySerDe.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
-
-        // Then
-        assertThat(stringDeserializer1).isSameAs(stringDeserializer2);
-    }
-
     private static byte[] readAllBytesUnchecked(Supplier<InputStream> stream) {
         try (InputStream is = stream.get()) {
             return is.readAllBytes();
