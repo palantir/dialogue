@@ -28,14 +28,11 @@ import com.palantir.dialogue.Response;
 public enum ErrorDecoder {
     INSTANCE;
 
-    private static final ExceptionDeserializingErrorDecoder EXCEPTION_DESERIALIZING_ERROR_DECODER =
-            ExceptionDeserializingErrorDecoder.withoutExceptions();
-
     public boolean isError(Response response) {
-        return EXCEPTION_DESERIALIZING_ERROR_DECODER.isError(response);
+        return ExceptionDeserializingErrorDecoder.withoutExceptions().isError(response);
     }
 
     public RuntimeException decode(Response response) {
-        return EXCEPTION_DESERIALIZING_ERROR_DECODER.decode(response);
+        return ExceptionDeserializingErrorDecoder.withoutExceptions().decode(response);
     }
 }

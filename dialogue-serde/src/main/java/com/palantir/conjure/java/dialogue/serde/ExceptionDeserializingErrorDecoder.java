@@ -68,11 +68,13 @@ final class ExceptionDeserializingErrorDecoder {
             JSON_ENCODING.deserializer(TypeMarker.of(NamedError.class));
     private static final Deserializer<SerializableError> SERIALIZABLE_ERROR_DESERIALIZER =
             JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
+    private static final ExceptionDeserializingErrorDecoder WITHOUT_EXCEPTIONS =
+            new ExceptionDeserializingErrorDecoder(ImmutableMap.of());
 
     private final ImmutableMap<String, ErrorDeserializer> errorDeserializers;
 
     static ExceptionDeserializingErrorDecoder withoutExceptions() {
-        return new ExceptionDeserializingErrorDecoder(ImmutableMap.of());
+        return WITHOUT_EXCEPTIONS;
     }
 
     ExceptionDeserializingErrorDecoder(ImmutableMap<String, ErrorDeserializer> errorDeserializers) {
