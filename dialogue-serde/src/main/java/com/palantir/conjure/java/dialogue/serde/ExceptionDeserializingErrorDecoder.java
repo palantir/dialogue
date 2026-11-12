@@ -45,6 +45,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Type;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -210,9 +211,9 @@ final class ExceptionDeserializingErrorDecoder {
             throws IOException {
         AbstractSerializableError<?> serializableError =
                 JSON_ENCODING.deserializer(error.errorType()).deserialize(new ByteArrayInputStream(body));
+        Type exceptionType = error.exceptionType().getType();
         try {
-            Class<?> exceptionClass =
-                    Class.forName(error.exceptionType().getType().getTypeName());
+            Class<?> exceptionClass = Class.forName(exceptionType.getTypeName());
             return (RemoteException) exceptionClass
                     .getConstructor(serializableError.getClass(), int.class)
                     .newInstance(serializableError, code);
@@ -221,7 +222,7 @@ final class ExceptionDeserializingErrorDecoder {
                     "Failed to construct exception using a constructor which has an AbstractSerializableError as "
                             + "the first argument and an integer http status code as the second argument",
                     e,
-                    SafeArg.of("exceptionType", error.exceptionType().getType()),
+                    SafeArg.of("exceptionType", exceptionType),
                     SafeArg.of("error", serializableError.getClass().getSimpleName()));
         }
     }
