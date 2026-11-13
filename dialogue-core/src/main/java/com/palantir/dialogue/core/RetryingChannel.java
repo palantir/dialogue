@@ -70,6 +70,7 @@ import org.jspecify.annotations.Nullable;
 final class RetryingChannel implements EndpointChannel {
 
     private static final SafeLogger log = SafeLoggerFactory.get(RetryingChannel.class);
+    private static final RateLimitedLogger rateLimitedLogger = new RateLimitedLogger(log, 0.1);
     private static final String SCHEDULER_NAME = "dialogue-RetryingChannel-scheduler";
 
     /*
@@ -532,7 +533,7 @@ final class RetryingChannel implements EndpointChannel {
         private void infoLogRetriesExhausted(Response response) {
             if (log.isInfoEnabled()) {
                 SafeRuntimeException stacktrace = callsiteStacktrace.orElse(null);
-                log.info(
+                rateLimitedLogger.log(logger -> logger.info(
                         "Exhausted {} retries, returning last received response with "
                                 + "status {}, channel: {}, service: {}, endpoint: {}",
                         SafeArg.of("retries", maxRetries),
@@ -540,13 +541,13 @@ final class RetryingChannel implements EndpointChannel {
                         SafeArg.of("channelName", channelName),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
-                        stacktrace);
+                        stacktrace));
             }
         }
 
         private void infoLogRetry(long backoffNanoseconds, OptionalInt responseStatus, @Nullable Throwable throwable) {
             if (log.isInfoEnabled()) {
-                log.info(
+                rateLimitedLogger.log(logger -> logger.info(
                         "Retrying call after failure {}/{} backoff: {}, channel: {}, service: {}, endpoint: {}, "
                                 + "status: {}",
                         SafeArg.of("failures", failures),
@@ -556,7 +557,7 @@ final class RetryingChannel implements EndpointChannel {
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
                         SafeArg.of("status", responseStatus.isPresent() ? responseStatus.getAsInt() : null),
-                        throwable);
+                        throwable));
             }
         }
 
