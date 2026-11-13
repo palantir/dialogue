@@ -68,8 +68,14 @@ namespaces:
         docs: Number of sticky queued requests waiting to try to be executed.
       request.queue.timeout:
         type: counter
-        tags: [channel-name]
-        docs: Count of requests that are failed due to queue timeout.
+        tags:
+          - name: channel-name
+          - name: source
+            values: [deadline, configured]
+        docs: |
+          Count of requests that are failed due to queue timeout. The source indicates which budget produced
+          the timeout: `deadline` when it was derived from the request's remaining deadline, or `configured`
+          when it came from the client's configured `queueTimeout`.
       request.queued.time:
         type: timer
         tags: [channel-name]
