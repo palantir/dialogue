@@ -149,6 +149,36 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void testProxyUpstreamRequestAttemptsDoNotOverflow() throws ExecutionException, InterruptedException {
+        when(channel.execute(any()))
+                .thenReturn(FAILED)
+                .thenAnswer((Answer<ListenableFuture<Response>>)
+                        _invocation -> Futures.immediateFuture(new TestResponse()
+                                .code(503)
+                                .withHeader(
+                                        Responses.PROXY_UPSTREAM_REQUEST_ATTEMPTS,
+                                        Integer.toString(Integer.MAX_VALUE))))
+                // the success case should never be reached
+                .thenReturn(SUCCESS);
+
+        EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                2,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        // Our first request failed (1 failure), and the proxy reports far more attempts than there are retries
+        // left, so the 503 is returned and the request is not retried.
+        assertThat(response.get().code()).isEqualTo(503);
+        verify(channel, times(2)).execute(REQUEST);
+    }
+
+    @Test
     public void testRetriesUpToMaxRetriesAndFails() throws ExecutionException, InterruptedException {
         when(channel.execute(any())).thenReturn(FAILED).thenReturn(FAILED).thenReturn(SUCCESS);
 
