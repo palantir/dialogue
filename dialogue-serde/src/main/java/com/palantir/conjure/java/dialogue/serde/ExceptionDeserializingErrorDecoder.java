@@ -57,9 +57,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Extracts the error from a {@link Response}.
  * <p>If the response body is an error, and the error's name is one of the errors registered for the endpoint, this
- * class attempts to deserialize the {@link Response} body as JSON, to the error type, and throw the corresponding
- * exception. Otherwise, a {@link RemoteException} is thrown. If the {@link Response} does not adhere to the expected
- * format, an {@link UnknownRemoteException} is thrown.
+ * class attempts to deserialize the {@link Response} body as JSON, to the error type, and returns the corresponding
+ * exception. Otherwise, it returns a {@link RemoteException}, or an {@link UnknownRemoteException} if the
+ * {@link Response} does not adhere to the expected format.
  *
  * <p>Errors are only resolved when an error response arrives: most endpoints never see most of their errors, so binding
  * an endpoint doesn't build anything for them. Jackson caches what it builds for each error type in the shared mapper.

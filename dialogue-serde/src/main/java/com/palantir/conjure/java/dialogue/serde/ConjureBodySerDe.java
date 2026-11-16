@@ -97,7 +97,8 @@ final class ConjureBodySerDe implements BodySerDe {
 
     /**
      * Wraps a deserializer this already returns, so error responses throw the endpoint's exceptions. It wraps the
-     * cached deserializer rather than building a new one, which also keeps it cached while the binding is in use.
+     * cached deserializer rather than building a new one, which also keeps it from being collected while the binding is
+     * in use.
      */
     private static <T> Deserializer<T> withErrors(Deserializer<T> deserializer, ExceptionDeserializerArgs<T> args) {
         if (args.errorNameToExceptionTypeMarkers().isEmpty()) {

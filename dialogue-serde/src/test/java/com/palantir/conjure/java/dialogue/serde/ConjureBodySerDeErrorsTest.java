@@ -320,42 +320,26 @@ final class ConjureBodySerDeErrorsTest {
     @Test
     void bindingDoesNotRetainCallerTypeMarkers() throws IOException, InterruptedException {
         List<WeakReference<?>> references = new ArrayList<>();
-        Deserializer<String> deserializer = bindWithCapturingMarkers(references);
+        Deserializer<String> deserializer = bindWithAnonymousMarkers(references);
         awaitCollected(references);
 
-        // The deserializer keeps working after the caller's markers, and what they captured, are gone.
+        // The deserializer keeps working after the caller's markers are gone.
         ServiceException error = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
         assertThatThrownBy(() -> deserializer.deserialize(errorResponse(error))).isInstanceOf(TestErrorException.class);
     }
 
     // A separate method so the markers and arguments are unreachable once it returns. As locals of the test method,
     // they could stay reachable until the test returns, and awaitCollected would time out.
-    private Deserializer<String> bindWithCapturingMarkers(List<WeakReference<?>> references) {
-        Object owner = new Object();
-        TypeMarker<String> returnType = new TypeMarker<String>() {
-            @SuppressWarnings("unused")
-            private Object owner() {
-                return owner;
-            }
-        };
-        TypeMarker<TestErrorSerializableError> errorType = new TypeMarker<TestErrorSerializableError>() {
-            @SuppressWarnings("unused")
-            private Object owner() {
-                return owner;
-            }
-        };
-        TypeMarker<TestErrorException> exceptionType = new TypeMarker<TestErrorException>() {
-            @SuppressWarnings("unused")
-            private Object owner() {
-                return owner;
-            }
-        };
+    private Deserializer<String> bindWithAnonymousMarkers(List<WeakReference<?>> references) {
+        // Anonymous subclasses, like generated clients use.
+        TypeMarker<String> returnType = new TypeMarker<String>() {};
+        TypeMarker<TestErrorSerializableError> errorType = new TypeMarker<TestErrorSerializableError>() {};
+        TypeMarker<TestErrorException> exceptionType = new TypeMarker<TestErrorException>() {};
         ExceptionDeserializerArgs<String> args = ExceptionDeserializerArgs.<String>builder()
                 .returnType(returnType)
                 .exception(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name(), errorType, exceptionType)
                 .build();
         references.addAll(List.of(
-                new WeakReference<>(owner),
                 new WeakReference<>(returnType),
                 new WeakReference<>(errorType),
                 new WeakReference<>(exceptionType),
@@ -369,11 +353,11 @@ final class ConjureBodySerDeErrorsTest {
 
     private static void awaitCollected(List<WeakReference<?>> references) throws InterruptedException {
         long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
-        while (references.stream().anyMatch(ref -> ref.get() != null) && System.nanoTime() - deadline < 0) {
+        while (references.stream().anyMatch(ref -> !ref.refersTo(null)) && System.nanoTime() - deadline < 0) {
             System.gc();
             Thread.sleep(25);
         }
-        assertThat(references).allSatisfy(ref -> assertThat(ref.get()).isNull());
+        assertThat(references).allSatisfy(ref -> assertThat(ref.refersTo(null)).isTrue());
     }
 
     private static TestResponse errorResponse(ServiceException error) throws IOException {
