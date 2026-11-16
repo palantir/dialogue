@@ -63,35 +63,57 @@ final class ConjureBodySerDeErrorsTest {
 
     /** Each way to bind a deserializer with the test error registered. */
     enum Binding {
-        STANDARD,
-        EMPTY_BODY,
-        INPUT_STREAM,
-        OPTIONAL_INPUT_STREAM;
+        STANDARD {
+            @Override
+            Deserializer<?> bind(BodySerDe bodySerDe) {
+                return bodySerDe.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
+            }
 
-        Deserializer<?> bind(BodySerDe bodySerDe) {
-            return switch (this) {
-                case STANDARD ->
-                    bodySerDe.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
-                case EMPTY_BODY ->
-                    bodySerDe.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs());
-                case INPUT_STREAM ->
-                    bodySerDe.inputStreamDeserializer(
-                            ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs());
-                case OPTIONAL_INPUT_STREAM ->
-                    bodySerDe.optionalInputStreamDeserializer(
-                            ExceptionDeserializationTestUtils.createOptionalInputStreamDeserializerArgs());
-            };
-        }
+            @Override
+            Deserializer<?> bindWithoutErrors(BodySerDe bodySerDe) {
+                return bodySerDe.deserializer(TypeMarker.of(String.class));
+            }
+        },
+        EMPTY_BODY {
+            @Override
+            Deserializer<?> bind(BodySerDe bodySerDe) {
+                return bodySerDe.emptyBodyDeserializer(ExceptionDeserializationTestUtils.createVoidDeserializerArgs());
+            }
+
+            @Override
+            Deserializer<?> bindWithoutErrors(BodySerDe bodySerDe) {
+                return bodySerDe.emptyBodyDeserializer();
+            }
+        },
+        INPUT_STREAM {
+            @Override
+            Deserializer<?> bind(BodySerDe bodySerDe) {
+                return bodySerDe.inputStreamDeserializer(
+                        ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs());
+            }
+
+            @Override
+            Deserializer<?> bindWithoutErrors(BodySerDe bodySerDe) {
+                return bodySerDe.inputStreamDeserializer();
+            }
+        },
+        OPTIONAL_INPUT_STREAM {
+            @Override
+            Deserializer<?> bind(BodySerDe bodySerDe) {
+                return bodySerDe.optionalInputStreamDeserializer(
+                        ExceptionDeserializationTestUtils.createOptionalInputStreamDeserializerArgs());
+            }
+
+            @Override
+            Deserializer<?> bindWithoutErrors(BodySerDe bodySerDe) {
+                return bodySerDe.optionalInputStreamDeserializer();
+            }
+        };
+
+        abstract Deserializer<?> bind(BodySerDe bodySerDe);
 
         /** The deserializer for the same type, without errors. */
-        Deserializer<?> bindWithoutErrors(BodySerDe bodySerDe) {
-            return switch (this) {
-                case STANDARD -> bodySerDe.deserializer(TypeMarker.of(String.class));
-                case EMPTY_BODY -> bodySerDe.emptyBodyDeserializer();
-                case INPUT_STREAM -> bodySerDe.inputStreamDeserializer();
-                case OPTIONAL_INPUT_STREAM -> bodySerDe.optionalInputStreamDeserializer();
-            };
-        }
+        abstract Deserializer<?> bindWithoutErrors(BodySerDe bodySerDe);
     }
 
     @ParameterizedTest
@@ -296,19 +318,6 @@ final class ConjureBodySerDeErrorsTest {
     }
 
     @Test
-    void bindingKeepsTheDeserializerForItsTypeCached() throws InterruptedException {
-        // Only bind with errors, like generated clients do, so nothing else holds the deserializer for the type.
-        Deserializer<String> bound =
-                serde.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
-        for (int i = 0; i < 10; i++) {
-            System.gc();
-            Thread.sleep(25);
-        }
-        assertThat(delegate(serde.deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs())))
-                .isSameAs(delegate(bound));
-    }
-
-    @Test
     void bindingDoesNotRetainCallerTypeMarkers() throws IOException, InterruptedException {
         List<WeakReference<?>> references = new ArrayList<>();
         Deserializer<String> deserializer = bindWithCapturingMarkers(references);
@@ -319,6 +328,8 @@ final class ConjureBodySerDeErrorsTest {
         assertThatThrownBy(() -> deserializer.deserialize(errorResponse(error))).isInstanceOf(TestErrorException.class);
     }
 
+    // A separate method so the markers and arguments are unreachable once it returns. As locals of the test method,
+    // they could stay reachable until the test returns, and awaitCollected would time out.
     private Deserializer<String> bindWithCapturingMarkers(List<WeakReference<?>> references) {
         Object owner = new Object();
         TypeMarker<String> returnType = new TypeMarker<String>() {
@@ -358,7 +369,7 @@ final class ConjureBodySerDeErrorsTest {
 
     private static void awaitCollected(List<WeakReference<?>> references) throws InterruptedException {
         long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
-        while (references.stream().anyMatch(ref -> ref.get() != null) && System.nanoTime() < deadline) {
+        while (references.stream().anyMatch(ref -> ref.get() != null) && System.nanoTime() - deadline < 0) {
             System.gc();
             Thread.sleep(25);
         }

@@ -25,6 +25,9 @@ import com.palantir.dialogue.Response;
  * The extracted {@link RemoteException} is returned rather than thrown. Decoders may throw exceptions (other than
  * {@link RemoteException}) if a {@link RemoteException} could not be extracted, e.g., when the given {@link
  * Response} does not adhere to an expected format.
+ *
+ * <p>This is the public entry point to the same decoding that this package's deserializers use, without any
+ * endpoint-specific errors. The implementation is in {@code ExceptionDeserializingErrorDecoder}.
  */
 public enum ErrorDecoder {
     INSTANCE;
