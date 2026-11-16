@@ -26,6 +26,8 @@ import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.QosReasons;
 import com.palantir.conjure.java.api.errors.QosReasons.QosResponseDecodingAdapter;
+import com.palantir.conjure.java.api.errors.QosResponseBody;
+import com.palantir.conjure.java.api.errors.QosThrottleDetails;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
@@ -70,6 +72,9 @@ final class ExceptionDeserializingErrorDecoder {
             JSON_ENCODING.deserializer(TypeMarker.of(SerializableError.class));
     private static final ExceptionDeserializingErrorDecoder WITHOUT_EXCEPTIONS =
             new ExceptionDeserializingErrorDecoder(ImmutableMap.of());
+
+    private static final Deserializer<QosResponseBody> QOS_BODY_DESERIALIZER =
+            JSON_ENCODING.deserializer(TypeMarker.of(QosResponseBody.class));
 
     private final ImmutableMap<String, ErrorDeserializer> errorDeserializers;
 
@@ -119,6 +124,16 @@ final class ExceptionDeserializingErrorDecoder {
                 }
             }
             case 429 -> {
+                Optional<QosThrottleDetails> details = throttleDetails(response);
+                if (details.isPresent()) {
+                    QosException.DetailedThrottle.Builder throttle =
+                            QosException.DetailedThrottle.builder(details.get()).reason(qosReason(response));
+                    response.getFirstHeader(HttpHeaders.RETRY_AFTER)
+                            .map(Longs::tryParse)
+                            .map(Duration::ofSeconds)
+                            .ifPresent(throttle::retryAfter);
+                    return throttle.build();
+                }
                 return response.getFirstHeader(HttpHeaders.RETRY_AFTER)
                         .map(Longs::tryParse)
                         .map(Duration::ofSeconds)
@@ -202,6 +217,19 @@ final class ExceptionDeserializingErrorDecoder {
                         e);
             }
             return createRemoteException(body, code);
+        }
+    }
+
+    private static Optional<QosThrottleDetails> throttleDetails(Response response) {
+        Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
+        if (contentType.isEmpty() || !Encodings.matchesContentType(JSON_ENCODING.getContentType(), contentType.get())) {
+            return Optional.empty();
+        }
+        try (InputStream body = response.body()) {
+            return Optional.ofNullable(QOS_BODY_DESERIALIZER.deserialize(body)).flatMap(QosResponseBody::qosDetails);
+        } catch (IOException | RuntimeException e) {
+            log.info("Could not deserialize throttle details", e);
+            return Optional.empty();
         }
     }
 

@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
+import com.palantir.conjure.java.api.errors.QosThrottleDetails;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.SerializableErrorProvider;
@@ -84,6 +85,53 @@ final class ExceptionDeserializingDecoderTest {
         String value = bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
         // Then
         assertThat(value).isEqualTo(expectedString);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void throttleDetails(boolean retryAfter) {
+        TestResponse response = TestResponse.withBody("{\"qosDetails\":{\"userMessage\":\"Quota exceeded\"}}")
+                .contentType("application/json")
+                .withHeader("Qos-Due-To", "custom")
+                .code(429);
+        if (retryAfter) {
+            response.withHeader("Retry-After", "3");
+        }
+        Deserializer<String> deserializer = conjureBodySerDe("application/json")
+                .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
+
+        assertThatThrownBy(() -> deserializer.deserialize(response))
+                .isInstanceOfSatisfying(QosException.DetailedThrottle.class, throttle -> {
+                    assertThat(throttle.getThrottleDetails())
+                            .isEqualTo(QosThrottleDetails.builder()
+                                    .userMessage("Quota exceeded")
+                                    .build());
+                    assertThat(throttle.getReason().dueTo()).contains(QosReason.DueTo.CUSTOM);
+                    assertThat(throttle.getRetryAfter())
+                            .isEqualTo(retryAfter ? Optional.of(Duration.ofSeconds(3)) : Optional.empty());
+                });
+        assertThat(response.isClosed()).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "",
+                "null",
+                "{}",
+                "{\"qosDetails\":null}",
+                "{\"qosDetails\":\"Quota exceeded\"}",
+                "not-json",
+                "{\"errorName\":\"Other:Error\"}"
+            })
+    void invalidThrottleBodyPreservesThrottle(String body) {
+        TestResponse response =
+                TestResponse.withBody(body).contentType("application/json").code(429);
+        Deserializer<String> deserializer = conjureBodySerDe("application/json")
+                .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
+
+        assertThatThrownBy(() -> deserializer.deserialize(response)).isExactlyInstanceOf(QosException.Throttle.class);
+        assertThat(response.isClosed()).isTrue();
     }
 
     @ParameterizedTest
