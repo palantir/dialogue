@@ -16,6 +16,7 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
+import static com.palantir.conjure.java.api.testing.Assertions.assertThatRemoteExceptionThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
@@ -203,28 +204,28 @@ final class ExceptionDeserializingDecoderTest {
         ExceptionDeserializerArgs<String> exceptionDeserializerArgs =
                 ExceptionDeserializationTestUtils.createStringDeserializerArgs();
         // When
-        try {
-            bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
-        } catch (RemoteException e) {
-            // Deserialization should have failed because `ComplexArg[foo=1, bar=bar]` is not a valid JSON
-            // representation of a ComplexArg. We should not throw a TestErrorException here, but rather fallback to
-            // throwing a RemoteException.
-            assertThat(e).isNotInstanceOf(TestErrorException.class);
-
-            SerializableError serializableError = e.getError();
-            assertThat(serializableError.errorCode())
-                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE
-                            .code()
-                            .name());
-            assertThat(serializableError.errorName())
-                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name());
-            assertThat(serializableError.errorInstanceId()).isEqualTo(expectedError.getErrorInstanceId());
-            assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
-            assertThat(serializableError.parameters().get("complexArg")).isEqualTo("ComplexArg[foo=1, bar=bar]");
-            assertThat(e.getSuppressed())
-                    .allSatisfy(throwable -> assertThat(throwable.getMessage())
-                            .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
-        }
+        // Deserialization should have failed because `ComplexArg[foo=1, bar=bar]` is not a valid JSON
+        // representation of a ComplexArg. We should not throw a TestErrorException here, but rather
+        // fallback to throwing a RemoteException.
+        assertThatRemoteExceptionThrownBy(
+                        () -> bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response))
+                .isNotInstanceOf(TestErrorException.class)
+                .satisfies(e -> {
+                    SerializableError serializableError = e.getError();
+                    assertThat(serializableError.errorCode())
+                            .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE
+                                    .code()
+                                    .name());
+                    assertThat(serializableError.errorName())
+                            .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name());
+                    assertThat(serializableError.errorInstanceId()).isEqualTo(expectedError.getErrorInstanceId());
+                    assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
+                    assertThat(serializableError.parameters().get("complexArg"))
+                            .isEqualTo("ComplexArg[foo=1, bar=bar]");
+                    assertThat(e.getSuppressed())
+                            .allSatisfy(throwable -> assertThat(throwable.getMessage())
+                                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
+                });
     }
 
     @Test
@@ -249,25 +250,25 @@ final class ExceptionDeserializingDecoderTest {
         ExceptionDeserializerArgs<String> exceptionDeserializerArgs =
                 ExceptionDeserializationTestUtils.createStringDeserializerArgs();
         // When
-        try {
-            bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
-        } catch (RemoteException e) {
-            assertThat(e).isNotInstanceOf(TestErrorException.class);
-
-            SerializableError serializableError = e.getError();
-            assertThat(serializableError.errorCode())
-                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE
-                            .code()
-                            .name());
-            assertThat(serializableError.errorName())
-                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name());
-            // assertThat(serializableError.errorInstanceId()).isEqualTo(expectedError.getErrorInstanceId());
-            assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
-            assertThat(serializableError.parameters().get("complexArg")).isEqualTo("ComplexArg[foo=1, bar=bar]");
-            assertThat(e.getSuppressed())
-                    .allSatisfy(throwable -> assertThat(throwable.getMessage())
-                            .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
-        }
+        assertThatRemoteExceptionThrownBy(
+                        () -> bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response))
+                .isNotInstanceOf(TestErrorException.class)
+                .satisfies(e -> {
+                    SerializableError serializableError = e.getError();
+                    assertThat(serializableError.errorCode())
+                            .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE
+                                    .code()
+                                    .name());
+                    assertThat(serializableError.errorName())
+                            .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name());
+                    // assertThat(serializableError.errorInstanceId()).isEqualTo(expectedError.getErrorInstanceId());
+                    assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
+                    assertThat(serializableError.parameters().get("complexArg"))
+                            .isEqualTo("ComplexArg[foo=1, bar=bar]");
+                    assertThat(e.getSuppressed())
+                            .allSatisfy(throwable -> assertThat(throwable.getMessage())
+                                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
+                });
     }
 
     /**
@@ -297,27 +298,28 @@ final class ExceptionDeserializingDecoderTest {
                 .returnType(new TypeMarker<>() {})
                 .build();
         // When
-        try {
-            bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
-        } catch (RemoteException e) {
-            // Deserialization should have failed because the deserializer does not know about TestErrorException. We
-            // should not throw a TestErrorException here, but rather fallback to throwing a RemoteException.
-            assertThat(e).isNotInstanceOf(TestErrorException.class);
-
-            SerializableError serializableError = e.getError();
-            assertThat(serializableError.errorCode())
-                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE
-                            .code()
-                            .name());
-            assertThat(serializableError.errorName())
-                    .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name());
-            assertThat(serializableError.errorInstanceId()).isEqualTo(expectedError.getErrorInstanceId());
-            assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
-            assertThat(serializableError.parameters().get("complexArg")).isEqualTo("{\"foo\":1,\"bar\":\"bar\"}");
-            assertThat(e.getSuppressed())
-                    .allSatisfy(throwable -> assertThat(throwable.getMessage())
-                            .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
-        }
+        // Deserialization should have failed because the deserializer does not know about
+        // TestErrorException. We should not throw a TestErrorException here, but rather fallback to
+        // throwing a RemoteException.
+        assertThatRemoteExceptionThrownBy(
+                        () -> bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response))
+                .isNotInstanceOf(TestErrorException.class)
+                .satisfies(e -> {
+                    SerializableError serializableError = e.getError();
+                    assertThat(serializableError.errorCode())
+                            .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE
+                                    .code()
+                                    .name());
+                    assertThat(serializableError.errorName())
+                            .isEqualTo(ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name());
+                    assertThat(serializableError.errorInstanceId()).isEqualTo(expectedError.getErrorInstanceId());
+                    assertThat(serializableError.parameters().get("stringArg")).isEqualTo("foo");
+                    assertThat(serializableError.parameters().get("complexArg"))
+                            .isEqualTo("{\"foo\":1,\"bar\":\"bar\"}");
+                    assertThat(e.getSuppressed())
+                            .allSatisfy(throwable -> assertThat(throwable.getMessage())
+                                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
+                });
     }
 
     @Test
@@ -340,18 +342,18 @@ final class ExceptionDeserializingDecoderTest {
         ExceptionDeserializerArgs<String> exceptionDeserializerArgs =
                 ExceptionDeserializationTestUtils.createStringDeserializerArgs();
 
-        try {
-            // When
-            bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response);
-        } catch (RemoteException e) {
-            // Then
-            // The error should have been deserialized as a TestErrorException.
-            ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
-                    e, expectedError.getErrorInstanceId());
-            assertThat(e.getSuppressed())
-                    .allSatisfy(throwable -> assertThat(throwable.getMessage())
-                            .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
-        }
+        // When
+        assertThatRemoteExceptionThrownBy(
+                        () -> bodySerDe.deserializer(exceptionDeserializerArgs).deserialize(response))
+                .satisfies(e -> {
+                    // Then
+                    // The error should have been deserialized as a TestErrorException.
+                    ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
+                            e, expectedError.getErrorInstanceId());
+                    assertThat(e.getSuppressed())
+                            .allSatisfy(throwable -> assertThat(throwable.getMessage())
+                                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
+                });
     }
 
     @Test
@@ -385,18 +387,19 @@ final class ExceptionDeserializingDecoderTest {
         ExceptionDeserializerArgs<Void> exceptionDeserializerArgs =
                 ExceptionDeserializationTestUtils.createVoidDeserializerArgs();
 
-        try {
-            // When
-            bodySerDe.emptyBodyDeserializer(exceptionDeserializerArgs).deserialize(response);
-        } catch (RemoteException e) {
-            // Then
-            // The error should have been deserialized as a TestErrorException.
-            ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
-                    e, expectedError.getErrorInstanceId());
-            assertThat(e.getSuppressed())
-                    .allSatisfy(throwable -> assertThat(throwable.getMessage())
-                            .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
-        }
+        // When
+        assertThatRemoteExceptionThrownBy(() -> bodySerDe
+                        .emptyBodyDeserializer(exceptionDeserializerArgs)
+                        .deserialize(response))
+                .satisfies(e -> {
+                    // Then
+                    // The error should have been deserialized as a TestErrorException.
+                    ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
+                            e, expectedError.getErrorInstanceId());
+                    assertThat(e.getSuppressed())
+                            .allSatisfy(throwable -> assertThat(throwable.getMessage())
+                                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
+                });
     }
 
     @ParameterizedTest
@@ -457,16 +460,16 @@ final class ExceptionDeserializingDecoderTest {
         ExceptionDeserializerArgs<InputStream> deserializerArgs =
                 ExceptionDeserializationTestUtils.createInputStreamDeserializerArgs();
 
-        try {
-            // When
-            bodySerDe.inputStreamDeserializer(deserializerArgs).deserialize(response);
-        } catch (RemoteException e) {
-            ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
-                    e, expectedError.getErrorInstanceId());
-            assertThat(e.getSuppressed())
-                    .allSatisfy(throwable -> assertThat(throwable.getMessage())
-                            .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
-        }
+        // When
+        assertThatRemoteExceptionThrownBy(() ->
+                        bodySerDe.inputStreamDeserializer(deserializerArgs).deserialize(response))
+                .satisfies(e -> {
+                    ExceptionDeserializationTestUtils.assertRemoteExceptionIsTestErrorException(
+                            e, expectedError.getErrorInstanceId());
+                    assertThat(e.getSuppressed())
+                            .allSatisfy(throwable -> assertThat(throwable.getMessage())
+                                    .startsWith(ExceptionDeserializingErrorDecoder.ResponseDiagnostic.SAFE_MESSAGE));
+                });
     }
 
     @Test

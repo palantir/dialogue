@@ -38,7 +38,7 @@ com.palantir.common:streams:2.17.0 (1 constraints: 3c05443b)
 
 com.palantir.conjure.java:conjure-lib:8.100.0 (2 constraints: 6624658e)
 
-com.palantir.conjure.java.api:errors:2.83.0 (3 constraints: 81298c15)
+com.palantir.conjure.java.api:errors:2.83.0 (4 constraints: d13ab5fe)
 
 com.palantir.conjure.java.api:service-config:2.83.0 (2 constraints: 5d191ddd)
 
@@ -162,6 +162,8 @@ com.google.testing.compile:compile-testing:0.24.0 (1 constraints: 3805333b)
 
 com.google.truth:truth:1.4.5 (1 constraints: 1d1219fb)
 
+com.palantir.conjure.java.api:test-utils:2.83.0 (1 constraints: 3f05543b)
+
 com.palantir.safe-logging:preconditions-assertj:3.21.0 (1 constraints: 38053c3b)
 
 com.palantir.tracing:tracing-test-utils:6.43.0 (1 constraints: 3f055c3b)
@@ -218,7 +220,7 @@ org.apache.pdfbox:pdfbox:2.0.17 (1 constraints: b40c5915)
 
 org.apiguardian:apiguardian-api:1.1.2 (6 constraints: 5366ce6e)
 
-org.assertj:assertj-core:3.27.7 (3 constraints: 64253351)
+org.assertj:assertj-core:3.27.7 (4 constraints: ba369974)
 
 org.assertj:assertj-guava:3.3.0 (1 constraints: 08050336)
 
@@ -262,7 +264,7 @@ org.junit.platform:junit-platform-launcher:6.1.3 (1 constraints: 0c050f36)
 
 org.knowm.xchart:xchart:3.6.1 (1 constraints: 0c050d36)
 
-org.mockito:mockito-core:5.24.0 (2 constraints: 3214fd86)
+org.mockito:mockito-core:5.24.0 (3 constraints: 8025d455)
 
 org.mockito:mockito-junit-jupiter:5.24.0 (1 constraints: 3d05513b)
 
