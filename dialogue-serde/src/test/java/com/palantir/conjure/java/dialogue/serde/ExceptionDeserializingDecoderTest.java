@@ -90,7 +90,7 @@ final class ExceptionDeserializingDecoderTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void throttleDetails(boolean retryAfter) {
-        TestResponse response = TestResponse.withBody("{\"qosDetails\":{\"debugMessage\":\"Quota exceeded\"}}")
+        TestResponse response = TestResponse.withBody("{\"qosDetails\":{\"userMessage\":\"Quota exceeded\"}}")
                 .contentType("application/json")
                 .withHeader("Qos-Due-To", "custom")
                 .code(429);
@@ -101,10 +101,10 @@ final class ExceptionDeserializingDecoderTest {
                 .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
 
         assertThatThrownBy(() -> deserializer.deserialize(response))
-                .isInstanceOfSatisfying(QosException.Throttle.class, throttle -> {
+                .isInstanceOfSatisfying(QosException.DetailedThrottle.class, throttle -> {
                     assertThat(throttle.getThrottleDetails())
-                            .contains(QosThrottleDetails.builder()
-                                    .debugMessage("Quota exceeded")
+                            .isEqualTo(QosThrottleDetails.builder()
+                                    .userMessage("Quota exceeded")
                                     .build());
                     assertThat(throttle.getReason().dueTo()).contains(QosReason.DueTo.CUSTOM);
                     assertThat(throttle.getRetryAfter())
@@ -130,10 +130,7 @@ final class ExceptionDeserializingDecoderTest {
         Deserializer<String> deserializer = conjureBodySerDe("application/json")
                 .deserializer(ExceptionDeserializationTestUtils.createStringDeserializerArgs());
 
-        assertThatThrownBy(() -> deserializer.deserialize(response))
-                .isInstanceOfSatisfying(
-                        QosException.Throttle.class,
-                        throttle -> assertThat(throttle.getThrottleDetails()).isEmpty());
+        assertThatThrownBy(() -> deserializer.deserialize(response)).isExactlyInstanceOf(QosException.Throttle.class);
         assertThat(response.isClosed()).isTrue();
     }
 

@@ -124,14 +124,21 @@ final class ExceptionDeserializingErrorDecoder {
                 }
             }
             case 429 -> {
-                QosException.Throttle.Builder throttle =
-                        QosException.throttleBuilder().reason(qosReason(response));
-                response.getFirstHeader(HttpHeaders.RETRY_AFTER)
+                Optional<QosThrottleDetails> details = throttleDetails(response);
+                if (details.isPresent()) {
+                    QosException.DetailedThrottle.Builder throttle =
+                            QosException.DetailedThrottle.builder(details.get()).reason(qosReason(response));
+                    response.getFirstHeader(HttpHeaders.RETRY_AFTER)
+                            .map(Longs::tryParse)
+                            .map(Duration::ofSeconds)
+                            .ifPresent(throttle::retryAfter);
+                    return throttle.build();
+                }
+                return response.getFirstHeader(HttpHeaders.RETRY_AFTER)
                         .map(Longs::tryParse)
                         .map(Duration::ofSeconds)
-                        .ifPresent(throttle::retryAfter);
-                throttleDetails(response).ifPresent(throttle::details);
-                return throttle.build();
+                        .map(duration -> QosException.throttle(qosReason(response), duration))
+                        .orElseGet(() -> QosException.throttle(qosReason(response)));
             }
             case 503 -> {
                 return QosException.unavailable(qosReason(response));
@@ -221,7 +228,7 @@ final class ExceptionDeserializingErrorDecoder {
         try (InputStream body = response.body()) {
             return Optional.ofNullable(QOS_BODY_DESERIALIZER.deserialize(body)).flatMap(QosResponseBody::qosDetails);
         } catch (IOException | RuntimeException e) {
-            log.debug("Could not deserialize throttle details", e);
+            log.info("Could not deserialize throttle details", e);
             return Optional.empty();
         }
     }
