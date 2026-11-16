@@ -24,7 +24,7 @@ com.google.auto:auto-common:1.2.2 (1 constraints: 181210fb)
 
 com.google.code.findbugs:jsr305:3.0.2 (9 constraints: 0e9ceffe)
 
-com.google.errorprone:error_prone_annotations:2.52.0 (19 constraints: ea2e278d)
+com.google.errorprone:error_prone_annotations:2.52.0 (20 constraints: b93ef9c1)
 
 com.google.guava:failureaccess:1.0.3 (1 constraints: 160ae3b4)
 
@@ -38,11 +38,11 @@ com.palantir.common:streams:2.17.0 (1 constraints: 3c05443b)
 
 com.palantir.conjure.java:conjure-lib:8.100.0 (2 constraints: 6624658e)
 
-com.palantir.conjure.java.api:errors:2.83.0 (4 constraints: d13ab5fe)
+com.palantir.conjure.java.api:errors:2.84.0-rc1 (4 constraints: 393d57b7)
 
-com.palantir.conjure.java.api:service-config:2.83.0 (2 constraints: 5d191ddd)
+com.palantir.conjure.java.api:service-config:2.84.0-rc1 (2 constraints: 911ac439)
 
-com.palantir.conjure.java.api:ssl-config:2.83.0 (4 constraints: 083fa5a0)
+com.palantir.conjure.java.api:ssl-config:2.84.0-rc1 (4 constraints: 70415b6a)
 
 com.palantir.conjure.java.runtime:client-config:8.49.0 (1 constraints: 47057a3b)
 
@@ -76,7 +76,7 @@ com.palantir.safe-logging:safe-logging:3.21.0 (20 constraints: c444d306)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.16.0 (1 constraints: 3905353b)
 
-com.palantir.tokens:auth-tokens:4.14.0 (3 constraints: 1b28678c)
+com.palantir.tokens:auth-tokens:4.14.0 (3 constraints: 1c286a8c)
 
 com.palantir.tracing:tracing:6.43.0 (3 constraints: b42401fd)
 
@@ -162,7 +162,7 @@ com.google.testing.compile:compile-testing:0.24.0 (1 constraints: 3805333b)
 
 com.google.truth:truth:1.4.5 (1 constraints: 1d1219fb)
 
-com.palantir.conjure.java.api:test-utils:2.83.0 (1 constraints: 3f05543b)
+com.palantir.conjure.java.api:test-utils:2.84.0-rc1 (1 constraints: 73065853)
 
 com.palantir.safe-logging:preconditions-assertj:3.21.0 (1 constraints: 38053c3b)
 
