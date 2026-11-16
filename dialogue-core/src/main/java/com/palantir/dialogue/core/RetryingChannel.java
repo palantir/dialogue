@@ -26,7 +26,6 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -71,7 +70,6 @@ import org.jspecify.annotations.Nullable;
 final class RetryingChannel implements EndpointChannel {
 
     private static final SafeLogger log = SafeLoggerFactory.get(RetryingChannel.class);
-    private static final RateLimiter loggingRateLimiter = RateLimiter.create(0.1);
     private static final String SCHEDULER_NAME = "dialogue-RetryingChannel-scheduler";
 
     /*
@@ -532,7 +530,7 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private void infoLogRetriesExhausted(Response response) {
-            if (log.isInfoEnabled() && loggingRateLimiter.tryAcquire()) {
+            if (log.isInfoEnabled()) {
                 SafeRuntimeException stacktrace = callsiteStacktrace.orElse(null);
                 log.info(
                         "Exhausted {} retries, returning last received response with "
@@ -547,8 +545,8 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private void infoLogRetry(long backoffNanoseconds, OptionalInt responseStatus, @Nullable Throwable throwable) {
-            if (log.isInfoEnabled() && loggingRateLimiter.tryAcquire()) {
-                log.info(
+            if (log.isDebugEnabled()) {
+                log.debug(
                         "Retrying call after failure {}/{} backoff: {}, channel: {}, service: {}, endpoint: {}, "
                                 + "status: {}",
                         SafeArg.of("failures", failures),
