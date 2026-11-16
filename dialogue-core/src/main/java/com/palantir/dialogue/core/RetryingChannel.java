@@ -26,6 +26,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -70,7 +71,7 @@ import org.jspecify.annotations.Nullable;
 final class RetryingChannel implements EndpointChannel {
 
     private static final SafeLogger log = SafeLoggerFactory.get(RetryingChannel.class);
-    private static final RateLimitedLogger rateLimitedLogger = new RateLimitedLogger(log, 0.1);
+    private static final RateLimiter loggingRateLimiter = RateLimiter.create(0.1);
     private static final String SCHEDULER_NAME = "dialogue-RetryingChannel-scheduler";
 
     /*
@@ -531,9 +532,9 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private void infoLogRetriesExhausted(Response response) {
-            if (log.isInfoEnabled()) {
+            if (log.isInfoEnabled() && loggingRateLimiter.tryAcquire()) {
                 SafeRuntimeException stacktrace = callsiteStacktrace.orElse(null);
-                rateLimitedLogger.log(logger -> logger.info(
+                log.info(
                         "Exhausted {} retries, returning last received response with "
                                 + "status {}, channel: {}, service: {}, endpoint: {}",
                         SafeArg.of("retries", maxRetries),
@@ -541,7 +542,7 @@ final class RetryingChannel implements EndpointChannel {
                         SafeArg.of("channelName", channelName),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
-                        stacktrace));
+                        stacktrace);
             }
         }
 
