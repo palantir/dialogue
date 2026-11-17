@@ -227,6 +227,16 @@ public final class ApacheHttpClientChannels {
         abstract ExecutorService executor();
 
         abstract ResponseLeakDetector leakDetector();
+
+        /**
+         * Closes the connections in this client's pool that no request is using. Requests in flight are not affected,
+         * and new connections are opened as requests need them.
+         * <p>
+         * Use this when a caller learns that the pooled connections are probably dead, e.g. because the server
+         * restarted. Dialogue reuses a pooled connection without a check while it is idle for less than the server's
+         * keep-alive timeout, so otherwise each dead connection fails the next request that uses it.
+         */
+        public abstract void closeIdleConnections();
     }
 
     private static final class CloseableClientWrapper extends CloseableClient {
@@ -261,6 +271,11 @@ public final class ApacheHttpClientChannels {
         @Override
         ResponseLeakDetector leakDetector() {
             return delegate.leakDetector();
+        }
+
+        @Override
+        public void closeIdleConnections() {
+            delegate.closeIdleConnections();
         }
 
         @Override
@@ -333,6 +348,16 @@ public final class ApacheHttpClientChannels {
         @Override
         ResponseLeakDetector leakDetector() {
             return leakDetector;
+        }
+
+        @Override
+        public void closeIdleConnections() {
+            int idle = pool.getTotalStats().getAvailable();
+            pool.closeIdle(TimeValue.ZERO_MILLISECONDS);
+            log.info(
+                    "Closed idle pooled connections on request",
+                    SafeArg.of("client", clientName),
+                    SafeArg.of("idleConnections", idle));
         }
 
         @Override
