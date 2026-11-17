@@ -19,15 +19,12 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.RemoteException;
-import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.Response;
 
 /**
- * Extracts the exception for an error {@link Response}, which {@link #decode} returns for the caller to throw: a
- * {@link QosException} for 429 and 503 responses, a {@link RemoteException} for errors it can read (Conjure errors,
- * and legacy errors with a message instead of an error name), and otherwise an {@link UnknownRemoteException}, for
- * example when the body isn't JSON. A 308 whose Location header is a valid URL returns an
- * {@link UnknownRemoteException} caused by a {@link QosException.RetryOther}.
+ * Extracts the exception for an error {@link Response}, which {@link #decode} returns for the caller to throw. For
+ * Conjure errors this is usually a {@link RemoteException}, but it may be another {@link RuntimeException}, such as a
+ * {@link QosException}.
  *
  * <p>This is the public entry point to the same decoding that this package's deserializers use, without any
  * endpoint-specific errors. The implementation is in {@code ExceptionDeserializingErrorDecoder}.
