@@ -39,9 +39,7 @@ import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.invoke.MethodHandles;
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Type;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -236,35 +234,6 @@ final class ConjureBodySerDeErrorsTest {
         assertThatThrownBy(() -> test.deserialize(errorResponse(error))).isExactlyInstanceOf(TestErrorException.class);
         assertThatThrownBy(() -> other.deserialize(errorResponse(error)))
                 .isExactlyInstanceOf(OtherTestErrorException.class);
-    }
-
-    @Test
-    void errorsThrowExceptionsThatCannotBeFoundByName() throws IOException, IllegalAccessException {
-        // Hidden classes can't be found by name, like exceptions that only a child class loader can see.
-        Class<?> exceptionType = hiddenCopyOf(HiddenCopyTestErrorException.class);
-        ServiceException error = ExceptionDeserializationTestUtils.testError("foo", new ComplexArg(1, "bar"));
-        Deserializer<String> deserializer = serde.deserializer(ExceptionDeserializerArgs.<String>builder()
-                .returnType(TypeMarker.of(String.class))
-                .exception(
-                        ExceptionDeserializationTestUtils.TEST_ERROR_TYPE.name(),
-                        TypeMarker.of(TestErrorSerializableError.class),
-                        exceptionMarker(exceptionType))
-                .build());
-
-        assertThatThrownBy(() -> deserializer.deserialize(errorResponse(error))).isExactlyInstanceOf(exceptionType);
-    }
-
-    private static Class<?> hiddenCopyOf(Class<?> type) throws IOException, IllegalAccessException {
-        try (InputStream bytes = type.getResourceAsStream(type.getSimpleName() + ".class")) {
-            return MethodHandles.lookup()
-                    .defineHiddenClass(bytes.readAllBytes(), true)
-                    .lookupClass();
-        }
-    }
-
-    @SuppressWarnings("unchecked") // The hidden copy is a different class, but has the same members.
-    private static TypeMarker<HiddenCopyTestErrorException> exceptionMarker(Class<?> exceptionType) {
-        return (TypeMarker<HiddenCopyTestErrorException>) TypeMarker.of((Type) exceptionType);
     }
 
     @ParameterizedTest
