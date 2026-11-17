@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
+import com.google.common.reflect.TypeToken;
 import com.palantir.conjure.java.api.errors.AbstractSerializableError;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.QosReason;
@@ -213,8 +214,10 @@ final class ExceptionDeserializingErrorDecoder {
                 JSON_ENCODING.deserializer(error.errorType()).deserialize(new ByteArrayInputStream(body));
         Type exceptionType = error.exceptionType().getType();
         try {
-            Class<?> exceptionClass = Class.forName(exceptionType.getTypeName());
-            return (RemoteException) exceptionClass
+            // The registered type rather than looking it up by name, which would only find classes that
+            // dialogue-serde's class loader can see.
+            return (RemoteException) TypeToken.of(exceptionType)
+                    .getRawType()
                     .getConstructor(serializableError.getClass(), int.class)
                     .newInstance(serializableError, code);
         } catch (ReflectiveOperationException e) {
