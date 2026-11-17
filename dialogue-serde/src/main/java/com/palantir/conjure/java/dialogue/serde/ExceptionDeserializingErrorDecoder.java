@@ -213,8 +213,9 @@ final class ExceptionDeserializingErrorDecoder {
         AbstractSerializableError<?> serializableError =
                 JSON_ENCODING.deserializer(error.errorType()).deserialize(new ByteArrayInputStream(body));
         Type exceptionType = error.exceptionType().getType();
-        // Exceptions can't be generic, so the registered type is the exception class. Using it rather than looking it
-        // up by name also finds classes that dialogue-serde's class loader can't see.
+        // Exceptions can't be generic, so any registration that can build an exception registers its class. Using it
+        // rather than looking it up by name also finds classes that dialogue-serde's class loader can't see. Anything
+        // else, which only a hand-built TypeMarker can produce, falls back to a RemoteException.
         if (!(exceptionType instanceof Class<?> exceptionClass)) {
             throw new SafeIllegalArgumentException(
                     "Registered exception types must be classes", SafeArg.of("exceptionType", exceptionType));
