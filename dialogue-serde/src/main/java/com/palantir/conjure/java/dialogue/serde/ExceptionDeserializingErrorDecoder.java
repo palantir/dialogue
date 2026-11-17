@@ -39,7 +39,6 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeExceptions;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -212,16 +211,8 @@ final class ExceptionDeserializingErrorDecoder {
             throws IOException {
         AbstractSerializableError<?> serializableError =
                 JSON_ENCODING.deserializer(error.errorType()).deserialize(new ByteArrayInputStream(body));
-        Type exceptionType = error.exceptionType().getType();
-        // Exceptions can't be generic, so any registration that can build an exception registers its class. Using it
-        // rather than looking it up by name also finds classes that dialogue-serde's class loader can't see. Anything
-        // else, which only a hand-built TypeMarker can produce, falls back to a RemoteException.
-        if (!(exceptionType instanceof Class<?> exceptionClass)) {
-            throw new SafeIllegalArgumentException(
-                    "Registered exception types must be classes", SafeArg.of("exceptionType", exceptionType));
-        }
         try {
-            return (RemoteException) exceptionClass
+            return (RemoteException) exceptionClass(error.exceptionType().getType())
                     .getConstructor(serializableError.getClass(), int.class)
                     .newInstance(serializableError, code);
         } catch (ReflectiveOperationException e) {
@@ -229,9 +220,18 @@ final class ExceptionDeserializingErrorDecoder {
                     "Failed to construct exception using a constructor which has an AbstractSerializableError as "
                             + "the first argument and an integer http status code as the second argument",
                     e,
-                    SafeArg.of("exceptionType", exceptionType),
+                    SafeArg.of("exceptionType", error.exceptionType().getType()),
                     SafeArg.of("error", serializableError.getClass().getSimpleName()));
         }
+    }
+
+    // Uses the registered class when there is one, since looking it up by name only finds classes that dialogue-serde's
+    // class loader can see.
+    private static Class<?> exceptionClass(Type exceptionType) throws ClassNotFoundException {
+        if (exceptionType instanceof Class<?> exceptionClass) {
+            return exceptionClass;
+        }
+        return Class.forName(exceptionType.getTypeName());
     }
 
     private static RemoteException createRemoteException(byte[] body, int code) throws IOException {
