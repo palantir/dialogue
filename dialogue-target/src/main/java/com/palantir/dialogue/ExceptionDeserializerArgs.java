@@ -53,8 +53,6 @@ public final class ExceptionDeserializerArgs<T> {
         this.errorNameToExceptionTypeMarkers = errorNameToExceptionTypeMarkers;
     }
 
-    // toString, equals, and hashCode are implemented because ExceptionDeserializerArgs are used as keys in a Caffeine
-    // cache.
     @Override
     public String toString() {
         return "ExceptionDeserializerArgs{"
