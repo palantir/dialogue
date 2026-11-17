@@ -545,8 +545,8 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private void infoLogRetry(long backoffNanoseconds, OptionalInt responseStatus, @Nullable Throwable throwable) {
-            if (log.isInfoEnabled()) {
-                log.info(
+            if (log.isDebugEnabled()) {
+                log.debug(
                         "Retrying call after failure {}/{} backoff: {}, channel: {}, service: {}, endpoint: {}, "
                                 + "status: {}",
                         SafeArg.of("failures", failures),

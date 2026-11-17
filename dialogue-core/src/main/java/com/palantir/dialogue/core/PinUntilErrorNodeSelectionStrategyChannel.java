@@ -357,8 +357,8 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         private void receivedErrorStatus(int pin, PinChannel channel, Response response, OptionalInt next) {
             if (next.isPresent()) {
                 nextNodeBecauseResponseCode.mark();
-                if (log.isInfoEnabled()) {
-                    log.info(
+                if (log.isDebugEnabled()) {
+                    log.debug(
                             "Received error status code, switching to next channel",
                             SafeArg.of("status", response.code()),
                             SafeArg.of("stableIndex", channel.stableIndex()),
@@ -383,11 +383,8 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         private void receivedThrowable(int pin, PinChannel channel, Throwable throwable, OptionalInt next) {
             if (next.isPresent()) {
                 nextNodeBecauseThrowable.mark();
-                if (log.isInfoEnabled()) {
-                    // throwable is not shown unless debug logging is
-                    // enabled to avoid duplicate stack traces.
-                    Throwable throwableToLog = log.isDebugEnabled() ? throwable : null;
-                    log.info(
+                if (log.isDebugEnabled()) {
+                    log.debug(
                             "Received throwable, switching to next channel",
                             SafeArg.of("stableIndex", channel.stableIndex()),
                             SafeArg.of("pin", pin),
@@ -395,7 +392,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                             SafeArg.of("nextIndex", next.getAsInt()),
                             SafeArg.of("channelName", channelName),
                             SafeArg.of("numChannels", numChannels),
-                            throwableToLog);
+                            throwable);
                 }
             } else if (log.isDebugEnabled()) {
                 log.debug(
