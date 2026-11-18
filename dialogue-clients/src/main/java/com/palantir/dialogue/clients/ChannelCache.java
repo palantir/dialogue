@@ -191,6 +191,14 @@ final class ChannelCache {
         return builder.build();
     }
 
+    /** Closes the idle pooled connections of the Apache client for {@code channelName}, if there is one. */
+    void closeIdleConnections(String channelName) {
+        ApacheCacheEntry entry = apacheCache.get(channelName);
+        if (entry != null) {
+            entry.client().closeIdleConnections();
+        }
+    }
+
     @VisibleForTesting
     ApacheCacheEntry getApacheClient(ImmutableApacheClientRequest request) {
         Optional<ApacheCacheEntry> cacheEntry = Optional.ofNullable(apacheCache.get(request.channelName()));
