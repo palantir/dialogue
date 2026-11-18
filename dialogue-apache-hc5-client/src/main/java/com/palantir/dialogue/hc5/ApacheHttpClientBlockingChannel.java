@@ -40,6 +40,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.tracing.Tracer;
 import com.palantir.tracing.api.TraceHttpHeaders;
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -386,7 +387,19 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                 try {
                     // Check if the response has been fully drained. If not, we close the connection rather than
                     // potentially reading massive data unnecessarily.
-                    if (hasSubstantialRemainingData(response)) {
+                    boolean hasRemainingData;
+                    if (log.isDebugEnabled()) {
+                        Tracer.fastStartSpan("Dialogue Response.checkRemaining");
+                        try {
+                            hasRemainingData = hasSubstantialRemainingData(response);
+                        } finally {
+                            Tracer.fastCompleteSpan();
+                        }
+                    } else {
+                        hasRemainingData = hasSubstantialRemainingData(response);
+                    }
+
+                    if (hasRemainingData) {
                         ExecRuntime runtime = HttpClientExecRuntimeAttributeInterceptor.get(context);
                         if (runtime != null) {
                             runtime.discardEndpoint();

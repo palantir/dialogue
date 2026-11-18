@@ -23,10 +23,13 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableTracer;
+import com.palantir.tracing.Tracer;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.ConnectionEndpoint;
@@ -123,12 +126,31 @@ final class InstrumentedPoolingHttpClientConnectionManager
 
     @Override
     public LeaseRequest lease(String id, HttpRoute route, Timeout requestTimeout, Object state) {
-        return manager.lease(id, route, requestTimeout, state);
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue ConnectionPool.lease");
+            try {
+                return new InstrumentedLeaseRequest(manager.lease(id, route, requestTimeout, state));
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            // do not bother with the overhead of creating a new InstrumentedLeaseRequest in the common case.
+            return manager.lease(id, route, requestTimeout, state);
+        }
     }
 
     @Override
     public void release(ConnectionEndpoint endpoint, Object state, TimeValue keepAlive) {
-        manager.release(endpoint, state, keepAlive);
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue ConnectionPool.release");
+            try {
+                manager.release(endpoint, state, keepAlive);
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            manager.release(endpoint, state, keepAlive);
+        }
     }
 
     @Override
@@ -228,5 +250,28 @@ final class InstrumentedPoolingHttpClientConnectionManager
     @Override
     public String toString() {
         return "InstrumentedPoolingHttpClientConnectionManager{" + manager + '}';
+    }
+
+    record InstrumentedLeaseRequest(LeaseRequest delegate) implements LeaseRequest {
+
+        @Override
+        public ConnectionEndpoint get(Timeout timeout)
+                throws InterruptedException, ExecutionException, TimeoutException {
+            if (log.isDebugEnabled()) {
+                Tracer.fastStartSpan("Dialogue LeaseRequest.get");
+                try {
+                    return delegate.get(timeout);
+                } finally {
+                    Tracer.fastCompleteSpan();
+                }
+            } else {
+                return delegate.get(timeout);
+            }
+        }
+
+        @Override
+        public boolean cancel() {
+            return delegate.cancel();
+        }
     }
 }

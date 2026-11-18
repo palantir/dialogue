@@ -18,6 +18,9 @@ package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Timer;
 import com.google.common.net.HttpHeaders;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.tracing.Tracer;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketAddress;
@@ -36,6 +39,8 @@ import org.apache.hc.core5.util.Timeout;
 
 /** A simple wrapper around a {@link ManagedHttpClientConnection} which provides instrumentation. */
 final class InstrumentedManagedHttpClientConnection implements ManagedHttpClientConnection {
+
+    private static final SafeLogger log = SafeLoggerFactory.get(InstrumentedManagedHttpClientConnection.class);
 
     private final ManagedHttpClientConnection delegate;
     private final Timer serverTimingOverhead;
@@ -67,22 +72,58 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void passivate() {
-        delegate.passivate();
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue Connection.passivate");
+            try {
+                delegate.passivate();
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            delegate.passivate();
+        }
     }
 
     @Override
     public void activate() {
-        delegate.activate();
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue Connection.activate");
+            try {
+                delegate.activate();
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            delegate.activate();
+        }
     }
 
     @Override
     public boolean isConsistent() {
-        return delegate.isConsistent();
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue Connection.isConsistent");
+            try {
+                return delegate.isConsistent();
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            return delegate.isConsistent();
+        }
     }
 
     @Override
     public void sendRequestHeader(ClassicHttpRequest request) throws HttpException, IOException {
-        delegate.sendRequestHeader(request);
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue Connection.sendRequestHeader");
+            try {
+                delegate.sendRequestHeader(request);
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            delegate.sendRequestHeader(request);
+        }
     }
 
     @Override
@@ -92,7 +133,16 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void sendRequestEntity(ClassicHttpRequest request) throws HttpException, IOException {
-        delegate.sendRequestEntity(request);
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue Connection.sendRequestEntity");
+            try {
+                delegate.sendRequestEntity(request);
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            delegate.sendRequestEntity(request);
+        }
     }
 
     @Override
@@ -125,17 +175,44 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void receiveResponseEntity(ClassicHttpResponse response) throws HttpException, IOException {
-        delegate.receiveResponseEntity(response);
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue Connection.receiveResponseEntity");
+            try {
+                delegate.receiveResponseEntity(response);
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            delegate.receiveResponseEntity(response);
+        }
     }
 
     @Override
     public boolean isDataAvailable(Timeout timeout) throws IOException {
-        return delegate.isDataAvailable(timeout);
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue Connection.isDataAvailable");
+            try {
+                return delegate.isDataAvailable(timeout);
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            return delegate.isDataAvailable(timeout);
+        }
     }
 
     @Override
     public boolean isStale() throws IOException {
-        return delegate.isStale();
+        if (log.isDebugEnabled()) {
+            Tracer.fastStartSpan("Dialogue ConnectionValidation.isStale");
+            try {
+                return delegate.isStale();
+            } finally {
+                Tracer.fastCompleteSpan();
+            }
+        } else {
+            return delegate.isStale();
+        }
     }
 
     @Override
