@@ -21,6 +21,7 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
+import com.google.common.math.IntMath;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -424,7 +425,8 @@ final class RetryingChannel implements EndpointChannel {
                                 + "indicating retries have already occurred",
                         SafeArg.of("proxyUpstreamRequestAttempts", proxyUpstreamRequestAttempts));
             }
-            failures = failures + Math.max(1, proxyUpstreamRequestAttempts);
+            // Saturate instead of overflowing: a negative count would allow more retries than maxRetries.
+            failures = IntMath.saturatedAdd(failures, Math.max(1, proxyUpstreamRequestAttempts));
             if (failures <= maxRetries) {
                 response.close();
                 Throwable throwableToLog = log.isTraceEnabled() ? failureSupplier.apply(endpoint, response) : null;
