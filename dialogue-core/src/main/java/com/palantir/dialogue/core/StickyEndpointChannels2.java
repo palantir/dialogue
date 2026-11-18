@@ -69,6 +69,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         private final QueuedChannelInstrumentation queuedChannelInstrumentation;
         private final LimitedChannel nodeSelectionChannel;
         private final Optional<Duration> queueTimeout;
+        private final Optional<Boolean> deadlineEnforcement;
         private final Ticker clock;
 
         private QueueOverrideSupplier(Config cf, LimitedChannel nodeSelectionChannel) {
@@ -78,6 +79,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), channelName);
             this.nodeSelectionChannel = nodeSelectionChannel;
             this.queueTimeout = cf.queueTimeout();
+            this.deadlineEnforcement = cf.deadlineEnforcement();
             this.clock = cf.ticker();
         }
 
@@ -86,7 +88,13 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
             LimitedChannel stickyLimitedChannel =
                     StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, channelName);
             return QueuedChannel.createForSticky(
-                    channelName, maxQueueSize, queuedChannelInstrumentation, stickyLimitedChannel, queueTimeout, clock);
+                    channelName,
+                    maxQueueSize,
+                    queuedChannelInstrumentation,
+                    stickyLimitedChannel,
+                    queueTimeout,
+                    deadlineEnforcement,
+                    clock);
         }
     }
 
