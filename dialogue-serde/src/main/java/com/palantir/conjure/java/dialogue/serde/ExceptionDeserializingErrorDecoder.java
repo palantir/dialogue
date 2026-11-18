@@ -211,10 +211,8 @@ final class ExceptionDeserializingErrorDecoder {
             throws IOException {
         AbstractSerializableError<?> serializableError =
                 JSON_ENCODING.deserializer(error.errorType()).deserialize(new ByteArrayInputStream(body));
-        Type exceptionType = error.exceptionType().getType();
         try {
-            Class<?> exceptionClass = Class.forName(exceptionType.getTypeName());
-            return (RemoteException) exceptionClass
+            return (RemoteException) exceptionClass(error.exceptionType().getType())
                     .getConstructor(serializableError.getClass(), int.class)
                     .newInstance(serializableError, code);
         } catch (ReflectiveOperationException e) {
@@ -222,9 +220,18 @@ final class ExceptionDeserializingErrorDecoder {
                     "Failed to construct exception using a constructor which has an AbstractSerializableError as "
                             + "the first argument and an integer http status code as the second argument",
                     e,
-                    SafeArg.of("exceptionType", exceptionType),
+                    SafeArg.of("exceptionType", error.exceptionType().getType()),
                     SafeArg.of("error", serializableError.getClass().getSimpleName()));
         }
+    }
+
+    // Uses the registered class when there is one, since looking it up by name only finds classes that dialogue-serde's
+    // class loader can see.
+    private static Class<?> exceptionClass(Type exceptionType) throws ClassNotFoundException {
+        if (exceptionType instanceof Class<?> exceptionClass) {
+            return exceptionClass;
+        }
+        return Class.forName(exceptionType.getTypeName());
     }
 
     private static RemoteException createRemoteException(byte[] body, int code) throws IOException {
