@@ -168,6 +168,16 @@ public final class Request {
 
         private Builder() {}
 
+        /**
+         * Sets local metadata without modifying the attachments of requests passed to {@link #from}.
+         * Existing attachments are copied before adding the value. Attachments are never sent over HTTP.
+         */
+        public <V> Builder putAttachment(RequestAttachmentKey<V> key, V value) {
+            attachments = attachments == null ? RequestAttachments.create() : attachments.copy();
+            attachments.put(key, value);
+            return this;
+        }
+
         public Request.Builder from(Request existing) {
             Preconditions.checkNotNull(existing, "Request.build().from() requires a non-null instance");
 
