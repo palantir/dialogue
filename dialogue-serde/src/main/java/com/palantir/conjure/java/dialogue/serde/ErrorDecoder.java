@@ -17,14 +17,14 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.google.common.collect.ImmutableMap;
+import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.dialogue.Response;
 
 /**
- * Extracts and returns a {@link RemoteException} from an {@link Response}.
- * The extracted {@link RemoteException} is returned rather than thrown. Decoders may throw exceptions (other than
- * {@link RemoteException}) if a {@link RemoteException} could not be extracted, e.g., when the given {@link
- * Response} does not adhere to an expected format.
+ * Extracts the exception for an error {@link Response}, which {@link #decode} returns for the caller to throw. For
+ * Conjure errors this is usually a {@link RemoteException}, but it may be another {@link RuntimeException}, such as a
+ * {@link QosException}.
  *
  * <p>This is the public entry point to the same decoding that this package's deserializers use, without any
  * endpoint-specific errors. The implementation is in {@code ExceptionDeserializingErrorDecoder}.
