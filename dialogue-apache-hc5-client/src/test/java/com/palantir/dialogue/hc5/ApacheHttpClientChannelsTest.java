@@ -43,9 +43,15 @@ import com.palantir.dialogue.hc5.DialogueClientMetrics.ConnectionCreate_Result;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
@@ -195,6 +201,41 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
             assertThat(connectionCreateError.getCount()).isEqualTo(1L);
             assertThat(connectionFailed.getCount()).isEqualTo(1L);
+        }
+    }
+
+    @Test
+    void throwsRequestNotSentWhenReusedConnectionWasReset() throws Exception {
+        try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+                ApacheHttpClientChannels.CloseableClient client =
+                        ApacheHttpClientChannels.createCloseableHttpClient(TestConfigurations.create(), "client")) {
+            Channel channel =
+                    ApacheHttpClientChannels.createSingleUri("http://127.0.0.1:" + server.getLocalPort(), client);
+            ListenableFuture<Response> firstResponse =
+                    channel.execute(TestEndpoint.GET, Request.builder().build());
+            Socket socket = server.accept();
+            BufferedReader requestReader =
+                    new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
+            String line = requestReader.readLine();
+            while (!line.isEmpty()) {
+                line = requestReader.readLine();
+            }
+            // Raises Dialogue's validate-after-inactivity interval, so a slow run still skips the stale check.
+            socket.getOutputStream()
+                    .write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nKeep-Alive: timeout=60\r\n\r\n"
+                            .getBytes(StandardCharsets.US_ASCII));
+            try (Response response = Futures.getUnchecked(firstResponse)) {
+                assertThat(response.code()).isEqualTo(200);
+            }
+            // With zero linger the OS resets the connection on close, so the client's next write fails.
+            socket.setSoLinger(true, 0);
+            socket.close();
+            // Refuses new connections, so losing the pooled connection fails fast instead of at the read timeout.
+            server.close();
+
+            assertThatThrownBy(() -> Futures.getUnchecked(
+                            channel.execute(TestEndpoint.GET, Request.builder().build())))
+                    .hasCauseExactlyInstanceOf(SafeRequestNotSentException.class);
         }
     }
 

@@ -45,6 +45,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.SocketException;
@@ -668,6 +669,25 @@ public class RetryingChannelTest {
         // Message must precisely match:
         // https://github.com/openjdk/jdk/blob/32eb5290c207d5fda398ee09b354b8cf55b89e0c/src/hotspot/share/runtime/os.cpp#L1658
         return new SocketException("Connection timed out");
+    }
+
+    @Test
+    void retriesEtimedoutWrappedInIoException() throws Exception {
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFailedFuture(new IOException(createEtimedoutException())))
+                .thenReturn(SUCCESS);
+
+        EndpointChannel retryer = new RetryingChannel(
+                new DefaultTaggedMetricRegistry(),
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                1,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
 
     @Test

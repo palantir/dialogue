@@ -534,6 +534,7 @@ public final class ApacheHttpClientChannels {
                     .setKeepAliveStrategy(
                             new InactivityValidationAwareConnectionKeepAliveStrategy(connectionConfigResolver, name))
                     .setConnectionManager(connectionManager)
+                    .setRequestExecutor(RequestNotSentDetectingHttpRequestExecutor.INSTANCE)
                     .setRoutePlanner(new DialogueRoutePlanner(conf.proxy()))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
