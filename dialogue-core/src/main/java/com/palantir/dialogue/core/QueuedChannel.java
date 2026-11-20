@@ -47,6 +47,7 @@ import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -116,6 +117,7 @@ final class QueuedChannel implements Channel {
     private final int maxQueueSize;
     private final Supplier<Counter> queueSizeCounter;
     private final Supplier<Counter> queueTimeoutCounter;
+    private final Supplier<Counter> queueCancelledCounter;
     private final Timer queuedTime;
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
     // Metrics aren't reported until the queue is first used, allowing per-endpoint queues to
@@ -177,6 +179,7 @@ final class QueuedChannel implements Channel {
         // zero interactions because they support both increment and decrement operations.
         this.queueSizeCounter = Suppliers.memoize(metrics::requestsQueued);
         this.queueTimeoutCounter = Suppliers.memoize(metrics::requestQueueTimeout);
+        this.queueCancelledCounter = Suppliers.memoize(metrics::requestQueueCancelled);
         this.queuedTime = metrics.requestQueuedTime();
         this.limitedResultSupplier = () -> {
             List<SafeArg<?>> safeArgs = new ArrayList<>(metrics.queueFullSafeArgs());
@@ -304,6 +307,12 @@ final class QueuedChannel implements Channel {
             return Optional.empty();
         }
         int newSize = accounting.incrementAndGet();
+
+        // The next drain only runs on a later submission or completion, which may be far away, so clean up a
+        // cancelled request and remove it from the deque as soon as the caller cancels it, rather than when a drain
+        // pops it. Otherwise each cancellation would free a slot for a new request while its entry stayed behind a
+        // head that the delegate keeps rejecting, letting the deque grow beyond maxQueueSize.
+        DialogueFutures.addDirectListener(responseFuture, () -> cleanupIfCancelledWhileQueued(components));
 
         if (log.isDebugEnabled()) {
             log.debug(
@@ -440,10 +449,13 @@ final class QueuedChannel implements Channel {
         }
 
         // Records terminal cleanup, decrementing now if counted or letting a later increment reconcile the count.
-        void decrementIfCounted() {
+        // Returns whether this call decremented the queue size, which happens at most once per entry.
+        boolean decrementIfCounted() {
             if (state.getAndSet(REMOVED) == COUNTED) {
                 decrementQueueSize();
+                return true;
             }
+            return false;
         }
     }
 
@@ -464,6 +476,8 @@ final class QueuedChannel implements Channel {
         // If the future has been completed (via cancel, queue timeout that won the race
         // before we cancelled, or any other reason), clean up without dispatching.
         if (queueHead.response().isDone()) {
+            // Counts the cancellation if this drain pops the entry before the caller's cancel listener runs.
+            cleanupIfCancelledWhileQueued(queueHead);
             cleanupDeferredCall(queueHead);
             return true;
         }
@@ -549,10 +563,50 @@ final class QueuedChannel implements Channel {
     }
 
     /**
-     * Shared terminal cleanup for a call leaving the queue, used both when a call is cleaned up during a drain
-     * ({@link #cleanupDeferredCall}) and when its timeout fires ({@link #failWithQueueTimeout}): cancels any pending
-     * timeout task, decrements the queue size at most once, and eagerly completes the span and stops the timer (both
-     * idempotent).
+     * Cleans up a call that the caller cancelled while it was still queued, counts it, and removes it from the deque.
+     * This runs from the cancel listener and from a drain that pops a cancelled entry, and only the one that removes
+     * the call from the queue size counts it, so each cancellation is counted once. A call only leaves the queue size
+     * once the delegate accepts it, so a cancellation during that dispatch attempt is also counted. The deque is only
+     * scanned on that first cleanup, so a request cancelled after it was dispatched does not pay for a scan, and a drain
+     * only scans when it pops the entry before the cancel listener runs.
+     */
+    private void cleanupIfCancelledWhileQueued(DeferredCall call) {
+        if (call.response().isCancelled() && call.accounting().decrementIfCounted()) {
+            cleanupDeferredCall(call);
+            queueCancelledCounter.get().inc();
+            removeFromQueue(call.response());
+        }
+    }
+
+    /**
+     * Removes the call for the given response from the deque if it is still there. Matches on the response because a
+     * re-queued call is a new {@link DeferredCall} for the same response. A call that is out of the deque for a dispatch
+     * attempt is not found, but if the delegate rejects it, it goes back to the head, where the next drain cleans it up.
+     * <p>
+     * This is a linear scan, because {@link ConcurrentLinkedDeque} has no faster way to remove an inner element. Queues
+     * are typically far smaller than {@code maxQueueSize}, so this is cheap in practice.
+     */
+    private void removeFromQueue(SettableFuture<Response> response) {
+        Iterator<DeferredCall> iterator = queuedCalls.iterator();
+        while (iterator.hasNext()) {
+            DeferredCall queued = iterator.next();
+            // Futures have no equality semantics, so they are compared by identity.
+            if (queued.response() == response) {
+                // A drain may poll the same entry concurrently, which is harmless because its cleanup is idempotent.
+                iterator.remove();
+                // A re-queued call has its own timeout task, which the cleanup of the original call did not cancel, and
+                // no drain will pop this entry to cancel it.
+                queued.timeoutFuture().ifPresent(future -> future.cancel(false));
+                return;
+            }
+        }
+    }
+
+    /**
+     * Shared terminal cleanup for a call leaving the queue, used when a call is cleaned up during a drain
+     * ({@link #cleanupDeferredCall}), when its timeout fires ({@link #failWithQueueTimeout}), and when the caller
+     * cancels it while queued ({@link #cleanupIfCancelledWhileQueued}): cancels any pending timeout task, decrements
+     * the queue size at most once, and eagerly completes the span and stops the timer (both idempotent).
      */
     private void completeAndDecrement(
             Optional<ScheduledFuture<?>> timeoutFuture,
@@ -705,6 +759,8 @@ final class QueuedChannel implements Channel {
         List<SafeArg<?>> queueFullSafeArgs();
 
         Counter requestQueueTimeout();
+
+        Counter requestQueueCancelled();
     }
 
     static QueuedChannelInstrumentation channelInstrumentation(DialogueClientMetrics metrics, String channelName) {
@@ -727,6 +783,11 @@ final class QueuedChannel implements Channel {
             @Override
             public Counter requestQueueTimeout() {
                 return metrics.requestQueueTimeout(channelName);
+            }
+
+            @Override
+            public Counter requestQueueCancelled() {
+                return metrics.requestQueueCancelled(channelName);
             }
         };
     }
@@ -753,6 +814,11 @@ final class QueuedChannel implements Channel {
             @Override
             public Counter requestQueueTimeout() {
                 return metrics.requestQueueTimeout(channelName);
+            }
+
+            @Override
+            public Counter requestQueueCancelled() {
+                return metrics.requestQueueCancelled(channelName);
             }
         });
     }
@@ -787,6 +853,11 @@ final class QueuedChannel implements Channel {
             public Counter requestQueueTimeout() {
                 return metrics.requestQueueTimeout(channelName);
             }
+
+            @Override
+            public Counter requestQueueCancelled() {
+                return metrics.requestQueueCancelled(channelName);
+            }
         };
     }
 
@@ -796,12 +867,14 @@ final class QueuedChannel implements Channel {
         private final Supplier<Timer> requestQueuedTimeSupplier;
         private final Supplier<List<SafeArg<?>>> queueFullSafeArgs;
         private final Supplier<Counter> requestQueueTimeoutSupplier;
+        private final Supplier<Counter> requestQueueCancelledSupplier;
 
         MemoizedQueuedChannelInstrumentation(QueuedChannelInstrumentation delegate) {
             this.requestsQueuedSupplier = Suppliers.memoize(delegate::requestsQueued);
             this.requestQueuedTimeSupplier = Suppliers.memoize(delegate::requestQueuedTime);
             this.queueFullSafeArgs = Suppliers.memoize(delegate::queueFullSafeArgs);
             this.requestQueueTimeoutSupplier = Suppliers.memoize(delegate::requestQueueTimeout);
+            this.requestQueueCancelledSupplier = Suppliers.memoize(delegate::requestQueueCancelled);
         }
 
         @Override
@@ -822,6 +895,11 @@ final class QueuedChannel implements Channel {
         @Override
         public Counter requestQueueTimeout() {
             return requestQueueTimeoutSupplier.get();
+        }
+
+        @Override
+        public Counter requestQueueCancelled() {
+            return requestQueueCancelledSupplier.get();
         }
     }
 

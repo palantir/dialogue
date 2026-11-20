@@ -70,6 +70,10 @@ namespaces:
         type: counter
         tags: [channel-name]
         docs: Count of requests that are failed due to queue timeout.
+      request.queue.cancelled:
+        type: counter
+        tags: [channel-name]
+        docs: Count of requests that are cancelled by the caller while waiting in the queue.
       request.queued.time:
         type: timer
         tags: [channel-name]
