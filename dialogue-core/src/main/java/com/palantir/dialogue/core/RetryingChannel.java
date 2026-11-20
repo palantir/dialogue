@@ -354,11 +354,13 @@ final class RetryingChannel implements EndpointChannel {
             return body.repeatable();
         }
 
-        private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
-            ListenableFuture<Response> result = input;
-            result = DialogueFutures.transformAsync(result, this::handleHttpResponse);
-            result = DialogueFutures.catchingAllAsync(result, this::handleThrowable);
-            return result;
+        @SuppressWarnings("FutureReturnValueIgnored")
+        private ListenableFuture<Response> wrap(ListenableFuture<Response> attempt) {
+            // The handlers return the next future as a value, so this attempt's catch never sees a retry's failure.
+            ListenableFuture<ListenableFuture<Response>> next = DialogueFutures.catchingAllAsync(
+                    DialogueFutures.transform(attempt, this::handleHttpResponse),
+                    throwable -> Futures.immediateFuture(handleThrowable(throwable)));
+            return DialogueFutures.transformAsync(next, future -> future);
         }
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {
