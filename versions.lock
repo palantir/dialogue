@@ -52,7 +52,7 @@ com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:8.50.0 (2 c
 
 com.palantir.conjure.java.runtime:keystores:8.50.0 (2 constraints: 5d193bdd)
 
-com.palantir.deadlines:deadlines:0.30.0 (1 constraints: 35052b3b)
+com.palantir.deadlines:deadlines:0.31.0 (1 constraints: 36052e3b)
 
 com.palantir.goethe:goethe:0.31.0 (1 constraints: 36052e3b)
 
