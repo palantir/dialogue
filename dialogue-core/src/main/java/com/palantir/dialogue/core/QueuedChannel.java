@@ -26,6 +26,8 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.palantir.callcontext.CallContext;
+import com.palantir.callcontext.CallContextScope;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -294,6 +296,7 @@ final class QueuedChannel implements Channel {
                 .request(request)
                 .response(responseFuture)
                 .span(span)
+                .callContext(CallContext.current())
                 .timer(timer)
                 .timeoutFuture(timeoutFuture)
                 .accounting(accounting)
@@ -472,7 +475,8 @@ final class QueuedChannel implements Channel {
 
     private boolean scheduleTaskFromQueue(DeferredCall queueHead) {
         SettableFuture<Response> queuedResponse = queueHead.response();
-        try (CloseableSpan ignored = queueHead.span().attach()) {
+        try (CloseableSpan ignored = queueHead.span().attach();
+                CallContextScope ignoredContext = queueHead.callContext().attach()) {
             Endpoint endpoint = queueHead.endpoint();
             LimitEnforcement limitEnforcement = limitEnforcement();
             Optional<ListenableFuture<Response>> maybeResponse =
@@ -674,6 +678,9 @@ final class QueuedChannel implements Channel {
         SettableFuture<Response> response();
 
         DetachedSpan span();
+
+        /** The caller's context, bound when the call is dispatched from the queue on another thread. */
+        CallContext callContext();
 
         IdempotentTimerContext timer();
 
