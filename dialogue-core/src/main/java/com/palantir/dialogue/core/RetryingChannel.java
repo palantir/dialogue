@@ -28,6 +28,8 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.palantir.callcontext.CallContext;
+import com.palantir.callcontext.CallContextScope;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -283,6 +285,9 @@ final class RetryingChannel implements EndpointChannel {
         private final Request request;
         private final Optional<SafeRuntimeException> callsiteStacktrace;
         private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
+        // Retries run on the thread that completed the failed attempt or on the retry scheduler, so they bind the
+        // caller's context explicitly.
+        private final CallContext callContext = CallContext.current();
         private int failures = 0;
         // Set once any attempt reports that retries were already exhausted at or below the server; later retries
         // are diagnostic.
@@ -438,6 +443,12 @@ final class RetryingChannel implements EndpointChannel {
             return Futures.immediateFuture(RetriesExhausted.withHeader(response));
         }
 
+        private ListenableFuture<Response> executeRetry() {
+            try (CallContextScope ignored = callContext.attach()) {
+                return delegate.execute(request);
+            }
+        }
+
         @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
         private ListenableFuture<Response> scheduleRetry(Meter meter, long backoffNanoseconds) {
             if (sawRetriesExhausted) {
@@ -445,7 +456,7 @@ final class RetryingChannel implements EndpointChannel {
             }
             meter.mark();
             if (backoffNanoseconds <= 0) {
-                return wrap(delegate.execute(request));
+                return wrap(executeRetry());
             }
             DetachedSpan backoffSpan = span.childDetachedSpan("retry-backoff");
             // Code beyond this line implements the following without risking leaking responses:
@@ -463,24 +474,29 @@ final class RetryingChannel implements EndpointChannel {
                         if (responseFuture.isDone()) {
                             return;
                         }
-                        ListenableFuture<Response> delegateResult = delegate.execute(request);
-                        DialogueFutures.addDirectCallback(delegateResult, new FutureCallback<>() {
-                            @Override
-                            public void onSuccess(@Nullable Response result) {
-                                if (result != null && !responseFuture.set(result)) {
-                                    result.close();
+                        ListenableFuture<Response> delegateResult;
+                        // The result is forwarded inside the scope too, so that work completing the request on the
+                        // scheduler runs with the caller's context.
+                        try (CallContextScope ignored = callContext.attach()) {
+                            delegateResult = delegate.execute(request);
+                            DialogueFutures.addDirectCallback(delegateResult, new FutureCallback<>() {
+                                @Override
+                                public void onSuccess(@Nullable Response result) {
+                                    if (result != null && !responseFuture.set(result)) {
+                                        result.close();
+                                    }
                                 }
-                            }
 
-                            @Override
-                            public void onFailure(Throwable throwable) {
-                                if (delegateResult.isCancelled()) {
-                                    responseFuture.cancel(false);
-                                } else if (!responseFuture.setException(throwable)) {
-                                    log.info("Response future completed before delegate threw", throwable);
+                                @Override
+                                public void onFailure(Throwable throwable) {
+                                    if (delegateResult.isCancelled()) {
+                                        responseFuture.cancel(false);
+                                    } else if (!responseFuture.setException(throwable)) {
+                                        log.info("Response future completed before delegate threw", throwable);
+                                    }
                                 }
-                            }
-                        });
+                            });
+                        }
                         DialogueFutures.addDirectListener(responseFuture, () -> {
                             if (responseFuture.isCancelled()) {
                                 delegateResult.cancel(false);

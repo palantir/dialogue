@@ -34,6 +34,7 @@ dependencies {
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-serde')
     testImplementation project(':dialogue-example:dialogue-example-dialogue')
+    testImplementation 'com.palantir.callcontext:call-context'
     testImplementation 'com.palantir.deadlines:deadlines'
     testImplementation 'com.palantir.tracing:tracing'
     testImplementation 'org.junit.jupiter:junit-jupiter'
