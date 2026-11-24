@@ -60,7 +60,7 @@ com.palantir.javapoet:javapoet:0.23.0 (2 constraints: 2a1137ee)
 
 com.palantir.refreshable:refreshable:2.20.0 (2 constraints: 4b19dada)
 
-com.palantir.ri:resource-identifier:2.26.0 (2 constraints: 5d15c9da)
+com.palantir.ri:resource-identifier:2.27.0 (2 constraints: 5e15fbda)
 
 com.palantir.safe-logging:logger:3.22.0 (13 constraints: b4d28515)
 
