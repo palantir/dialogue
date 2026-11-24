@@ -242,6 +242,10 @@ There is no default queue timeout. Setting one trades tolerance of bursts for fa
 You can inspect observed queue times (`dialogue.client.request.queued.time`) to check your services current
 queueing behavior and better select a value, if needed.
 
+Requests that callers cancel while still queued are counted by `dialogue.client.request.queue.cancelled`. A steady rate
+of these means callers give up before their requests leave the queue, and a queue timeout shorter than their budget would
+fail those requests fast instead.
+
 ### Node selection strategies
 When configured with multiple uris, Dialogue has several strategies for choosing which upstream to route requests to.
 The default strategy is `PIN_UNTIL_ERROR`, although users can choose alternatives such as `ROUND_ROBIN` when building a ClientConfiguration
