@@ -25,6 +25,7 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.callcontext.CallContext;
 import com.palantir.callcontext.CallContextScope;
 import com.palantir.callcontext.Deadlines;
@@ -39,6 +40,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tracing.CloseableTracer;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
@@ -47,6 +49,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -63,6 +66,8 @@ import org.junit.jupiter.api.Test;
 final class CallContextDeadlinesTest {
 
     private static final Duration CONTEXT_DEADLINE = Duration.ofSeconds(1);
+    // The deadline of another request, bound on a thread that completes this request
+    private static final Duration OTHER_DEADLINE = Duration.ofHours(1);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
 
     @Nested
@@ -256,6 +261,32 @@ final class CallContextDeadlinesTest {
                             .hasValueSatisfying(value -> assertThat(value).isLessThanOrEqualTo(CONTEXT_DEADLINE)));
         }
 
+        @Test
+        void retry_with_backoff_completes_with_callers_context() {
+            AtomicInteger attempts = new AtomicInteger();
+            EndpointChannel delegate = _request ->
+                    Futures.immediateFuture(new TestResponse().code(attempts.getAndIncrement() == 0 ? 503 : 200));
+            EndpointChannel retrying = retryingChannel(delegate, Duration.ofMillis(1));
+            // Holds the retry scheduler until the test is listening for the response
+            CountDownLatch listening = new CountDownLatch(1);
+            scheduler.execute(() -> Uninterruptibles.awaitUninterruptibly(listening));
+
+            ListenableFuture<Response> response;
+            try (CallContextScope ignored = Deadlines.withDeadline(CONTEXT_DEADLINE)) {
+                response = retrying.execute(Request.builder().build());
+            }
+            SettableFuture<Optional<Duration>> completionDeadline = SettableFuture.create();
+            DialogueFutures.addDirectListener(response, () -> completionDeadline.set(Deadlines.getRemainingDeadline()));
+            listening.countDown();
+
+            // The retry's response is already complete, so it is forwarded on the retry scheduler
+            assertThat(completionDeadline)
+                    .as("work completing the request runs with its caller's deadline")
+                    .succeedsWithin(Duration.ofSeconds(5))
+                    .satisfies(remaining -> assertThat(remaining)
+                            .hasValueSatisfying(value -> assertThat(value).isLessThanOrEqualTo(CONTEXT_DEADLINE)));
+        }
+
         private EndpointChannel retryingChannel(EndpointChannel delegate, Duration backoffSlotSize) {
             return new RetryingChannel(
                     delegate,
@@ -303,6 +334,36 @@ final class CallContextDeadlinesTest {
             assertThat(dispatchedDeadlines.get(1))
                     .as("waiting request runs with its caller's deadline")
                     .hasValueSatisfying(remaining -> assertThat(remaining).isLessThanOrEqualTo(CONTEXT_DEADLINE));
+        }
+
+        @Test
+        void sticky_request_waiting_on_first_request_completes_with_its_callers_context() {
+            SettableFuture<Response> firstResponse = SettableFuture.create();
+            AtomicInteger calls = new AtomicInteger();
+            EndpointChannel endpointChannel = _request -> calls.getAndIncrement() == 0
+                    ? firstResponse
+                    : Futures.immediateFailedFuture(new RuntimeException("waiting request failed"));
+            Channel sticky = stickyChannel(endpointChannel);
+
+            sticky.execute(TestEndpoint.GET, Request.builder().build());
+            ListenableFuture<Response> waiting;
+            try (CallContextScope ignored = Deadlines.withDeadline(CONTEXT_DEADLINE)) {
+                waiting = sticky.execute(TestEndpoint.GET, Request.builder().build());
+            }
+            SettableFuture<Optional<Duration>> completionDeadline = SettableFuture.create();
+            DialogueFutures.addDirectListener(waiting, () -> completionDeadline.set(Deadlines.getRemainingDeadline()));
+
+            // The first request completes on a thread bound to another request's context. The waiting request's
+            // response is already complete, so it is forwarded on that thread.
+            try (CallContextScope ignored = Deadlines.withDeadline(OTHER_DEADLINE)) {
+                firstResponse.setException(new RuntimeException("first request failed"));
+            }
+
+            assertThat(completionDeadline)
+                    .as("work completing the waiting request runs with its caller's deadline")
+                    .succeedsWithin(Duration.ZERO)
+                    .satisfies(remaining -> assertThat(remaining)
+                            .hasValueSatisfying(value -> assertThat(value).isLessThanOrEqualTo(CONTEXT_DEADLINE)));
         }
 
         private Channel stickyChannel(EndpointChannel endpointChannel) {

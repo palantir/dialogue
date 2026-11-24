@@ -474,24 +474,29 @@ final class RetryingChannel implements EndpointChannel {
                         if (responseFuture.isDone()) {
                             return;
                         }
-                        ListenableFuture<Response> delegateResult = executeRetry();
-                        DialogueFutures.addDirectCallback(delegateResult, new FutureCallback<>() {
-                            @Override
-                            public void onSuccess(@Nullable Response result) {
-                                if (result != null && !responseFuture.set(result)) {
-                                    result.close();
+                        ListenableFuture<Response> delegateResult;
+                        // The result is forwarded inside the scope too, so that work completing the request on the
+                        // scheduler runs with the caller's context.
+                        try (CallContextScope ignored = callContext.attach()) {
+                            delegateResult = delegate.execute(request);
+                            DialogueFutures.addDirectCallback(delegateResult, new FutureCallback<>() {
+                                @Override
+                                public void onSuccess(@Nullable Response result) {
+                                    if (result != null && !responseFuture.set(result)) {
+                                        result.close();
+                                    }
                                 }
-                            }
 
-                            @Override
-                            public void onFailure(Throwable throwable) {
-                                if (delegateResult.isCancelled()) {
-                                    responseFuture.cancel(false);
-                                } else if (!responseFuture.setException(throwable)) {
-                                    log.info("Response future completed before delegate threw", throwable);
+                                @Override
+                                public void onFailure(Throwable throwable) {
+                                    if (delegateResult.isCancelled()) {
+                                        responseFuture.cancel(false);
+                                    } else if (!responseFuture.setException(throwable)) {
+                                        log.info("Response future completed before delegate threw", throwable);
+                                    }
                                 }
-                            }
-                        });
+                            });
+                        }
                         DialogueFutures.addDirectListener(responseFuture, () -> {
                             if (responseFuture.isCancelled()) {
                                 delegateResult.cancel(false);

@@ -215,22 +215,24 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     DialogueFutures.addDirectListener(callInFlightSnapshot, () -> {
                         if (!result.isDone()) {
                             ListenableFuture<Response> queuedRequestResponse;
+                            // The result is forwarded inside the scope too, so that work completing it on this
+                            // thread runs with the caller's context rather than the one this thread had before.
                             try (CallContextScope ignored = callContext.attach()) {
                                 queuedRequestResponse = execute(request, endpointChannel);
-                            }
-                            DialogueFutures.addDirectCallback(queuedRequestResponse, new FutureCallback<>() {
-                                @Override
-                                public void onSuccess(@Nullable Response response) {
-                                    if (response != null && !result.set(response)) {
-                                        response.close();
+                                DialogueFutures.addDirectCallback(queuedRequestResponse, new FutureCallback<>() {
+                                    @Override
+                                    public void onSuccess(@Nullable Response response) {
+                                        if (response != null && !result.set(response)) {
+                                            response.close();
+                                        }
                                     }
-                                }
 
-                                @Override
-                                public void onFailure(Throwable throwable) {
-                                    result.setException(throwable);
-                                }
-                            });
+                                    @Override
+                                    public void onFailure(Throwable throwable) {
+                                        result.setException(throwable);
+                                    }
+                                });
+                            }
                             // If the returned future is cancelled, this request should be as well.
                             DialogueFutures.addDirectListener(result, () -> {
                                 if (result.isCancelled()) {
