@@ -1614,6 +1614,27 @@ public class QueuedChannelTest {
             assertSingleQueueSlotAvailable();
         }
 
+        @Test
+        void cancellation_then_timeout_that_decrements_first_is_counted_as_a_cancellation_only() {
+            QueuedChannel.QueueSizeAccounting accounting = queuedChannel.new QueueSizeAccounting();
+            accounting.incrementAndGet();
+            SettableFuture<Response> callerFuture = SettableFuture.create();
+
+            // The caller cancels, and the timeout task decrements the queue size before the cancel listener runs. No
+            // listener is attached here, which models the listener not having run yet: it would find nothing to clean
+            // up.
+            callerFuture.cancel(false);
+            simulateTimeout(callerFuture, accounting);
+
+            assertSoftly(softly -> {
+                softly.assertThat(instrumentation.requestQueueCancelled().getCount())
+                        .isOne();
+                softly.assertThat(instrumentation.requestQueueTimeout().getCount())
+                        .isZero();
+                softly.assertThat(instrumentation.requestsQueued().getCount()).isZero();
+            });
+        }
+
         private void assertSingleQueueSlotAvailable() {
             assertThat(queuedChannel.maybeExecute(
                             TestEndpoint.POST, Request.builder().build()))
@@ -1635,13 +1656,17 @@ public class QueuedChannelTest {
         // A fresh, uncounted QueueSizeAccounting is passed so the decrement is a no-op here; the real entry's queue
         // size is reconciled by the subsequent drain in these tests.
         private void simulateTimeout(ListenableFuture<Response> future) {
+            simulateTimeout(future, queuedChannel.new QueueSizeAccounting());
+        }
+
+        private void simulateTimeout(ListenableFuture<Response> future, QueuedChannel.QueueSizeAccounting accounting) {
             queuedChannel.failWithQueueTimeout(
                     (SettableFuture<Response>) future,
                     DetachedSpan.start("test"),
                     new QueuedChannel.IdempotentTimerContext(DialogueClientMetrics.of(new DefaultTaggedMetricRegistry())
                             .requestQueuedTime("test")
                             .time()),
-                    queuedChannel.new QueueSizeAccounting());
+                    accounting);
         }
 
         // Ticker whose time only advances when explicitly told to.

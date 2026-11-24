@@ -391,7 +391,12 @@ final class QueuedChannel implements Channel {
         if (responseFuture.setException(new QueueTimeoutException(channelName, queueTimeoutNanos))) {
             queueTimeoutCounter.get().inc();
         }
-        completeAndDecrement(Optional.empty(), span, timer, accounting);
+        // If the caller cancelled just before this fired, this can decrement the queue size before the cancel listener
+        // runs, leaving the listener nothing to clean up, so the cancellation is counted and removed here instead.
+        if (completeAndDecrement(Optional.empty(), span, timer, accounting) && responseFuture.isCancelled()) {
+            queueCancelledCounter.get().inc();
+            removeFromQueue(responseFuture);
+        }
     }
 
     private void onCompletion() {
@@ -564,11 +569,10 @@ final class QueuedChannel implements Channel {
 
     /**
      * Cleans up a call that the caller cancelled while it was still queued, counts it, and removes it from the deque.
-     * This runs from the cancel listener and from a drain that pops a cancelled entry, and only the one that removes
-     * the call from the queue size counts it, so each cancellation is counted once. A call only leaves the queue size
-     * once the delegate accepts it, so a cancellation during that dispatch attempt is also counted. The deque is only
-     * scanned on that first cleanup, so a request cancelled after it was dispatched does not pay for a scan, and a drain
-     * only scans when it pops the entry before the cancel listener runs.
+     * This runs from the cancel listener and from a drain that pops a cancelled entry, but only the one that decrements
+     * the queue size does this, so each cancellation is handled once. If a queue timeout decrements first,
+     * {@link #failWithQueueTimeout} handles it instead. A call only leaves the queue size once the delegate accepts it,
+     * so a cancellation during a dispatch attempt is still counted.
      */
     private void cleanupIfCancelledWhileQueued(DeferredCall call) {
         if (call.response().isCancelled() && call.accounting().decrementIfCounted()) {
@@ -606,17 +610,19 @@ final class QueuedChannel implements Channel {
      * Shared terminal cleanup for a call leaving the queue, used when a call is cleaned up during a drain
      * ({@link #cleanupDeferredCall}), when its timeout fires ({@link #failWithQueueTimeout}), and when the caller
      * cancels it while queued ({@link #cleanupIfCancelledWhileQueued}): cancels any pending timeout task, decrements
-     * the queue size at most once, and eagerly completes the span and stops the timer (both idempotent).
+     * the queue size at most once, and eagerly completes the span and stops the timer (both idempotent). Returns
+     * whether this call decremented the queue size.
      */
-    private void completeAndDecrement(
+    private boolean completeAndDecrement(
             Optional<ScheduledFuture<?>> timeoutFuture,
             DetachedSpan span,
             IdempotentTimerContext timer,
             QueueSizeAccounting accounting) {
         timeoutFuture.ifPresent(future -> future.cancel(false));
-        accounting.decrementIfCounted();
+        boolean decremented = accounting.decrementIfCounted();
         span.complete(QueuedChannelTagTranslator.INSTANCE, this);
         timer.stop();
+        return decremented;
     }
 
     /**
