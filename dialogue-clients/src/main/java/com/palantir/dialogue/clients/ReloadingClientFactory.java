@@ -202,6 +202,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
+    public void closeIdleConnections(String serviceName) {
+        cache.closeIdleConnections(ChannelNames.reloading(serviceName, params));
+    }
+
+    @Override
     public Channel getChannel(String serviceName) {
         return new LiveReloadingChannel(
                 getInternalDialogueChannel(serviceName), params.runtime().clients());

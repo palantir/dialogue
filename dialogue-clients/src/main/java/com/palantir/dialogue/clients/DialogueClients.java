@@ -202,6 +202,18 @@ public final class DialogueClients {
                     ClientConfigurationNonReloadingClientFactory {
 
         /**
+         * Closes the pooled connections that no request is using, in the HTTP client behind
+         * {@link #getChannel(String) getChannel(serviceName)}. Requests in flight are not affected, and new connections
+         * are opened as requests need them. Does nothing if this factory has not created that channel yet.
+         * <p>
+         * Use this when a caller learns that the pooled connections to a service are probably dead, e.g. because a
+         * request failed at once on a connection that the server closed when it restarted. Dialogue reuses a pooled
+         * connection without a check while it is idle for less than the server's keep-alive timeout, so otherwise
+         * each dead connection fails the next request that uses it.
+         */
+        default void closeIdleConnections(String serviceName) {}
+
+        /**
          * Configures the {@link DialogueDnsResolver} used by clients managed by this factory.
          * This should generally only be used for tests.
          */
