@@ -150,7 +150,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                         || (Responses.isQosStatus(response)
                                 && !Responses.isQosDueToCustom(response)
                                 && !Responses.isTooManyRequests(response))) {
-                    OptionalInt next = incrementHostIfNecessary(pin);
+                    OptionalInt next = incrementHostIfNecessary(pin, channel);
                     if (response != null) {
                         instrumentation.receivedErrorStatus(pin, channel, response, next);
                     }
@@ -161,7 +161,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
             @Override
             public void onFailure(Throwable throwable) {
-                OptionalInt next = incrementHostIfNecessary(pin);
+                OptionalInt next = incrementHostIfNecessary(pin, channel);
                 instrumentation.receivedThrowable(pin, channel, throwable, next);
             }
         });
@@ -170,10 +170,14 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
     /**
      * If we have some reason to think the currentIndex is bad, we want to move to the next host. This is done with a
-     * compareAndSet to ensure that out of order responses which signal information about a previous host don't kick
-     * us off a good one.
+     * compareAndSet, and a check that a reshuffle hasn't placed a different host at {@code pin}, to ensure that out of
+     * order responses which signal information about a previous host don't kick us off a good one.
+     * The check isn't atomic with the compareAndSet, so a reshuffle in between can still cause one superfluous rotation.
      */
-    private OptionalInt incrementHostIfNecessary(int pin) {
+    private OptionalInt incrementHostIfNecessary(int pin, PinChannel channel) {
+        if (nodeList.get(pin).stableIndex() != channel.stableIndex()) {
+            return OptionalInt.empty();
+        }
         int nextIndex = (pin + 1) % nodeList.size();
         boolean saved = currentPin.compareAndSet(pin, nextIndex);
         return saved ? OptionalInt.of(nextIndex) : OptionalInt.empty(); // we've moved on already
