@@ -54,9 +54,9 @@ com.palantir.conjure.java.runtime:keystores:8.50.0 (2 constraints: 5d193bdd)
 
 com.palantir.deadlines:deadlines:0.31.0 (1 constraints: 36052e3b)
 
-com.palantir.goethe:goethe:0.31.0 (1 constraints: 36052e3b)
+com.palantir.goethe:goethe:0.32.0 (1 constraints: 3705313b)
 
-com.palantir.javapoet:javapoet:0.23.0 (2 constraints: 2a1137ee)
+com.palantir.javapoet:javapoet:0.23.0 (2 constraints: 2b113aee)
 
 com.palantir.refreshable:refreshable:2.20.0 (2 constraints: 4b19dada)
 
