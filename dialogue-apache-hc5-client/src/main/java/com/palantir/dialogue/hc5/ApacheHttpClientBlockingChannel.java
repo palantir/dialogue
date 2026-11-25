@@ -207,6 +207,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
     private Arg<?>[] failureDiagnosticArgs(Endpoint endpoint, Request request, long startTimeNanos) {
         long durationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeNanos);
+        URL requestUrl = baseUrl.render(endpoint, request);
         return new Arg<?>[] {
             SafeArg.of("durationMillis", durationMillis),
             SafeArg.of("connectTimeout", client.clientConfiguration().connectTimeout()),
@@ -214,6 +215,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             SafeArg.of("clientName", client.name()),
             SafeArg.of("serviceName", endpoint.serviceName()),
             SafeArg.of("endpointName", endpoint.endpointName()),
+            UnsafeArg.of("requestUrl", requestUrl.toString()),
             SafeArg.of("requestTraceId", request.headerParams().get(TraceHttpHeaders.TRACE_ID)),
             // Request span ID can be used to associate a failed request with a request log line on the server.
             SafeArg.of("requestSpanId", request.headerParams().get(TraceHttpHeaders.SPAN_ID)),
