@@ -68,6 +68,7 @@ public final class RequestTest {
                 .putHeaderParams("accept-encoding", "bar")
                 .build();
         Request request2 = Request.builder()
+                .putHeaderParams("discarded", "discarded")
                 .from(request1)
                 .putHeaderParams("accept-encoding", "baz") // TODO(dfox): I don't think users will like this behaviour
                 .putHeaderParams("another-header", "another-value")
@@ -82,14 +83,63 @@ public final class RequestTest {
     }
 
     @Test
-    void from_method_query_param_mutation() {
-        Request request1 = Request.builder().build();
-        Request request2 = Request.builder()
-                .from(request1)
-                .queryParams(ImmutableListMultimap.of("a", "A1", "a", "A2", "b", "B"))
-                .build();
+    void from_method_copies_query_params_no_mutation() {
+        Request request1 = Request.builder().putQueryParams("a", "A").build();
+        Request request2 = Request.builder().from(request1).build();
+        assertThat(request2.queryParams())
+                .describedAs("Re-using the exact same underlying instance is a safe optimization because Requests are"
+                        + " immutable")
+                .isSameAs(request1.queryParams());
+    }
 
-        System.out.println(request2.queryParams());
+    @Test
+    void from_method_copies_query_params_with_mutation() {
+        Request request1 = Request.builder()
+                .putQueryParams("a", "A")
+                .putQueryParams("b", "B1")
+                .build();
+        Request request2 = Request.builder()
+                .putQueryParams("discarded", "discarded")
+                .from(request1)
+                .putQueryParams("b", "B2")
+                .putQueryParams("c", "C")
+                .build();
+        assertThat(request2.queryParams())
+                .isEqualTo(ImmutableListMultimap.<String, String>builder()
+                        .put("a", "A")
+                        .putAll("b", "B1", "B2")
+                        .put("c", "C")
+                        .build());
+    }
+
+    @Test
+    void from_method_copies_path_params_no_mutation() {
+        Request request1 = Request.builder().putPathParams("a", "A").build();
+        Request request2 = Request.builder().from(request1).build();
+        assertThat(request2.pathParameters())
+                .describedAs("Re-using the exact same underlying instance is a safe optimization because Requests are"
+                        + " immutable")
+                .isSameAs(request1.pathParameters());
+    }
+
+    @Test
+    void from_method_copies_path_params_with_mutation() {
+        Request request1 = Request.builder()
+                .putPathParams("a", "A")
+                .putPathParams("b", "B1")
+                .build();
+        Request request2 = Request.builder()
+                .putPathParams("discarded", "discarded")
+                .from(request1)
+                .putPathParams("b", "B2")
+                .putPathParams("c", "C")
+                .build();
+        assertThat(request2.pathParameters())
+                .isEqualTo(ImmutableListMultimap.<String, String>builder()
+                        .put("a", "A")
+                        .putAll("b", "B1", "B2")
+                        .put("c", "C")
+                        .build());
     }
 
     @Test
