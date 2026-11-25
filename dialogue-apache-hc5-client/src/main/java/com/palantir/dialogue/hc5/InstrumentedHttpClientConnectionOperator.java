@@ -16,15 +16,22 @@
 
 package com.palantir.dialogue.hc5;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import org.apache.hc.client5.http.DnsResolver;
 import org.apache.hc.client5.http.impl.io.DefaultHttpClientConnectionOperator;
 import org.apache.hc.client5.http.io.DetachedSocketFactory;
+import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.net.NamedEndpoint;
+import org.apache.hc.core5.util.Timeout;
 
 final class InstrumentedHttpClientConnectionOperator extends DefaultHttpClientConnectionOperator {
 
@@ -48,18 +55,52 @@ final class InstrumentedHttpClientConnectionOperator extends DefaultHttpClientCo
     }
 
     @Override
+    public void connect(
+            ManagedHttpClientConnection conn,
+            HttpHost endpointHost,
+            NamedEndpoint endpointName,
+            Path unixDomainSocket,
+            InetSocketAddress localAddress,
+            Timeout connectTimeout,
+            SocketConfig socketConfig,
+            Object attachment,
+            HttpContext context)
+            throws IOException {
+        try {
+            super.connect(
+                    conn,
+                    endpointHost,
+                    endpointName,
+                    unixDomainSocket,
+                    localAddress,
+                    connectTimeout,
+                    socketConfig,
+                    attachment,
+                    context);
+        } finally {
+            // After a successful socket connect there is nothing pending, so this records only failures.
+            recordPendingConnect(context, false);
+        }
+    }
+
+    @Override
     protected void onBeforeSocketConnect(HttpContext httpContext, HttpHost endpointHost) {
         super.onBeforeSocketConnect(httpContext, endpointHost);
+        // A pending start time means the previous address of a multi-address host failed to connect.
+        recordPendingConnect(httpContext, false);
         httpContext.setAttribute(CONNECT_BEGAN_ATTRIBUTE, System.nanoTime());
     }
 
     @Override
     protected void onAfterSocketConnect(HttpContext httpContext, HttpHost endpointHost) {
-        Object value = httpContext.getAttribute(CONNECT_BEGAN_ATTRIBUTE);
-        if (value instanceof Long) {
-            long duration = System.nanoTime() - (long) value;
-            connectInstrumentation.timer(true, httpContext).update(duration, TimeUnit.NANOSECONDS);
-        }
+        recordPendingConnect(httpContext, true);
         super.onAfterSocketConnect(httpContext, endpointHost);
+    }
+
+    private void recordPendingConnect(HttpContext httpContext, boolean success) {
+        if (httpContext.removeAttribute(CONNECT_BEGAN_ATTRIBUTE) instanceof Long startNanos) {
+            long duration = System.nanoTime() - startNanos;
+            connectInstrumentation.timer(success, httpContext).update(duration, TimeUnit.NANOSECONDS);
+        }
     }
 }
