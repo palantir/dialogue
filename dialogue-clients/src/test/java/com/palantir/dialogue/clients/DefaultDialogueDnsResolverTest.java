@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.google.common.collect.ImmutableSet;
-import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.dialogue.clients.DefaultDialogueDnsResolver.AddressLookup;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -79,7 +79,8 @@ class DefaultDialogueDnsResolverTest {
                 .isTrue();
 
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        DefaultDialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
+        DefaultDialogueDnsResolver resolver =
+                new DefaultDialogueDnsResolver(InetAddress::getAllByName, new NonexistentHostnames(), registry);
 
         String badHost = UUID.randomUUID() + ".palantir.com";
 
@@ -91,7 +92,8 @@ class DefaultDialogueDnsResolverTest {
     @Test
     void unknown_host_from_cache() {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        DefaultDialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
+        DefaultDialogueDnsResolver resolver =
+                new DefaultDialogueDnsResolver(InetAddress::getAllByName, new NonexistentHostnames(), registry);
         ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
 
         String badHost = UUID.randomUUID() + ".palantir.com";
@@ -101,12 +103,80 @@ class DefaultDialogueDnsResolverTest {
         assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
 
         // should resolve from cache
-        assertThat(resolver.resolveDetailed(badHost)).isEmpty();
+        assertThat(resolver.resolveDetailed(badHost)).hasValue(ImmutableSet.of());
         assertThat(metrics.failure("CACHED").getCount()).isEqualTo(1);
     }
 
+    @Test
+    void cached_failure_after_nonexistent() {
+        NonexistentHostnames nonexistentHostnames = new NonexistentHostnames();
+        resolver(DefaultDialogueDnsResolverTest::nonexistent, nonexistentHostnames)
+                .resolveDetailed("host");
+        DefaultDialogueDnsResolver cached =
+                resolver(DefaultDialogueDnsResolverTest::cachedFailure, nonexistentHostnames);
+
+        assertThat(cached.resolveDetailed("host")).hasValue(ImmutableSet.of());
+        assertThat(cached.resolveDetailed("host")).hasValue(ImmutableSet.of());
+    }
+
+    @Test
+    void cached_failure_of_other_host() {
+        NonexistentHostnames nonexistentHostnames = new NonexistentHostnames();
+        resolver(DefaultDialogueDnsResolverTest::nonexistent, nonexistentHostnames)
+                .resolveDetailed("host");
+
+        assertThat(resolver(DefaultDialogueDnsResolverTest::cachedFailure, nonexistentHostnames)
+                        .resolveDetailed("other"))
+                .isEmpty();
+    }
+
+    @Test
+    void cached_failure_after_temporary_failure() {
+        NonexistentHostnames nonexistentHostnames = new NonexistentHostnames();
+        resolver(DefaultDialogueDnsResolverTest::nonexistent, nonexistentHostnames)
+                .resolveDetailed("host");
+        resolver(DefaultDialogueDnsResolverTest::temporaryFailure, nonexistentHostnames)
+                .resolveDetailed("host");
+
+        assertThat(resolver(DefaultDialogueDnsResolverTest::cachedFailure, nonexistentHostnames)
+                        .resolveDetailed("host"))
+                .isEmpty();
+    }
+
+    @Test
+    void cached_failure_after_success() {
+        NonexistentHostnames nonexistentHostnames = new NonexistentHostnames();
+        resolver(DefaultDialogueDnsResolverTest::nonexistent, nonexistentHostnames)
+                .resolveDetailed("host");
+        resolver(DefaultDialogueDnsResolverTest::loopback, nonexistentHostnames).resolveDetailed("host");
+
+        assertThat(resolver(DefaultDialogueDnsResolverTest::cachedFailure, nonexistentHostnames)
+                        .resolveDetailed("host"))
+                .isEmpty();
+    }
+
     private static ImmutableSet<InetAddress> resolve(String hostname) {
-        DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(new DefaultTaggedMetricRegistry());
-        return resolver.resolve(hostname);
+        return resolver(InetAddress::getAllByName, new NonexistentHostnames()).resolve(hostname);
+    }
+
+    private static DefaultDialogueDnsResolver resolver(
+            AddressLookup lookup, NonexistentHostnames nonexistentHostnames) {
+        return new DefaultDialogueDnsResolver(lookup, nonexistentHostnames, new DefaultTaggedMetricRegistry());
+    }
+
+    private static InetAddress[] loopback(String _hostname) {
+        return new InetAddress[] {InetAddress.getLoopbackAddress()};
+    }
+
+    private static InetAddress[] nonexistent(String hostname) throws UnknownHostException {
+        throw new UnknownHostException(hostname + ": Name or service not known");
+    }
+
+    private static InetAddress[] temporaryFailure(String hostname) throws UnknownHostException {
+        throw new UnknownHostException(hostname + ": Temporary failure in name resolution");
+    }
+
+    private static InetAddress[] cachedFailure(String hostname) throws UnknownHostException {
+        throw new UnknownHostException(hostname);
     }
 }

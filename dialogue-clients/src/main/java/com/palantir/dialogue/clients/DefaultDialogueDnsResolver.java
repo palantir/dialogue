@@ -32,9 +32,14 @@ import java.util.Optional;
 final class DefaultDialogueDnsResolver implements DetailedDialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(DefaultDialogueDnsResolver.class);
 
+    private final AddressLookup lookup;
+    private final NonexistentHostnames nonexistentHostnames;
     private final ClientDnsMetrics metrics;
 
-    DefaultDialogueDnsResolver(TaggedMetricRegistry registry) {
+    DefaultDialogueDnsResolver(
+            AddressLookup lookup, NonexistentHostnames nonexistentHostnames, TaggedMetricRegistry registry) {
+        this.lookup = lookup;
+        this.nonexistentHostnames = nonexistentHostnames;
         this.metrics = ClientDnsMetrics.of(registry);
     }
 
@@ -42,7 +47,9 @@ final class DefaultDialogueDnsResolver implements DetailedDialogueDnsResolver {
     public Optional<ImmutableSet<InetAddress>> resolveDetailed(String hostname) {
         Preconditions.checkNotNull(hostname, "hostname is required");
         try {
-            return Optional.of(ImmutableSet.copyOf(InetAddress.getAllByName(hostname)));
+            InetAddress[] addresses = lookup.getAllByName(hostname);
+            nonexistentHostnames.remove(hostname);
+            return Optional.of(ImmutableSet.copyOf(addresses));
         } catch (UnknownHostException e) {
             GaiError gaiError = extractGaiError(e, hostname);
             if (log.isDebugEnabled()) {
@@ -55,10 +62,28 @@ final class DefaultDialogueDnsResolver implements DetailedDialogueDnsResolver {
             }
             metrics.failure(gaiError.name()).mark();
             return switch (gaiError) {
-                case EAI_NONAME -> Optional.of(ImmutableSet.of());
-                default -> Optional.empty();
+                case EAI_NONAME -> {
+                    nonexistentHostnames.add(hostname);
+                    yield Optional.of(ImmutableSet.of());
+                }
+                case CACHED -> {
+                    // The JVM caches failed lookups process-wide without their cause, so use the last uncached result.
+                    if (nonexistentHostnames.contains(hostname)) {
+                        yield Optional.of(ImmutableSet.of());
+                    }
+                    yield Optional.empty();
+                }
+                default -> {
+                    nonexistentHostnames.remove(hostname);
+                    yield Optional.empty();
+                }
             };
         }
+    }
+
+    interface AddressLookup {
+        /** Must fail like {@link InetAddress#getAllByName}, because failures are classified by their message. */
+        InetAddress[] getAllByName(String hostname) throws UnknownHostException;
     }
 
     // these strings were taken from glibc-2.39, but likely have not changed in quite a while
