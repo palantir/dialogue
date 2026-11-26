@@ -62,15 +62,15 @@ com.palantir.refreshable:refreshable:2.20.0 (2 constraints: 4b19dada)
 
 com.palantir.ri:resource-identifier:2.27.0 (2 constraints: 5e15fbda)
 
-com.palantir.safe-logging:logger:3.22.0 (13 constraints: b4d28515)
+com.palantir.safe-logging:logger:3.22.0 (13 constraints: b8d29a16)
 
 com.palantir.safe-logging:logger-slf4j:3.22.0 (1 constraints: 320e9150)
 
 com.palantir.safe-logging:logger-spi:3.22.0 (2 constraints: 731e78b0)
 
-com.palantir.safe-logging:preconditions:3.22.0 (20 constraints: f544ed12)
+com.palantir.safe-logging:preconditions:3.22.0 (20 constraints: fa44c114)
 
-com.palantir.safe-logging:safe-logging:3.22.0 (19 constraints: 55361b1b)
+com.palantir.safe-logging:safe-logging:3.22.0 (19 constraints: 59363b1c)
 
 com.palantir.safethreadlocalrandom:safe-thread-local-random:0.16.0 (1 constraints: 3905353b)
 
@@ -80,17 +80,17 @@ com.palantir.tracing:tracing:6.43.0 (3 constraints: b42401fd)
 
 com.palantir.tracing:tracing-api:6.43.0 (2 constraints: 1312cb18)
 
-com.palantir.tritium:tritium-api:0.144.0 (2 constraints: 931f52f4)
+com.palantir.tritium:tritium-api:0.145.0 (2 constraints: 951f87f4)
 
-com.palantir.tritium:tritium-caffeine:0.144.0 (1 constraints: 6b05a440)
+com.palantir.tritium:tritium-caffeine:0.145.0 (1 constraints: 6c05a740)
 
-com.palantir.tritium:tritium-core:0.144.0 (1 constraints: 7110b3b2)
+com.palantir.tritium:tritium-core:0.145.0 (1 constraints: 7210b6b2)
 
-com.palantir.tritium:tritium-ids:0.144.0 (1 constraints: fe0f9aa6)
+com.palantir.tritium:tritium-ids:0.145.0 (1 constraints: fe0f9aa6)
 
-com.palantir.tritium:tritium-metrics:0.144.0 (3 constraints: 96247c0a)
+com.palantir.tritium:tritium-metrics:0.145.0 (3 constraints: 9824dd0a)
 
-com.palantir.tritium:tritium-registry:0.144.0 (6 constraints: 90682662)
+com.palantir.tritium:tritium-registry:0.145.0 (6 constraints: 93687263)
 
 com.squareup:javapoet:1.13.0 (1 constraints: f50b65f7)
 
