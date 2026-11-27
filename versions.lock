@@ -216,7 +216,7 @@ org.assertj:assertj-core:3.27.7 (4 constraints: ba369974)
 
 org.assertj:assertj-guava:3.3.0 (1 constraints: 08050336)
 
-org.awaitility:awaitility:4.3.0 (1 constraints: 09050836)
+org.awaitility:awaitility:4.4.0 (1 constraints: 0a050b36)
 
 org.bouncycastle:bcpkix-jdk18on:1.87 (1 constraints: e4040631)
 
