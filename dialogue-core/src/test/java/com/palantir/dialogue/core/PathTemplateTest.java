@@ -20,8 +20,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.base.VerifyException;
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ListMultimap;
 import com.palantir.dialogue.PathTemplate;
+import com.palantir.dialogue.PathTemplate.Segment;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import com.palantir.logsafe.exceptions.SafeUncheckedIoException;
@@ -75,6 +78,16 @@ public final class PathTemplateTest {
     }
 
     @Test
+    public void testCompositeSegment() {
+        PathTemplate template = PathTemplate.builder()
+                .fixed("a")
+                .composite(Segment.variable("b"), Segment.fixed("."), Segment.variable("c"))
+                .build();
+        assertThat(fill(template, B_C)).isEqualTo("/a/B.C");
+        assertThat(fill(template, ImmutableListMultimap.copyOf(B_C.entrySet()))).isEqualTo("/a/B.C");
+    }
+
+    @Test
     public void testTooFewParameters() {
         PathTemplate template =
                 PathTemplate.builder().variable("a").variable("b").build();
@@ -94,6 +107,16 @@ public final class PathTemplateTest {
     }
 
     private static String fill(PathTemplate template, Map<String, String> params) {
+        try {
+            BaseUrl.DefaultUrlBuilder url = BaseUrl.DefaultUrlBuilder.from(new URL("http://unused:1"));
+            template.fill(params, url);
+            return url.build().getPath();
+        } catch (IOException e) {
+            throw new SafeUncheckedIoException("failed to construct url", e);
+        }
+    }
+
+    private static String fill(PathTemplate template, ListMultimap<String, String> params) {
         try {
             BaseUrl.DefaultUrlBuilder url = BaseUrl.DefaultUrlBuilder.from(new URL("http://unused:1"));
             template.fill(params, url);

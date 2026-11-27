@@ -117,6 +117,11 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final Deserializer<Void> paramsDeserializer = new ErrorHandlingVoidDeserializer(
                     runtime.bodySerDe().emptyBodyDeserializer(), new ConjureErrorDecoder());
 
+            private final EndpointChannel compositeChannel = endpointChannelFactory.endpoint(Endpoints.composite);
+
+            private final Deserializer<Void> compositeDeserializer = new ErrorHandlingVoidDeserializer(
+                    runtime.bodySerDe().emptyBodyDeserializer(), new ConjureErrorDecoder());
+
             private final EndpointChannel deprecatedChannel = endpointChannelFactory.endpoint(Endpoints.deprecated);
 
             private final Deserializer<Void> deprecatedDeserializer = new ErrorHandlingVoidDeserializer(
@@ -265,6 +270,14 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                 _request.putAllHeaderParams(paramsHeaderMapEncoder.toParamValues(headerMap));
                 _request.body(paramsSerializer.serialize(body));
                 runtime.clients().callBlocking(paramsChannel, _request.build(), paramsDeserializer);
+            }
+
+            @Override
+            public void composite(String id, String format) {
+                Request.Builder _request = Request.builder();
+                _request.putPathParams("id", _parameterSerializer.serializeString(id));
+                _request.putPathParams("format", _parameterSerializer.serializeString(format));
+                runtime.clients().callBlocking(compositeChannel, _request.build(), compositeDeserializer);
             }
 
             @Override
@@ -482,6 +495,41 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             @Override
             public String endpointName() {
                 return "params";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        composite {
+            private final PathTemplate pathTemplate = PathTemplate.builder()
+                    .fixed("composite")
+                    .composite(
+                            PathTemplate.Segment.variable("id"),
+                            PathTemplate.Segment.fixed("."),
+                            PathTemplate.Segment.variable("format"))
+                    .build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "MyService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "composite";
             }
 
             @Override

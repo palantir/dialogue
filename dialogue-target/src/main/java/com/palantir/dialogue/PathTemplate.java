@@ -18,6 +18,7 @@ package com.palantir.dialogue;
 
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.Immutable;
@@ -40,10 +41,14 @@ public final class PathTemplate {
         this.segments = ImmutableList.copyOf(segments);
         Set<String> seenVariables = Sets.newHashSetWithExpectedSize(this.segments.size());
         for (Segment segment : segments) {
-            if (segment.variable != null) {
-                boolean seen = seenVariables.add(segment.variable);
-                Preconditions.checkArgument(
-                        seen, "Duplicate segment variable names not allowed", SafeArg.of("variable", segment.variable));
+            for (Segment part : segment.parts()) {
+                if (part.variable != null) {
+                    boolean seen = seenVariables.add(part.variable);
+                    Preconditions.checkArgument(
+                            seen,
+                            "Duplicate segment variable names not allowed",
+                            SafeArg.of("variable", part.variable));
+                }
             }
         }
     }
@@ -60,14 +65,19 @@ public final class PathTemplate {
         for (Segment segment : segments) {
             if (segment.fixed != null) {
                 url.pathSegment(segment.fixed);
-            } else {
-                String variableSegment = parameters.get(segment.variable);
-                if (variableSegment == null) {
-                    throw new SafeNullPointerException(
-                            "Provided parameter map does not contain segment variable name",
-                            SafeArg.of("variable", segment.variable));
+            } else if (segment.composite != null) {
+                StringBuilder value = new StringBuilder();
+                for (Segment part : segment.composite) {
+                    if (part.fixed != null) {
+                        value.append(part.fixed);
+                    } else {
+                        value.append(variableValue(parameters, part.variable));
+                        numVariableSegments += 1;
+                    }
                 }
-                url.pathSegment(variableSegment);
+                url.pathSegment(value.toString());
+            } else {
+                url.pathSegment(variableValue(parameters, segment.variable));
                 numVariableSegments += 1;
             }
         }
@@ -81,8 +91,26 @@ public final class PathTemplate {
                 url.pathSegment(segment.fixed);
             } else if (segment.variable != null) {
                 url.pathSegments(parameters.get(segment.variable));
+            } else if (segment.composite != null) {
+                StringBuilder value = new StringBuilder();
+                for (Segment part : segment.composite) {
+                    value.append(
+                            part.variable != null
+                                    ? Iterables.getOnlyElement(parameters.get(part.variable))
+                                    : part.fixed);
+                }
+                url.pathSegment(value.toString());
             }
         }
+    }
+
+    private static String variableValue(Map<String, String> parameters, @Nullable String variable) {
+        String value = parameters.get(variable);
+        if (value == null) {
+            throw new SafeNullPointerException(
+                    "Provided parameter map does not contain segment variable name", SafeArg.of("variable", variable));
+        }
+        return value;
     }
 
     public static final class PathTemplateBuilder {
@@ -95,6 +123,12 @@ public final class PathTemplate {
 
         public PathTemplateBuilder variable(String variable) {
             segments.add(Segment.variable(variable));
+            return this;
+        }
+
+        /** Adds a single segment made of fixed and variable parts, e.g. {@code {id}.{format}}. */
+        public PathTemplateBuilder composite(Segment... parts) {
+            segments.add(Segment.composite(parts));
             return this;
         }
 
@@ -111,17 +145,29 @@ public final class PathTemplate {
         @Nullable
         private final String variable;
 
-        private Segment(@Nullable String fixed, @Nullable String variable) {
+        @Nullable
+        private final ImmutableList<Segment> composite;
+
+        private Segment(@Nullable String fixed, @Nullable String variable, @Nullable ImmutableList<Segment> composite) {
             this.fixed = fixed;
             this.variable = variable;
+            this.composite = composite;
         }
 
         public static Segment fixed(String fixed) {
-            return new Segment(fixed, null);
+            return new Segment(fixed, null, null);
         }
 
         public static Segment variable(String variable) {
-            return new Segment(null, variable);
+            return new Segment(null, variable, null);
+        }
+
+        private static Segment composite(Segment... parts) {
+            return new Segment(null, null, ImmutableList.copyOf(parts));
+        }
+
+        private ImmutableList<Segment> parts() {
+            return composite != null ? composite : ImmutableList.of(this);
         }
     }
 }
