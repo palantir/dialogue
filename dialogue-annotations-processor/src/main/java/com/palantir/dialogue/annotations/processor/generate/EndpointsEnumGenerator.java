@@ -25,6 +25,7 @@ import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.HttpPath;
 import com.palantir.dialogue.annotations.processor.data.HttpPathSegment;
 import com.palantir.dialogue.annotations.processor.data.HttpPathSegment.Cases;
+import com.palantir.dialogue.annotations.processor.data.HttpPathSegments;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.CodeBlock;
@@ -33,6 +34,7 @@ import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.ParameterizedTypeName;
 import com.palantir.javapoet.TypeName;
 import com.palantir.javapoet.TypeSpec;
+import java.util.List;
 import java.util.Optional;
 import javax.lang.model.element.Modifier;
 
@@ -128,6 +130,20 @@ public final class EndpointsEnumGenerator {
                 @Override
                 public Void variable(String variableName) {
                     pathTemplateBuilder.add(".variable($S)", variableName);
+                    return null;
+                }
+
+                @Override
+                public Void composite(List<HttpPathSegment> parts) {
+                    CodeBlock args = parts.stream()
+                            .map(part -> HttpPathSegments.getVariableName(part)
+                                    .map(name -> CodeBlock.of("$T.variable($S)", PathTemplate.Segment.class, name))
+                                    .orElseGet(() -> CodeBlock.of(
+                                            "$T.fixed($S)",
+                                            PathTemplate.Segment.class,
+                                            HttpPathSegments.getValue(part).orElseThrow())))
+                            .collect(CodeBlock.joining(", "));
+                    pathTemplateBuilder.add(".composite($L)", args);
                     return null;
                 }
             });

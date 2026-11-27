@@ -104,6 +104,9 @@ public interface MyService {
             @Request.HeaderMap Multimap<String, String> headerMap,
             @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
 
+    @Request(method = HttpMethod.GET, path = "/composite/{id}.{format}")
+    void composite(@Request.PathParam String id, @Request.PathParam String format);
+
     @Deprecated
     @Request(method = HttpMethod.GET, path = "/deprecated")
     void deprecated();

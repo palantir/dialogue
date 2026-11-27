@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
+import java.util.List;
 import org.derive4j.Data;
 
 @Data
@@ -24,6 +25,8 @@ public interface HttpPathSegment {
         R fixed(String value);
 
         R variable(String variableName);
+
+        R composite(List<HttpPathSegment> parts);
     }
 
     <R> R match(HttpPathSegment.Cases<R> cases);

@@ -17,8 +17,11 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.common.base.Splitter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Element;
 
@@ -26,6 +29,7 @@ public final class HttpPathParser {
 
     private static final Splitter SPLITTER =
             Splitter.on('/').omitEmptyStrings(); // omit empty segments; typically the first segment is empty
+    private static final Pattern VARIABLE = Pattern.compile("\\{([^{}]+)}");
 
     private final ResolverContext context;
 
@@ -49,10 +53,20 @@ public final class HttpPathParser {
     }
 
     private static HttpPathSegment toHttpPathSegment(String pathSegment) {
-        if (pathSegment.startsWith("{") && pathSegment.endsWith("}")) {
-            return HttpPathSegments.variable(pathSegment.substring(1, pathSegment.length() - 1));
-        } else {
-            return HttpPathSegments.fixed(pathSegment);
+        List<HttpPathSegment> parts = new ArrayList<>();
+        Matcher matcher = VARIABLE.matcher(pathSegment);
+        int end = 0;
+        while (matcher.find()) {
+            if (matcher.start() > end) {
+                parts.add(HttpPathSegments.fixed(pathSegment.substring(end, matcher.start())));
+            }
+            parts.add(HttpPathSegments.variable(matcher.group(1)));
+            end = matcher.end();
         }
+        if (end < pathSegment.length()) {
+            parts.add(HttpPathSegments.fixed(pathSegment.substring(end)));
+        }
+        // A lone part is a plain fixed or variable segment; otherwise e.g. {id}.{format}
+        return parts.size() == 1 ? parts.get(0) : HttpPathSegments.composite(parts);
     }
 }

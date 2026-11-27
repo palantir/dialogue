@@ -81,6 +81,7 @@ public final class EndpointDefinitions {
         }
 
         Set<String> expectedPathParams = httpPath.get().get().stream()
+                .flatMap(segment -> HttpPathSegments.getParts(segment).orElseGet(() -> List.of(segment)).stream())
                 .map(HttpPathSegments::getVariableName)
                 .<String>mapMulti(Optional::ifPresent)
                 .collect(Collectors.toSet());
